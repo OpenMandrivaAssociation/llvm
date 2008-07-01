@@ -70,7 +70,7 @@ for effective implementation, proper tail calls or garbage collection.
 
 %if %{with_ocaml}
 %package ocaml
-Summary: llvm ocaml frontend.
+Summary: llvm ocaml frontend
 Group: Development/Other
 Requires: %{name} = %{version}
 
