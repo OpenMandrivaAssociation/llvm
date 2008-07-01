@@ -11,7 +11,7 @@ Version: 2.3
 Release: %mkrel 1
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
-Group: Development
+Group: Development/Other
 URL: http://llvm.org/
 Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tar.gz
 Patch0: llvm-X86JITInfo.cpp.pic.patch
@@ -70,7 +70,7 @@ for effective implementation, proper tail calls or garbage collection.
 %if %{with_ocaml}
 %package ocaml
 Summary: llvm ocaml frontend.
-Group: Development
+Group: Development/Other
 Requires: %{name} = %{version}
 
 %description ocaml
@@ -86,7 +86,7 @@ llvm ocaml frontend.
 
 %package devel
 Summary: Libraries and header files for LLVM
-Group: Development
+Group: Development/Other
 Requires: %{name} = %{version}
 Requires: libstdc++-devel
 
@@ -104,7 +104,7 @@ new native programs that use the LLVM infrastructure.
 
 %package doc
 Summary: Documentation for LLVM
-Group: Documentation
+Group: Books/Computer books
 Requires: %{name} = %{version}
 
 %description doc
@@ -123,7 +123,7 @@ Documentation for the LLVM compiler infrastructure.
 
 %package doc-devel
 Summary: Documentation for development LLVM
-Group: Documentation
+Group: Books/Computer books
 Requires: %{name} = %{version}
 
 %description doc-devel
