@@ -18,6 +18,7 @@ Patch0: llvm-X86JITInfo.cpp.pic.patch
 Patch1: llvm-2.3-fix-sed.patch
 BuildRoot: %_tmppath/%name-%version-%release-root
 BuildRequires: bison
+BuildRequires: groff
 BuildRequires: chrpath
 %if %{with_ocaml}
 BuildRequires: ocaml
