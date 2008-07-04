@@ -3,12 +3,12 @@
 %define with_devdoc 0
 %{?_with_devdoc: %{expand: %%global with_devdoc 1}}
 
-%define with_ocaml 1
-%{?_without_ocaml: %{expand: %%global without_ocaml 1}}
+%define with_ocaml 0
+%{?_with_ocaml: %{expand: %%global with_ocaml 1}}
 
 Name: llvm
 Version: 2.3
-Release: %mkrel 1
+Release: %mkrel 2
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
 Group: Development/Other
@@ -27,11 +27,10 @@ BuildRequires: ocaml
 BuildRequires: doxygen
 %endif
 BuildRequires: flex
+BuildRequires: sed
 BuildRequires: graphviz
 BuildRequires: libstdc++-devel
 BuildRequires: libtool
-BuildRequires: tcl-devel
-BuildRequires: tk-devel
 BuildRequires: zip
 
 %description
@@ -172,6 +171,9 @@ make
 
 # Invalid dir 
 rm -rf %buildroot%_bindir/.dir
+
+# adjust library path
+sed -i -e 's|ABS_RUN_DIR/lib"|ABS_RUN_DIR/%{_lib}/%{name}"|' %{buildroot}%_bindir/llvm-config
 
 %clean
 rm -rf %buildroot
