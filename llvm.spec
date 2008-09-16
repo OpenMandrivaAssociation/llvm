@@ -1,14 +1,8 @@
 %define _disable_ld_no_undefined 1
 
-%define with_devdoc 0
-%{?_with_devdoc: %{expand: %%global with_devdoc 1}}
-
-%define with_ocaml 0
-%{?_with_ocaml: %{expand: %%global with_ocaml 1}}
-
 Name: llvm
 Version: 2.3
-Release: %mkrel 2
+Release: %mkrel 4
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
 Group: Development/Other
@@ -17,15 +11,14 @@ Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tar.gz
 Patch0: llvm-X86JITInfo.cpp.pic.patch
 Patch1: llvm-2.3-fix-sed.patch
 BuildRoot: %_tmppath/%name-%version-%release-root
+Obsoletes: llvm-devel
+Obsoletes: llvm-ocaml
+Requires: libstdc++-devel
 BuildRequires: bison
 BuildRequires: groff
 BuildRequires: chrpath
-%if %{with_ocaml}
 BuildRequires: ocaml
-%endif
-%if %{with_devdoc}
 BuildRequires: doxygen
-%endif
 BuildRequires: flex
 BuildRequires: sed
 BuildRequires: graphviz
@@ -64,38 +57,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-stub
 %{_bindir}/llvmc2
 %{_mandir}/man1/*
-
-#-----------------------------------------------------------
-
-%if %{with_ocaml}
-%package ocaml
-Summary: llvm ocaml frontend
-Group: Development/Other
-Requires: %{name} = %{version}
-
-%description ocaml
-llvm ocaml frontend.
-
-%files ocaml
-%defattr(-,root,root,-)
-%_libdir/ocaml/*
-
-%endif
-
-#-----------------------------------------------------------
-
-%package devel
-Summary: Libraries and header files for LLVM
-Group: Development/Other
-Requires: %{name} = %{version}
-Requires: libstdc++-devel
-
-%description devel
-This package contains library and header files needed to develop
-new native programs that use the LLVM infrastructure.
-
-%files devel
-%defattr(-,root,root,-)
+%{_libdir}/ocaml/*
 %{_bindir}/llvm-config
 %{_includedir}/*
 %{_libdir}/%{name}
@@ -106,6 +68,7 @@ new native programs that use the LLVM infrastructure.
 Summary: Documentation for LLVM
 Group: Books/Computer books
 Requires: %{name} = %{version}
+Obsoletes: llvm-doc-evel
 
 %description doc
 Documentation for the LLVM compiler infrastructure.
@@ -116,24 +79,7 @@ Documentation for the LLVM compiler infrastructure.
 %doc docs/*.html
 %doc docs/img
 %doc examples
-
-#-----------------------------------------------------------
-
-%if %{with_devdoc}
-
-%package doc-devel
-Summary: Documentation for development LLVM
-Group: Books/Computer books
-Requires: %{name} = %{version}
-
-%description doc-devel
-Documentation for the LLVM compiler infrastructure.
-
-%files doc-devel
-%defattr(-,root,root,-)
 %doc docs/doxygen
-
-%endif
 
 #-----------------------------------------------------------
 
@@ -154,9 +100,7 @@ Documentation for the LLVM compiler infrastructure.
 	--disable-expensive-checks \
 	--enable-debug-runtime \
 	--enable-threads \
-	%if %{with_devdoc}
 	--enable-doxygen \
-	%endif
 	--enable-pic \
 	--with-pic
 
