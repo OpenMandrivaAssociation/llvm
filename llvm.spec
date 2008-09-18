@@ -1,8 +1,11 @@
 %define _disable_ld_no_undefined 1
 
+%define compile_apidox 0
+%{?_with_apidox: %{expand: %%global compile_apidox 1}}
+
 Name: llvm
 Version: 2.3
-Release: %mkrel 4
+Release: %mkrel 5
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
 Group: Development/Other
@@ -18,7 +21,9 @@ BuildRequires: bison
 BuildRequires: groff
 BuildRequires: chrpath
 BuildRequires: ocaml
+%if %{compile_apidox}
 BuildRequires: doxygen
+%endif
 BuildRequires: flex
 BuildRequires: sed
 BuildRequires: graphviz
@@ -79,7 +84,9 @@ Documentation for the LLVM compiler infrastructure.
 %doc docs/*.html
 %doc docs/img
 %doc examples
+%if %{compile_apidox}
 %doc docs/doxygen
+%endif
 
 #-----------------------------------------------------------
 
@@ -100,7 +107,9 @@ Documentation for the LLVM compiler infrastructure.
 	--disable-expensive-checks \
 	--enable-debug-runtime \
 	--enable-threads \
+%if %{compile_apidox}
 	--enable-doxygen \
+%endif
 	--enable-pic \
 	--with-pic
 
