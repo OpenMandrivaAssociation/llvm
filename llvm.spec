@@ -13,6 +13,7 @@ URL: http://llvm.org/
 Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tar.gz
 Patch0: llvm-X86JITInfo.cpp.pic.patch
 Patch1: llvm-2.3-fix-sed.patch
+Patch2: llvm-2.3-fix-str-fmt.patch
 BuildRoot: %_tmppath/%name-%version-%release-root
 Obsoletes: llvm-devel
 Obsoletes: llvm-ocaml
@@ -21,6 +22,7 @@ BuildRequires: bison
 BuildRequires: groff
 BuildRequires: chrpath
 BuildRequires: ocaml
+BuildRequires: tcl
 %if %{compile_apidox}
 BuildRequires: doxygen
 %endif
@@ -94,6 +96,7 @@ Documentation for the LLVM compiler infrastructure.
 %setup -q
 %patch0 -p0 -b .x86_64
 %patch1 -p1 -b .sed
+%patch2 -p0 -b .str
 
 %build
 %configure2_5x \
