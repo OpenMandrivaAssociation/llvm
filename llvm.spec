@@ -1,19 +1,17 @@
-%define _disable_ld_no_undefined 1
+%define _disable_ld_no_undefined 0
 
 %define compile_apidox 0
 %{?_with_apidox: %{expand: %%global compile_apidox 1}}
 
 Name: llvm
-Version: 2.3
-Release: %mkrel 5
+Version: 2.5
+Release: %mkrel 1
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
 Group: Development/Other
 URL: http://llvm.org/
 Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tar.gz
-Patch0: llvm-X86JITInfo.cpp.pic.patch
 Patch1: llvm-2.3-fix-sed.patch
-Patch2: llvm-2.3-fix-str-fmt.patch
 BuildRoot: %_tmppath/%name-%version-%release-root
 Obsoletes: llvm-devel
 Obsoletes: llvm-ocaml
@@ -62,7 +60,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-prof
 %{_bindir}/llvm-ranlib
 %{_bindir}/llvm-stub
-%{_bindir}/llvmc2
+%{_bindir}/llvmc
 %{_mandir}/man1/*
 %{_libdir}/ocaml/*
 %{_bindir}/llvm-config
@@ -82,9 +80,12 @@ Documentation for the LLVM compiler infrastructure.
 
 %files doc
 %defattr(-,root,root,-)
+%doc README.txt
 %doc docs/*.css
 %doc docs/*.html
 %doc docs/img
+%doc docs/tutorial
+%doc docs/ocamldoc
 %doc examples
 %if %{compile_apidox}
 %doc docs/doxygen
@@ -94,9 +95,7 @@ Documentation for the LLVM compiler infrastructure.
 
 %prep
 %setup -q
-%patch0 -p0 -b .x86_64
 %patch1 -p1 -b .sed
-%patch2 -p0 -b .str
 
 %build
 %configure2_5x \
