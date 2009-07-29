@@ -12,6 +12,7 @@ Group: Development/Other
 URL: http://llvm.org/
 Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tar.gz
 Patch1: llvm-2.3-fix-sed.patch
+Patch2: llvm-2.5-gcc44.patch
 BuildRoot: %_tmppath/%name-%version-%release-root
 Obsoletes: llvm-devel
 Obsoletes: llvm-ocaml
@@ -96,6 +97,7 @@ Documentation for the LLVM compiler infrastructure.
 %prep
 %setup -q
 %patch1 -p1 -b .sed
+%patch2 -p1 -b .gcc44
 
 %build
 %configure2_5x \
