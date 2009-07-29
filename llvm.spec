@@ -5,7 +5,7 @@
 
 Name: llvm
 Version: 2.5
-Release: %mkrel 1
+Release: %mkrel 2
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
 Group: Development/Other
