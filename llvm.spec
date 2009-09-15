@@ -5,7 +5,7 @@
 
 Name: llvm
 Version: 2.5
-Release: %mkrel 3
+Release: %mkrel 4
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
 Group: Development/Other
@@ -104,7 +104,6 @@ Documentation for the LLVM compiler infrastructure.
 	--libdir=%{_libdir}/%{name} \
 	--datadir=%{_datadir}/%{name} \
 	--enable-shared \
-	--enable-assertions \
 	--enable-jit \
 	--enable-optimized \
 	--enable-targets=host-only \
