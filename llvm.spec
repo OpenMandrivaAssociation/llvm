@@ -5,7 +5,7 @@
 
 Name: llvm
 Version: 2.5
-Release: %mkrel 4
+Release: %mkrel 5
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
 Group: Development/Other
@@ -114,6 +114,7 @@ Documentation for the LLVM compiler infrastructure.
 	--enable-doxygen \
 %endif
 	--enable-pic \
+    --disable-assertions \
 	--with-pic
 
 make
