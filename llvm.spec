@@ -114,10 +114,10 @@ Documentation for the LLVM compiler infrastructure.
 %if %{compile_apidox}
 	--enable-doxygen \
 %endif
-%if %_lib == "lib"
-    --enable-pic=no
-%else
+%if "%{_lib}" == "lib64" 
     --enable-pic
+%else
+    --enable-pic=no
 %endif
 
 %make
