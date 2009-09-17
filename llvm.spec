@@ -5,7 +5,7 @@
 
 Name: llvm
 Version: 2.5
-Release: %mkrel 5
+Release: %mkrel 6
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
 Group: Development/Other
@@ -109,15 +109,16 @@ Documentation for the LLVM compiler infrastructure.
 	--enable-targets=host-only \
 	--disable-expensive-checks \
 	--enable-debug-runtime \
+    --disable-assertions \
 	--enable-threads \
 %if %{compile_apidox}
 	--enable-doxygen \
 %endif
-	--enable-pic \
-    --disable-assertions \
-	--with-pic
+%ifarch %{ix86}
+    --enable-pic=no
+%endif
 
-make
+%make
 
 %install
 %makeinstall_std \
