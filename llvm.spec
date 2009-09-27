@@ -5,7 +5,7 @@
 
 Name: llvm
 Version: 2.5
-Release: %mkrel 7
+Release: %mkrel 8
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
 Group: Development/Other
@@ -13,6 +13,7 @@ URL: http://llvm.org/
 Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tar.gz
 Patch1: llvm-2.3-fix-sed.patch
 Patch2: llvm-2.5-gcc44.patch
+Patch3:	llvm-2.5-configure.patch
 BuildRoot: %_tmppath/%name-%version-%release-root
 Obsoletes: llvm-devel
 Obsoletes: llvm-ocaml
@@ -98,6 +99,7 @@ Documentation for the LLVM compiler infrastructure.
 %setup -q
 %patch1 -p1 -b .sed
 %patch2 -p1 -b .gcc44
+%patch3 -p1
 
 %build
 %configure2_5x \
