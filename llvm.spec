@@ -61,6 +61,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-ranlib
 %{_bindir}/llvm-stub
 %{_bindir}/llvmc
+%{_bindir}/tblgen
 %{_mandir}/man1/*
 %{_libdir}/ocaml/*
 %{_bindir}/llvm-config
