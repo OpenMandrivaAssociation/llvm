@@ -4,13 +4,13 @@
 %{?_with_apidox: %{expand: %%global compile_apidox 1}}
 
 Name: llvm
-Version: 2.6
-Release: %mkrel 2
+Version: 2.7
+Release: %mkrel 1
 Summary: Low Level Virtual Machine (LLVM)
 License: University of Illinois Open Source License
 Group: Development/Other
 URL: http://llvm.org/
-Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tar.gz
+Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tgz
 Patch3:	llvm-2.6-configure.patch
 BuildRoot: %_tmppath/%name-%version-%release-root
 Obsoletes: llvm-devel
@@ -43,15 +43,12 @@ for effective implementation, proper tail calls or garbage collection.
 %defattr(-,root,root,-)
 %doc LICENSE.TXT
 %{_bindir}/bugpoint
-%{_bindir}/gccas
-%{_bindir}/gccld
 %{_bindir}/llc
 %{_bindir}/lli
 %{_bindir}/opt
 %{_bindir}/llvm-ar
 %{_bindir}/llvm-as
 %{_bindir}/llvm-bcanalyzer
-%{_bindir}/llvm-db
 %{_bindir}/llvm-dis
 %{_bindir}/llvm-extract
 %{_bindir}/llvm-ld
@@ -122,11 +119,14 @@ Documentation for the LLVM compiler infrastructure.
 %make
 
 %install
+%__rm -rf %buildroot
+ 
+ 
 %makeinstall_std \
 	KEEP_SYMBOLS=1 \
-	PROJ_docsdir=%{buildroot}/%{_docdir}/%{name} \
-	PROJ_etcdir=%{buildroot}/%{_sysconfdir}/%{name} \
-	PROJ_libdir=%{buildroot}/%{_libdir}/%{name}
+	PROJ_docsdir=%{_docdir}/%{name} \
+	PROJ_etcdir=%{_sysconfdir}/%{name} \
+	PROJ_libdir=%{_libdir}/%{name}
 
 # Invalid dir 
 rm -rf %buildroot%_bindir/.dir
@@ -135,5 +135,5 @@ rm -rf %buildroot%_bindir/.dir
 sed -i -e 's|ABS_RUN_DIR/lib"|ABS_RUN_DIR/%{_lib}/%{name}"|' %{buildroot}%_bindir/llvm-config
 
 %clean
-rm -rf %buildroot
+%__rm -rf %buildroot
 
