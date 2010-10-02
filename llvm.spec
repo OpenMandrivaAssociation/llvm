@@ -5,9 +5,9 @@
 
 Name: llvm
 Version: 2.7
-Release: %mkrel 2
+Release: %mkrel 3
 Summary: Low Level Virtual Machine (LLVM)
-License: University of Illinois Open Source License
+License: NCSA
 Group: Development/Other
 URL: http://llvm.org/
 Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tgz
