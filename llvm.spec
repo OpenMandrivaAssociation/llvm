@@ -49,10 +49,12 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-ar
 %{_bindir}/llvm-as
 %{_bindir}/llvm-bcanalyzer
+%{_bindir}/llvm-diff
 %{_bindir}/llvm-dis
 %{_bindir}/llvm-extract
 %{_bindir}/llvm-ld
 %{_bindir}/llvm-link
+%{_bindir}/llvm-mc
 %{_bindir}/llvm-nm
 %{_bindir}/llvm-prof
 %{_bindir}/llvm-ranlib
