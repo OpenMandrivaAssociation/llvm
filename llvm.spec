@@ -5,12 +5,14 @@
 
 Name: llvm
 Version: 2.8
-Release: %mkrel 1
+Release: %mkrel 2
 Summary: Low Level Virtual Machine (LLVM)
 License: NCSA
 Group: Development/Other
 URL: http://llvm.org/
 Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tgz
+Patch1: llvm-2.8-alignOf.patch
+Patch2: llvm-2.8-cmake-link.patch
 Patch3:	llvm-2.6-configure.patch
 BuildRoot: %_tmppath/%name-%version-%release-root
 Obsoletes: llvm-devel
@@ -95,6 +97,8 @@ Documentation for the LLVM compiler infrastructure.
 
 %prep
 %setup -q
+%patch1 -p0
+%patch2 -p0
 %patch3 -p1
 
 %build
