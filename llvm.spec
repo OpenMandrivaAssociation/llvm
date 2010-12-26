@@ -5,7 +5,7 @@
 
 Name: llvm
 Version: 2.8
-Release: %mkrel 2
+Release: %mkrel 3
 Summary: Low Level Virtual Machine (LLVM)
 License: NCSA
 Group: Development/Other
@@ -138,7 +138,7 @@ Documentation for the LLVM compiler infrastructure.
 rm -rf %buildroot%_bindir/.dir
 
 # adjust library path
-sed -i -e 's|ABS_RUN_DIR/lib"|ABS_RUN_DIR/%{_lib}/%{name}"|' %{buildroot}%_bindir/llvm-config
+sed -i -e 's|ABS_RUN_DIR/lib.*"|ABS_RUN_DIR/%{_lib}/%{name}"|' %{buildroot}%_bindir/llvm-config
 
 %clean
 %__rm -rf %buildroot
