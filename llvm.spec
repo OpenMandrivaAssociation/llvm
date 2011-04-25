@@ -4,8 +4,8 @@
 %{?_with_apidox: %{expand: %%global compile_apidox 1}}
 
 Name: llvm
-Version: 2.8
-Release: %mkrel 3
+Version: 2.9
+Release: %mkrel 1
 Summary: Low Level Virtual Machine (LLVM)
 License: NCSA
 Group: Development/Other
@@ -97,9 +97,6 @@ Documentation for the LLVM compiler infrastructure.
 
 %prep
 %setup -q
-%patch1 -p0
-%patch2 -p0
-%patch3 -p1
 
 %build
 %configure2_5x \
