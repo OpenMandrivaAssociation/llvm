@@ -11,9 +11,6 @@ License: NCSA
 Group: Development/Other
 URL: http://llvm.org/
 Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tgz
-Patch1: llvm-2.8-alignOf.patch
-Patch2: llvm-2.8-cmake-link.patch
-Patch3:	llvm-2.6-configure.patch
 BuildRoot: %_tmppath/%name-%version-%release-root
 Obsoletes: llvm-devel
 Obsoletes: llvm-ocaml
@@ -58,10 +55,12 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-link
 %{_bindir}/llvm-mc
 %{_bindir}/llvm-nm
+%{_bindir}/llvm-objdump
 %{_bindir}/llvm-prof
 %{_bindir}/llvm-ranlib
 %{_bindir}/llvm-stub
 %{_bindir}/llvmc
+%{_bindir}/macho-dump
 %{_bindir}/tblgen
 %{_mandir}/man1/*
 %{_libdir}/ocaml/*
