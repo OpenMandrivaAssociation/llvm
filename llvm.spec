@@ -5,7 +5,7 @@
 
 Name: llvm
 Version: 2.9
-Release: %mkrel 2
+Release: %mkrel 3
 Summary: Low Level Virtual Machine (LLVM)
 License: NCSA
 Group: Development/Other
