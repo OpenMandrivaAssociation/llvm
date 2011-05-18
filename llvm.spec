@@ -5,12 +5,13 @@
 
 Name: llvm
 Version: 2.9
-Release: %mkrel 1
+Release: %mkrel 2
 Summary: Low Level Virtual Machine (LLVM)
 License: NCSA
 Group: Development/Other
 URL: http://llvm.org/
 Source0: http://llvm.org/releases/%{version}/llvm-%{version}.tgz
+Patch0: llvm-2.9-gcc46.patch
 BuildRoot: %_tmppath/%name-%version-%release-root
 Obsoletes: llvm-devel
 Obsoletes: llvm-ocaml
@@ -96,6 +97,7 @@ Documentation for the LLVM compiler infrastructure.
 
 %prep
 %setup -q
+%patch0 -p2
 
 %build
 %configure2_5x \
