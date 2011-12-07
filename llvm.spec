@@ -17,6 +17,7 @@ Source1:	http://llvm.org/releases/%{version}/clang-%{version}.tar.gz
 Requires:	libstdc++-devel
 BuildRequires:	bison
 BuildRequires:	binutils-devel
+BuildRequires:	cmake
 BuildRequires:	chrpath
 BuildRequires:	ffi-devel
 BuildRequires:	flex
