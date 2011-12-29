@@ -2,10 +2,16 @@
 %define		_requires_exceptions		devel(libLLVMSupport\\|devel(libclangARCMigrate\\|devel(libclangAST\\|devel(libclangBasic\\|devel(libclangFrontend\\|devel(libclangLex\\|devel(libclangSema\\|libclangBasic
 %define		ffi_include_dir			%(pkg-config libffi --cflags-only-I | sed -e 's/-I//')
 %define		c_include_dirs			%(echo `gcc -print-search-dirs | grep install | sed -e 's/install: //'`include:%{_includedir})
+%define		version				3.0
+%define		major				3
+%define		libllvm				%mklibname llvm %{major}
+%define		libllvm_devel			%mklibname -d llvm
+%define		libclang			%mklibname clang %{major}
+%define		libclang_devel			%mklibname -d clang
 
 Name:		llvm
-Version:	3.0
-Release:	%mkrel 1
+Version:	%{version}
+Release:	2
 Summary:	Low Level Virtual Machine (LLVM)
 License:	NCSA
 Group:		Development/Other
@@ -13,7 +19,7 @@ URL:		http://llvm.org/
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.tar.gz
 Source1:	http://llvm.org/releases/%{version}/clang-%{version}.tar.gz
 %rename llvm-doc
-%rename llvm-devel
+Requires:	%{libllvm} = %{EVRD}
 Requires:	libstdc++-devel
 BuildRequires:	bison
 BuildRequires:	binutils-devel
@@ -30,8 +36,7 @@ BuildRequires:	tcl
 BuildRequires:	zip
 
 Patch0:		llvm-3.0-mandriva.patch
-
-BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root
+Patch1:		llvm-3.0-soversion.patch
 
 %description
 LVM is a robust system, particularly well suited for developing new mid-level
@@ -44,13 +49,8 @@ for effective implementation, proper tail calls or garbage collection.
 %files
 %{_bindir}/*
 %exclude %{_bindir}/clang*
+%exclude %{_bindir}/llvm-config
 %exclude %{_bindir}/c-index-test
-%{_includedir}/llvm
-%{_includedir}/llvm-c
-%{_libdir}/*.so
-%exclude %{_libdir}/libclang*.so
-%exclude %{_libdir}/liblibclang*.so.*
-%{_libdir}/cmake/llvm
 %doc LICENSE.TXT
 %doc README.txt
 %doc docs/*.css
@@ -60,10 +60,42 @@ for effective implementation, proper tail calls or garbage collection.
 %doc examples
 
 #-----------------------------------------------------------
+%package	-n %{libllvm}
+Summary:	LLVM %{version} shared libraries
+Group:		System/Libraries
+
+%description	-n %{libllvm}
+%{summary}.
+
+%files		-n %{libllvm}
+%{_libdir}/*.so.%{major}*
+%exclude %{_libdir}/lib*clang*.so.%{major}*
+
+#-----------------------------------------------------------
+%package	-n %{libllvm_devel}
+Summary:	LLVM %{version} development files
+Group:		Development/Other
+Requires:	%{libllvm} = %{EVRD}
+Requires:	llvm = %{EVRD}
+%rename llvm-devel
+
+%description	-n %{libllvm_devel}
+%{summary}.
+
+%files		-n %{libllvm_devel}
+%{_bindir}/llvm-config
+%{_libdir}/*.so
+%exclude %{_libdir}/lib*clang*.so
+%{_includedir}/llvm
+%{_includedir}/llvm-c
+%{_libdir}/cmake/llvm
+
+#-----------------------------------------------------------
 %package	-n clang
 Summary:	C/C++/Objective-C Frontend Toolkit
 Group:		Development/Other
-Requires:	llvm = %{version}-%{release}
+Requires:	llvm = %{EVRD}
+Requires:	%{libclang} = %{EVRD}
 Requires:	gcc-c++
 
 %description	-n clang
@@ -79,11 +111,33 @@ on x86 (32- and 64-bit), and for Darwin/ARM targets.
 %files		-n clang
 %{_bindir}/clang*
 %{_bindir}/c-index-test
+%{_libdir}/clang
+
+#-----------------------------------------------------------
+%package	-n %{libclang}
+Summary:	Clang %{version} shared libraries
+Group:		Development/Other
+
+%description	-n %{libclang}
+%{summary}.
+
+%files		-n %{libclang}
+%{_libdir}/lib*clang*.so.%{major}*
+
+#-----------------------------------------------------------
+%package	-n %{libclang_devel}
+Summary:	Clang %{version} development files
+Group:		Development/Other
+Requires:	%{libclang} = %{EVRD}
+Provides:	clang-devel = %{EVRD}
+
+%description	-n %{libclang_devel}
+%{summary}.
+
+%files		-n %{libclang_devel}
 %{_includedir}/clang
 %{_includedir}/clang-c
-%{_libdir}/clang
-%{_libdir}/libclang*.so
-%{_libdir}/liblibclang*.so.*
+%{_libdir}/lib*clang*.so
 
 #-----------------------------------------------------------
 %prep
@@ -97,6 +151,7 @@ EOF
 chmod +x autoconf/config.guess
 
 %patch0 -p1
+%patch1 -p1
 
 %build
 %cmake							\
@@ -107,7 +162,9 @@ chmod +x autoconf/config.guess
 %ifarch x86_64
 	-DLLVM_LIBDIR_SUFFIX:STRING=64			\
 %endif
-	-DLLVM_ENABLE_FFI:BOOL=true
+	-DLLVM_ENABLE_FFI:BOOL=true			\
+	-DBUILD_SHARED_LIBS:BOOL=true			\
+	-DBUILD_STATIC_LIBS:BOOL=false
 
 LD_LIBRARY_PATH=$PWD/lib:$_LIBRARY_PATH			\
 %make
@@ -124,3 +181,5 @@ rmdir %{buildroot}%{_datadir}/llvm
 sed -i -e 's|ABS_RUN_DIR/lib.*"|ABS_RUN_DIR/%{_lib}"|'	\
 	%{buildroot}%{_bindir}/llvm-config
 %endif
+
+rm -f %{buildroot}%{_libdir}/{BugpointPasses.so,LLVMHello.so,profile_rt.so}
