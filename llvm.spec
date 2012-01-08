@@ -11,7 +11,7 @@
 
 Name:		llvm
 Version:	%{version}
-Release:	2
+Release:	3
 Summary:	Low Level Virtual Machine (LLVM)
 License:	NCSA
 Group:		Development/Other
@@ -158,6 +158,7 @@ chmod +x autoconf/config.guess
 	-DC_INCLUDE_DIRS:STRING=%{c_include_dirs}	\
 	-DCLANG_VENDOR:STRING=%{vendor}			\
 	-DFFI_INCLUDE_DIR:PATH=%{ffi_include_dir}	\
+	-DLLVM_ENABLE_ASSERTIONS:BOOL=false		\
 	-DLLVM_INCLUDE_EXAMPLES:BOOL=false		\
 %ifarch x86_64
 	-DLLVM_LIBDIR_SUFFIX:STRING=64			\
