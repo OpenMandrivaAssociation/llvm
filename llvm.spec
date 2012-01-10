@@ -4,14 +4,15 @@
 %define		c_include_dirs			%(echo `gcc -print-search-dirs | grep install | sed -e 's/install: //'`include:%{_includedir})
 %define		version				3.0
 %define		major				3
-%define		libllvm				%mklibname llvm %{major}
+%define		minor				0
+%define		libllvm				%mklibname llvm %{major}.%{minor}
 %define		libllvm_devel			%mklibname -d llvm
-%define		libclang			%mklibname clang %{major}
+%define		libclang			%mklibname clang %{major}.%{minor}
 %define		libclang_devel			%mklibname -d clang
 
 Name:		llvm
 Version:	%{version}
-Release:	3
+Release:	4
 Summary:	Low Level Virtual Machine (LLVM)
 License:	NCSA
 Group:		Development/Other
@@ -63,13 +64,18 @@ for effective implementation, proper tail calls or garbage collection.
 %package	-n %{libllvm}
 Summary:	LLVM %{version} shared libraries
 Group:		System/Libraries
+%if "%{major}.%{minor}" == "3.0"
+# removed before next submit
+%define		libllvm3	%mklibname llvm 3
+%rename		%{libllvm3}
+%endif
 
 %description	-n %{libllvm}
 %{summary}.
 
 %files		-n %{libllvm}
-%{_libdir}/*.so.%{major}*
-%exclude %{_libdir}/lib*clang*.so.%{major}*
+%{_libdir}/*.so.%{major}.%{minor}
+%exclude %{_libdir}/lib*clang*.so.%{major}.%{minor}
 
 #-----------------------------------------------------------
 %package	-n %{libllvm_devel}
@@ -117,12 +123,17 @@ on x86 (32- and 64-bit), and for Darwin/ARM targets.
 %package	-n %{libclang}
 Summary:	Clang %{version} shared libraries
 Group:		Development/Other
+%if "%{major}.%{minor}" == "3.0"
+# removed before next submit
+%define		libclang3	%mklibname clang 3
+%rename		%{libclang3}
+%endif
 
 %description	-n %{libclang}
 %{summary}.
 
 %files		-n %{libclang}
-%{_libdir}/lib*clang*.so.%{major}*
+%{_libdir}/lib*clang*.so.%{major}.%{minor}
 
 #-----------------------------------------------------------
 %package	-n %{libclang_devel}
