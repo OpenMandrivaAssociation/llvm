@@ -11,7 +11,7 @@
 
 Name: llvm
 Version: 3.1
-Release: %mkrel 1
+Release: %mkrel 2
 Summary: Low Level Virtual Machine (LLVM)
 License: NCSA
 Group: Development/Other
