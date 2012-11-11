@@ -1,0 +1,13 @@
+Index: clang-3.1.src/tools/libclang/Makefile
+===================================================================
+--- clang-3.1.src/tools/libclang/Makefile
++++ clang-3.1.src/tools/libclang/Makefile	2012-08-02 19:26:10.159208928 +0300
+@@ -25,7 +25,7 @@
+ 
+ # Add soname to the library.
+ ifeq ($(HOST_OS), $(filter $(HOST_OS), Linux FreeBSD GNU))
+-        LDFLAGS += -Wl,-soname,lib$(LIBRARYNAME)$(SHLIBEXT)
++        LDFLAGS += -Wl,-soname,lib$(LIBRARYNAME)-$(LLVMVersion)$(SHLIBEXT)
+ endif
+ 
+ ##===----------------------------------------------------------------------===##
