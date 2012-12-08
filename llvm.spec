@@ -9,37 +9,37 @@
 
 %bcond_without clang
 
-Name: llvm
-Version: 3.1
-Release: %mkrel 2
-Summary: Low Level Virtual Machine (LLVM)
-License: NCSA
-Group: Development/Other
-URL: http://llvm.org/
-Source0: http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
-Source1: http://llvm.org/releases/%{version}/clang-%{version}.src.tar.gz
+Name:		llvm
+Version:	3.1
+Release:	2
+Summary:	Low Level Virtual Machine (LLVM)
+License:	NCSA
+Group:		Development/Other
+URL:		http://llvm.org/
+Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
+Source1:	http://llvm.org/releases/%{version}/clang-%{version}.src.tar.gz
 # Versionize libclang.so (Anssi 08/2012):
-Patch0: clang-soname.patch
+Patch0:		clang-soname.patch
 # Add libclangTooling.a to libclang.so, backport from upstream
-Patch1: clang-shared-tooling.patch
-Obsoletes: llvm-ocaml
-Requires: libstdc++-devel
-BuildRequires: bison
-BuildRequires: groff
-BuildRequires: chrpath
-BuildRequires: ocaml
-BuildRequires: tcl
+Patch1:		clang-shared-tooling.patch
+Obsoletes:	llvm-ocaml
+Requires:	libstdc++-devel
+BuildRequires:	bison
+BuildRequires:	groff
+BuildRequires:	chrpath
+BuildRequires:	ocaml
+BuildRequires:	tcl
 %if %{compile_apidox}
-BuildRequires: doxygen
+BuildRequires:	doxygen
 %endif
-BuildRequires: flex
-BuildRequires: sed
-BuildRequires: graphviz
-BuildRequires: libstdc++-devel
-BuildRequires: libtool
-BuildRequires: zip
-BuildRequires: libffi-devel
-BuildRequires: chrpath
+BuildRequires:	flex
+BuildRequires:	sed
+BuildRequires:	graphviz
+BuildRequires:	libstdc++-devel
+BuildRequires:	libtool
+BuildRequires:	zip
+BuildRequires:	libffi-devel
+BuildRequires:	chrpath
 
 %description
 LVM is a robust system, particularly well suited for developing new mid-level
@@ -50,7 +50,6 @@ including those which require compile-time, link-time, or run-time optimization
 for effective implementation, proper tail calls or garbage collection. 
 
 %files
-%defattr(-,root,root,-)
 %doc LICENSE.TXT
 %{_bindir}/bugpoint
 %{_bindir}/llc
@@ -174,7 +173,7 @@ Group:          Development/Other
 Requires:       llvm%{?_isa} = %{version}-%{release}
 # clang requires gcc, clang++ requires libstdc++-devel
 Requires:       gcc
-Requires:       libstdc++-devel = %{gcc_version}
+Requires:       libstdc++-devel >= %{gcc_version}
 
 %description -n clang
 clang: noun
