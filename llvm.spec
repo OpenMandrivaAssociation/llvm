@@ -10,8 +10,8 @@
 %bcond_without clang
 
 Name:		llvm
-Version:	3.1
-Release:	2
+Version:	3.2
+Release:	1
 Summary:	Low Level Virtual Machine (LLVM)
 License:	NCSA
 Group:		Development/Other
@@ -20,8 +20,6 @@ Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
 Source1:	http://llvm.org/releases/%{version}/clang-%{version}.src.tar.gz
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
-# Add libclangTooling.a to libclang.so, backport from upstream
-Patch1:		clang-shared-tooling.patch
 Obsoletes:	llvm-ocaml
 Requires:	libstdc++-devel
 BuildRequires:	bison
@@ -38,7 +36,7 @@ BuildRequires:	graphviz
 BuildRequires:	libstdc++-devel
 BuildRequires:	libtool
 BuildRequires:	zip
-BuildRequires:	libffi-devel
+BuildRequires:	pkgconfig(libffi)
 BuildRequires:	chrpath
 
 %description
@@ -61,7 +59,6 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-diff
 %{_bindir}/llvm-dis
 %{_bindir}/llvm-extract
-%{_bindir}/llvm-ld
 %{_bindir}/llvm-link
 %{_bindir}/llvm-mc
 %{_bindir}/llvm-nm
@@ -69,18 +66,14 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-prof
 %{_bindir}/llvm-ranlib
 %{_bindir}/llvm-readobj
-%{_bindir}/llvm-stub
 %{_bindir}/llvm-cov
 %{_bindir}/llvm-dwarfdump
+%{_bindir}/llvm-mcmarkup
 %{_bindir}/llvm-rtdyld
 %{_bindir}/llvm-size
 %{_bindir}/llvm-stress
 %{_bindir}/llvm-tblgen
 %{_bindir}/macho-dump
-%{_mandir}/man1/bugpoint.1*
-%{_mandir}/man1/l*
-%{_mandir}/man1/opt.1*
-%{_mandir}/man1/tblgen.1*
 %{_libdir}/ocaml/*
 
 #-----------------------------------------------------------
@@ -148,7 +141,6 @@ Documentation for the LLVM compiler infrastructure.
 %doc README.txt
 %doc docs/*.css
 %doc docs/*.html
-%doc docs/img
 %doc docs/tutorial
 %doc docs/ocamldoc
 %doc examples
@@ -271,7 +263,6 @@ rm -rf tools/clang
 mv clang-%{version}%{?prerel}.src tools/clang
 cd tools/clang
 %patch0 -p1
-%patch1 -p1
 cd -
 %endif
 
@@ -380,3 +371,6 @@ rm -rf clang-docs-full/{doxygen*,Makefile*,*.graffle,tools}
 
 # Get rid of erroneously installed example files.
 rm %{buildroot}%{_libdir}/%{name}/LLVMHello.so
+
+# Fix bogus permissions
+find %buildroot -name "*.a" -a -type f|xargs chmod 0644
