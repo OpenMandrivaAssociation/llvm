@@ -266,8 +266,12 @@ cd tools/clang
 cd -
 %endif
 
-%build
+# Upstream tends to forget to remove "rc" and "svn" markers from version
+# numbers before making releases
+sed -i -re 's|^(AC_INIT[^,]*,\[)([0-9.]*)([^]])*(.*)|\1\2\4|' autoconf/configure.ac
+sed -i -re "s|(PACKAGE_VERSION='[0-9.]*)([^']*)(.*)|\1\3|g;s|(PACKAGE_STRING='LLVM [0-9.]*)([^']*)(.*)|\1\3|g" configure
 
+%build
 # Build with gcc/g++, not clang if it happens to be installed
 # (blino) clang < 3.1 does not handle system headers from gcc 4.7
 # http://llvm.org/bugs/show_bug.cgi?id=11916
