@@ -11,11 +11,15 @@
 
 Name:		llvm
 Version:	3.2
-Release:	1
+Release:	2
 Summary:	Low Level Virtual Machine (LLVM)
 License:	NCSA
 Group:		Development/Other
 URL:		http://llvm.org/
+# For the time being, we're building tarballs from the branch hosted at
+# git://people.freedesktop.org/~tstellar/llvm rather than direct upstream.
+# This patch adds the AMDGPU/R600 backend needed by Mesa 9.1 (and is otherwise
+# more or less identical to upstream llvm).
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
 Source1:	http://llvm.org/releases/%{version}/clang-%{version}.src.tar.gz
 # Versionize libclang.so (Anssi 08/2012):
@@ -275,8 +279,8 @@ sed -i -re "s|(PACKAGE_VERSION='[0-9.]*)([^']*)(.*)|\1\3|g;s|(PACKAGE_STRING='LL
 # Build with gcc/g++, not clang if it happens to be installed
 # (blino) clang < 3.1 does not handle system headers from gcc 4.7
 # http://llvm.org/bugs/show_bug.cgi?id=11916
-export CC=gcc
-export CXX=g++
+export CC=%__cc
+export CXX=%__cxx
 
 %configure2_5x \
 	--libdir=%{_libdir}/%{name} \
@@ -285,7 +289,8 @@ export CXX=g++
 	--enable-jit \
 	--enable-libffi \
 	--enable-optimized \
-	--enable-targets=host-only \
+	--enable-targets=all \
+	--enable-experimental-targets=R600 \
 	--disable-expensive-checks \
 	--enable-debug-runtime \
 	--disable-assertions \
