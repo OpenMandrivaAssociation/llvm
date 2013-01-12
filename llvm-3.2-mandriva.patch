@@ -1,0 +1,113 @@
+--- llvm-3.2.src/tools/clang/lib/Driver/ToolChains.cpp.bero	2013-01-12 13:05:56.251512484 +0000
++++ llvm-3.2.src/tools/clang/lib/Driver/ToolChains.cpp	2013-01-12 13:21:36.410129487 +0000
+@@ -1054,14 +1054,27 @@ Generic_GCC::GCCInstallationDetector::GC
+   static const char *const ARMLibDirs[] = { "/lib" };
+   static const char *const ARMTriples[] = {
+     "arm-linux-gnueabi",
+-    "arm-linux-androideabi"
++    "arm-linux-androideabi",
++    "arm-mandriva-linux-gnueabi",
++    "arm-mandriva-linux-androideabi",
++    "armv6-mandriva-linux-gnueabi",
++    "armv6-mandriva-linux-androideabi",
++    "armv7-mandriva-linux-gnueabi",
++    "armv7-mandriva-linux-androideabi",
++    "armv7hf-mandriva-linux-gnueabi",
++    "armv7hf-mandriva-linux-androideabi",
+   };
+   static const char *const ARMHFTriples[] = {
+     "arm-linux-gnueabihf",
++    "arm-mandriva-linux-gnueabihf",
++    "armv6-mandriva-linux-gnueabihf",
++    "armv7-mandriva-linux-gnueabihf",
++    "armv7hf-mandriva-linux-gnueabihf",
+   };
+ 
+   static const char *const X86_64LibDirs[] = { "/lib64", "/lib" };
+   static const char *const X86_64Triples[] = {
++    "x86_64-mandriva-linux-gnu",
+     "x86_64-linux-gnu",
+     "x86_64-unknown-linux-gnu",
+     "x86_64-pc-linux-gnu",
+@@ -1074,6 +1087,8 @@ Generic_GCC::GCCInstallationDetector::GC
+   };
+   static const char *const X86LibDirs[] = { "/lib32", "/lib" };
+   static const char *const X86Triples[] = {
++    "i586-mandriva-linux-gnu",
++    "i686-mandriva-linux-gnu",
+     "i686-linux-gnu",
+     "i686-pc-linux-gnu",
+     "i486-linux-gnu",
+@@ -1090,17 +1105,20 @@ Generic_GCC::GCCInstallationDetector::GC
+   static const char *const MIPSTriples[] = { "mips-linux-gnu" };
+   static const char *const MIPSELLibDirs[] = { "/lib" };
+   static const char *const MIPSELTriples[] = {
++    "mipsel-mandriva-linux-gnu",
++    "mipsel-mandriva-linux-android",
+     "mipsel-linux-gnu",
+     "mipsel-linux-android"
+   };
+ 
+   static const char *const MIPS64LibDirs[] = { "/lib64", "/lib" };
+-  static const char *const MIPS64Triples[] = { "mips64-linux-gnu" };
++  static const char *const MIPS64Triples[] = { "mips64-mandriva-linux-gnu", "mips64-linux-gnu" };
+   static const char *const MIPS64ELLibDirs[] = { "/lib64", "/lib" };
+-  static const char *const MIPS64ELTriples[] = { "mips64el-linux-gnu" };
++  static const char *const MIPS64ELTriples[] = { "mips64el-mandriva-linux-gnu", "mips64el-linux-gnu" };
+ 
+   static const char *const PPCLibDirs[] = { "/lib32", "/lib" };
+   static const char *const PPCTriples[] = {
++    "powerpc-mandriva-linux-gnu",
+     "powerpc-linux-gnu",
+     "powerpc-unknown-linux-gnu",
+     "powerpc-suse-linux",
+@@ -1108,6 +1126,7 @@ Generic_GCC::GCCInstallationDetector::GC
+   };
+   static const char *const PPC64LibDirs[] = { "/lib64", "/lib" };
+   static const char *const PPC64Triples[] = {
++    "powerpc64-mandriva-linux-gnu",
+     "powerpc64-linux-gnu",
+     "powerpc64-unknown-linux-gnu",
+     "powerpc64-suse-linux",
+@@ -2046,7 +2065,7 @@ static bool isMipsR2Arch(llvm::Triple::A
+ static StringRef getMultilibDir(const llvm::Triple &Triple,
+                                 const ArgList &Args) {
+   if (!isMipsArch(Triple.getArch()))
+-    return Triple.isArch32Bit() ? "lib32" : "lib64";
++    return Triple.isArch32Bit() ? "lib" : "lib64";
+ 
+   // lib32 directory has a special meaning on MIPS targets.
+   // It contains N32 ABI binaries. Use this folder if produce
+@@ -2072,10 +2091,10 @@ Linux::Linux(const Driver &D, const llvm
+ 
+   LinuxDistro Distro = DetectLinuxDistro(Arch);
+ 
+-  if (IsOpenSuse(Distro) || IsUbuntu(Distro)) {
++  //if (IsOpenSuse(Distro) || IsUbuntu(Distro)) {
+     ExtraOpts.push_back("-z");
+     ExtraOpts.push_back("relro");
+-  }
++  //}
+ 
+   if (Arch == llvm::Triple::arm || Arch == llvm::Triple::thumb)
+     ExtraOpts.push_back("-X");
+@@ -2088,8 +2107,8 @@ Linux::Linux(const Driver &D, const llvm
+   // ABI requires a mapping between the GOT and the symbol table.
+   // Android loader does not support .gnu.hash.
+   if (!isMipsArch(Arch) && !IsAndroid) {
+-    if (IsRedhat(Distro) || IsOpenSuse(Distro) ||
+-        (IsUbuntu(Distro) && Distro >= UbuntuMaverick))
++    //if (IsRedhat(Distro) || IsOpenSuse(Distro) ||
++    //    (IsUbuntu(Distro) && Distro >= UbuntuMaverick))
+       ExtraOpts.push_back("--hash-style=gnu");
+ 
+     if (IsDebian(Distro) || IsOpenSuse(Distro) || Distro == UbuntuLucid ||
+@@ -2106,7 +2125,7 @@ Linux::Linux(const Driver &D, const llvm
+       (IsUbuntu(Distro) && Distro >= UbuntuKarmic))
+     ExtraOpts.push_back("--build-id");
+ 
+-  if (IsOpenSuse(Distro))
++  //if (IsOpenSuse(Distro))
+     ExtraOpts.push_back("--enable-new-dtags");
+ 
+   // The selection of paths to try here is designed to match the patterns which

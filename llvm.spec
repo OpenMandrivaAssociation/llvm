@@ -11,7 +11,7 @@
 
 Name:		llvm
 Version:	3.2
-Release:	2
+Release:	3
 Summary:	Low Level Virtual Machine (LLVM)
 License:	NCSA
 Group:		Development/Other
@@ -24,6 +24,8 @@ Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
 Source1:	http://llvm.org/releases/%{version}/clang-%{version}.src.tar.gz
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
+# Adjust search paths to match the OS
+Patch1:		llvm-3.2-mandriva.patch
 Obsoletes:	llvm-ocaml
 Requires:	libstdc++-devel
 BuildRequires:	bison
@@ -268,6 +270,7 @@ mv clang-%{version}%{?prerel}.src tools/clang
 cd tools/clang
 %patch0 -p1
 cd -
+%patch1 -p1 -b .mandriva~
 %endif
 
 # Upstream tends to forget to remove "rc" and "svn" markers from version
