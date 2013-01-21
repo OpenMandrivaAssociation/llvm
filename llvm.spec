@@ -9,9 +9,11 @@
 
 %bcond_without clang
 
+%define _requires_exceptions devel\(libffi\)
+
 Name:		llvm
 Version:	3.2
-Release:	3
+Release:	4
 Summary:	Low Level Virtual Machine (LLVM)
 License:	NCSA
 Group:		Development/Other
