@@ -1,1 +1,2 @@
 addFilter("E: hardcoded-library-path")
+addFilter("E: external-depfilter-with-internal-depgen")
