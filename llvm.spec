@@ -24,6 +24,7 @@ URL:		http://llvm.org/
 # more or less identical to upstream llvm).
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
 Source1:	http://llvm.org/releases/%{version}/clang-%{version}.src.tar.gz
+Source2:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
 # Adjust search paths to match the OS
