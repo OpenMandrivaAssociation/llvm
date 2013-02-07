@@ -1,4 +1,3 @@
----
 sources:
   clang-3.2.src.tar.gz: b0515298c4088aa294edc08806bd671f8819f870
-  llvm-3.2.src.tar.gz: 04457d5009379036e9bdb79a40a550b3c5153bb9
+  llvm-3.2.src.tar.gz: 700aa117a580ea66ef8a38f599fa8ad12624696f
