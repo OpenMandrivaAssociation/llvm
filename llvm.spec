@@ -11,13 +11,13 @@
 
 %define _requires_exceptions devel\(libffi\)
 
+Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.2
 Release:	5
-Summary:	Low Level Virtual Machine (LLVM)
 License:	NCSA
 Group:		Development/Other
-URL:		http://llvm.org/
+Url:		http://llvm.org/
 # For the time being, we're building tarballs from the branch hosted at
 # git://people.freedesktop.org/~tstellar/llvm rather than direct upstream.
 # This patch adds the AMDGPU/R600 backend needed by Mesa 9.1 (and is otherwise
@@ -29,24 +29,23 @@ Source2:	llvm.rpmlintrc
 Patch0:		clang-soname.patch
 # Adjust search paths to match the OS
 Patch1:		llvm-3.2-mandriva.patch
-Obsoletes:	llvm-ocaml
-Requires:	libstdc++-devel
 BuildRequires:	bison
-BuildRequires:	groff
 BuildRequires:	chrpath
+BuildRequires:	flex
+BuildRequires:	graphviz
+BuildRequires:	groff
+BuildRequires:	libtool
 BuildRequires:	ocaml
 BuildRequires:	tcl
+BuildRequires:	sed
+BuildRequires:	zip
+BuildRequires:	libstdc++-devel
+BuildRequires:	pkgconfig(libffi)
 %if %{compile_apidox}
 BuildRequires:	doxygen
 %endif
-BuildRequires:	flex
-BuildRequires:	sed
-BuildRequires:	graphviz
-BuildRequires:	libstdc++-devel
-BuildRequires:	libtool
-BuildRequires:	zip
-BuildRequires:	pkgconfig(libffi)
-BuildRequires:	chrpath
+Requires:	libstdc++-devel
+Obsoletes:	llvm-ocaml
 
 %description
 LVM is a robust system, particularly well suited for developing new mid-level
@@ -87,38 +86,38 @@ for effective implementation, proper tail calls or garbage collection.
 
 #-----------------------------------------------------------
 
-%define major %version
-%define libname %mklibname %name %major
+%define major %{version}
+%define libname %mklibname %{name} %{major}
 
-%package -n %libname
-Summary: LLVM shared libraries
-Group: System/Libraries
-Conflicts: llvm < 3.0-4
+%package -n %{libname}
+Summary:	LLVM shared libraries
+Group:		System/Libraries
+Conflicts:	llvm < 3.0-4
 
-%description -n %libname
+%description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
 programs that are dynamically linked against libLLVM.
 
-%files -n %libname
-%{_libdir}/libLLVM-%major.so
+%files -n %{libname}
+%{_libdir}/libLLVM-%{major}.so
 
 #-----------------------------------------------------------
 
-%define libname_devel %mklibname -d %name
+%define devname %mklibname -d %{name}
 
-%package -n %{libname_devel}
-Summary: Development files for LLVM
-Group: Development/Other
-Provides: llvm-devel = %version-%release
-Requires: %libname = %version-%release
-Requires: %name = %version-%release
-Conflicts: llvm < 3.0-7
-Conflicts: %{_lib}llvm3.0 < 3.0-9
+%package -n %{devname}
+Summary:	Development files for LLVM
+Group:		Development/Other
+Provides:	llvm-devel = %{version}-%{release}
+Requires:	%{libname} = %{version}-%{release}
+Requires:	%{name} = %{version}-%{release}
+Conflicts:	llvm < 3.0-7
+Conflicts:	%{_lib}llvm3.0 < 3.0-9
 
-%description -n %{libname_devel}
+%description -n %{devname}
 This package contains the development files for LLVM;
 
-%files -n %{libname_devel}
+%files -n %{devname}
 %{_bindir}/%{name}-config
 %{_libdir}/libLLVM.so
 %{_includedir}/%{name}
@@ -136,17 +135,16 @@ This package contains the development files for LLVM;
 #-----------------------------------------------------------
 
 %package doc
-Summary: Documentation for LLVM
-Group: Books/Computer books
-Requires: %{name} = %{version}
-BuildArch: noarch
-Obsoletes: llvm-doc-devel
+Summary:	Documentation for LLVM
+Group:		Books/Computer books
+Requires:	%{name} = %{version}
+BuildArch:	noarch
+Obsoletes:	llvm-doc-devel
 
 %description doc
 Documentation for the LLVM compiler infrastructure.
 
 %files doc
-%defattr(-,root,root,-)
 %doc README.txt
 %doc docs/*.css
 %doc docs/*.html
@@ -160,21 +158,21 @@ Documentation for the LLVM compiler infrastructure.
 #-----------------------------------------------------------
 
 %if %{with clang}
-%define clang_major %version
-%define clang_libname %mklibname clang %clang_major
+%define clang_major %{version}
+%define libclang %mklibname clang %clang_major
 
 # TODO: %{_bindir}/clang is linked against static libclang.a, could it be
 # linked against libclang.so instead, like llvm-* are against livLLVM.so?
 
 %package -n clang
-Summary:        A C language family front-end for LLVM
-License:        NCSA
-Group:          Development/Other
+Summary:	A C language family front-end for LLVM
+License:	NCSA
+Group:		Development/Other
 # TODO: is this requires:llvm needed, or just legacy from fedora pkg layout?
-Requires:       llvm%{?_isa} = %{version}-%{release}
+Requires:	llvm%{?_isa} = %{version}-%{release}
 # clang requires gcc, clang++ requires libstdc++-devel
-Requires:       gcc
-Requires:       libstdc++-devel >= %{gcc_version}
+Requires:	gcc
+Requires:	libstdc++-devel >= %{gcc_version}
 
 %description -n clang
 clang: noun
@@ -193,34 +191,34 @@ as libraries and designed to be loosely-coupled and extensible.
 %{_prefix}/lib/clang
 %doc %{_mandir}/man1/clang.1.*
 
-%package -n %clang_libname
-Summary: Shared library for clang
-Group: System/Libraries
+%package -n %{libclang}
+Summary:	Shared library for clang
+Group:		System/Libraries
 
-%description -n %clang_libname
+%description -n %{libclang}
 Shared libraries for the clang compiler. This is needed by
 programs that are dynamically linked against libclang.
 
-%files -n %clang_libname
+%files -n %{libclang}
 %{_libdir}/libclang-%clang_major.so
 
 #-----------------------------------------------------------
 
-%define clang_libname_devel %mklibname -d clang
+%define devclang %mklibname -d clang
 
-%package -n %{clang_libname_devel}
-Summary:        Development files for clang
-Group:          Development/Other
-Requires:	%clang_libname = %version-%release
-Provides:	clang-devel = %version-%release
+%package -n %{devclang}
+Summary:	Development files for clang
+Group:		Development/Other
+Requires:	%{libclang} = %{version}-%{release}
+Provides:	clang-devel = %{version}-%{release}
 Conflicts:	llvm-devel < 3.1
 Obsoletes:	clang-devel < 3.1
 
-%description -n %{clang_libname_devel}
+%description -n %{devclang}
 This package contains header files and libraries needed for using
 libclang.
 
-%files -n %{clang_libname_devel}
+%files -n %{devclang}
 %{_includedir}/clang
 %{_includedir}/clang-c
 %{_libdir}/libclang.so
@@ -229,13 +227,13 @@ libclang.
 %{_libdir}/%{name}/libclang*.so
 
 %package -n clang-analyzer
-Summary:        A source code analysis framework
-License:        NCSA
-Group:          Development/Other
-Requires:       clang%{?_isa} = %{version}-%{release}
+Summary:	A source code analysis framework
+License:	NCSA
+Group:		Development/Other
+Requires:	clang%{?_isa} = %{version}-%{release}
 # not picked up automatically since files are currently not instaled
 # in standard Python hierarchies yet
-Requires:       python
+Requires:	python
 
 %description -n clang-analyzer
 The Clang Static Analyzer consists of both a source code analysis
@@ -250,10 +248,10 @@ intended to run in tandem with a build of a project or code base.
 
 
 %package -n clang-doc
-Summary:        Documentation for Clang
-Group:          Books/Computer books
-BuildArch:      noarch
-Requires:       %{name} = %{version}-%{release}
+Summary:	Documentation for Clang
+Group:		Books/Computer books
+BuildArch:	noarch
+Requires:	%{name} = %{version}-%{release}
 
 %description -n clang-doc
 Documentation for the Clang compiler front-end.
@@ -324,15 +322,15 @@ cp bindings/ocaml/llvm/META.llvm bindings/ocaml/llvm/Release/
 	PROJ_libdir=%{_libdir}/%{name}
 
 # Invalid dir 
-rm -rf %buildroot%_bindir/.dir
+rm -rf %{buildroot}%{_bindir}/.dir
 
 # wrong rpath entries (Anssi 11/2011)
 file %{buildroot}/%{_bindir}/* | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath -d
 file %{buildroot}/%{_libdir}/llvm/*.so | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath -d
 
 # move shared library to standard library path and add devel symlink (Anssi 11/2011)
-mv %{buildroot}%{_libdir}/llvm/libLLVM-%major.so %{buildroot}%{_libdir}
-ln -s libLLVM-%major.so %{buildroot}%{_libdir}/libLLVM.so
+mv %{buildroot}%{_libdir}/llvm/libLLVM-%{major}.so %{buildroot}%{_libdir}
+ln -s libLLVM-%{major}.so %{buildroot}%{_libdir}/libLLVM.so
 # Also, create shared library symlinks corresponding to all the static library
 # names, so that using e.g. "-lLLVMBitReader" will cause the binary to be linked
 # against the shared library instead of static library by default. (Anssi 08/2012)
@@ -344,7 +342,7 @@ done
 
 %if %with clang
 # Versionize libclang.so (patch0 makes the same change to soname) and move it to standard path.
-mv %{buildroot}%{_libdir}/llvm/libclang.so %{buildroot}%{_libdir}/libclang-%version.so
+mv %{buildroot}%{_libdir}/llvm/libclang.so %{buildroot}%{_libdir}/libclang-%{version}.so
 ln -s libclang-%clang_major.so %{buildroot}%{_libdir}/libclang.so
 ln -s ../libclang.so %{buildroot}%{_libdir}/llvm/libclang.so
 
@@ -388,4 +386,4 @@ rm -rf clang-docs-full/{doxygen*,Makefile*,*.graffle,tools}
 rm %{buildroot}%{_libdir}/%{name}/LLVMHello.so
 
 # Fix bogus permissions
-find %buildroot -name "*.a" -a -type f|xargs chmod 0644
+find %{buildroot} -name "*.a" -a -type f|xargs chmod 0644
