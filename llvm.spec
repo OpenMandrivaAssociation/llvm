@@ -13,22 +13,24 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	3.2
-Release:	6
+Version:	3.3
+Release:	1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
-# For the time being, we're building tarballs from the branch hosted at
-# git://people.freedesktop.org/~tstellar/llvm rather than direct upstream.
-# This patch adds the AMDGPU/R600 backend needed by Mesa 9.1 (and is otherwise
+# There's a branch of LLVM maintained at
+# git://people.freedesktop.org/~tstellar/llvm
+# Ir is the working branch of the AMDGPU/R600 backend needed by Mesa (and is otherwise
 # more or less identical to upstream llvm).
+# At times it may be necessary to package this branch instead.
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
-Source1:	http://llvm.org/releases/%{version}/clang-%{version}.src.tar.gz
-Source2:	llvm.rpmlintrc
+Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.gz
+Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.gz
+Source1000:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
 # Adjust search paths to match the OS
-Patch1:		llvm-3.2-mandriva.patch
+Patch1:		0000-clang-mandriva.patch
 BuildRequires:	bison
 BuildRequires:	chrpath
 BuildRequires:	flex
@@ -80,6 +82,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-rtdyld
 %{_bindir}/llvm-size
 %{_bindir}/llvm-stress
+%{_bindir}/llvm-symbolizer
 %{_bindir}/llvm-tblgen
 %{_bindir}/macho-dump
 %{_libdir}/ocaml/*
@@ -187,6 +190,8 @@ as libraries and designed to be loosely-coupled and extensible.
 %files -n clang
 %doc clang-docs/*
 %{_bindir}/clang*
+%{_bindir}/cpp11-migrate
+%{_libdir}/llvm/libmigrateCore.a
 %{_bindir}/c-index-test
 %{_prefix}/lib/clang
 %doc %{_mandir}/man1/clang.1.*
@@ -264,14 +269,15 @@ Documentation for the Clang compiler front-end.
 #-----------------------------------------------------------
 
 %prep
-%setup -qn %{name}-%{version}.src %{?with_clang:-a1}
+%setup -qn %{name}-%{version}.src %{?with_clang:-a1 -a2}
 rm -rf tools/clang
 %if %{with clang}
-mv clang-%{version}%{?prerel}.src tools/clang
+mv cfe-%{version}%{?prerel}.src tools/clang
+mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 cd tools/clang
 %patch0 -p1
-cd -
 %patch1 -p1 -b .mandriva~
+cd -
 %endif
 
 # Upstream tends to forget to remove "rc" and "svn" markers from version
