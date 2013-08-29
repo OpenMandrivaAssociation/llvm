@@ -14,7 +14,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.3
-Release:	1
+Release:	2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -26,6 +26,7 @@ Url:		http://llvm.org/
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
 Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.gz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.gz
+Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.gz
 Source1000:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
@@ -43,6 +44,8 @@ BuildRequires:	sed
 BuildRequires:	zip
 BuildRequires:	libstdc++-devel
 BuildRequires:	pkgconfig(libffi)
+BuildRequires:	pkgconfig(cloog-isl)
+BuildRequires:	pkgconfig(isl)
 %if %{compile_apidox}
 BuildRequires:	doxygen
 %endif
@@ -159,6 +162,56 @@ Documentation for the LLVM compiler infrastructure.
 %endif
 
 #-----------------------------------------------------------
+%package polly
+Summary: Polyhedral optimizations for LLVM
+License: MIT
+Group: Development/Other
+
+%description polly
+Polly is a polyhedral optimizer for LLVM.
+
+Using an abstract mathematical representation it analyzes and optimizes
+the memory access pattern of a program. This includes data-locality
+optimizations for cache locality as well as automatic parallelization
+for thread-level and SIMD parallelism.
+
+Our overall goal is an integrated optimizer for data-locality and
+parallelism that takes advantage of multi-cores, cache hierarchies,
+short vector instructions as well as dedicated accelerators.
+
+%files polly
+%{_bindir}/pollycc
+%{_bindir}/pollyc++
+%{_libdir}/llvm/LLVMPolly.so
+
+#-----------------------------------------------------------
+%package polly-devel
+Summary: Development files for Polly
+License: MIT
+Group: Development/Other
+
+%description polly-devel
+Development files for Polly.
+
+Polly is a polyhedral optimizer for LLVM.
+
+Using an abstract mathematical representation it analyzes and optimizes
+the memory access pattern of a program. This includes data-locality
+optimizations for cache locality as well as automatic parallelization
+for thread-level and SIMD parallelism.
+
+Our overall goal is an integrated optimizer for data-locality and
+parallelism that takes advantage of multi-cores, cache hierarchies,
+short vector instructions as well as dedicated accelerators.
+
+%files polly-devel
+%{_includedir}/polly
+%{_libdir}/llvm/libpollyanalysis.a
+%{_libdir}/llvm/libpollycodegen.a
+%{_libdir}/llvm/libpollyexchange.a
+%{_libdir}/llvm/libpollyjson.a
+%{_libdir}/llvm/libpollysupport.a
+#-----------------------------------------------------------
 
 %if %{with clang}
 %define clang_major %{version}
@@ -269,10 +322,11 @@ Documentation for the Clang compiler front-end.
 #-----------------------------------------------------------
 
 %prep
-%setup -qn %{name}-%{version}.src %{?with_clang:-a1 -a2}
+%setup -qn %{name}-%{version}.src %{?with_clang:-a1 -a2 -a3}
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
+mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 cd tools/clang
 %patch0 -p1
@@ -305,6 +359,8 @@ export CXX=%__cxx
 	--enable-debug-runtime \
 	--disable-assertions \
 	--enable-threads \
+	--with-cloog=%{_prefix} \
+	--with-isl=%{_prefix} \
 %if %{compile_apidox}
 	--enable-doxygen
 %endif
@@ -385,6 +441,18 @@ done
 rm -rf clang-docs-full
 cp -al tools/clang/docs clang-docs-full
 rm -rf clang-docs-full/{doxygen*,Makefile*,*.graffle,tools}
+
+# Polly bits as described on
+# http://polly.llvm.org/example_load_Polly_into_clang.html
+cat >%{buildroot}%{_bindir}/pollycc <<'EOF'
+#!/bin/sh
+exec %{_bindir}/clang -O3 -Xclang -load -Xclang %{_libdir}/llvm/LLVMPolly.so "$@"
+EOF
+cat >%{buildroot}%{_bindir}/pollyc++ <<'EOF'
+#!/bin/sh
+exec %{_bindir}/clang++ -O3 -Xclang -load -Xclang %{_libdir}/llvm/LLVMPolly.so "$@"
+EOF
+chmod 0755 %{buildroot}%{_bindir}/pollycc %{buildroot}%{_bindir}/pollyc++
 
 %endif
 

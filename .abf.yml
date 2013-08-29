@@ -4,3 +4,4 @@ sources:
   clang-tools-extra-3.3.src.tar.gz: 6f7af9ba8014f7e286a02e4ae2e3f2017b8bfac2
   llvm-3.2.src.tar.gz: 700aa117a580ea66ef8a38f599fa8ad12624696f
   llvm-3.3.src.tar.gz: c6c22d5593419e3cb47cbcf16d967640e5cce133
+  polly-3.3.src.tar.gz: eb75f5674fedf77425d16c9c0caec04961f03e04
