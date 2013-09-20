@@ -14,7 +14,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.3
-Release:	3
+Release:	4
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -32,6 +32,10 @@ Source1000:	llvm.rpmlintrc
 Patch0:		clang-soname.patch
 # Adjust search paths to match the OS
 Patch1:		0000-clang-mandriva.patch
+# ARM hardfloat hack
+# see http://llvm.org/bugs/show_bug.cgi?id=15557
+# and https://bugzilla.redhat.com/show_bug.cgi?id=803433
+Patch2:		clang-hardfloat-hack.patch
 BuildRequires:	bison
 BuildRequires:	chrpath
 BuildRequires:	flex
@@ -331,6 +335,7 @@ mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 cd tools/clang
 %patch0 -p1
 %patch1 -p1 -b .mandriva~
+%patch2 -p1 -b .armhf
 cd -
 %endif
 

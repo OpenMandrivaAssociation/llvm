@@ -1,0 +1,13 @@
+--- llvm-3.2.src.orig/lib/Driver/Tools.cpp	2012-11-21 01:56:23.000000000 -0600
++++ llvm-3.2.src/lib/Driver/Tools.cpp	2013-03-31 21:08:41.890206683 -0500
+@@ -688,8 +688,8 @@
+       }
+       default:
+         // Assume "soft", but warn the user we are guessing.
+-        FloatABI = "soft";
+-        D.Diag(diag::warn_drv_assuming_mfloat_abi_is) << "soft";
++        FloatABI = "hard";
++        D.Diag(diag::warn_drv_assuming_mfloat_abi_is) << "hard";
+         break;
+       }
+     }
