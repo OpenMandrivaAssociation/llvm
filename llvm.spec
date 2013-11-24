@@ -13,8 +13,8 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	3.3
-Release:	4
+Version:	3.4
+Release:	1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -49,7 +49,7 @@ BuildRequires:	zip
 BuildRequires:	libstdc++-devel
 BuildRequires:	pkgconfig(libffi)
 BuildRequires:	pkgconfig(cloog-isl)
-BuildRequires:	pkgconfig(isl)
+BuildRequires:	pkgconfig(isl) >= 0.12.0
 %if %{compile_apidox}
 BuildRequires:	doxygen
 %endif
@@ -70,6 +70,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llc
 %{_bindir}/lli
 %{_bindir}/opt
+%{_bindir}/lli-child-target
 %{_bindir}/llvm-ar
 %{_bindir}/llvm-as
 %{_bindir}/llvm-bcanalyzer
@@ -80,7 +81,6 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-mc
 %{_bindir}/llvm-nm
 %{_bindir}/llvm-objdump
-%{_bindir}/llvm-prof
 %{_bindir}/llvm-ranlib
 %{_bindir}/llvm-readobj
 %{_bindir}/llvm-cov
@@ -91,6 +91,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-stress
 %{_bindir}/llvm-symbolizer
 %{_bindir}/llvm-tblgen
+%{_bindir}/pp-trace
 %{_bindir}/macho-dump
 %{_libdir}/ocaml/*
 
@@ -138,8 +139,6 @@ This package contains the development files for LLVM;
 %{_libdir}/%{name}/libLLVM*.so
 %{_libdir}/%{name}/libLTO.a
 %{_libdir}/%{name}/libLTO.so
-%{_libdir}/%{name}/libprofile_rt.a
-%{_libdir}/%{name}/libprofile_rt.so
 %{_libdir}/%{name}/libllvm*.a
 
 #-----------------------------------------------------------
@@ -247,8 +246,7 @@ as libraries and designed to be loosely-coupled and extensible.
 %files -n clang
 %doc clang-docs/*
 %{_bindir}/clang*
-%{_bindir}/cpp11-migrate
-%{_libdir}/llvm/libmigrateCore.a
+%{_libdir}/llvm/libmodernizeCore.a
 %{_bindir}/c-index-test
 %{_prefix}/lib/clang
 %doc %{_mandir}/man1/clang.1.*
@@ -333,7 +331,7 @@ mv cfe-%{version}%{?prerel}.src tools/clang
 mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 cd tools/clang
-%patch0 -p1
+%patch0 -p0
 %patch1 -p1 -b .mandriva~
 %patch2 -p1 -b .armhf
 cd -
