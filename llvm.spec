@@ -8,6 +8,7 @@
 %{?_with_apidox: %{expand: %%global compile_apidox 1}}
 
 %bcond_without clang
+%bcond_without ocaml
 
 %define _requires_exceptions devel\(libffi\)
 
@@ -42,7 +43,9 @@ BuildRequires:	flex
 BuildRequires:	graphviz
 BuildRequires:	groff
 BuildRequires:	libtool
+%if %{with ocaml}
 BuildRequires:	ocaml
+%endif
 BuildRequires:	tcl
 BuildRequires:	sed
 BuildRequires:	zip
@@ -93,7 +96,9 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-tblgen
 %{_bindir}/pp-trace
 %{_bindir}/macho-dump
+%if %{with ocaml}
 %{_libdir}/ocaml/*
+%endif
 
 #-----------------------------------------------------------
 
@@ -158,7 +163,9 @@ Documentation for the LLVM compiler infrastructure.
 %doc docs/*.css
 %doc docs/*.html
 %doc docs/tutorial
+%if %{with ocaml}
 %doc docs/ocamldoc
+%endif
 %doc examples
 %if %{compile_apidox}
 %doc docs/doxygen
