@@ -386,7 +386,9 @@ sed -i 's|ActiveLibDir = ActivePrefix + "/lib"|ActiveLibDir = ActivePrefix + "/%
 %make
 
 %install
+%if %{with ocaml}
 cp bindings/ocaml/llvm/META.llvm bindings/ocaml/llvm/Release/
+%endif
 %makeinstall_std \
 	KEEP_SYMBOLS=1 \
 	PROJ_docsdir=%{_docdir}/%{name} \
