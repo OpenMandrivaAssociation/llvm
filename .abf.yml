@@ -1,5 +1,6 @@
 sources:
-  cfe-3.4.src.tar.gz: 27e60806868f0d3ba3ec73452e1dab9e215dc616
-  clang-tools-extra-3.4.src.tar.gz: 724997a6f8b50ad0a04e5fe565ee671f941618d0
-  llvm-3.4.src.tar.gz: 8275bacaac9e54e65bb85389134ce50f54873d61
-  polly-3.4.src.tar.gz: bd2a1154ee7d845d8790be1c30ca4b0269d74b3d
+  cfe-3.4.src.tar.gz: a8ef51d2504561a5480d63012bfd6f9ae58bb4b4
+  clang-tools-extra-3.4.src.tar.gz: e9409d2e620b311e2dd088af6e0e42d55e0926cb
+  compiler-rt-3.4.src.tar.gz: 2a79dd67aacbe086738da9e4a8de51b92b62b9a5
+  llvm-3.4.src.tar.gz: 7b97ecdea507e6ef2129e3e048708133dfd41d61
+  polly-3.4.src.tar.gz: 3251f82a70e5497e6eeb77aaee2d3f3922c634db

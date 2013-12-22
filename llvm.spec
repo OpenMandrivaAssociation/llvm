@@ -15,7 +15,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.4
-Release:	5
+Release:	6
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -28,6 +28,7 @@ Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
 Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.gz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.gz
 Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.gz
+Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.gz
 Source1000:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
@@ -331,12 +332,13 @@ Documentation for the Clang compiler front-end.
 #-----------------------------------------------------------
 
 %prep
-%setup -qn %{name}-%{version}.src %{?with_clang:-a1 -a2 -a3}
+%setup -qn %{name}-%{version}.src %{?with_clang:-a1 -a2 -a3 -a4}
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
 mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
+mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
 cd tools/clang
 %patch0 -p0
 %patch1 -p1 -b .mandriva~
@@ -360,9 +362,12 @@ export CXX=%__cxx
 	--libdir=%{_libdir}/%{name} \
 	--datadir=%{_datadir}/%{name} \
 	--enable-shared \
+	--enable-polly \
+	--enable-cxx11 \
 	--enable-jit \
 	--enable-libffi \
 	--enable-optimized \
+	--enable-keep-symbols \
 	--enable-targets=all \
 	--enable-experimental-targets=R600 \
 	--disable-expensive-checks \
