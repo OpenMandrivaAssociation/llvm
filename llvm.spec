@@ -15,7 +15,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.4
-Release:	6
+Release:	7
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -25,7 +25,7 @@ Url:		http://llvm.org/
 # more or less identical to upstream llvm).
 # At times it may be necessary to package this branch instead.
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
-Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.gz
+Source1:	http://llvm.org/releases/%{version}/clang-%{version}.src.tar.gz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.gz
 Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.gz
 Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.gz
@@ -335,7 +335,7 @@ Documentation for the Clang compiler front-end.
 %setup -qn %{name}-%{version}.src %{?with_clang:-a1 -a2 -a3 -a4}
 rm -rf tools/clang
 %if %{with clang}
-mv cfe-%{version}%{?prerel}.src tools/clang
+mv clang-%{version}%{?prerel}.src tools/clang
 mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
