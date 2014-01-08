@@ -332,13 +332,13 @@ Documentation for the Clang compiler front-end.
 #-----------------------------------------------------------
 
 %prep
-%setup -qn %{name}-%{version}.src %{?with_clang:-a1 -a2 -a3 -a4}
+%setup -qn %{name}-%{version} %{?with_clang:-a1 -a2 -a3 -a4}
 rm -rf tools/clang
 %if %{with clang}
-mv clang-%{version}%{?prerel}.src tools/clang
-mv polly-%{version}%{?prerel}.src tools/polly
-mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
-mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
+mv clang-%{version}%{?prerel} tools/clang
+mv polly-%{version}%{?prerel} tools/polly
+mv clang-tools-extra-%{version}%{?prerel} tools/clang/tools/extra
+mv compiler-rt-%{version}%{?prerel} projects/compiler-rt
 cd tools/clang
 %patch0 -p0
 %patch1 -p1 -b .mandriva~
