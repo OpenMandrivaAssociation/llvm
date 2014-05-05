@@ -1,13 +1,26 @@
---- llvm-3.2.src.orig/lib/Driver/Tools.cpp	2012-11-21 01:56:23.000000000 -0600
-+++ llvm-3.2.src/lib/Driver/Tools.cpp	2013-03-31 21:08:41.890206683 -0500
-@@ -688,8 +688,8 @@
+--- llvm-3.5/tools/clang/lib/Driver/Tools.cpp.armhf	2014-05-05 13:42:31.046661612 +0200
++++ llvm-3.5/tools/clang/lib/Driver/Tools.cpp	2014-05-05 13:44:21.643278964 +0200
+@@ -626,7 +626,7 @@ StringRef tools::arm::getARMFloatABI(con
+       if (FloatABI != "soft" && FloatABI != "softfp" && FloatABI != "hard") {
+         D.Diag(diag::err_drv_invalid_mfloat_abi)
+           << A->getAsString(Args);
+-        FloatABI = "soft";
++        FloatABI = "hard";
+       }
+     }
+   }
+@@ -692,11 +692,11 @@ StringRef tools::arm::getARMFloatABI(con
+         break;
        }
        default:
-         // Assume "soft", but warn the user we are guessing.
+-        // Assume "soft", but warn the user we are guessing.
 -        FloatABI = "soft";
--        D.Diag(diag::warn_drv_assuming_mfloat_abi_is) << "soft";
++        // Assume "hard", but warn the user we are guessing.
 +        FloatABI = "hard";
-+        D.Diag(diag::warn_drv_assuming_mfloat_abi_is) << "hard";
+         if (Triple.getOS() != llvm::Triple::UnknownOS ||
+             !Triple.isOSBinFormatMachO())
+-          D.Diag(diag::warn_drv_assuming_mfloat_abi_is) << "soft";
++          D.Diag(diag::warn_drv_assuming_mfloat_abi_is) << "hard";
          break;
        }
      }

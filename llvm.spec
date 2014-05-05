@@ -14,8 +14,8 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	3.4
-Release:	8
+Version:	3.5
+Release:	0.207952.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -38,6 +38,8 @@ Patch1:		0000-clang-mandriva.patch
 # see http://llvm.org/bugs/show_bug.cgi?id=15557
 # and https://bugzilla.redhat.com/show_bug.cgi?id=803433
 Patch2:		clang-hardfloat-hack.patch
+# XDR size is different with tirpc
+Patch3:		compiler-rt-tirpc-xdr.patch
 BuildRequires:	bison
 BuildRequires:	chrpath
 BuildRequires:	flex
@@ -70,7 +72,9 @@ for effective implementation, proper tail calls or garbage collection.
 
 %files
 %doc LICENSE.TXT
+%{_bindir}/FileCheck
 %{_bindir}/bugpoint
+%{_bindir}/count
 %{_bindir}/llc
 %{_bindir}/lli
 %{_bindir}/opt
@@ -90,6 +94,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-cov
 %{_bindir}/llvm-dwarfdump
 %{_bindir}/llvm-mcmarkup
+%{_bindir}/llvm-profdata
 %{_bindir}/llvm-rtdyld
 %{_bindir}/llvm-size
 %{_bindir}/llvm-stress
@@ -97,13 +102,14 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-tblgen
 %{_bindir}/pp-trace
 %{_bindir}/macho-dump
+%{_bindir}/not
 %if %{with ocaml}
 %{_libdir}/ocaml/*
 %endif
 
 #-----------------------------------------------------------
 
-%define major %{version}
+%define major %{version}.0
 %define libname %mklibname %{name} %{major}
 
 %package -n %{libname}
@@ -146,6 +152,8 @@ This package contains the development files for LLVM;
 %{_libdir}/%{name}/libLTO.a
 %{_libdir}/%{name}/libLTO.so
 %{_libdir}/%{name}/libllvm*.a
+%dir %{_datadir}/%{name}
+%{_datadir}/%{name}/cmake
 
 #-----------------------------------------------------------
 
@@ -217,11 +225,6 @@ short vector instructions as well as dedicated accelerators.
 
 %files polly-devel
 %{_includedir}/polly
-%{_libdir}/llvm/libpollyanalysis.a
-%{_libdir}/llvm/libpollycodegen.a
-%{_libdir}/llvm/libpollyexchange.a
-%{_libdir}/llvm/libpollyjson.a
-%{_libdir}/llvm/libpollysupport.a
 #-----------------------------------------------------------
 
 %if %{with clang}
@@ -290,6 +293,7 @@ libclang.
 %{_includedir}/clang
 %{_includedir}/clang-c
 %{_libdir}/libclang.so
+%{_libdir}/libclang-%{major}.so
 %dir %{_libdir}/%{name}
 %{_libdir}/%{name}/libclang*.a
 %{_libdir}/%{name}/libclang*.so
@@ -342,8 +346,9 @@ mv compiler-rt-%{version}%{?prerel} projects/compiler-rt
 cd tools/clang
 %patch0 -p0
 %patch1 -p1 -b .mandriva~
-%patch2 -p1 -b .armhf
 cd -
+%patch2 -p1 -b .armhf~
+%patch3 -p1 -b .tirpc~
 %endif
 
 # Upstream tends to forget to remove "rc" and "svn" markers from version
@@ -478,3 +483,10 @@ rm %{buildroot}%{_libdir}/%{name}/LLVMHello.so
 
 # Fix bogus permissions
 find %{buildroot} -name "*.a" -a -type f|xargs chmod 0644
+
+# Fix symlinks pointing at the buildroot
+cd %{buildroot}%{_libdir}/%{name}
+if [ -L libLLVM-%{version}svn.so ]; then
+	rm -f libLLVM-%{version}svn.so
+	ln -s libLLVM-%{major}.so libLLVM-%{version}svn.so
+fi
