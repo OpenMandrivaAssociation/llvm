@@ -228,7 +228,7 @@ short vector instructions as well as dedicated accelerators.
 #-----------------------------------------------------------
 
 %if %{with clang}
-%define clang_major %{version}
+%define clang_major %{major}
 %define libclang %mklibname clang %clang_major
 
 # TODO: %{_bindir}/clang is linked against static libclang.a, could it be
@@ -271,7 +271,7 @@ Shared libraries for the clang compiler. This is needed by
 programs that are dynamically linked against libclang.
 
 %files -n %{libclang}
-%{_libdir}/libclang-%clang_major.so
+%{_libdir}/libclang-%version.so
 
 #-----------------------------------------------------------
 
@@ -293,7 +293,7 @@ libclang.
 %{_includedir}/clang
 %{_includedir}/clang-c
 %{_libdir}/libclang.so
-%{_libdir}/libclang-%{major}.so
+%{_libdir}/libclang-%{clang_major}.so
 %dir %{_libdir}/%{name}
 %{_libdir}/%{name}/libclang*.a
 %{_libdir}/%{name}/libclang*.so
