@@ -55,7 +55,8 @@ BuildRequires:	zip
 BuildRequires:	libstdc++-devel
 BuildRequires:	pkgconfig(libffi)
 BuildRequires:	pkgconfig(cloog-isl)
-BuildRequires:	pkgconfig(isl) >= 0.12.0
+BuildRequires:	pkgconfig(isl) >= 0.13
+BuildRequires:	pkgconfig(libtirpc)
 %if %{compile_apidox}
 BuildRequires:	doxygen
 %endif
