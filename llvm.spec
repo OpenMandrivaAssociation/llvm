@@ -40,6 +40,9 @@ Patch1:		0000-clang-mandriva.patch
 Patch2:		clang-hardfloat-hack.patch
 # XDR size is different with tirpc
 Patch3:		compiler-rt-tirpc-xdr.patch
+# Patches from AOSP
+Patch4:		0000-llvm-Add-support-for-64-bit-longs.patch
+Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 BuildRequires:	bison
 BuildRequires:	chrpath
 BuildRequires:	flex
@@ -350,6 +353,8 @@ cd tools/clang
 cd -
 %patch2 -p1 -b .armhf~
 %patch3 -p1 -b .tirpc~
+%patch4 -p1 -b .64bitLongs~
+%patch5 -p1 -b .EnableGlobalMerge~
 %endif
 
 # Upstream tends to forget to remove "rc" and "svn" markers from version
