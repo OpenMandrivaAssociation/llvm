@@ -15,7 +15,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.5
-Release:	0.208544.1
+Release:	0.209634.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -38,12 +38,13 @@ Patch1:		0000-clang-mandriva.patch
 # see http://llvm.org/bugs/show_bug.cgi?id=15557
 # and https://bugzilla.redhat.com/show_bug.cgi?id=803433
 Patch2:		clang-hardfloat-hack.patch
-# XDR size is different with tirpc
-Patch3:		compiler-rt-tirpc-xdr.patch
+# Locate LLVMgold.so on 64bit systems too
+Patch3:		llvm-3.5-locate-LLVMgold.patch
 # Patches from AOSP
 Patch4:		0000-llvm-Add-support-for-64-bit-longs.patch
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 BuildRequires:	bison
+BuildRequires:	binutils-devel
 BuildRequires:	chrpath
 BuildRequires:	flex
 BuildRequires:	graphviz
@@ -113,7 +114,7 @@ for effective implementation, proper tail calls or garbage collection.
 
 #-----------------------------------------------------------
 
-%define major %{version}.0
+%define major %(echo %{version} |cut -d. -f1-2)
 %define libname %mklibname %{name} %{major}
 
 %package -n %{libname}
@@ -232,7 +233,7 @@ short vector instructions as well as dedicated accelerators.
 #-----------------------------------------------------------
 
 %if %{with clang}
-%define clang_major %{major}
+%define clang_major %{major}.0
 %define libclang %mklibname clang %clang_major
 
 # TODO: %{_bindir}/clang is linked against static libclang.a, could it be
@@ -262,6 +263,7 @@ as libraries and designed to be loosely-coupled and extensible.
 %doc clang-docs/*
 %{_bindir}/clang*
 %{_libdir}/llvm/libmodernizeCore.a
+%{_libdir}/llvm/LLVMgold.so
 %{_bindir}/c-index-test
 %{_prefix}/lib/clang
 %doc %{_mandir}/man1/clang.1.*
@@ -275,7 +277,7 @@ Shared libraries for the clang compiler. This is needed by
 programs that are dynamically linked against libclang.
 
 %files -n %{libclang}
-%{_libdir}/libclang-%version.so
+%{_libdir}/libclang-%major.so
 
 #-----------------------------------------------------------
 
@@ -340,7 +342,7 @@ Documentation for the Clang compiler front-end.
 #-----------------------------------------------------------
 
 %prep
-%setup -qn %{name}-%{version} %{?with_clang:-a1 -a2 -a3 -a4}
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4}
 rm -rf tools/clang
 %if %{with clang}
 mv clang-%{version}%{?prerel} tools/clang
@@ -352,7 +354,7 @@ cd tools/clang
 %patch1 -p1 -b .mandriva~
 cd -
 %patch2 -p1 -b .armhf~
-%patch3 -p1 -b .tirpc~
+%patch3 -p1 -b .LLVMgold~
 %patch4 -p1 -b .64bitLongs~
 %patch5 -p1 -b .EnableGlobalMerge~
 %endif
@@ -361,6 +363,7 @@ cd -
 # numbers before making releases
 sed -i -re 's|^(AC_INIT[^,]*,\[)([0-9.]*)([^]])*(.*)|\1\2\4|' autoconf/configure.ac
 sed -i -re "s|(PACKAGE_VERSION='[0-9.]*)([^']*)(.*)|\1\3|g;s|(PACKAGE_STRING='LLVM [0-9.]*)([^']*)(.*)|\1\3|g" configure
+sed -i -re "s|^LLVM_VERSION_SUFFIX=.*|LLVM_VERSION_SUFFIX=|g" autoconf/configure.ac configure
 
 %build
 # Build with gcc/g++, not clang if it happens to be installed
@@ -387,6 +390,7 @@ export CXX=%__cxx
 	--enable-threads \
 	--with-cloog=%{_prefix} \
 	--with-isl=%{_prefix} \
+	--with-binutils-include=%{_includedir} \
 %if %{compile_apidox}
 	--enable-doxygen
 %endif
@@ -418,9 +422,11 @@ rm -rf %{buildroot}%{_bindir}/.dir
 file %{buildroot}/%{_bindir}/* | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath -d
 file %{buildroot}/%{_libdir}/llvm/*.so | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath -d
 
-# move shared library to standard library path and add devel symlink (Anssi 11/2011)
+# move shared libraries to standard library path and add devel symlink (Anssi 11/2011)
 mv %{buildroot}%{_libdir}/llvm/libLLVM-%{major}.so %{buildroot}%{_libdir}
 ln -s libLLVM-%{major}.so %{buildroot}%{_libdir}/libLLVM.so
+ln -s llvm/LLVMgold.so %{buildroot}%{_libdir}/
+ln -s llvm/libLTO.so %{buildroot}%{_libdir}/
 # Also, create shared library symlinks corresponding to all the static library
 # names, so that using e.g. "-lLLVMBitReader" will cause the binary to be linked
 # against the shared library instead of static library by default. (Anssi 08/2012)
@@ -489,10 +495,3 @@ rm %{buildroot}%{_libdir}/%{name}/LLVMHello.so
 
 # Fix bogus permissions
 find %{buildroot} -name "*.a" -a -type f|xargs chmod 0644
-
-# Fix symlinks pointing at the buildroot
-cd %{buildroot}%{_libdir}/%{name}
-if [ -L libLLVM-%{version}svn.so ]; then
-	rm -f libLLVM-%{version}svn.so
-	ln -s libLLVM-%{major}.so libLLVM-%{version}svn.so
-fi
