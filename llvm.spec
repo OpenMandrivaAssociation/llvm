@@ -108,6 +108,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/pp-trace
 %{_bindir}/macho-dump
 %{_bindir}/not
+%dir %{_libdir}/llvm
 %if %{with ocaml}
 %{_libdir}/ocaml/*
 %endif
@@ -150,12 +151,10 @@ This package contains the development files for LLVM;
 %{_libdir}/libLLVM.so
 %{_includedir}/%{name}
 %{_includedir}/%{name}-c
-%dir %{_libdir}/%{name}
 %{_libdir}/%{name}/BugpointPasses.so
 %{_libdir}/%{name}/libLLVM*.a
 %{_libdir}/%{name}/libLLVM*.so
 %{_libdir}/%{name}/libLTO.a
-%{_libdir}/%{name}/libLTO.so
 %{_libdir}/%{name}/libllvm*.a
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/cmake
@@ -264,6 +263,9 @@ as libraries and designed to be loosely-coupled and extensible.
 %{_bindir}/clang*
 %{_libdir}/llvm/libmodernizeCore.a
 %{_libdir}/llvm/LLVMgold.so
+%{_libdir}/llvm/libLTO.so
+%{_libdir}/LLVMgold.so
+%{_libdir}/libLTO.so
 %{_bindir}/c-index-test
 %{_prefix}/lib/clang
 %doc %{_mandir}/man1/clang.1.*
