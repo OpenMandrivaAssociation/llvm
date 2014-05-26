@@ -8,7 +8,12 @@
 %{?_with_apidox: %{expand: %%global compile_apidox 1}}
 
 %bcond_without clang
+%ifarch aarch64
+# AArch64 doesn't have a working ocaml compiler yet
+%bcond_with ocaml
+%else
 %bcond_without ocaml
+%endif
 
 %define _requires_exceptions devel\(libffi\)
 
