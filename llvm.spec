@@ -11,8 +11,11 @@
 %ifarch aarch64
 # AArch64 doesn't have a working ocaml compiler yet
 %bcond_with ocaml
+# No graphviz yet either
+%bcond_without bootstrap
 %else
 %bcond_without ocaml
+%bcond_with bootstrap
 %endif
 
 %define _requires_exceptions devel\(libffi\)
@@ -52,7 +55,9 @@ BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
 BuildRequires:	flex
+%if %{without bootstrap}
 BuildRequires:	graphviz
+%endif
 BuildRequires:	groff
 BuildRequires:	libtool
 %if %{with ocaml}
