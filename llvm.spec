@@ -4,6 +4,8 @@
 # and need adjustment whenever there's a new GCC version
 %define gcc_version %(gcc -dumpversion)
 
+%define default_compiler 1
+
 %define compile_apidox 0
 %{?_with_apidox: %{expand: %%global compile_apidox 1}}
 
@@ -165,7 +167,9 @@ This package contains the development files for LLVM;
 %{_libdir}/%{name}/libLLVM*.a
 %{_libdir}/%{name}/libLLVM*.so
 %{_libdir}/%{name}/libLTO.a
-%{_libdir}/%{name}/libllvm*.a
+# FIXME should figure out why these aren't built
+# on aarch64. Missing dep?
+%optional %{_libdir}/%{name}/libllvm*.a
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/cmake
 
@@ -279,6 +283,12 @@ as libraries and designed to be loosely-coupled and extensible.
 %{_bindir}/c-index-test
 %{_prefix}/lib/clang
 %doc %{_mandir}/man1/clang.1.*
+%if %{default_compiler}
+%{_bindir}/cc
+%{_bindir}/c89
+%{_bindir}/c99
+%{_bindir}/c++
+%endif
 
 %package -n %{libclang}
 Summary:	Shared library for clang
@@ -501,3 +511,35 @@ rm %{buildroot}%{_libdir}/%{name}/LLVMHello.so
 
 # Fix bogus permissions
 find %{buildroot} -name "*.a" -a -type f|xargs chmod 0644
+
+%if %{default_compiler}
+ln -s clang %{buildroot}%{_bindir}/cc
+ln -s clang++ %{buildroot}%{_bindir}/c++
+cat >%{buildroot}%{_bindir}/c89 <<'EOF'
+#!/bin/sh
+
+fl="-std=c89"
+for opt; do
+	case "$opt" in
+		-ansi|-std=c89|-std=iso9899:1990) fl="";;
+		-std=*) echo "`basename $0` called with non ANSI/ISO C option $opt" >&2
+			exit 1;;
+	esac
+done
+exec %{_bindir}/clang $fl ${1+"$@"}
+EOF
+cat >%{buildroot}%{_bindir}/c99 <<'EOF'
+#!/bin/sh
+
+fl="-std=c99"
+for opt; do
+	case "$opt" in
+		-std=c99|-std=iso9899:1999) fl="";;
+		-std=*) echo "`basename $0` called with non ISO C99 option $opt" >&2
+			exit 1;;
+	esac
+done
+exec %{_bindir}/clang $fl ${1+"$@"}
+EOF
+chmod 0755 %{buildroot}%{_bindir}/c89 %{buildroot}%{_bindir}/c99
+%endif
