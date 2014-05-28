@@ -23,7 +23,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.5
-Release:	0.209634.1
+Release:	0.209771.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -378,13 +378,7 @@ sed -i -re "s|(PACKAGE_VERSION='[0-9.]*)([^']*)(.*)|\1\3|g;s|(PACKAGE_STRING='LL
 sed -i -re "s|^LLVM_VERSION_SUFFIX=.*|LLVM_VERSION_SUFFIX=|g" autoconf/configure.ac configure
 
 %build
-# Build with gcc/g++, not clang if it happens to be installed
-# (blino) clang < 3.1 does not handle system headers from gcc 4.7
-# http://llvm.org/bugs/show_bug.cgi?id=11916
-export CC=%__cc
-export CXX=%__cxx
-
-%configure2_5x \
+%configure \
 	--libdir=%{_libdir}/%{name} \
 	--datadir=%{_datadir}/%{name} \
 	--enable-shared \
