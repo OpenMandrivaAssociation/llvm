@@ -4,7 +4,11 @@
 # and need adjustment whenever there's a new GCC version
 %define gcc_version %(gcc -dumpversion)
 
+%ifnarch aarch64 %{arm}
 %define default_compiler 1
+%else
+%define default_compiler 0
+%endif
 
 %define compile_apidox 0
 %{?_with_apidox: %{expand: %%global compile_apidox 1}}
@@ -25,7 +29,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.5
-Release:	0.209771.1
+Release:	0.210128.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -53,6 +57,7 @@ Patch3:		llvm-3.5-locate-LLVMgold.patch
 # Patches from AOSP
 Patch4:		0000-llvm-Add-support-for-64-bit-longs.patch
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
+Patch6:		llvm-3.5-detect-hardfloat.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -380,6 +385,7 @@ cd -
 %patch4 -p1 -b .64bitLongs~
 %patch5 -p1 -b .EnableGlobalMerge~
 %endif
+%patch6 -p1 -b .detectHardfloat~
 
 # Upstream tends to forget to remove "rc" and "svn" markers from version
 # numbers before making releases
@@ -388,6 +394,13 @@ sed -i -re "s|(PACKAGE_VERSION='[0-9.]*)([^']*)(.*)|\1\3|g;s|(PACKAGE_STRING='LL
 sed -i -re "s|^LLVM_VERSION_SUFFIX=.*|LLVM_VERSION_SUFFIX=|g" autoconf/configure.ac configure
 
 %build
+
+%ifarch %{arm}
+# Temporary
+export CC=gcc
+export CXX=g++
+%endif
+
 %configure \
 	--libdir=%{_libdir}/%{name} \
 	--datadir=%{_datadir}/%{name} \

@@ -1,6 +1,6 @@
 sources:
-  clang-3.5.src.tar.gz: af83bffd0c542d827b407d2118f632ce35674c8a
-  clang-tools-extra-3.5.src.tar.gz: ecb09b39c256e555217b2c8d7fd2464f5365f833
-  compiler-rt-3.5.src.tar.gz: 431aacb6cec976bde275f651bfb8455e6ebae836
-  llvm-3.5.src.tar.gz: fa4689e4b5936fb9fc985e5ae4b6eeb6e6add55c
-  polly-3.5.src.tar.gz: 0cab3db2521c1b46491f42fb7f489e793e01bf4a
+  clang-3.5.src.tar.gz: 5e5b0ea7563efc2a5a98fa86270a14cdff95f481
+  clang-tools-extra-3.5.src.tar.gz: bc8bcbcf119b3ef5bed30759c3a0f2915f85d4d1
+  compiler-rt-3.5.src.tar.gz: 1a2f93afe19c40083cf15dff5d4ae083cc61a466
+  llvm-3.5.src.tar.gz: 30ccff5d6d4be792d1ca90ea27f0e70f58978a85
+  polly-3.5.src.tar.gz: 2603b283f9df6dcfa053557c4afe5cf717a5a462

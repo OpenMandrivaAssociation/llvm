@@ -1,0 +1,92 @@
+--- llvm-3.5/lib/Support/Triple.cpp.omv~	2014-06-03 13:28:16.000000000 +0000
++++ llvm-3.5/lib/Support/Triple.cpp	2014-06-03 13:36:23.000000000 +0000
+@@ -326,8 +326,8 @@ static Triple::OSType parseOS(StringRef
+     .Default(Triple::UnknownOS);
+ }
+ 
+-static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
+-  return StringSwitch<Triple::EnvironmentType>(EnvironmentName)
++static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName, StringRef ArchName, StringRef VendorName) {
++  Triple::EnvironmentType t = StringSwitch<Triple::EnvironmentType>(EnvironmentName)
+     .StartsWith("eabihf", Triple::EABIHF)
+     .StartsWith("eabi", Triple::EABI)
+     .StartsWith("gnueabihf", Triple::GNUEABIHF)
+@@ -340,6 +340,15 @@ static Triple::EnvironmentType parseEnvi
+     .StartsWith("itanium", Triple::Itanium)
+     .StartsWith("cygnus", Triple::Cygnus)
+     .Default(Triple::UnknownEnvironment);
++  if(t == Triple::GNUEABI) {
++    // There's some special cases where -gnueabi actually means
++    // GNUEABIHF, such as
++    // armv7hl-linux-gnueabi (Fedora) and
++    // armv7a-hardfloat-linux-gnueabi (Gentoo)
++    if(ArchName.find('h') != StringRef::npos || VendorName.equals("hardfloat"))
++      return Triple::GNUEABIHF;
++  }
++  return t;
+ }
+ 
+ static Triple::ObjectFormatType parseFormat(StringRef EnvironmentName) {
+@@ -377,7 +386,7 @@ Triple::Triple(const Twine &Str)
+       Arch(parseArch(getArchName())),
+       Vendor(parseVendor(getVendorName())),
+       OS(parseOS(getOSName())),
+-      Environment(parseEnvironment(getEnvironmentName())),
++      Environment(parseEnvironment(getEnvironmentName(), getArchName(), getVendorName())),
+       ObjectFormat(parseFormat(getEnvironmentName())) {
+   if (ObjectFormat == Triple::UnknownObjectFormat)
+     ObjectFormat = getDefaultFormat(*this);
+@@ -410,7 +419,7 @@ Triple::Triple(const Twine &ArchStr, con
+       Arch(parseArch(ArchStr.str())),
+       Vendor(parseVendor(VendorStr.str())),
+       OS(parseOS(OSStr.str())),
+-      Environment(parseEnvironment(EnvironmentStr.str())),
++      Environment(parseEnvironment(EnvironmentStr.str(), ArchStr.str(), VendorStr.str())),
+       ObjectFormat(parseFormat(EnvironmentStr.str())) {
+   if (ObjectFormat == Triple::UnknownObjectFormat)
+     ObjectFormat = getDefaultFormat(*this);
+@@ -437,7 +446,7 @@ std::string Triple::normalize(StringRef
+     OS = parseOS(Components[2]);
+   EnvironmentType Environment = UnknownEnvironment;
+   if (Components.size() > 3)
+-    Environment = parseEnvironment(Components[3]);
++    Environment = parseEnvironment(Components[3], Components[0], Components[1]);
+   ObjectFormatType ObjectFormat = UnknownObjectFormat;
+   if (Components.size() > 4)
+     ObjectFormat = parseFormat(Components[4]);
+@@ -480,7 +489,7 @@ std::string Triple::normalize(StringRef
+         Valid = OS != UnknownOS;
+         break;
+       case 3:
+-        Environment = parseEnvironment(Comp);
++        Environment = parseEnvironment(Comp, Components[0], Components[1]);
+         Valid = Environment != UnknownEnvironment;
+         if (!Valid) {
+           ObjectFormat = parseFormat(Comp);
+--- llvm-3.5/tools/clang/lib/Driver/Tools.cpp.omv~	2014-06-03 18:51:49.000000000 +0000
++++ llvm-3.5/tools/clang/lib/Driver/Tools.cpp	2014-06-03 18:56:13.000000000 +0000
+@@ -653,7 +653,7 @@ StringRef tools::arm::getARMFloatABI(con
+         FloatABI = "hard";
+         break;
+       case llvm::Triple::GNUEABI:
+-        FloatABI = "softfp";
++        FloatABI = (Triple.getVendorName().equals("hardfloat") || Triple.getArchName().find('h')!=StringRef::npos) ? "hard" : "softfp";
+         break;
+       case llvm::Triple::EABIHF:
+         FloatABI = "hard";
+@@ -6903,13 +6903,13 @@ static StringRef getLinuxDynamicLinker(c
+     return "/lib/ld-linux-aarch64_be.so.1";
+   else if (ToolChain.getArch() == llvm::Triple::arm ||
+            ToolChain.getArch() == llvm::Triple::thumb) {
+-    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF)
++    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF || (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABI && (ToolChain.getTriple().getVendorName().equals("hardfloat") || ToolChain.getTriple().getArchName().find('h')!=StringRef::npos)))
+       return "/lib/ld-linux-armhf.so.3";
+     else
+       return "/lib/ld-linux.so.3";
+   } else if (ToolChain.getArch() == llvm::Triple::armeb ||
+              ToolChain.getArch() == llvm::Triple::thumbeb) {
+-    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF)
++    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF || (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABI && (ToolChain.getTriple().getVendorName().equals("hardfloat") || ToolChain.getTriple().getArchName().find('h')!=StringRef::npos)))
+       return "/lib/ld-linux-armhf.so.3";        /* TODO: check which dynamic linker name.  */
+     else
+       return "/lib/ld-linux.so.3";              /* TODO: check which dynamic linker name.  */
