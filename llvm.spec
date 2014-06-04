@@ -1,3 +1,4 @@
+%define debug_package %{nil}
 %define _disable_ld_no_undefined 0
 
 # clang header paths are hard-coded at compile time
@@ -29,7 +30,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.5
-Release:	0.210128.1
+Release:	0.210170.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -394,12 +395,10 @@ sed -i -re "s|(PACKAGE_VERSION='[0-9.]*)([^']*)(.*)|\1\3|g;s|(PACKAGE_STRING='LL
 sed -i -re "s|^LLVM_VERSION_SUFFIX=.*|LLVM_VERSION_SUFFIX=|g" autoconf/configure.ac configure
 
 %build
-
-%ifarch %{arm}
-# Temporary
-export CC=gcc
-export CXX=g++
-%endif
+# Workaround for previous build having a problem with debug info
+# generation
+export CFLAGS="%{optflags} -g0"
+export CXXFLAGS="%{optflags} -g0"
 
 %configure \
 	--libdir=%{_libdir}/%{name} \
