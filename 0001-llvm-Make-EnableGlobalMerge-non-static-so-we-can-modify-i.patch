@@ -1,11 +1,11 @@
---- llvm-3.5/lib/Transforms/Scalar/GlobalMerge.cpp.EnableGlobalMerge~	2014-05-12 16:37:12.585864330 +0200
-+++ llvm-3.5/lib/Transforms/Scalar/GlobalMerge.cpp	2014-05-12 16:38:56.595865696 +0200
-@@ -71,7 +71,7 @@ using namespace llvm;
+--- llvm-3.5/lib/CodeGen/GlobalMerge.cpp.EnableGlobalMerge~	2014-06-19 15:03:05.515698194 +0200
++++ llvm-3.5/lib/CodeGen/GlobalMerge.cpp	2014-06-19 15:03:46.846698327 +0200
+@@ -72,7 +72,7 @@ using namespace llvm;
  
  #define DEBUG_TYPE "global-merge"
  
 -static cl::opt<bool>
 +cl::opt<bool>
- EnableGlobalMerge("global-merge", cl::Hidden,
+ EnableGlobalMerge("enable-global-merge", cl::Hidden,
                    cl::desc("Enable global merge pass"),
                    cl::init(true));

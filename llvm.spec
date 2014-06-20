@@ -30,7 +30,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.5
-Release:	0.210170.2
+Release:	0.211267.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -53,6 +53,9 @@ Patch1:		0000-clang-mandriva.patch
 # see http://llvm.org/bugs/show_bug.cgi?id=15557
 # and https://bugzilla.redhat.com/show_bug.cgi?id=803433
 Patch2:		clang-hardfloat-hack.patch
+# Claim compatibility with gcc 4.9.1 rather than 4.2.1, it's
+# much much closer in terms of standards supported etc.
+Patch7:		clang-gcc-compat.patch
 # Locate LLVMgold.so on 64bit systems too
 Patch3:		llvm-3.5-locate-LLVMgold.patch
 # Patches from AOSP
@@ -69,7 +72,7 @@ BuildRequires:	graphviz
 BuildRequires:	groff
 BuildRequires:	libtool
 %if %{with ocaml}
-BuildRequires:	ocaml
+BuildRequires:	ocaml-compiler ocaml-compiler-libs camlp4
 %endif
 BuildRequires:	tcl
 BuildRequires:	sed
@@ -173,9 +176,9 @@ This package contains the development files for LLVM;
 %{_libdir}/%{name}/libLLVM*.a
 %{_libdir}/%{name}/libLLVM*.so
 %{_libdir}/%{name}/libLTO.a
-# FIXME should figure out why these aren't built
-# on aarch64. Missing dep?
-%optional %{_libdir}/%{name}/libllvm*.a
+%if %{with ocaml}
+%{_libdir}/%{name}/libllvm*.a
+%endif
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/cmake
 
@@ -380,6 +383,7 @@ mv compiler-rt-%{version}%{?prerel} projects/compiler-rt
 cd tools/clang
 %patch0 -p0
 %patch1 -p1 -b .mandriva~
+%patch7 -p1 -b .gcc49~
 cd -
 %patch2 -p1 -b .armhf~
 %patch3 -p1 -b .LLVMgold~
