@@ -56,6 +56,8 @@ Patch2:		clang-hardfloat-hack.patch
 # Claim compatibility with gcc 4.9.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
+# Support -fuse-ld=XXX properly
+Patch8:		clang-fuse-ld.patch
 # Locate LLVMgold.so on 64bit systems too
 Patch3:		llvm-3.5-locate-LLVMgold.patch
 # Patches from AOSP
@@ -385,6 +387,7 @@ cd tools/clang
 %patch0 -p0
 %patch1 -p1 -b .mandriva~
 %patch7 -p1 -b .gcc49~
+%patch8 -p1 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~
 %patch3 -p1 -b .LLVMgold~

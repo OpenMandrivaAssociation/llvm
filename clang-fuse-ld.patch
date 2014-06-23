@@ -1,0 +1,39 @@
+--- clang/include/clang/Driver/Options.td.omv~	2014-06-23 19:19:37.254257504 +0200
++++ clang/include/clang/Driver/Options.td	2014-06-23 19:22:32.515553774 +0200
+@@ -515,6 +515,7 @@ def funsafe_math_optimizations : Flag<["
+   Group<f_Group>;
+ def fno_unsafe_math_optimizations : Flag<["-"], "fno-unsafe-math-optimizations">,
+   Group<f_Group>;
++def fuse_ld_EQ : Joined<["-"], "fuse-ld=">, Group<f_Group>;
+ def fassociative_math : Flag<["-"], "fassociative-math">, Group<f_Group>;
+ def fno_associative_math : Flag<["-"], "fno-associative-math">, Group<f_Group>;
+ def freciprocal_math : Flag<["-"], "freciprocal-math">, Group<f_Group>;
+@@ -1540,7 +1541,6 @@ def fprofile_dir : Joined<["-"], "fprofi
+ 
+ defm profile_use : BooleanFFlag<"profile-use">, Group<clang_ignored_f_Group>;
+ def fprofile_use_EQ : Joined<["-"], "fprofile-use=">, Group<clang_ignored_f_Group>;
+-def fuse_ld_EQ : Joined<["-"], "fuse-ld=">, Group<clang_ignored_f_Group>;
+ 
+ defm align_functions : BooleanFFlag<"align-functions">, Group<clang_ignored_f_Group>;
+ def falign_functions_EQ : Joined<["-"], "falign-functions=">, Group<clang_ignored_f_Group>;
+--- clang/lib/Driver/ToolChain.cpp.omv~	2014-06-23 17:58:31.264974760 +0200
++++ clang/lib/Driver/ToolChain.cpp	2014-06-23 19:17:13.196527126 +0200
+@@ -144,6 +144,18 @@ std::string ToolChain::GetFilePath(const
+ }
+ 
+ std::string ToolChain::GetProgramPath(const char *Name) const {
++  if(!strcmp(Name, "ld")) {
++    // Handle -fuse-ld=XXX the way gcc does
++    if (Arg *A = Args.getLastArg(options::OPT_fuse_ld_EQ)) {
++      StringRef Value = A->getValue();
++      if(Value.empty())
++        return D.GetProgramPath(Name, *this);
++      const char *suffix = Value.str().c_str();
++      char *newName = (char *) alloca(strlen(Name) + strlen(suffix) + 2);
++      sprintf(newName, "%s.%s", Name, suffix);
++      return D.GetProgramPath(newName, *this);
++    }
++  }
+   return D.GetProgramPath(Name, *this);
+ }
+ 
