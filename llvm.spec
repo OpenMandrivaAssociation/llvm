@@ -30,7 +30,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.5
-Release:	0.211571.1
+Release:	0.212807.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -385,9 +385,9 @@ mv clang-tools-extra-%{version}%{?prerel} tools/clang/tools/extra
 mv compiler-rt-%{version}%{?prerel} projects/compiler-rt
 cd tools/clang
 %patch0 -p0
-%patch1 -p1 -b .mandriva~
-%patch7 -p1 -b .gcc49~
-%patch8 -p1 -b .fuseLd~
+%patch1 -p3 -b .mandriva~
+%patch7 -p3 -b .gcc49~
+%patch8 -p3 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~
 %patch3 -p1 -b .LLVMgold~
