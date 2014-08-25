@@ -1,6 +1,6 @@
---- tools/libclang/Makefile.orig	2013-11-24 12:16:59.090803758 +0100
-+++ tools/libclang/Makefile	2013-11-24 12:18:08.983807239 +0100
-@@ -30,7 +30,7 @@ include $(CLANG_LEVEL)/Makefile
+--- tools/libclang/Makefile.soname~	2014-08-25 22:21:51.899931322 +0200
++++ tools/libclang/Makefile	2014-08-25 22:22:40.725320921 +0200
+@@ -34,7 +34,7 @@ include $(CLANG_LEVEL)/Makefile
  
  # Add soname to the library.
  ifeq ($(HOST_OS), $(filter $(HOST_OS), Linux FreeBSD GNU GNU/kFreeBSD))
@@ -8,4 +8,4 @@
 +        LLVMLibsOptions += -Wl,-soname,lib$(LIBRARYNAME)-$(LLVMVersion)$(SHLIBEXT)
  endif
  
- ##===----------------------------------------------------------------------===##
+ ifeq ($(ENABLE_CLANG_ARCMT),1)
