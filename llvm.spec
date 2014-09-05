@@ -29,8 +29,8 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	3.5
-Release:	0.216064.1
+Version:	3.5.0
+Release:	1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -39,11 +39,11 @@ Url:		http://llvm.org/
 # Ir is the working branch of the AMDGPU/R600 backend needed by Mesa (and is otherwise
 # more or less identical to upstream llvm).
 # At times it may be necessary to package this branch instead.
-Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
-Source1:	http://llvm.org/releases/%{version}/clang-%{version}.src.tar.gz
-Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.gz
-Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.gz
-Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.gz
+Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
+Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
+Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.xz
+Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.xz
+Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.xz
 Source1000:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
@@ -376,13 +376,13 @@ Documentation for the Clang compiler front-end.
 #-----------------------------------------------------------
 
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4}
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
-mv clang-%{version}%{?prerel} tools/clang
-mv polly-%{version}%{?prerel} tools/polly
-mv clang-tools-extra-%{version}%{?prerel} tools/clang/tools/extra
-mv compiler-rt-%{version}%{?prerel} projects/compiler-rt
+mv cfe-%{version}%{?prerel}.src tools/clang
+mv polly-%{version}%{?prerel}.src tools/polly
+mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
+mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
 cd tools/clang
 %patch0 -p0 -b .soname~
 %patch1 -p3 -b .mandriva~
