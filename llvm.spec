@@ -260,7 +260,7 @@ short vector instructions as well as dedicated accelerators.
 #-----------------------------------------------------------
 
 %if %{with clang}
-%define clang_major %{major}.0
+%define clang_major %{major}
 %define libclang %mklibname clang %clang_major
 
 # TODO: %{_bindir}/clang is linked against static libclang.a, could it be
