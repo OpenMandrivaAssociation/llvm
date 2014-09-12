@@ -141,7 +141,7 @@ for effective implementation, proper tail calls or garbage collection.
 
 #define major %(echo %{version} |cut -d. -f1-2)
 # As of 3.5.0, library versioning seems to have changed to use the full version
-%define major %(version)
+%define major %{version}
 %define libname %mklibname %{name} %{major}
 
 %package -n %{libname}
