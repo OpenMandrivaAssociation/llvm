@@ -335,7 +335,6 @@ libclang.
 %{_includedir}/clang
 %{_includedir}/clang-c
 %{_libdir}/libclang.so
-%{_libdir}/libclang-%{clang_major}.so
 %dir %{_libdir}/%{name}
 %{_libdir}/%{name}/libclang*.a
 %{_libdir}/%{name}/libclang*.so
