@@ -139,22 +139,22 @@ for effective implementation, proper tail calls or garbage collection.
 
 #-----------------------------------------------------------
 
-#define major %(echo %{version} |cut -d. -f1-2)
-# As of 3.5.0, library versioning seems to have changed to use the full version
-%define major %{version}
-%define libname %mklibname %{name} %{major}
+%define major %(echo %{version} |cut -d. -f1-2)
+# As of 3.5.0, library versioning has changed to use the full version
+%define libname %mklibname %{name} %{version}
 
 %package -n %{libname}
 Summary:	LLVM shared libraries
 Group:		System/Libraries
 Conflicts:	llvm < 3.0-4
+Obsoletes:	%mklibname %{name} %{major} < %{EVRD}
 
 %description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
 programs that are dynamically linked against libLLVM.
 
 %files -n %{libname}
-%{_libdir}/libLLVM-%{major}.so
+%{_libdir}/libLLVM-%{version}.so
 
 #-----------------------------------------------------------
 
@@ -163,9 +163,14 @@ programs that are dynamically linked against libLLVM.
 %package -n %{devname}
 Summary:	Development files for LLVM
 Group:		Development/Other
-Provides:	llvm-devel = %{version}-%{release}
-Requires:	%{libname} = %{version}-%{release}
-Requires:	%{name} = %{version}-%{release}
+Provides:	llvm-devel = %{EVRD}
+%if "%_lib" == "lib64"
+Provides:	devel(libLLVM-3.5(64bit))
+%else
+Provides:	devel(libLLVM-3.5)
+%endif
+Requires:	%{libname} = %{EVRD}
+Requires:	%{name} = %{EVRD}
 Conflicts:	llvm < 3.0-7
 Conflicts:	%{_lib}llvm3.0 < 3.0-9
 
@@ -260,8 +265,7 @@ short vector instructions as well as dedicated accelerators.
 #-----------------------------------------------------------
 
 %if %{with clang}
-%define clang_major %{major}
-%define libclang %mklibname clang %clang_major
+%define libclang %mklibname clang %version
 
 # TODO: %{_bindir}/clang is linked against static libclang.a, could it be
 # linked against libclang.so instead, like llvm-* are against livLLVM.so?
@@ -271,7 +275,7 @@ Summary:	A C language family front-end for LLVM
 License:	NCSA
 Group:		Development/Other
 # TODO: is this requires:llvm needed, or just legacy from fedora pkg layout?
-Requires:	llvm%{?_isa} = %{version}-%{release}
+Requires:	llvm%{?_isa} = %{EVRD}
 # clang requires gcc, clang++ requires libstdc++-devel
 Requires:	gcc
 Requires:	libstdc++-devel >= %{gcc_version}
@@ -307,13 +311,14 @@ as libraries and designed to be loosely-coupled and extensible.
 %package -n %{libclang}
 Summary:	Shared library for clang
 Group:		System/Libraries
+Obsoletes:	%mklibname clang %{major} < %{EVRD}
 
 %description -n %{libclang}
 Shared libraries for the clang compiler. This is needed by
 programs that are dynamically linked against libclang.
 
 %files -n %{libclang}
-%{_libdir}/libclang-%major.so
+%{_libdir}/libclang-%version.so
 
 #-----------------------------------------------------------
 
@@ -322,8 +327,8 @@ programs that are dynamically linked against libclang.
 %package -n %{devclang}
 Summary:	Development files for clang
 Group:		Development/Other
-Requires:	%{libclang} = %{version}-%{release}
-Provides:	clang-devel = %{version}-%{release}
+Requires:	%{libclang} = %{EVRD}
+Provides:	clang-devel = %{EVRD}
 Conflicts:	llvm-devel < 3.1
 Obsoletes:	clang-devel < 3.1
 
@@ -343,7 +348,7 @@ libclang.
 Summary:	A source code analysis framework
 License:	NCSA
 Group:		Development/Other
-Requires:	clang%{?_isa} = %{version}-%{release}
+Requires:	clang%{?_isa} = %{EVRD}
 # not picked up automatically since files are currently not instaled
 # in standard Python hierarchies yet
 Requires:	python
@@ -364,7 +369,7 @@ intended to run in tandem with a build of a project or code base.
 Summary:	Documentation for Clang
 Group:		Books/Computer books
 BuildArch:	noarch
-Requires:	%{name} = %{version}-%{release}
+Requires:	%{name} = %{EVRD}
 
 %description -n clang-doc
 Documentation for the Clang compiler front-end.
@@ -460,8 +465,8 @@ file %{buildroot}/%{_bindir}/* | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath
 file %{buildroot}/%{_libdir}/llvm/*.so | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath -d
 
 # move shared libraries to standard library path and add devel symlink (Anssi 11/2011)
-mv %{buildroot}%{_libdir}/llvm/libLLVM-%{major}.so %{buildroot}%{_libdir}
-ln -s libLLVM-%{major}.so %{buildroot}%{_libdir}/libLLVM.so
+mv %{buildroot}%{_libdir}/llvm/libLLVM-%{version}.so %{buildroot}%{_libdir}
+ln -s libLLVM-%{version}.so %{buildroot}%{_libdir}/libLLVM.so
 ln -s llvm/LLVMgold.so %{buildroot}%{_libdir}/
 ln -s llvm/libLTO.so %{buildroot}%{_libdir}/
 # Also, create shared library symlinks corresponding to all the static library
@@ -476,7 +481,7 @@ done
 %if %with clang
 # Versionize libclang.so (patch0 makes the same change to soname) and move it to standard path.
 mv %{buildroot}%{_libdir}/llvm/libclang.so %{buildroot}%{_libdir}/libclang-%{version}.so
-ln -s libclang-%clang_major.so %{buildroot}%{_libdir}/libclang.so
+ln -s libclang-%version.so %{buildroot}%{_libdir}/libclang.so
 ln -s ../libclang.so %{buildroot}%{_libdir}/llvm/libclang.so
 
 # NOTE: We don't create devel symlinks for the libclang.so for libclang*.a libraries
