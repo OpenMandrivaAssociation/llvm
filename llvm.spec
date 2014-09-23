@@ -30,7 +30,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.5.0
-Release:	1
+Release:	2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -140,21 +140,20 @@ for effective implementation, proper tail calls or garbage collection.
 #-----------------------------------------------------------
 
 %define major %(echo %{version} |cut -d. -f1-2)
-# As of 3.5.0, library versioning has changed to use the full version
-%define libname %mklibname %{name} %{version}
+%define libname %mklibname %{name} %{major}
 
 %package -n %{libname}
 Summary:	LLVM shared libraries
 Group:		System/Libraries
 Conflicts:	llvm < 3.0-4
-Obsoletes:	%mklibname %{name} %{major} < %{EVRD}
+Obsoletes:	%{mklibname %{name} 3.5.0}
 
 %description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
 programs that are dynamically linked against libLLVM.
 
 %files -n %{libname}
-%{_libdir}/libLLVM-%{version}.so
+%{_libdir}/libLLVM-[0-9].*.so
 
 #-----------------------------------------------------------
 
@@ -164,11 +163,6 @@ programs that are dynamically linked against libLLVM.
 Summary:	Development files for LLVM
 Group:		Development/Other
 Provides:	llvm-devel = %{EVRD}
-%if "%_lib" == "lib64"
-Provides:	devel(libLLVM-3.5(64bit))
-%else
-Provides:	devel(libLLVM-3.5)
-%endif
 Requires:	%{libname} = %{EVRD}
 Requires:	%{name} = %{EVRD}
 Conflicts:	llvm < 3.0-7
@@ -465,7 +459,7 @@ file %{buildroot}/%{_bindir}/* | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath
 file %{buildroot}/%{_libdir}/llvm/*.so | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath -d
 
 # move shared libraries to standard library path and add devel symlink (Anssi 11/2011)
-mv %{buildroot}%{_libdir}/llvm/libLLVM-%{version}.so %{buildroot}%{_libdir}
+mv %{buildroot}%{_libdir}/llvm/libLLVM-[0-9].*.so %{buildroot}%{_libdir}
 ln -s libLLVM-%{version}.so %{buildroot}%{_libdir}/libLLVM.so
 ln -s llvm/LLVMgold.so %{buildroot}%{_libdir}/
 ln -s llvm/libLTO.so %{buildroot}%{_libdir}/
