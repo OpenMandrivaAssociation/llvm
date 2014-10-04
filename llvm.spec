@@ -5,11 +5,7 @@
 # and need adjustment whenever there's a new GCC version
 %define gcc_version %(gcc -dumpversion)
 
-%ifnarch aarch64 %{arm}
 %define default_compiler 1
-%else
-%define default_compiler 0
-%endif
 
 %define compile_apidox 0
 %{?_with_apidox: %{expand: %%global compile_apidox 1}}
