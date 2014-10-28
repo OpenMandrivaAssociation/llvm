@@ -68,3 +68,14 @@
  // SPARC:#define __WCHAR_MAX__ 2147483647
  // SPARC:#define __WCHAR_TYPE__ int
  // SPARC:#define __WCHAR_WIDTH__ 32
+--- llvm-3.6.0.src/include/llvm/Support/Compiler.h.omv~	2014-10-28 18:09:47.260731249 +0100
++++ llvm-3.6.0.src/include/llvm/Support/Compiler.h	2014-10-28 18:09:59.930572854 +0100
+@@ -288,7 +288,7 @@
+ 
+ /// \macro LLVM_ASSUME_ALIGNED
+ /// \brief Returns a pointer with an assumed alignment.
+-#if __has_builtin(__builtin_assume_aligned) || LLVM_GNUC_PREREQ(4, 7, 0)
++#if __has_builtin(__builtin_assume_aligned) || (!defined(__clang__) && LLVM_GNUC_PREREQ(4, 7, 0))
+ # define LLVM_ASSUME_ALIGNED(p, a) __builtin_assume_aligned(p, a)
+ #elif defined(LLVM_BUILTIN_UNREACHABLE)
+ // As of today, clang does not support __builtin_assume_aligned.

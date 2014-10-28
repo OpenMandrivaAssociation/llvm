@@ -25,8 +25,8 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	3.5.0
-Release:	2
+Version:	3.6.0
+Release:	0.220783.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -125,7 +125,11 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-stress
 %{_bindir}/llvm-symbolizer
 %{_bindir}/llvm-tblgen
+%{_bindir}/llvm-vtabledump
 %{_bindir}/pp-trace
+%{_bindir}/verify-uselistorder
+%{_bindir}/obj2yaml
+%{_bindir}/yaml2obj
 %{_bindir}/macho-dump
 %{_bindir}/not
 %dir %{_libdir}/llvm
@@ -381,8 +385,7 @@ mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
 cd tools/clang
 %patch0 -p0 -b .soname~
-%patch1 -p3 -b .mandriva~
-%patch7 -p3 -b .gcc49~
+%patch1 -p1 -b .mandriva~
 %patch8 -p3 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~
@@ -391,12 +394,15 @@ cd -
 %patch5 -p1 -b .EnableGlobalMerge~
 %endif
 %patch6 -p1 -b .detectHardfloat~
+%patch7 -p1 -b .gcc49~
 
 # Upstream tends to forget to remove "rc" and "svn" markers from version
 # numbers before making releases
 sed -i -re 's|^(AC_INIT[^,]*,\[)([0-9.]*)([^]])*(.*)|\1\2\4|' autoconf/configure.ac
 sed -i -re "s|(PACKAGE_VERSION='[0-9.]*)([^']*)(.*)|\1\3|g;s|(PACKAGE_STRING='LLVM [0-9.]*)([^']*)(.*)|\1\3|g" configure
 sed -i -re "s|^LLVM_VERSION_SUFFIX=.*|LLVM_VERSION_SUFFIX=|g" autoconf/configure.ac configure
+chmod +x configure autoconf/*
+find . -type d |while read r; do chmod 0755 "$r"; done
 
 %build
 # Workaround for previous build having a problem with debug info
