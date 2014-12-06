@@ -1,6 +1,6 @@
 sources:
-  cfe-3.6.0.src.tar.xz: 1f372e97554fc725ddd7475970f85e87d9a309df
-  clang-tools-extra-3.6.0.src.tar.xz: 44f606474855acde64f0c786b569049a199ec453
-  compiler-rt-3.6.0.src.tar.xz: 3aaa8c1108dcdda469cfeca74eb0b88691a03753
-  llvm-3.6.0.src.tar.xz: 695c164a42e24f42bf1b1d586cfdfe8e5a867ff5
-  polly-3.6.0.src.tar.xz: 5e83eb3240723b01dbf32f92d158babd43c41977
+  cfe-3.6.0.src.tar.xz: 5f87a6142c81a83df352e465d99119052da2277f
+  clang-tools-extra-3.6.0.src.tar.xz: 1df60974a76a37fe8c4be563c3907bb84ea1d5f8
+  compiler-rt-3.6.0.src.tar.xz: d781baf095d54b885754e51a54bae8a5d4961669
+  llvm-3.6.0.src.tar.xz: 865f7560e0fe0efde76606e719a9252ff5b19fb3
+  polly-3.6.0.src.tar.xz: 3a6625ba834cb5443a470d1ca9f53e382244f952

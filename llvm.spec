@@ -26,7 +26,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.6.0
-Release:	0.220783.1
+Release:	0.223586.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -70,7 +70,7 @@ BuildRequires:	graphviz
 BuildRequires:	groff
 BuildRequires:	libtool
 %if %{with ocaml}
-BuildRequires:	ocaml-compiler ocaml-compiler-libs camlp4
+BuildRequires:	ocaml-compiler ocaml-compiler-libs ocaml-camlp4 ocaml-findlib >= 1.5.5-2 ocaml-ctypes
 %endif
 BuildRequires:	tcl
 BuildRequires:	sed
@@ -133,9 +133,6 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/macho-dump
 %{_bindir}/not
 %dir %{_libdir}/llvm
-%if %{with ocaml}
-%{_libdir}/ocaml/*
-%endif
 
 #-----------------------------------------------------------
 
@@ -180,9 +177,6 @@ This package contains the development files for LLVM;
 %{_libdir}/%{name}/libLLVM*.a
 %{_libdir}/%{name}/libLLVM*.so
 %{_libdir}/%{name}/libLTO.a
-%if %{with ocaml}
-%{_libdir}/%{name}/libllvm*.a
-%endif
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/cmake
 
@@ -203,9 +197,6 @@ Documentation for the LLVM compiler infrastructure.
 %doc docs/*.css
 %doc docs/*.html
 %doc docs/tutorial
-%if %{with ocaml}
-%doc docs/ocamldoc
-%endif
 %doc examples
 %if %{compile_apidox}
 %doc docs/doxygen
@@ -373,6 +364,18 @@ Documentation for the Clang compiler front-end.
 
 %endif
 
+%if %{with ocaml}
+%package -n ocaml-%{name}
+Summary:	Objective-CAML bindings for LLVM
+Group:		Development/Other
+Requires:	%{name} = %{EVRD}
+
+%description -n ocaml-%{name}
+Objective-CAML bindings for LLVM
+
+%files -n ocaml-%{name}
+%{_libdir}/ocaml/*
+%endif
 #-----------------------------------------------------------
 
 %prep
