@@ -17,7 +17,7 @@
 # No graphviz yet either
 %bcond_without bootstrap
 %else
-%bcond_without ocaml
+%bcond_with ocaml
 %bcond_with bootstrap
 %endif
 
