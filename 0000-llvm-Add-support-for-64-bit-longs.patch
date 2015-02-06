@@ -1,6 +1,6 @@
---- llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.cpp.64bitLongs~	2014-10-28 17:57:11.496179606 +0100
-+++ llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.cpp	2014-10-28 17:58:03.718526737 +0100
-@@ -211,6 +211,7 @@ void ARMSubtarget::initializeEnvironment
+--- llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.cpp.64bitLongs~	2015-01-14 12:23:27.000000000 +0100
++++ llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.cpp	2015-02-05 22:32:07.840918857 +0100
+@@ -212,6 +212,7 @@ void ARMSubtarget::initializeEnvironment
    Thumb2DSP = false;
    UseNaClTrap = false;
    UnsafeFPMath = false;
@@ -8,9 +8,9 @@
  }
  
  void ARMSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
---- llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.h.64bitLongs~	2014-10-13 12:22:19.000000000 +0200
-+++ llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.h	2014-10-28 17:57:11.496179606 +0100
-@@ -200,6 +200,9 @@ protected:
+--- llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.h.64bitLongs~	2015-01-14 12:23:27.000000000 +0100
++++ llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.h	2015-02-05 22:32:07.840918857 +0100
+@@ -201,6 +201,9 @@ protected:
    /// NaCl TRAP instruction is generated instead of the regular TRAP.
    bool UseNaClTrap;
  
@@ -20,16 +20,18 @@
    /// Target machine allowed unsafe FP math (such as use of NEON fp)
    bool UnsafeFPMath;
  
---- llvm-3.6.0.src/lib/Target/ARM/ARM.td.64bitLongs~	2014-10-13 12:22:19.000000000 +0200
-+++ llvm-3.6.0.src/lib/Target/ARM/ARM.td	2014-10-28 17:57:11.496179606 +0100
-@@ -276,6 +276,10 @@ def FeatureAPCS  : SubtargetFeature<"apc
- def FeatureAAPCS : SubtargetFeature<"aapcs", "TargetABI", "ARM_ABI_AAPCS",
-                                    "Use the AAPCS ABI">;
+--- llvm-3.6.0.src/lib/Target/ARM/ARM.td.64bitLongs~	2015-02-05 22:32:07.840918857 +0100
++++ llvm-3.6.0.src/lib/Target/ARM/ARM.td	2015-02-05 22:33:15.972995702 +0100
+@@ -273,6 +273,12 @@ def ProcKrait   : SubtargetFeature<"krai
+ class ProcNoItin<string Name, list<SubtargetFeature> Features>
+  : Processor<Name, NoItineraries, Features>;
  
++
 +// RenderScript-specific support for 64-bit long types on all targets
 +def FeatureLong64 : SubtargetFeature<"long64", "UseLong64",
 +                                     "true",
 +                                     "long type is forced to be 64-bit">;
- 
- class ProcNoItin<string Name, list<SubtargetFeature> Features>
-  : Processor<Name, NoItineraries, Features>;
++
+ // V4 Processors.
+ def : ProcNoItin<"generic",         []>;
+ def : ProcNoItin<"arm8",            []>;

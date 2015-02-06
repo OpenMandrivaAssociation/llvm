@@ -26,7 +26,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.6.0
-Release:	0.223586.2
+Release:	0.228339.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -54,8 +54,6 @@ Patch2:		clang-hardfloat-hack.patch
 Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
 Patch8:		clang-fuse-ld.patch
-# Locate LLVMgold.so on 64bit systems too
-Patch3:		llvm-3.5-locate-LLVMgold.patch
 # Patches from AOSP
 Patch4:		0000-llvm-Add-support-for-64-bit-longs.patch
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
@@ -109,6 +107,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-bcanalyzer
 %{_bindir}/llvm-diff
 %{_bindir}/llvm-dis
+%{_bindir}/llvm-dsymutil
 %{_bindir}/llvm-extract
 %{_bindir}/llvm-link
 %{_bindir}/llvm-mc
@@ -392,7 +391,6 @@ cd tools/clang
 %patch8 -p3 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~
-%patch3 -p1 -b .LLVMgold~
 %patch4 -p1 -b .64bitLongs~
 %patch5 -p1 -b .EnableGlobalMerge~
 %endif
@@ -435,6 +433,8 @@ export CXXFLAGS="%{optflags} -g0"
 %if %{compile_apidox}
 	--enable-doxygen
 %endif
+
+sed -i -e 's|^#define CLANG_LIBDIR_SUFFIX.*|#define CLANG_LIBDIR_SUFFIX \"64\"|' include/llvm/Config/config.h
 
 # FIXME file this
 # configure does not properly specify libdir
