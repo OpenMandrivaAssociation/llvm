@@ -26,7 +26,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.6.0
-Release:	0.228339.1
+Release:	0.228339.2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -58,6 +58,7 @@ Patch8:		clang-fuse-ld.patch
 Patch4:		0000-llvm-Add-support-for-64-bit-longs.patch
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 Patch6:		llvm-3.5-detect-hardfloat.patch
+Patch9:		llvm-3.6.0.src-support-armv7hl-and-armv7hnl-triplets.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -396,6 +397,7 @@ cd -
 %endif
 %patch6 -p1 -b .detectHardfloat~
 %patch7 -p1 -b .gcc49~
+%patch9 -p1 -b .triplet~
 
 # Upstream tends to forget to remove "rc" and "svn" markers from version
 # numbers before making releases
