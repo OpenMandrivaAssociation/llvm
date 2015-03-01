@@ -518,6 +518,7 @@ done
 rm -rf clang-docs-full
 cp -al tools/clang/docs clang-docs-full
 rm -rf clang-docs-full/{doxygen*,Makefile*,*.graffle,tools}
+find clang-docs-full docs examples -perm 0640 |xargs chmod 0644
 
 # Polly bits as described on
 # http://polly.llvm.org/example_load_Polly_into_clang.html
@@ -537,7 +538,8 @@ chmod 0755 %{buildroot}%{_bindir}/pollycc %{buildroot}%{_bindir}/pollyc++
 rm %{buildroot}%{_libdir}/%{name}/LLVMHello.so
 
 # Fix bogus permissions
-find %{buildroot} -name "*.a" -a -type f|xargs chmod 0644
+find %{buildroot} -perm 0640 -o -name "*.a" |xargs chmod 0644
+find %{buildroot} -perm 0750 |xargs chmod 0755
 
 %if %{default_compiler}
 ln -s clang %{buildroot}%{_bindir}/cc
