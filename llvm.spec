@@ -11,11 +11,12 @@
 %bcond_without ocaml
 
 %define _requires_exceptions devel\(libffi\)
+%define main_ver 3.4
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	3.4
-Release:	8.1
+Version:	3.4.2
+Release:	0.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -25,10 +26,10 @@ Url:		http://llvm.org/
 # more or less identical to upstream llvm).
 # At times it may be necessary to package this branch instead.
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
-Source1:	http://llvm.org/releases/%{version}/cfe-3.4.2.src.tar.gz
-Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.gz
-Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.gz
-Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.gz
+Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.gz
+Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{main_ver}.src.tar.gz
+Source3:	http://llvm.org/releases/%{version}/polly-%{main_ver}.src.tar.gz
+Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{main_ver}.src.tar.gz
 Source1000:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
@@ -335,10 +336,10 @@ Documentation for the Clang compiler front-end.
 %setup -qn %{name}-%{version} %{?with_clang:-a1 -a2 -a3 -a4}
 rm -rf tools/clang
 %if %{with clang}
-mv clang-%{version}%{?prerel} tools/clang
-mv polly-%{version}%{?prerel} tools/polly
-mv clang-tools-extra-%{version}%{?prerel} tools/clang/tools/extra
-mv compiler-rt-%{version}%{?prerel} projects/compiler-rt
+mv cfe-%{version}%{?prerel} tools/clang
+mv polly-%{main_ver}%{?prerel} tools/polly
+mv clang-tools-extra-%{main_ver}%{?prerel} tools/clang/tools/extra
+mv compiler-rt-%{main_ver}%{?prerel} projects/compiler-rt
 cd tools/clang
 %patch0 -p0
 %patch1 -p1 -b .mandriva~
