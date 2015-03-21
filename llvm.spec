@@ -15,7 +15,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.4
-Release:	8
+Release:	8.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -25,7 +25,7 @@ Url:		http://llvm.org/
 # more or less identical to upstream llvm).
 # At times it may be necessary to package this branch instead.
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.gz
-Source1:	http://llvm.org/releases/%{version}/clang-%{version}.src.tar.gz
+Source1:	http://llvm.org/releases/%{version}/cfe-3.4.2.src.tar.gz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.gz
 Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.gz
 Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.gz
