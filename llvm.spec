@@ -336,7 +336,7 @@ Documentation for the Clang compiler front-end.
 %setup -qn %{name}-%{version}.src %{?with_clang:-a1 -a2 -a3 -a4}
 rm -rf tools/clang
 %if %{with clang}
-mv cfe-%{version}%{?prerel} tools/clang
+mv cfe-%{version}%{?prerel}.src tools/clang
 mv polly-%{main_ver}%{?prerel} tools/polly
 mv clang-tools-extra-%{main_ver}%{?prerel} tools/clang/tools/extra
 mv compiler-rt-%{main_ver}%{?prerel} projects/compiler-rt
