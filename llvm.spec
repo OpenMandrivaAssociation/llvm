@@ -333,7 +333,7 @@ Documentation for the Clang compiler front-end.
 #-----------------------------------------------------------
 
 %prep
-%setup -qn %{name}-%{version} %{?with_clang:-a1 -a2 -a3 -a4}
+%setup -qn %{name}-%{version}.src %{?with_clang:-a1 -a2 -a3 -a4}
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel} tools/clang
