@@ -381,6 +381,9 @@ export CXX=%__cxx
 	--enable-doxygen
 %endif
 
+
+sed -i -e 's|^#define CLANG_LIBDIR_SUFFIX.*|#define CLANG_LIBDIR_SUFFIX \"64\"|' include/llvm/Config/config.h
+
 # FIXME file this
 # configure does not properly specify libdir
 sed -i 's|(PROJ_prefix)/lib|(PROJ_prefix)/%{_lib}/%{name}|g' Makefile.config
@@ -408,9 +411,11 @@ rm -rf %{buildroot}%{_bindir}/.dir
 file %{buildroot}/%{_bindir}/* | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath -d
 file %{buildroot}/%{_libdir}/llvm/*.so | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath -d
 
-# move shared library to standard library path and add devel symlink (Anssi 11/2011)
-mv %{buildroot}%{_libdir}/llvm/libLLVM-%{major}.so %{buildroot}%{_libdir}
-ln -s libLLVM-%{major}.so %{buildroot}%{_libdir}/libLLVM.so
+# move shared libraries to standard library path and add devel symlink (Anssi 11/2011)
+mv %{buildroot}%{_libdir}/llvm/libLLVM-[0-9].*.so %{buildroot}%{_libdir}
+ln -s libLLVM-%{version}.so %{buildroot}%{_libdir}/libLLVM.so
+ln -s llvm/LLVMgold.so %{buildroot}%{_libdir}/
+ln -s llvm/libLTO.so %{buildroot}%{_libdir}/
 # Also, create shared library symlinks corresponding to all the static library
 # names, so that using e.g. "-lLLVMBitReader" will cause the binary to be linked
 # against the shared library instead of static library by default. (Anssi 08/2012)
@@ -423,7 +428,7 @@ done
 %if %with clang
 # Versionize libclang.so (patch0 makes the same change to soname) and move it to standard path.
 mv %{buildroot}%{_libdir}/llvm/libclang.so %{buildroot}%{_libdir}/libclang-%{version}.so
-ln -s libclang-%clang_major.so %{buildroot}%{_libdir}/libclang.so
+ln -s libclang-%version.so %{buildroot}%{_libdir}/libclang.so
 ln -s ../libclang.so %{buildroot}%{_libdir}/llvm/libclang.so
 
 # NOTE: We don't create devel symlinks for the libclang.so for libclang*.a libraries
