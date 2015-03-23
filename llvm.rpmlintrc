@@ -1,3 +1,4 @@
 addFilter("E: hardcoded-library-path")
 addFilter("E: external-depfilter-with-internal-depgen")
 addFilter("E: devel-file-in-non-devel-package")
+addFilter("E: incoherent-version-in-name")
