@@ -138,6 +138,7 @@ This package contains the development files for LLVM;
 %files -n %{devname}
 %{_bindir}/%{name}-config
 %{_libdir}/libLLVM.so
+%{_libdir}/libLLVM-3.4.so
 %{_includedir}/%{name}
 %{_includedir}/%{name}-c
 %dir %{_libdir}/%{name}
@@ -256,6 +257,8 @@ as libraries and designed to be loosely-coupled and extensible.
 %doc clang-docs/*
 %{_bindir}/clang*
 %{_libdir}/llvm/libmodernizeCore.a
+%{_libdir}/LLVMgold.so
+%{_libdir}/libLTO.so
 %{_bindir}/c-index-test
 %{_prefix}/lib/clang
 %doc %{_mandir}/man1/clang.1.*
