@@ -16,7 +16,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.4.2
-Release:	0.2
+Release:	0.3
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -111,13 +111,14 @@ for effective implementation, proper tail calls or garbage collection.
 Summary:	LLVM shared libraries
 Group:		System/Libraries
 Conflicts:	llvm < 3.0-4
+Conflicts:	%{mklibname llvm -d} < 3.4.2-0.3
 
 %description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
 programs that are dynamically linked against libLLVM.
 
 %files -n %{libname}
-%{_libdir}/libLLVM-%{major}.so
+%{_libdir}/libLLVM-[0-9].*.so
 
 #-----------------------------------------------------------
 
@@ -138,7 +139,6 @@ This package contains the development files for LLVM;
 %files -n %{devname}
 %{_bindir}/%{name}-config
 %{_libdir}/libLLVM.so
-%{_libdir}/libLLVM-3.4.so
 %{_includedir}/%{name}
 %{_includedir}/%{name}-c
 %dir %{_libdir}/%{name}
