@@ -16,7 +16,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.4.2
-Release:	0.3
+Release:	0.4
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -112,6 +112,7 @@ Summary:	LLVM shared libraries
 Group:		System/Libraries
 Conflicts:	llvm < 3.0-4
 Conflicts:	%{mklibname llvm -d} < 3.4.2-0.3
+Conflicts:	%{_lib}llvm3.4 < 3.4-9
 
 %description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
