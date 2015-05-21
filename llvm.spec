@@ -25,8 +25,8 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	3.6.0
-Release:	2
+Version:	3.7.0
+Release:	0.237890.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -125,7 +125,8 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-stress
 %{_bindir}/llvm-symbolizer
 %{_bindir}/llvm-tblgen
-%{_bindir}/llvm-vtabledump
+%{_bindir}/llvm-cxxdump
+%{_bindir}/llvm-pdbdump
 %{_bindir}/pp-trace
 %{_bindir}/verify-uselistorder
 %{_bindir}/obj2yaml
@@ -194,7 +195,6 @@ Documentation for the LLVM compiler infrastructure.
 
 %files doc
 %doc README.txt
-%doc docs/*.css
 %doc docs/*.html
 %doc docs/tutorial
 %doc examples
@@ -389,7 +389,7 @@ mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
 cd tools/clang
 %patch0 -p0 -b .soname~
 %patch1 -p1 -b .mandriva~
-%patch8 -p3 -b .fuseLd~
+%patch8 -p1 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~
 %patch4 -p1 -b .64bitLongs~
@@ -518,7 +518,6 @@ done
 rm -rf clang-docs-full
 cp -al tools/clang/docs clang-docs-full
 rm -rf clang-docs-full/{doxygen*,Makefile*,*.graffle,tools}
-find clang-docs-full docs examples -perm 0640 |xargs chmod 0644
 
 # Polly bits as described on
 # http://polly.llvm.org/example_load_Polly_into_clang.html
@@ -539,7 +538,6 @@ rm %{buildroot}%{_libdir}/%{name}/LLVMHello.so
 
 # Fix bogus permissions
 find %{buildroot} -perm 0640 -o -name "*.a" |xargs chmod 0644
-find %{buildroot} -perm 0750 |xargs chmod 0755
 
 %if %{default_compiler}
 ln -s clang %{buildroot}%{_bindir}/cc

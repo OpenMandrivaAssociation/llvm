@@ -13,7 +13,7 @@ else
 fi
 cd "$TMP"
 export LANG=C
-for i in llvm cfe clang-tools-extra compiler-rt polly; do
+for i in llvm cfe clang-tools-extra compiler-rt polly libcxx libcxxabi lldb openmp; do
 	svn co http://llvm.org/svn/llvm-project/$i/$BRANCH $i
 	cd $i
 	[ "$VER" = 0 ] && VER=`grep "^PACKAGE_VERSION=" configure |cut -d= -f2 |sed -e "s,',,g;s,svn,,g"`
