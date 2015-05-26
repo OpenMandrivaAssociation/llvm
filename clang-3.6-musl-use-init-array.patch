@@ -1,0 +1,15 @@
+--- llvm-3.7.0.src/tools/clang/lib/Driver/ToolChains.cpp.musl7~	2015-05-25 22:37:32.879515050 +0200
++++ llvm-3.7.0.src/tools/clang/lib/Driver/ToolChains.cpp	2015-05-25 22:39:30.371561951 +0200
+@@ -2126,7 +2126,11 @@ void Generic_ELF::addClangTargetOptions(
+       getTriple().getArch() == llvm::Triple::aarch64_be ||
+       (getTriple().getOS() == llvm::Triple::Linux &&
+        (!V.isOlderThan(4, 7, 0) ||
+-        getTriple().getEnvironment() == llvm::Triple::Android)) ||
++        getTriple().getEnvironment() == llvm::Triple::Android ||
++	getTriple().getEnvironment() == llvm::Triple::Musl ||
++	getTriple().getEnvironment() == llvm::Triple::MuslEABI ||
++	getTriple().getEnvironment() == llvm::Triple::MuslEABIHF ||
++	getTriple().getEnvironment() == llvm::Triple::MuslX32)) ||
+       getTriple().getOS() == llvm::Triple::NaCl;
+ 
+   if (DriverArgs.hasFlag(options::OPT_fuse_init_array,

@@ -1,6 +1,6 @@
 --- clang/lib/Driver/ToolChains.cpp.mandriva~	2015-05-14 15:52:08.000000000 +0200
-+++ clang/lib/Driver/ToolChains.cpp	2015-05-20 19:20:31.636654918 +0200
-@@ -1294,16 +1294,43 @@ bool Generic_GCC::GCCInstallationDetecto
++++ clang/lib/Driver/ToolChains.cpp	2015-05-25 22:57:43.009009083 +0200
+@@ -1294,16 +1294,49 @@ bool Generic_GCC::GCCInstallationDetecto
    static const char *const AArch64Triples[] = { "aarch64-none-linux-gnu",
                                                  "aarch64-linux-gnu",
                                                  "aarch64-linux-android",
@@ -8,14 +8,16 @@
 -  static const char *const AArch64beLibDirs[] = { "/lib" };
 +                                                "aarch64-redhat-linux",
 +                                                "aarch64-mandriva-linux-gnu",
-+                                                "aarch64-openmandriva-linux-gnu" };
++                                                "aarch64-openmandriva-linux-gnu",
++                                                "aarch64-openmandriva-linux-musl" };
 +  static const char *const AArch64beLibDirs[] = { "/lib64", "/lib" };
    static const char *const AArch64beTriples[] = { "aarch64_be-none-linux-gnu",
 -                                                  "aarch64_be-linux-gnu" };
 +                                                  "aarch64_be-linux-gnu",
 +                                                  "aarch64_be-linux-android",
 +                                                  "aarch64_be-mandriva-linux-gnu",
-+                                                  "aarch64_be-openmandriva-linux-gnu" };
++                                                  "aarch64_be-openmandriva-linux-gnu",
++                                                  "aarch64_be-openmandriva-linux-musl" };
  
    static const char *const ARMLibDirs[] = { "/lib" };
    static const char *const ARMTriples[] = { "arm-linux-gnueabi",
@@ -26,7 +28,9 @@
 +                                            "armv6-mandriva-linux-gnueabi",
 +                                            "armv6-openmandriva-linux-gnueabi",
 +                                            "armv7-mandriva-linux-gnueabi",
-+                                            "armv7-openmandriva-linux-gnueabi" };
++                                            "armv7-openmandriva-linux-gnueabi",
++                                            "armv7-openmandriva-linux-musl",
++                                            "armv7-openmandriva-linux-musleabi" };
    static const char *const ARMHFTriples[] = { "arm-linux-gnueabihf",
 -                                              "armv7hl-redhat-linux-gnueabi" };
 +                                              "armv7hl-redhat-linux-gnueabi",
@@ -45,28 +49,35 @@
 +                                              "armv6hl-mandriva-linux-gnueabihf",
 +                                              "armv6hl-openmandriva-linux-gnueabihf",
 +                                              "armv7hl-mandriva-linux-gnueabihf",
-+                                              "armv7hl-openmandriva-linux-gnueabihf" };
++                                              "armv7hl-openmandriva-linux-gnueabihf",
++                                              "armv7-openmandriva-linux-musleabi",
++                                              "armv7-openmandriva-linux-musleabihf" };
    static const char *const ARMebLibDirs[] = { "/lib" };
    static const char *const ARMebTriples[] = { "armeb-linux-gnueabi",
                                                "armeb-linux-androideabi" };
-@@ -1315,7 +1342,7 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1315,7 +1348,8 @@ bool Generic_GCC::GCCInstallationDetecto
      "x86_64-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-pc-linux-gnu",
      "x86_64-redhat-linux6E", "x86_64-redhat-linux", "x86_64-suse-linux",
      "x86_64-manbo-linux-gnu", "x86_64-linux-gnu", "x86_64-slackware-linux",
 -    "x86_64-linux-android", "x86_64-unknown-linux"
-+    "x86_64-linux-android", "x86_64-unknown-linux", "x86_64-mandriva-linux-gnu"
++    "x86_64-linux-android", "x86_64-unknown-linux", "x86_64-mandriva-linux-gnu",
++    "x86_64-openmandriva-linux-gnu", "x86_64-openmandriva-linux-musl"
    };
    static const char *const X32LibDirs[] = { "/libx32" };
    static const char *const X86LibDirs[] = { "/lib32", "/lib" };
-@@ -1323,6 +1350,7 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1323,7 +1357,10 @@ bool Generic_GCC::GCCInstallationDetecto
      "i686-linux-gnu", "i686-pc-linux-gnu", "i486-linux-gnu", "i386-linux-gnu",
      "i386-redhat-linux6E", "i686-redhat-linux", "i586-redhat-linux",
      "i386-redhat-linux", "i586-suse-linux", "i486-slackware-linux",
+-    "i686-montavista-linux", "i686-linux-android", "i586-linux-gnu"
 +    "i586-mandriva-linux-gnu", "i686-mandriva-linux-gnu",
-     "i686-montavista-linux", "i686-linux-android", "i586-linux-gnu"
++    "i686-montavista-linux", "i686-linux-android", "i586-linux-gnu",
++    "i586-openmandriva-linux", "i586-openmandriva-linux-gnu", "i586-openmandriva-linux-musl",
++    "i686-openmandriva-linux", "i686-openmandriva-linux-gnu", "i686-openmandriva-linux-musl"
    };
  
-@@ -1350,12 +1378,13 @@ bool Generic_GCC::GCCInstallationDetecto
+   static const char *const MIPSLibDirs[] = { "/lib" };
+@@ -1350,12 +1387,13 @@ bool Generic_GCC::GCCInstallationDetecto
    static const char *const PPCLibDirs[] = { "/lib32", "/lib" };
    static const char *const PPCTriples[] = {
      "powerpc-linux-gnu", "powerpc-unknown-linux-gnu", "powerpc-linux-gnuspe",
@@ -81,7 +92,7 @@
                                                "ppc64-redhat-linux" };
    static const char *const PPC64LELibDirs[] = { "/lib64", "/lib" };
    static const char *const PPC64LETriples[] = { "powerpc64le-linux-gnu",
-@@ -2920,6 +2949,9 @@ enum Distro {
+@@ -2920,6 +2958,9 @@ enum Distro {
    UbuntuTrusty,
    UbuntuUtopic,
    UbuntuVivid,
@@ -91,7 +102,7 @@
    UnknownDistro
  };
  
-@@ -2939,6 +2971,10 @@ static bool IsUbuntu(enum Distro Distro)
+@@ -2939,6 +2980,10 @@ static bool IsUbuntu(enum Distro Distro)
    return Distro >= UbuntuHardy && Distro <= UbuntuVivid;
  }
  
@@ -102,7 +113,7 @@
  static Distro DetectDistro(llvm::Triple::ArchType Arch) {
    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File =
        llvm::MemoryBuffer::getFile("/etc/lsb-release");
-@@ -2947,7 +2983,17 @@ static Distro DetectDistro(llvm::Triple:
+@@ -2947,7 +2992,17 @@ static Distro DetectDistro(llvm::Triple:
      SmallVector<StringRef, 16> Lines;
      Data.split(Lines, "\n");
      Distro Version = UnknownDistro;
@@ -121,7 +132,7 @@
        if (Version == UnknownDistro && Lines[i].startswith("DISTRIB_CODENAME="))
          Version = llvm::StringSwitch<Distro>(Lines[i].substr(17))
            .Case("hardy", UbuntuHardy)
-@@ -2966,6 +3012,7 @@ static Distro DetectDistro(llvm::Triple:
+@@ -2966,6 +3021,7 @@ static Distro DetectDistro(llvm::Triple:
            .Case("utopic", UbuntuUtopic)
            .Case("vivid", UbuntuVivid)
            .Default(UnknownDistro);
@@ -129,7 +140,7 @@
      return Version;
    }
  
-@@ -3128,11 +3175,16 @@ static StringRef getOSLibDir(const llvm:
+@@ -3128,11 +3184,16 @@ static StringRef getOSLibDir(const llvm:
    // with a 'lib32' library search path being considered. So we only enable
    // them when we know we may need it.
    //
@@ -148,7 +159,7 @@
      return "lib32";
  
    if (Triple.getArch() == llvm::Triple::x86_64 &&
-@@ -3165,7 +3217,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -3165,7 +3226,7 @@ Linux::Linux(const Driver &D, const llvm
  
    Distro Distro = DetectDistro(Arch);
  
@@ -157,7 +168,7 @@
      ExtraOpts.push_back("-z");
      ExtraOpts.push_back("relro");
    }
-@@ -3185,7 +3237,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -3185,7 +3246,7 @@ Linux::Linux(const Driver &D, const llvm
    // ABI requires a mapping between the GOT and the symbol table.
    // Android loader does not support .gnu.hash.
    if (!IsMips && !IsAndroid) {
@@ -166,7 +177,7 @@
          (IsUbuntu(Distro) && Distro >= UbuntuMaverick))
        ExtraOpts.push_back("--hash-style=gnu");
  
-@@ -3197,12 +3249,12 @@ Linux::Linux(const Driver &D, const llvm
+@@ -3197,12 +3258,12 @@ Linux::Linux(const Driver &D, const llvm
    if (IsRedhat(Distro))
      ExtraOpts.push_back("--no-add-needed");
  

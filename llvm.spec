@@ -26,7 +26,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.237890.1
+Release:	0.238159.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -58,7 +58,17 @@ Patch8:		clang-fuse-ld.patch
 Patch4:		0000-llvm-Add-support-for-64-bit-longs.patch
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 Patch6:		llvm-3.5-detect-hardfloat.patch
-Patch9:		llvm-3.6.0.src-support-armv7hl-and-armv7hnl-triplets.patch
+# Patches for musl support, (partially) stolen from Alpine Linux and ported
+Patch20:	llvm-3.7-musl.patch
+Patch21:	llvm-3.7-musl-triple.patch
+Patch22:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-sanitizer-off_t.patch
+Patch23:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-3.6-musl-no-dlvsym.patch
+Patch25:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
+Patch26:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-musl-use-init-array.patch
+Patch27:	clang-3.7-musl-fix-dynamic-linker-paths.patch
+Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
+Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-default-runtime-compiler-rt.patch
+Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -397,7 +407,17 @@ cd -
 %endif
 %patch6 -p1 -b .detectHardfloat~
 %patch7 -p1 -b .gcc49~
-%patch9 -p1 -b .triplet~
+
+%patch20 -p1 -b .musl1~
+%patch21 -p1 -b .musl2~
+%patch22 -p1 -b .musl3~
+%patch23 -p1 -b .musl4~
+%patch25 -p1 -b .musl6~
+%patch26 -p1 -b .musl7~
+%patch27 -p1 -b .musl8~
+%patch29 -p1 -b .musl10~
+%patch30 -p1 -b .musl11~
+%patch31 -p1 -b .musl12~
 
 # Upstream tends to forget to remove "rc" and "svn" markers from version
 # numbers before making releases
