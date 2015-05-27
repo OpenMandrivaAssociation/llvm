@@ -26,7 +26,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.238159.1
+Release:	0.238333.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -63,7 +63,8 @@ Patch20:	llvm-3.7-musl.patch
 Patch21:	llvm-3.7-musl-triple.patch
 Patch22:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-sanitizer-off_t.patch
 Patch23:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-3.6-musl-no-dlvsym.patch
-Patch25:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
+# http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch breaks
+# exception handling -- removes gcc_eh
 Patch26:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-musl-use-init-array.patch
 Patch27:	clang-3.7-musl-fix-dynamic-linker-paths.patch
 Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
@@ -412,7 +413,6 @@ cd -
 %patch21 -p1 -b .musl2~
 %patch22 -p1 -b .musl3~
 %patch23 -p1 -b .musl4~
-%patch25 -p1 -b .musl6~
 %patch26 -p1 -b .musl7~
 %patch27 -p1 -b .musl8~
 %patch29 -p1 -b .musl10~
