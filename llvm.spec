@@ -26,7 +26,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.238333.1
+Release:	0.238664.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -63,8 +63,8 @@ Patch20:	llvm-3.7-musl.patch
 Patch21:	llvm-3.7-musl-triple.patch
 Patch22:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-sanitizer-off_t.patch
 Patch23:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-3.6-musl-no-dlvsym.patch
-# http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch breaks
-# exception handling -- removes gcc_eh
+# http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
+# breaks exception handling -- removes gcc_eh
 Patch26:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-musl-use-init-array.patch
 Patch27:	clang-3.7-musl-fix-dynamic-linker-paths.patch
 Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
@@ -176,6 +176,13 @@ Requires:	%{libname} = %{EVRD}
 Requires:	%{name} = %{EVRD}
 Conflicts:	llvm < 3.0-7
 Conflicts:	%{_lib}llvm3.0 < 3.0-9
+# FIXME this is evil.. Just a temporary workaround
+# for abf issues thinking mesa pre-requires LLVM 3.6 devel files
+%if "%{_lib}" == "lib64"
+Provides:	devel(libLLVM-3.6(64bit))
+%else
+Provides:	devel(libLLVM-3.6)
+%endif
 
 %description -n %{devname}
 This package contains the development files for LLVM;
