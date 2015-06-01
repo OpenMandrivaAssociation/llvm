@@ -26,7 +26,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.238664.1
+Release:	0.238664.2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -180,8 +180,10 @@ Conflicts:	%{_lib}llvm3.0 < 3.0-9
 # for abf issues thinking mesa pre-requires LLVM 3.6 devel files
 %if "%{_lib}" == "lib64"
 Provides:	devel(libLLVM-3.6(64bit))
+Provides:	libLLVM-3.6.so()(64bit)
 %else
 Provides:	devel(libLLVM-3.6)
+Provides:	libLLVM-3.6.so()
 %endif
 
 %description -n %{devname}
