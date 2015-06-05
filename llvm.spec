@@ -433,8 +433,8 @@ find . -type d |while read r; do chmod 0755 "$r"; done
 
 # compiler-rt doesn't support ix86 with x<6
 %ifarch %ix86
-export CFLAGS="%{optflags} -march=i686"
-export CXXFLAGS="%{optflags} -march=i686"
+export CFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
+export CXXFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 %endif
 
 %cmake \
