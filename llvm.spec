@@ -431,10 +431,16 @@ find . -type d |while read r; do chmod 0755 "$r"; done
 # Currently broken, but potentially interesting:
 #	-DLLVM_ENABLE_MODULES:BOOL=ON
 
-# compiler-rt doesn't support ix86 with x<6
+# compiler-rt assumes off_t is 64 bits -- make sure this is true even on 32 bit
+# OSes
 %ifarch %ix86
+# compiler-rt doesn't support ix86 with x<6 either
 export CFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 export CXXFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
+%endif
+%ifarch %arm sparc mips
+export CFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
+export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 %endif
 
 %cmake \
