@@ -1,0 +1,22 @@
+--- llvm-3.7.0.src/tools/polly/include/polly/CodeGen/RuntimeDebugBuilder.h.omv~	2015-06-06 15:48:37.278239683 +0200
++++ llvm-3.7.0.src/tools/polly/include/polly/CodeGen/RuntimeDebugBuilder.h	2015-06-06 15:48:43.845295149 +0200
+@@ -91,7 +91,7 @@ private:
+   static void createGPUVAPrinter(PollyIRBuilder &Builder,
+                                  std::vector<llvm::Value *> &Values,
+                                  llvm::StringRef String, Args... args) {
+-    Values.push_back(Builder.CreateGlobalStringPtr(String, "", 4));
++    Values.push_back(Builder.CreateGlobalStringPtr(String, ""));
+     createGPUVAPrinter(Builder, Values, args...);
+   }
+ 
+--- llvm-3.7.0.src/tools/polly/lib/CodeGen/RuntimeDebugBuilder.cpp.omv~	2015-06-06 15:48:00.240926366 +0200
++++ llvm-3.7.0.src/tools/polly/lib/CodeGen/RuntimeDebugBuilder.cpp	2015-06-06 15:49:20.235602046 +0200
+@@ -108,7 +108,7 @@ void RuntimeDebugBuilder::createGPUVAPri
+     Offset += 2;
+   }
+ 
+-  Value *Format = Builder.CreateGlobalStringPtr(str, "polly.vprintf.buffer", 4);
++  Value *Format = Builder.CreateGlobalStringPtr(str, "polly.vprintf.buffer");
+   Format = Builder.CreateCall(getAddressSpaceCast(Builder, 4, 0), Format);
+ 
+   Data = Builder.CreateBitCast(Data, Builder.getInt8PtrTy());
