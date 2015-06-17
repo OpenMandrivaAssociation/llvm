@@ -1,4 +1,5 @@
 %define debug_package %{nil}
+%define build_lto 1
 %define _disable_ld_no_undefined 0
 
 # clang header paths are hard-coded at compile time
@@ -28,7 +29,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.239219.1
+Release:	0.239219.2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -313,6 +314,9 @@ as libraries and designed to be loosely-coupled and extensible.
 %files -n clang
 %{_bindir}/clang*
 %{_libdir}/LLVMgold.so
+%if %{build_lto}
+%{_libdir}/bfd-plugins/LLVMgold.so
+%endif
 %{_libdir}/libLTO.so
 %{_libdir}/clang
 %{_datadir}/clang
@@ -539,3 +543,9 @@ rm %{buildroot}%{_libdir}/LLVMHello.so
 # Files needed for make check, but harmful afterwards...
 # (conflicts with upstream libgtest)
 rm %{buildroot}%{_libdir}/libgtest*
+
+%if %{build_lto}
+# Put the LTO plugin where ld can see it...
+mkdir -p %{buildroot}%{_libdir}/bfd-plugins
+ln -s ../%{_libdir}/LLVMgold.so %{buildroot}%{_libdir}/bfd-plugins/LLVMgold.so
+%endif
