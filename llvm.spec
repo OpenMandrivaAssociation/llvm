@@ -25,6 +25,7 @@
 %bcond_with ocaml
 %bcond_with bootstrap
 %endif
+%bcond_without ffi
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
@@ -35,7 +36,7 @@ Group:		Development/Other
 Url:		http://llvm.org/
 # There's a branch of LLVM maintained at
 # git://people.freedesktop.org/~tstellar/llvm
-# Ir is the working branch of the AMDGPU/AMDGPU backend needed by Mesa (and is otherwise
+# Ir is the working branch of the AMDGPU/R600 backend needed by Mesa (and is otherwise
 # more or less identical to upstream llvm).
 # At times it may be necessary to package this branch instead.
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
@@ -91,7 +92,9 @@ BuildRequires:	tcl
 BuildRequires:	sed
 BuildRequires:	zip
 BuildRequires:	libstdc++-devel
+%if %{with ffi}
 BuildRequires:	pkgconfig(libffi)
+%endif
 BuildRequires:	pkgconfig(cloog-isl)
 BuildRequires:	pkgconfig(isl) >= 0.13
 BuildRequires:	pkgconfig(libtirpc)
@@ -452,7 +455,11 @@ export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FI
 
 %cmake \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
+%if %{with ffi}
 	-DLLVM_ENABLE_FFI:BOOL=ON \
+%else
+	-DLLVM_ENABLE_FFI:BOOL=OFF \
+%endif
 	-DLLVM_TARGETS_TO_BUILD=all \
 	-DLLVM_ENABLE_CXX1Y:BOOL=ON \
 	-DLLVM_ENABLE_RTTI:BOOL=ON \
