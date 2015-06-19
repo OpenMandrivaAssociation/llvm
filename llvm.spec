@@ -437,6 +437,8 @@ cd -
 find . -type d |while read r; do chmod 0755 "$r"; done
 
 %build
+TOP=$(pwd)
+
 # Workaround for previous build having a problem with debug info
 # generation
 #export CFLAGS="%{optflags} -g0"
@@ -481,6 +483,8 @@ export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FI
 %if %{with libcxx}
 	-DLLVM_ENABLE_LIBCXX:BOOL=ON \
 	-DLLVM_ENABLE_LIBCXXABI:BOOL=ON \
+	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/projects/libcxx/include \
+	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/projects/libcxxabi/include \
 %endif
 %if %{with apidox}
 	-DLLVM_ENABLE_DOXYGEN:BOOL=ON \
