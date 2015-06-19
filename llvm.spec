@@ -44,6 +44,8 @@ Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.xz
 Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.xz
 Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.xz
+Source5:	http://llvm.org/releases/%{version}/libcxx-%{version}.src.tar.xz
+Source6:	http://llvm.org/releases/%{version}/libcxxabi-%{version}.src.tar.xz
 Source1000:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
@@ -398,13 +400,15 @@ Objective-CAML bindings for LLVM
 #-----------------------------------------------------------
 
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -a5 -a6 -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
 mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
+mv libcxx-%{version}%{?prerel}.src projects/libcxx
+mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
 cd tools/clang
 %patch0 -p0 -b .soname~
 %patch1 -p1 -b .mandriva~
