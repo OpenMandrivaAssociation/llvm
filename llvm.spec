@@ -400,15 +400,13 @@ Objective-CAML bindings for LLVM
 #-----------------------------------------------------------
 
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -a5 -a6 -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_libcxx:-a5 -a6} -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
 mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
-mv libcxx-%{version}%{?prerel}.src projects/libcxx
-mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
 cd tools/clang
 %patch0 -p0 -b .soname~
 %patch1 -p1 -b .mandriva~
@@ -417,6 +415,10 @@ cd -
 %patch2 -p1 -b .armhf~
 %patch4 -p1 -b .64bitLongs~
 %patch5 -p1 -b .EnableGlobalMerge~
+%endif
+%if %{with libcxx}
+mv libcxx-%{version}%{?prerel}.src projects/libcxx
+mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
 %endif
 %patch6 -p1 -b .detectHardfloat~
 %patch7 -p1 -b .gcc49~
@@ -483,15 +485,15 @@ export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FI
 %if %{with libcxx}
 	-DLLVM_ENABLE_LIBCXX:BOOL=ON \
 	-DLLVM_ENABLE_LIBCXXABI:BOOL=ON \
+%endif
 	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/projects/libcxx/include \
 	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/projects/libcxxabi/include \
-%endif
 %if %{with apidox}
 	-DLLVM_ENABLE_DOXYGEN:BOOL=ON \
 %endif
 
 %if ! %{cross_compiling}
-#export LD_LIBRARY_PATH="$(pwd)/%{_lib}":${LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH=%{_libdir}:"$(pwd)/%{_lib}":${LD_LIBRARY_PATH}
 %endif
 %make || make
 
