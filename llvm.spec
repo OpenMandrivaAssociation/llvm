@@ -493,6 +493,10 @@ export CFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE
 export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 %endif
 
+if echo %{_target_platform} | grep -q musl; then
+	sed -i -e 's,set(COMPILER_RT_HAS_SANITIZER_COMMON TRUE),set(COMPILER_RT_HAS_SANITIZER_COMMON FALSE),' projects/compiler-rt/cmake/config-ix.cmake
+fi
+
 %cmake \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 %if %{with ffi}
