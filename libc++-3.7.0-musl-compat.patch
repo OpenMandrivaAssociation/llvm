@@ -1,0 +1,63 @@
+--- libcxx-3.7.0.src/include/__config.omv~	2015-05-28 14:27:43.096716740 +0200
++++ libcxx-3.7.0.src/include/__config	2015-05-28 15:05:57.801218884 +0200
+@@ -348,12 +348,21 @@ typedef __char32_t char32_t;
+ #define _LIBCPP_HAS_QUICK_EXIT
+ #elif defined(__linux__)
+ #include <features.h>
++#ifdef __GLIBC_PREREQ
+ #if __GLIBC_PREREQ(2, 15)
+ #define _LIBCPP_HAS_QUICK_EXIT
+ #endif
+ #if __GLIBC_PREREQ(2, 17)
+ #define _LIBCPP_HAS_C11_FEATURES
+ #endif
++#else
++/* Linux, but not __ANDROID__ or __GLIBC__ is likely musl
++   (uClibc defines a compat__GLIBC__ macro). */
++#define _LIBCPP_HAS_QUICK_EXIT
++#define _LIBCPP_HAS_C11_FEATURES
++#define _LIBCPP_LIBC_HAS_ISXXX_L
++#define _LIBCPP_PROVIDES_DEFAULT_RUNE_TABLE
++#endif
+ #endif
+ #endif
+ 
+--- libcxx-3.7.0.src/include/__locale.omv~	2015-05-28 14:56:15.682189577 +0200
++++ libcxx-3.7.0.src/include/__locale	2015-05-28 14:57:48.244673997 +0200
+@@ -37,7 +37,11 @@
+ #elif (defined(__GLIBC__) || defined(__APPLE__)      || defined(__FreeBSD__) \
+     || defined(__EMSCRIPTEN__) || defined(__IBMCPP__))
+ # include <xlocale.h>
+-#endif // __GLIBC__ || __APPLE__ || __FreeBSD__ || __sun__ || __EMSCRIPTEN__ || __IBMCPP__
++#elif defined(__linux__)
++/* Linux but not __GLIBC__ and not __ANDROID__ is likely musl.
++   no strtoX_l functions here as of 1.1.9. */
++# include <support/xlocale/xlocale.h>
++#endif // __linux__
+ 
+ #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+ #pragma GCC system_header
+--- libcxx-3.7.0.src/include/support/xlocale/xlocale.h.omv~	2015-05-28 14:58:22.764854656 +0200
++++ libcxx-3.7.0.src/include/support/xlocale/xlocale.h	2015-05-28 15:02:32.552155350 +0200
+@@ -18,10 +18,13 @@
+ #ifndef _LIBCPP_SUPPORT_XLOCALE_XLOCALE_H
+ #define _LIBCPP_SUPPORT_XLOCALE_XLOCALE_H
+ 
++#include <stdlib.h>
++
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
+ 
++#ifndef _LIBCPP_LIBC_HAS_ISXXX_L
+ static inline int isalnum_l(int c, locale_t) {
+   return isalnum(c);
+ }
+@@ -160,6 +163,7 @@ static inline size_t wcsxfrm_l(wchar_t *
+ static inline long double strtold_l(const char *nptr, char **endptr, locale_t) {
+   return strtold(nptr, endptr);
+ }
++#endif
+ 
+ static inline long long strtoll_l(const char *nptr, char **endptr, int base,
+                                   locale_t) {

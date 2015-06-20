@@ -78,6 +78,7 @@ Patch27:	clang-3.7-musl-fix-dynamic-linker-paths.patch
 Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
 Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-default-runtime-compiler-rt.patch
 Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
+Patch40:	libc++-3.7.0-musl-compat.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -444,7 +445,12 @@ cd -
 %patch4 -p1 -b .64bitLongs~
 %patch5 -p1 -b .EnableGlobalMerge~
 %endif
-[ -d libcxx-%{version}%{?prerel}.src ] && mv libcxx-%{version}%{?prerel}.src projects/libcxx
+if [ -d libcxx-%{version}%{?prerel}.src ]; then
+	mv libcxx-%{version}%{?prerel}.src projects/libcxx
+	cd projects/libcxx
+%patch40 -p1 -b .libcxxmusl~
+	cd ../..
+fi
 [ -d libcxxabi-%{version}%{?prerel}.src ] && mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
 %patch6 -p1 -b .detectHardfloat~
 %patch7 -p1 -b .gcc49~
