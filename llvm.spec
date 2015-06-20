@@ -519,6 +519,12 @@ export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FI
 %if %{with apidox}
 	-DLLVM_ENABLE_DOXYGEN:BOOL=ON \
 %endif
+%if %{cross_compiling}
+	-DCMAKE_CROSSCOMPILING=True \
+	-DLLVM_TABLEGEN=%{_bindir}/llvm-tblgen \
+	-DCLANG_TABLEGEN=%{_bindir}/clang-tblgen \
+	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
+%endif
 
 %if ! %{cross_compiling}
 export LD_LIBRARY_PATH=%{_libdir}:"$(pwd)/%{_lib}":${LD_LIBRARY_PATH}
