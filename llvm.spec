@@ -30,7 +30,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.240133.1
+Release:	0.240215.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -171,6 +171,34 @@ for effective implementation, proper tail calls or garbage collection.
 
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do echo %%libpackage $i %{major1}; done)}
 %libpackage modernizeCore %{major1}
+
+#-----------------------------------------------------------
+%libpackage c++ 1
+%libpackage c++abi 1
+
+%define cxxdevname %mklibname c++ -d
+%define cxxabistatic %mklibname c++abi -d -s
+
+%package -n %{cxxdevname}
+Summary: Development files for libc++, an alternative implementation of the STL
+Group: Development/C
+Requires: %{mklibname c++ 1} = %{EVRD}
+Requires: %{mklibname c++abi 1} = %{EVRD}
+Provides: c++-devel = %{EVRD}
+
+%description -n %{cxxdevname}
+Development files for libc++, an alternative implementation of the STL
+
+%files -n %{cxxdevname}
+%{_includedir}/c++
+
+%package -n %{cxxabistatic}
+Summary: Static library for libc++ C++ ABI support
+Group: Development/C
+Requires: %{cxxdevname} = %{EVRD}
+
+%description -n %{cxxabistatic}
+Static library for libc++'s C++ ABI library
 
 #-----------------------------------------------------------
 %define libname %mklibname %{name} %{major}
@@ -400,7 +428,7 @@ Objective-CAML bindings for LLVM
 #-----------------------------------------------------------
 
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_libcxx:-a5 -a6} -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -a5 -a6 -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
@@ -416,10 +444,8 @@ cd -
 %patch4 -p1 -b .64bitLongs~
 %patch5 -p1 -b .EnableGlobalMerge~
 %endif
-%if %{with libcxx}
-mv libcxx-%{version}%{?prerel}.src projects/libcxx
-mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
-%endif
+[ -d libcxx-%{version}%{?prerel}.src ] && mv libcxx-%{version}%{?prerel}.src projects/libcxx
+[ -d libcxxabi-%{version}%{?prerel}.src ] && mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
 %patch6 -p1 -b .detectHardfloat~
 %patch7 -p1 -b .gcc49~
 %patch9 -p1 -b .ddsan~
@@ -486,6 +512,8 @@ export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FI
 	-DLLVM_ENABLE_LIBCXX:BOOL=ON \
 	-DLLVM_ENABLE_LIBCXXABI:BOOL=ON \
 %endif
+	-DLIBCXX_CXX_ABI=libcxxabi \
+	-DLIBCXX_ENABLE_CXX1Y:BOOL=ON \
 	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/projects/libcxx/include \
 	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/projects/libcxxabi/include \
 %if %{with apidox}
@@ -567,3 +595,7 @@ rm %{buildroot}%{_libdir}/libgtest*
 mkdir -p %{buildroot}%{_libdir}/bfd-plugins
 ln -s ../%{_libdir}/LLVMgold.so %{buildroot}%{_libdir}/bfd-plugins/LLVMgold.so
 %endif
+
+# Relics of libcxx_msan installing a copy of libc++ headers to
+# %{buildroot}/$RPM_BUILD_DIR
+rm -rf %{buildroot}/home

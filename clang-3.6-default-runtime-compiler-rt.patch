@@ -23,5 +23,5 @@ index 47fb10d..88aee51 100644
                                 llvm::opt::ArgStringList &CC1Args) const override;
 +  RuntimeLibType GetDefaultRuntimeLibType() const override;
    bool isPIEDefault() const override;
+   SanitizerMask getSupportedSanitizers() const override;
 
-   std::string Linker;

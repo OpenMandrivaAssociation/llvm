@@ -1,10 +1,10 @@
 sources:
-  cfe-3.7.0.src.tar.xz: 94732f55786e00e941845dacaa5bc4cabd732e47
-  clang-tools-extra-3.7.0.src.tar.xz: 8f40f7dd8121144b08575c26304e6a97c9187e04
-  compiler-rt-3.7.0.src.tar.xz: 28d6ca608e282b25281226836e8aa2d23207cd4d
-  libcxx-3.7.0.src.tar.xz: 476ed13ceee88928db218baee7ed7aa5843d2e29
-  libcxxabi-3.7.0.src.tar.xz: 14ef4be541e00fa0098e3a17c00b8d5361a31a26
-  lldb-3.7.0.src.tar.xz: 29a604505b12a194fd00ebe1012b476c1a4b70a5
-  llvm-3.7.0.src.tar.xz: 3084e7505ae61f9dbfcd8feacef2d4094522b70d
-  openmp-3.7.0.src.tar.xz: 6549a2f41080c7b4fb699547e69f9284d5a8f91e
-  polly-3.7.0.src.tar.xz: c56acea6d85fae579a6577655f3464fafa7d2aeb
+  cfe-3.7.0.src.tar.xz: 9603b73a32716a8f79dd4c991f69e306aa367c2a
+  clang-tools-extra-3.7.0.src.tar.xz: d0eb675dbd4da9d7542a61704b484721a53b2e7a
+  compiler-rt-3.7.0.src.tar.xz: 5c638ddb71567051504debcde79b74f83b92022e
+  libcxx-3.7.0.src.tar.xz: bc6b5d7d9fd9fc929283f668fa38d7dd36fe6ee1
+  libcxxabi-3.7.0.src.tar.xz: 37b74e61abc7e0e1ec4456d962a34e845eb965e1
+  lldb-3.7.0.src.tar.xz: 5bd0c95e4f9740718c770bf7fe5fd31f78e8f9d8
+  llvm-3.7.0.src.tar.xz: d92bea41e635cfeaee38db17abf09822caf41f66
+  openmp-3.7.0.src.tar.xz: f6fd0daccd8518806e2f23c8db16fa797bb460ee
+  polly-3.7.0.src.tar.xz: aab4e0d65838b1827eef7c4271a5f4636f41e518
