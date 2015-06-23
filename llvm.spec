@@ -201,6 +201,9 @@ Requires: %{cxxdevname} = %{EVRD}
 %description -n %{cxxabistatic}
 Static library for libc++'s C++ ABI library
 
+%files -n %{cxxabistatic}
+%{_libdir}/libc++abi.a
+
 #-----------------------------------------------------------
 %define libname %mklibname %{name} %{major}
 
