@@ -529,6 +529,9 @@ fi
 	-DLIBCXX_ENABLE_CXX1Y:BOOL=ON \
 	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/projects/libcxx/include \
 	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/projects/libcxxabi/include \
+	-DLIBCXXABI_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
+	-DLIBCXX_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
+	-DCMAKE_SHARED_LINKER_FLAGS="-L`pwd`/%{_lib}" \
 %if %{with apidox}
 	-DLLVM_ENABLE_DOXYGEN:BOOL=ON \
 %endif
