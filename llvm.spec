@@ -30,7 +30,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.240215.1
+Release:	0.240215.2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -612,7 +612,7 @@ rm %{buildroot}%{_libdir}/libgtest*
 %if %{build_lto}
 # Put the LTO plugin where ld can see it...
 mkdir -p %{buildroot}%{_libdir}/bfd-plugins
-ln -s ../%{_libdir}/LLVMgold.so %{buildroot}%{_libdir}/bfd-plugins/LLVMgold.so
+ln -s %{_libdir}/LLVMgold.so %{buildroot}%{_libdir}/bfd-plugins/LLVMgold.so
 %endif
 
 # Relics of libcxx_msan installing a copy of libc++ headers to
