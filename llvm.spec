@@ -30,7 +30,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.240215.2
+Release:	0.240532.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -86,6 +86,7 @@ BuildRequires:	flex
 %if %{without bootstrap}
 BuildRequires:	graphviz
 %endif
+BuildRequires:	chrpath
 BuildRequires:	groff
 BuildRequires:	libtool
 %if %{with ocaml}
@@ -500,6 +501,11 @@ if echo %{_target_platform} | grep -q musl; then
 	sed -i -e 's,set(COMPILER_RT_HAS_SANITIZER_COMMON TRUE),set(COMPILER_RT_HAS_SANITIZER_COMMON FALSE),' projects/compiler-rt/cmake/config-ix.cmake
 fi
 
+# We set an RPATH in CMAKE_EXE_LINKER_FLAGS to make sure the newly built
+# clang and friends use the just-built shared libraries -- there's no guarantee
+# that the ABI remains compatible between a snapshot libclang.so.3.7 and the
+# final libclang.so.3.7 at the moment.
+# We strip out the rpath in %%install though - so we aren't really being evil.
 %cmake \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 %if %{with ffi}
@@ -532,6 +538,7 @@ fi
 	-DLIBCXXABI_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
 	-DLIBCXX_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
 	-DCMAKE_SHARED_LINKER_FLAGS="-L`pwd`/%{_lib}" \
+	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,`pwd`/%{_lib}" \
 %if %{with apidox}
 	-DLLVM_ENABLE_DOXYGEN:BOOL=ON \
 %endif
@@ -542,15 +549,9 @@ fi
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
 %endif
 
-%if ! %{cross_compiling}
-export LD_LIBRARY_PATH=%{_libdir}:"$(pwd)/%{_lib}":${LD_LIBRARY_PATH}
-%endif
 %make || make
 
 %install
-%if ! %{cross_compiling}
-export LD_LIBRARY_PATH="$(pwd)/build/%{_lib}":${LD_LIBRARY_PATH}
-%endif
 %if %{with ocaml}
 #cp bindings/ocaml/llvm/META.llvm bindings/ocaml/llvm/Release/
 %endif
@@ -617,6 +618,12 @@ rm %{buildroot}%{_libdir}/libgtest*
 mkdir -p %{buildroot}%{_libdir}/bfd-plugins
 ln -s %{_libdir}/LLVMgold.so %{buildroot}%{_libdir}/bfd-plugins/LLVMgold.so
 %endif
+
+for i in %{buildroot}%{_bindir}/*; do
+	# We allow this to fail because some stuff in %{_bindir}
+	# is shell scripts -- no point in excluding them separately
+	chrpath -d $i || :
+done
 
 # Relics of libcxx_msan installing a copy of libc++ headers to
 # %{buildroot}/$RPM_BUILD_DIR

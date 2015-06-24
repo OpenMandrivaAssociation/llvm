@@ -1,6 +1,6 @@
---- libcxx-3.7.0.src/include/__config.omv~	2015-05-28 14:27:43.096716740 +0200
-+++ libcxx-3.7.0.src/include/__config	2015-05-28 15:05:57.801218884 +0200
-@@ -348,12 +348,21 @@ typedef __char32_t char32_t;
+--- libcxx-3.7.0.src/include/__config.0000~	2015-06-18 01:31:45.000000000 +0200
++++ libcxx-3.7.0.src/include/__config	2015-06-23 23:12:07.322303804 +0200
+@@ -342,15 +342,28 @@ typedef __char32_t char32_t;
  #define _LIBCPP_HAS_QUICK_EXIT
  #elif defined(__linux__)
  #include <features.h>
@@ -16,14 +16,21 @@
 +   (uClibc defines a compat__GLIBC__ macro). */
 +#define _LIBCPP_HAS_QUICK_EXIT
 +#define _LIBCPP_HAS_C11_FEATURES
-+#define _LIBCPP_LIBC_HAS_ISXXX_L
-+#define _LIBCPP_PROVIDES_DEFAULT_RUNE_TABLE
 +#endif
  #endif
  #endif
  
---- libcxx-3.7.0.src/include/__locale.omv~	2015-05-28 14:56:15.682189577 +0200
-+++ libcxx-3.7.0.src/include/__locale	2015-05-28 14:57:48.244673997 +0200
++#if defined(__linux__) && !defined(__ANDROID__) && !defined(__GLIBC__)
++/* musl */
++#define _LIBCPP_LIBC_HAS_ISXXX_L
++#define _LIBCPP_PROVIDES_DEFAULT_RUNE_TABLE
++#endif
++
+ #if (__has_feature(cxx_noexcept))
+ #  define _NOEXCEPT noexcept
+ #  define _NOEXCEPT_(x) noexcept(x)
+--- libcxx-3.7.0.src/include/__locale.0000~	2015-03-11 18:00:28.000000000 +0100
++++ libcxx-3.7.0.src/include/__locale	2015-06-23 23:10:31.404720943 +0200
 @@ -37,7 +37,11 @@
  #elif (defined(__GLIBC__) || defined(__APPLE__)      || defined(__FreeBSD__) \
      || defined(__EMSCRIPTEN__) || defined(__IBMCPP__))
@@ -37,8 +44,8 @@
  
  #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
  #pragma GCC system_header
---- libcxx-3.7.0.src/include/support/xlocale/xlocale.h.omv~	2015-05-28 14:58:22.764854656 +0200
-+++ libcxx-3.7.0.src/include/support/xlocale/xlocale.h	2015-05-28 15:02:32.552155350 +0200
+--- libcxx-3.7.0.src/include/support/xlocale/xlocale.h.0000~	2014-09-19 22:09:12.000000000 +0200
++++ libcxx-3.7.0.src/include/support/xlocale/xlocale.h	2015-06-23 23:10:31.405720939 +0200
 @@ -18,10 +18,13 @@
  #ifndef _LIBCPP_SUPPORT_XLOCALE_XLOCALE_H
  #define _LIBCPP_SUPPORT_XLOCALE_XLOCALE_H
