@@ -627,4 +627,4 @@ done
 
 # Relics of libcxx_msan installing a copy of libc++ headers to
 # %{buildroot}/$RPM_BUILD_DIR
-rm -rf %{buildroot}/home
+rm -rf %{buildroot}/home %{buildroot}/builddir
