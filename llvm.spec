@@ -79,6 +79,8 @@ Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-un
 Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-default-runtime-compiler-rt.patch
 Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
 Patch40:	libc++-3.7.0-musl-compat.patch
+# https://llvm.org/bugs/show_bug.cgi?id=23935
+Patch41:	llvm-3.7-bootstrap.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -470,6 +472,8 @@ fi
 %patch29 -p1 -b .musl10~
 %patch30 -p1 -b .musl11~
 %patch31 -p1 -b .musl12~
+
+%patch41 -p1 -b .bootstrap~
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
