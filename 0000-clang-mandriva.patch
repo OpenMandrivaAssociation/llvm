@@ -119,14 +119,14 @@
      Distro Version = UnknownDistro;
 -    for (const StringRef Line : Lines)
 +    for (const StringRef Line : Lines) {
-+      if (Version == UnknownDistro && Lines.startswith("DISTRIB_ID=MandrivaLinux"))
++      if (Version == UnknownDistro && Line.startswith("DISTRIB_ID=MandrivaLinux"))
 +        // It's either Mandriva or a close derivate, will get details
 +	// from DISTRIB_DESCRIPTION
 +	Version = Mandriva;
 +      if (Version == Mandriva && Line.startswith("DISTRIB_DESCRIPTION=")) {
 +        if(Line.substr(20).find("ROSA") != StringRef::npos)
 +          Version = ROSA;
-+        else if(Lines[i].substr(20).find("Open") != StringRef::npos)
++        else if(Line.substr(20).find("Open") != StringRef::npos)
 +          Version = OpenMandriva;
 +      }
        if (Version == UnknownDistro && Line.startswith("DISTRIB_CODENAME="))

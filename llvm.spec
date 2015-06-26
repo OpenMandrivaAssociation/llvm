@@ -55,6 +55,7 @@ Patch1:		0000-clang-mandriva.patch
 # see http://llvm.org/bugs/show_bug.cgi?id=15557
 # and https://bugzilla.redhat.com/show_bug.cgi?id=803433
 Patch2:		clang-hardfloat-hack.patch
+Patch3:		llvm-3.7.0-PATH_MAX-compile.patch
 # Claim compatibility with gcc 4.9.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
@@ -439,6 +440,7 @@ cd tools/clang
 %patch8 -p1 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~
+%patch3 -p1 -b .compile~
 %patch4 -p1 -b .64bitLongs~
 %patch5 -p1 -b .EnableGlobalMerge~
 %endif

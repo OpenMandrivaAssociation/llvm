@@ -1,0 +1,12 @@
+--- llvm-3.7.0.src/tools/clang/lib/Basic/FileManager.cpp.omv~	2015-06-26 21:02:21.647302256 +0200
++++ llvm-3.7.0.src/tools/clang/lib/Basic/FileManager.cpp	2015-06-26 21:09:29.270328736 +0200
+@@ -25,6 +25,9 @@
+ #include "llvm/Support/MemoryBuffer.h"
+ #include "llvm/Support/Path.h"
+ #include "llvm/Support/raw_ostream.h"
++#ifdef __linux__
++#include <linux/limits.h> // for PATH_MAX
++#endif
+ #include <map>
+ #include <set>
+ #include <string>
