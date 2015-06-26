@@ -30,7 +30,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.240532.1
+Release:	0.240772.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -236,15 +236,6 @@ Requires:	%{libname} = %{EVRD}
 Requires:	%{name} = %{EVRD}
 Conflicts:	llvm < 3.0-7
 Conflicts:	%{_lib}llvm3.0 < 3.0-9
-# FIXME this is evil.. Just a temporary workaround
-# for abf issues thinking mesa pre-requires LLVM 3.6 devel files
-%if "%{_lib}" == "lib64"
-Provides:	devel(libLLVM-3.6(64bit))
-Provides:	libLLVM-3.6.so()(64bit)
-%else
-Provides:	devel(libLLVM-3.6)
-Provides:	libLLVM-3.6.so()
-%endif
 
 %description -n %{devname}
 This package contains the development files for LLVM;
@@ -609,9 +600,6 @@ chmod 0755 %{buildroot}%{_bindir}/c89 %{buildroot}%{_bindir}/c99
 # Buggy make install for Polly
 mv %{buildroot}%{_prefix}/lib/*.so* %{buildroot}%{_libdir}/
 %endif
-
-# Sample file not needed
-rm %{buildroot}%{_libdir}/LLVMHello.so
 
 # Files needed for make check, but harmful afterwards...
 # (conflicts with upstream libgtest)
