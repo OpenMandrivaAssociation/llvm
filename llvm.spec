@@ -244,6 +244,7 @@ This package contains the development files for LLVM;
 %files -n %{devname}
 %{_bindir}/%{name}-config
 %{_libdir}/lib*.so
+%{_libdir}/LLVMHello.so
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
 %exclude %{_libdir}/libLTO.so
