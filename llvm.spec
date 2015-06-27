@@ -244,7 +244,6 @@ This package contains the development files for LLVM;
 %files -n %{devname}
 %{_bindir}/%{name}-config
 %{_libdir}/lib*.so
-%{_libdir}/LLVMHello.so
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
 %exclude %{_libdir}/libLTO.so
@@ -611,6 +610,12 @@ mv %{buildroot}%{_prefix}/lib/*.so* %{buildroot}%{_libdir}/
 # Files needed for make check, but harmful afterwards...
 # (conflicts with upstream libgtest)
 rm %{buildroot}%{_libdir}/libgtest*
+
+# Code sample -- binary not needed
+rm %{buildroot}%{_libdir}/LLVMHello.so
+
+# Don't look for stuff we just deleted...
+sed -i -e 's,gtest gtest_main ,,;s, LLVMHello , ,' -e '/LLVMHello/d' -e '/gtest/d' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports.cmake
 
 %if %{build_lto}
 # Put the LTO plugin where ld can see it...
