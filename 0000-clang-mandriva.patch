@@ -77,7 +77,7 @@
 +      "i586-openmandriva-linux-musl",
 +      "i686-openmandriva-linux",
 +      "i686-openmandriva-linux-gnu",
-+      "i686-openmandriva-linux-musl",
++      "i686-openmandriva-linux-musl"
 +  };
  
    static const char *const MIPSLibDirs[] = {"/lib"};

@@ -30,7 +30,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.240879.1
+Release:	0.240892.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -605,6 +605,8 @@ chmod 0755 %{buildroot}%{_bindir}/c89 %{buildroot}%{_bindir}/c99
 %if "%{_lib}" != "lib"
 # Buggy make install for Polly
 mv %{buildroot}%{_prefix}/lib/*.so* %{buildroot}%{_libdir}/
+
+sed -i -e 's,/lib/,/%{_lib}/,g' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports-release.cmake
 %endif
 
 # Files needed for make check, but harmful afterwards...
@@ -616,6 +618,7 @@ rm %{buildroot}%{_libdir}/LLVMHello.so
 
 # Don't look for stuff we just deleted...
 sed -i -e 's,gtest gtest_main ,,;s, LLVMHello , ,' -e '/LLVMHello/d' -e '/gtest/d' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports.cmake
+sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/ { N;d }' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports-release.cmake
 
 %if %{build_lto}
 # Put the LTO plugin where ld can see it...
