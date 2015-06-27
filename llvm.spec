@@ -473,6 +473,10 @@ fi
 find . -type d |while read r; do chmod 0755 "$r"; done
 
 %build
+%ifarch aarch64
+export CC=gcc
+export CXX=g++
+%endif
 TOP=$(pwd)
 
 # Workaround for previous build having a problem with debug info

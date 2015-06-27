@@ -9,17 +9,6 @@
      return false;
    }
  
---- llvm-3.5/tools/clang/lib/Driver/Tools.cpp.gcc49~	2014-08-22 22:54:39.000000000 +0200
-+++ llvm-3.5/tools/clang/lib/Driver/Tools.cpp	2014-08-25 22:24:57.689608632 +0200
-@@ -6249,7 +6249,7 @@ void openbsd::Link::ConstructJob(Compila
-   if (Triple.substr(0, 6) == "x86_64")
-     Triple.replace(0, 6, "amd64");
-   CmdArgs.push_back(Args.MakeArgString("-L/usr/lib/gcc-lib/" + Triple +
--                                       "/4.2.1"));
-+                                       "/4.9.1"));
- 
-   Args.AddAllArgs(CmdArgs, options::OPT_L);
-   Args.AddAllArgs(CmdArgs, options::OPT_T_Group);
 --- llvm-3.5/tools/clang/lib/Frontend/InitPreprocessor.cpp.gcc49~	2014-08-22 22:54:39.000000000 +0200
 +++ llvm-3.5/tools/clang/lib/Frontend/InitPreprocessor.cpp	2014-08-25 22:24:57.689608632 +0200
 @@ -462,9 +462,9 @@ static void InitializePredefinedMacros(c

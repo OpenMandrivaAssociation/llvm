@@ -1,9 +1,8 @@
 --- llvm-3.5/tools/clang/lib/Driver/Tools.cpp.armhf	2014-05-05 13:42:31.046661612 +0200
 +++ llvm-3.5/tools/clang/lib/Driver/Tools.cpp	2014-05-05 13:44:21.643278964 +0200
-@@ -626,7 +626,7 @@ StringRef tools::arm::getARMFloatABI(con
+@@ -561,6 +561,6 @@ StringRef tools::arm::getARMFloatABI(con
        if (FloatABI != "soft" && FloatABI != "softfp" && FloatABI != "hard") {
-         D.Diag(diag::err_drv_invalid_mfloat_abi)
-           << A->getAsString(Args);
+         D.Diag(diag::err_drv_invalid_mfloat_abi) << A->getAsString(Args);
 -        FloatABI = "soft";
 +        FloatABI = "hard";
        }
