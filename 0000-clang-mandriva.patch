@@ -14,7 +14,7 @@
 +  static const char *const AArch64beTriples[] = {
 +      "aarch64_be-none-linux-gnu", "aarch64_be-linux-gnu",
 +      "aarch64_be-linux-android", "aarch64_be-mandriva-linux-gnu",
-+      "aarch64_be-openmandriva-linux-gnu", "aarch64_be-openmandriva-linux-musl"};
++      "aarch64_be-openmandriva-linux-gnu", "aarch64_be-openmandriva-linux-musl"
 +  };
  
    static const char *const ARMLibDirs[] = {"/lib"};
