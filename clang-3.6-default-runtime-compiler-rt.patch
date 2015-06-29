@@ -13,12 +13,11 @@
  SanitizerMask Linux::getSupportedSanitizers() const {
 --- llvm-3.7.0.src/tools/clang/lib/Driver/ToolChains.h.musl11~	2015-06-27 14:19:27.168903114 +0200
 +++ llvm-3.7.0.src/tools/clang/lib/Driver/ToolChains.h	2015-06-27 14:21:22.015345035 +0200
-@@ -506,7 +506,7 @@ public:
+@@ -644,6 +644,7 @@ public:
+   void AddClangCXXStdlibIncludeArgs(
+       const llvm::opt::ArgList &DriverArgs,
        llvm::opt::ArgStringList &CC1Args) const override;
-   void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
-                            llvm::opt::ArgStringList &CmdArgs) const override;
--
 +  RuntimeLibType GetDefaultRuntimeLibType() const override;
-   bool isPIEDefault() const override { return false; }
+   bool isPIEDefault() const override;
+   SanitizerMask getSupportedSanitizers() const override;
  
- protected:
