@@ -26,11 +26,17 @@
 %bcond_with bootstrap
 %endif
 %bcond_without ffi
+# Force gcc to compile, in case previous clang is busted
+%ifarch aarch64
+%bcond_without gcc
+%else
+%bcond_with bootstrap_gcc
+%endif
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.240924.1
+Release:	0.241273.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -472,7 +478,7 @@ fi
 find . -type d |while read r; do chmod 0755 "$r"; done
 
 %build
-%ifarch aarch64
+%if %{with bootstrap_gcc}
 export CC=gcc
 export CXX=g++
 %endif
