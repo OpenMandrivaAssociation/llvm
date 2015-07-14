@@ -563,14 +563,15 @@ fi
 	-DCLANG_TABLEGEN=%{_bindir}/clang-tblgen \
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
 %endif
+	-G Ninja
 
-%make || make
+ninja
 
 %install
 %if %{with ocaml}
 #cp bindings/ocaml/llvm/META.llvm bindings/ocaml/llvm/Release/
 %endif
-%makeinstall_std -C build
+DESTDIR="%{buildroot}" ninja install -C build
 
 # Polly bits as described on
 # http://polly.llvm.org/example_load_Polly_into_clang.html
