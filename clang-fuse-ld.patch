@@ -1,23 +1,5 @@
---- clang/include/clang/Driver/Options.td.fuseLd~	2015-05-20 06:24:19.000000000 +0200
-+++ clang/include/clang/Driver/Options.td	2015-05-20 19:23:22.769821667 +0200
-@@ -571,6 +571,7 @@ def funsafe_math_optimizations : Flag<["
-   Group<f_Group>;
- def fno_unsafe_math_optimizations : Flag<["-"], "fno-unsafe-math-optimizations">,
-   Group<f_Group>;
-+def fuse_ld_EQ : Joined<["-"], "fuse-ld=">, Group<f_Group>;
- def fassociative_math : Flag<["-"], "fassociative-math">, Group<f_Group>;
- def fno_associative_math : Flag<["-"], "fno-associative-math">, Group<f_Group>;
- def freciprocal_math :
-@@ -1784,7 +1785,6 @@ def fprofile_dir : Joined<["-"], "fprofi
- 
- defm profile_use : BooleanFFlag<"profile-use">, Group<clang_ignored_gcc_optimization_f_Group>;
- def fprofile_use_EQ : Joined<["-"], "fprofile-use=">, Group<clang_ignored_gcc_optimization_f_Group>;
--def fuse_ld_EQ : Joined<["-"], "fuse-ld=">, Group<f_Group>;
- 
- defm align_functions : BooleanFFlag<"align-functions">, Group<clang_ignored_gcc_optimization_f_Group>;
- def falign_functions_EQ : Joined<["-"], "falign-functions=">, Group<clang_ignored_gcc_optimization_f_Group>;
---- clang/lib/Driver/ToolChain.cpp.fuseLd~	2015-05-14 10:25:18.000000000 +0200
-+++ clang/lib/Driver/ToolChain.cpp	2015-05-20 19:22:05.040692674 +0200
+--- clang/lib/Driver/ToolChain.cpp.fuseLd~	2015-06-19 23:36:47.000000000 +0200
++++ clang/lib/Driver/ToolChain.cpp	2015-07-12 00:43:10.134955874 +0200
 @@ -184,6 +184,18 @@ std::string ToolChain::GetFilePath(const
  }
  

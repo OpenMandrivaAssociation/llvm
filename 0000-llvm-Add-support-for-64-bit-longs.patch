@@ -1,18 +1,18 @@
---- llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.cpp.64bitLongs~	2015-01-14 12:23:27.000000000 +0100
-+++ llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.cpp	2015-02-05 22:32:07.840918857 +0100
-@@ -212,6 +212,7 @@ void ARMSubtarget::initializeEnvironment
-   Thumb2DSP = false;
+--- llvm-3.7.0.src/lib/Target/ARM/ARMSubtarget.cpp.64bitLongs~	2015-07-09 18:13:28.456184336 +0200
++++ llvm-3.7.0.src/lib/Target/ARM/ARMSubtarget.cpp	2015-07-09 18:20:43.109383488 +0200
+@@ -173,6 +173,7 @@ void ARMSubtarget::initializeEnvironment
    UseNaClTrap = false;
+   GenLongCalls = false;
    UnsafeFPMath = false;
 +  UseLong64 = false;
  }
  
  void ARMSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
---- llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.h.64bitLongs~	2015-01-14 12:23:27.000000000 +0100
-+++ llvm-3.6.0.src/lib/Target/ARM/ARMSubtarget.h	2015-02-05 22:32:07.840918857 +0100
-@@ -201,6 +201,9 @@ protected:
-   /// NaCl TRAP instruction is generated instead of the regular TRAP.
-   bool UseNaClTrap;
+--- llvm-3.7.0.src/lib/Target/ARM/ARMSubtarget.h.64bitLongs~	2015-07-09 18:13:28.456184336 +0200
++++ llvm-3.7.0.src/lib/Target/ARM/ARMSubtarget.h	2015-07-09 18:20:04.053582321 +0200
+@@ -209,6 +209,9 @@ protected:
+   /// Generate calls via indirect call instructions.
+   bool GenLongCalls;
  
 +  /// Force long to be a 64-bit type (RenderScript-specific)
 +  bool UseLong64;
@@ -20,9 +20,9 @@
    /// Target machine allowed unsafe FP math (such as use of NEON fp)
    bool UnsafeFPMath;
  
---- llvm-3.6.0.src/lib/Target/ARM/ARM.td.64bitLongs~	2015-02-05 22:32:07.840918857 +0100
-+++ llvm-3.6.0.src/lib/Target/ARM/ARM.td	2015-02-05 22:33:15.972995702 +0100
-@@ -273,6 +273,12 @@ def ProcKrait   : SubtargetFeature<"krai
+--- llvm-3.7.0.src/lib/Target/ARM/ARM.td.64bitLongs~	2015-07-07 08:54:42.000000000 +0200
++++ llvm-3.7.0.src/lib/Target/ARM/ARM.td	2015-07-09 18:13:28.456184336 +0200
+@@ -294,6 +294,12 @@ def ProcKrait   : SubtargetFeature<"krai
  class ProcNoItin<string Name, list<SubtargetFeature> Features>
   : Processor<Name, NoItineraries, Features>;
  

@@ -1,6 +1,7 @@
 %define debug_package %{nil}
 %define build_lto 1
 %define _disable_ld_no_undefined 0
+%define _disable_lto 1
 
 # clang header paths are hard-coded at compile time
 # and need adjustment whenever there's a new GCC version
@@ -36,7 +37,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.241273.1
+Release:	0.242129.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -70,9 +71,11 @@ Patch8:		clang-fuse-ld.patch
 # Patches from AOSP
 Patch4:		0000-llvm-Add-support-for-64-bit-longs.patch
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
+# End AOSP patch section
 Patch6:		llvm-3.5-detect-hardfloat.patch
 Patch9:		ddsan-compile.patch
 Patch10:	polly-adapt-to-API-changes.patch
+Patch11:	llvm-nm-workaround-libstdc++.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
 Patch21:	llvm-3.7-musl-triple.patch
@@ -462,6 +465,7 @@ fi
 %patch7 -p1 -b .gcc49~
 %patch9 -p1 -b .ddsan~
 %patch10 -p1 -b .polly~
+%patch11 -p1 -b .libstdc++~
 
 %patch20 -p1 -b .musl1~
 %patch21 -p1 -b .musl2~
@@ -473,7 +477,10 @@ fi
 %patch30 -p1 -b .musl11~
 %patch31 -p1 -b .musl12~
 
+%if %{cross_compiling}
+# This is only needed when crosscompiling glibc to musl or the likes
 %patch41 -p1 -b .bootstrap~
+%endif
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
@@ -615,10 +622,6 @@ mv %{buildroot}%{_prefix}/lib/*.so* %{buildroot}%{_libdir}/
 
 sed -i -e 's,/lib/,/%{_lib}/,g' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports-release.cmake
 %endif
-
-# Files needed for make check, but harmful afterwards...
-# (conflicts with upstream libgtest)
-rm %{buildroot}%{_libdir}/libgtest*
 
 # Code sample -- binary not needed
 rm %{buildroot}%{_libdir}/LLVMHello.so

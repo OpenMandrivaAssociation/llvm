@@ -98,9 +98,9 @@
    static const char *const PPC64LETriples[] = {
        "powerpc64le-linux-gnu", "powerpc64le-unknown-linux-gnu",
 @@ -2864,6 +2905,9 @@ enum Distro {
-   UbuntuTrusty,
    UbuntuUtopic,
    UbuntuVivid,
+   UbuntuWily,
 +  Mandriva,
 +  OpenMandriva,
 +  ROSA,
@@ -108,7 +108,7 @@
  };
  
 @@ -2881,6 +2925,10 @@ static bool IsUbuntu(enum Distro Distro)
-   return Distro >= UbuntuHardy && Distro <= UbuntuVivid;
+   return Distro >= UbuntuHardy && Distro <= UbuntuWily;
  }
  
 +static bool IsMandriva(enum Distro Distro) {
@@ -138,8 +138,8 @@
          Version = llvm::StringSwitch<Distro>(Line.substr(17))
                        .Case("hardy", UbuntuHardy)
 @@ -2908,6 +2966,7 @@ static Distro DetectDistro(llvm::Triple:
-                       .Case("utopic", UbuntuUtopic)
                        .Case("vivid", UbuntuVivid)
+                       .Case("wily", UbuntuWily)
                        .Default(UnknownDistro);
 +    }
      return Version;

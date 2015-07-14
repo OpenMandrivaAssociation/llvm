@@ -5,7 +5,7 @@ VER=0
 REV=0
 if [ "$#" -ge 1 ]; then
 	BRANCH="$1"
-	if ! echo $BRANCH |grep -q /; then
+	if ! echo $BRANCH |grep -qE '(/|@)'; then
 		BRANCH="branches/$BRANCH"
 	fi
 else
