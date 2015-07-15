@@ -29,7 +29,7 @@
 %bcond_without ffi
 # Force gcc to compile, in case previous clang is busted
 %ifarch aarch64
-%bcond_without gcc
+%bcond_with gcc
 %else
 %bcond_with bootstrap_gcc
 %endif
