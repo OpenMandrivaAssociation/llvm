@@ -6,6 +6,5 @@ sources:
   libcxxabi-3.7.0.src.tar.xz: 558fcd71c4e1750b5c22d9c58516b47f78e923d7
   lldb-3.7.0.src.tar.xz: 2342638914f541ba5b3da8357ff1e96b49af1b58
   llvm-3.7.0.src.tar.xz: eb56c5a7ed3c54defb957dd11f77cc1fb858d525
-  llvm-.src.tar.xz: da39a3ee5e6b4b0d3255bfef95601890afd80709
   openmp-3.7.0.src.tar.xz: adf0da5b1cffbc3d4e205582abe621baa83547af
   polly-3.7.0.src.tar.xz: 32180a9eeab51ed88b149fa54cdeece97a506c48
