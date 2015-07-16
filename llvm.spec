@@ -38,7 +38,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.242129.1
+Release:	0.242408.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -54,6 +54,7 @@ Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.xz
 Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.xz
 Source5:	http://llvm.org/releases/%{version}/libcxx-%{version}.src.tar.xz
 Source6:	http://llvm.org/releases/%{version}/libcxxabi-%{version}.src.tar.xz
+Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
 Source1000:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
@@ -438,13 +439,14 @@ Objective-CAML bindings for LLVM
 #-----------------------------------------------------------
 
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -a5 -a6 -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -a5 -a6 -a7 -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
 mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
+mv libunwind-%{version}%{?prerel}.src projects/libunwind
 cd tools/clang
 %patch0 -p0 -b .soname~
 %patch1 -p1 -b .mandriva~
@@ -543,6 +545,7 @@ fi
 	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \
 	-DPOLLY_ENABLE_GPGPU_CODEGEN:BOOL=ON \
 	-DWITH_POLLY:BOOL=ON \
+	-DLINK_POLLY_INTO_TOOLS:BOOL=ON \
 %if %{with libcxx}
 	-DLLVM_ENABLE_LIBCXX:BOOL=ON \
 	-DLLVM_ENABLE_LIBCXXABI:BOOL=ON \
