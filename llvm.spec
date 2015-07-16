@@ -1,4 +1,5 @@
 %define debug_package %{nil}
+%define debugcflags %{nil}
 %define build_lto 1
 %define _disable_ld_no_undefined 0
 %define _disable_lto 1
