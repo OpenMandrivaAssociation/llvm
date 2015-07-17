@@ -189,6 +189,9 @@ for effective implementation, proper tail calls or garbage collection.
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do echo %%libpackage $i %{major1}; done)}
 %libpackage modernizeCore %{major1}
 
+%libpackage unwind 1.0
+%{_libdir}/libunwind.so.1
+
 #-----------------------------------------------------------
 %libpackage c++ 1
 %libpackage c++abi 1
