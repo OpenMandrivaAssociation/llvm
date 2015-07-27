@@ -93,6 +93,9 @@ Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-st
 Patch40:	libc++-3.7.0-musl-compat.patch
 # https://llvm.org/bugs/show_bug.cgi?id=23935
 Patch41:	llvm-3.7-bootstrap.patch
+# https://llvm.org/bugs/show_bug.cgi?id=12587
+# https://code.google.com/p/chromium/issues/detail?id=496370
+Patch42:	r-switch.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -487,6 +490,7 @@ fi
 # This is only needed when crosscompiling glibc to musl or the likes
 %patch41 -p1 -b .bootstrap~
 %endif
+%patch32 -p1 -b .reloc~
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
