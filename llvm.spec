@@ -490,7 +490,7 @@ fi
 # This is only needed when crosscompiling glibc to musl or the likes
 %patch41 -p1 -b .bootstrap~
 %endif
-%patch32 -p1 -b .reloc~
+%patch42 -p1 -b .reloc~
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
