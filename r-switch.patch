@@ -1,13 +1,12 @@
-Index: llvm-3.7.0.src/tools/clang/lib/Driver/Tools.cpp
-===================================================================
---- llvm-3.7.0.src/tools/clang/lib/Driver/Tools.cpp	(revision 155001)
-+++ llvm-3.7.0.src/tools/clang/lib/Driver/Tools.cpp	(working copy)
-@@ -5263,6 +5263,7 @@
-     CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(crtbegin)));
+diff --git a/tools/clang/lib/Driver/Tools.cpp b/tools/clang/lib/Driver/Tools.cpp
+index fd91675..a60a85d 100644
+--- a/tools/clang/lib/Driver/Tools.cpp
++++ b/tools/clang/lib/Driver/Tools.cpp
+@@ -6430,6 +6430,7 @@ void darwin::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+                                           /*AlwaysLink=*/true);
    }
  
 +  Args.AddAllArgs(CmdArgs, options::OPT_r);
    Args.AddAllArgs(CmdArgs, options::OPT_L);
  
-   const ToolChain::path_list Paths = ToolChain.getFilePaths();
-
+   if (Args.hasFlag(options::OPT_fopenmp, options::OPT_fopenmp_EQ,
