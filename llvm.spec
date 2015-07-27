@@ -96,6 +96,10 @@ Patch41:	llvm-3.7-bootstrap.patch
 # https://llvm.org/bugs/show_bug.cgi?id=12587
 # https://code.google.com/p/chromium/issues/detail?id=496370
 Patch42:	r-switch.patch
+# Make it possible to override CLANG_LIBDIR_SUFFIX
+# (that is used only to find LLVMgold.so)
+# https://llvm.org/bugs/show_bug.cgi?id=23793
+Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -549,6 +553,7 @@ fi
 	-DLLVM_BUILD_DOCS:BOOL=ON \
 	-DOCAMLFIND=NOTFOUND \
 	-DLLVM_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
+	-DCLANG_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
 	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \
 	-DPOLLY_ENABLE_GPGPU_CODEGEN:BOOL=ON \
 	-DWITH_POLLY:BOOL=ON \
