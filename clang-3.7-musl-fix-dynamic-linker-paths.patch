@@ -1,6 +1,17 @@
---- llvm-3.7.0.src/tools/clang/lib/Driver/Tools.cpp.musl8~	2015-06-05 00:38:50.374162395 +0200
-+++ llvm-3.7.0.src/tools/clang/lib/Driver/Tools.cpp	2015-06-05 00:46:12.312951249 +0200
-@@ -7774,23 +7774,50 @@ static std::string getLinuxDynamicLinker
+--- llvm-3.7.0.src/tools/clang/lib/Driver/Tools.cpp.musl8~	2015-07-28 13:27:56.357759342 +0200
++++ llvm-3.7.0.src/tools/clang/lib/Driver/Tools.cpp	2015-07-28 13:41:36.168953917 +0200
+@@ -601,8 +601,10 @@ StringRef tools::arm::getARMFloatABI(con
+     default:
+       switch (Triple.getEnvironment()) {
+       case llvm::Triple::GNUEABIHF:
++      case llvm::Triple::MuslEABIHF:
+         FloatABI = "hard";
+         break;
++      case llvm::Triple::MuslEABI:
+       case llvm::Triple::GNUEABI:
+         FloatABI = (Triple.getVendorName().equals("hardfloat") || Triple.getArchName().find('h')!=StringRef::npos) ? "hard" : "softfp";
+         break;
+@@ -7858,25 +7860,51 @@ static std::string getLinuxDynamicLinker
      else
        return "/system/bin/linker";
    } else if (Arch == llvm::Triple::x86 || Arch == llvm::Triple::sparc ||
@@ -15,52 +26,56 @@
    else if (Arch == llvm::Triple::aarch64_be)
      return "/lib/ld-linux-aarch64_be.so.1";
    else if (Arch == llvm::Triple::arm || Arch == llvm::Triple::thumb) {
--    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF || (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABI && (ToolChain.getTriple().getVendorName().equals("hardfloat") || ToolChain.getTriple().getArchName().find('h')!=StringRef::npos)))
+-    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF ||
+-        tools::arm::getARMFloatABI(ToolChain.getDriver(), Args, ToolChain.getTriple()) == "hard")
+-      return "/lib/ld-linux-armhf.so.3";
+-    else
+-      return "/lib/ld-linux.so.3";
 +    switch (ToolChain.getTriple().getEnvironment()) {
 +    case llvm::Triple::Musl:
 +    case llvm::Triple::MuslEABI:
-+      if (ToolChain.getTriple().getVendorName().equals("hardfloat") || ToolChain.getTriple().getArchName().find('h')!=StringRef::npos)
++      if (tools::arm::getARMFloatABI(ToolChain.getDriver(), Args, ToolChain.getTriple()) == "hard")
 +        return "/lib/ld-musl-armhf.so.3";
 +      else
 +        return "/lib/ld-musl-arm.so.3";
 +    case llvm::Triple::MuslEABIHF:
 +      return "/lib/ld-musl-armhf.so.3";
-+    case llvm::Triple::GNUEABIHF:
-       return "/lib/ld-linux-armhf.so.3";
--    else
--      return "/lib/ld-linux.so.3";
 +    default:
-+      if (ToolChain.getTriple().getVendorName().equals("hardfloat") || ToolChain.getTriple().getArchName().find('h')!=StringRef::npos)
++      if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF ||
++          tools::arm::getARMFloatABI(ToolChain.getDriver(), Args, ToolChain.getTriple()) == "hard")
 +        return "/lib/ld-linux-armhf.so.3";
 +      else
-+        return "/lib/ld-linux.so.3";              /* TODO: check which dynamic linker name.  */
++        return "/lib/ld-linux.so.3";
 +    }
    } else if (Arch == llvm::Triple::armeb || Arch == llvm::Triple::thumbeb) {
--    // TODO: check which dynamic linker name.
--    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF || (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABI && (ToolChain.getTriple().getVendorName().equals("hardfloat") || ToolChain.getTriple().getArchName().find('h')!=StringRef::npos)))
+     // TODO: check which dynamic linker name.
+-    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF ||
+-        tools::arm::getARMFloatABI(ToolChain.getDriver(), Args, ToolChain.getTriple()) == "hard")
+-      return "/lib/ld-linux-armhf.so.3";
+-    else
+-      return "/lib/ld-linux.so.3";
 +    switch (ToolChain.getTriple().getEnvironment()) {
 +    case llvm::Triple::Musl:
 +    case llvm::Triple::MuslEABI:
-+      if (ToolChain.getTriple().getVendorName().equals("hardfloat") || ToolChain.getTriple().getArchName().find('h')!=StringRef::npos)
++      if (tools::arm::getARMFloatABI(ToolChain.getDriver(), Args, ToolChain.getTriple()) == "hard")
 +        return "/lib/ld-musl-armhf.so.3";
-+      else
-+        return "/lib/ld-musl-arm.so.3";
++    else
++       return "/lib/ld-musl-arm.so.3";
 +    case llvm::Triple::MuslEABIHF:
-+      return "/lib/ld-musl-armhf.so.3";
++       return "/lib/ld-musl-armhf.so.3";
 +    case llvm::Triple::GNUEABIHF:
-       return "/lib/ld-linux-armhf.so.3";
--    else
--      return "/lib/ld-linux.so.3";
++       return "/lib/ld-linux-armhf.so.3";
 +    default:
-+      if (ToolChain.getTriple().getVendorName().equals("hardfloat") || ToolChain.getTriple().getArchName().find('h')!=StringRef::npos)
++      if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF ||
++          tools::arm::getARMFloatABI(ToolChain.getDriver(), Args, ToolChain.getTriple()) == "hard")
 +        return "/lib/ld-linux-armhf.so.3";
 +      else
-+        return "/lib/ld-linux.so.3";              /* TODO: check which dynamic linker name.  */
++        return "/lib/ld-linux.so.3";
 +    }
    } else if (Arch == llvm::Triple::mips || Arch == llvm::Triple::mipsel ||
               Arch == llvm::Triple::mips64 || Arch == llvm::Triple::mips64el) {
      StringRef CPUName;
-@@ -7825,8 +7852,13 @@ static std::string getLinuxDynamicLinker
+@@ -7911,8 +7939,13 @@ static std::string getLinuxDynamicLinker
    else if (Arch == llvm::Triple::sparcv9)
      return "/lib64/ld-linux.so.2";
    else if (Arch == llvm::Triple::x86_64 &&

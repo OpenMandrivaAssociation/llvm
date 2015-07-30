@@ -38,7 +38,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	0.242495.3
+Release:	0.243634.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -55,6 +55,7 @@ Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.xz
 Source5:	http://llvm.org/releases/%{version}/libcxx-%{version}.src.tar.xz
 Source6:	http://llvm.org/releases/%{version}/libcxxabi-%{version}.src.tar.xz
 Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
+Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
 Source1000:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
@@ -132,6 +133,9 @@ BuildRequires:	doxygen
 %endif
 Requires:	libstdc++-devel
 Obsoletes:	llvm-ocaml
+# For lldb
+BuildRequires:	swig
+BuildRequires:	pkgconfig(python2)
 
 %description
 LVM is a robust system, particularly well suited for developing new mid-level
@@ -448,8 +452,38 @@ Objective-CAML bindings for LLVM
 %endif
 #-----------------------------------------------------------
 
+%libpackage lldb %{major}
+
+%package -n lldb
+Summary:	Debugger from the LLVM toolchain
+Group:		Development/Tools
+
+%description -n lldb
+Debugger from the LLVM toolchain
+
+%files -n lldb
+%{_bindir}/argdumper
+%{_bindir}/lldb*
+%{_libdir}/python*/site-packages/lldb
+%{_libdir}/python*/site-packages/readline.so
+
+%define lldbdev %mklibname -d lldb
+
+%package -n %{lldbdev}
+Summary:	Development files for the LLDB debugger
+Group:		Development/Tools
+Requires:	lldb = %{EVRD}
+
+%description -n %{lldbdev}
+Development files for the LLDB debugger
+
+%files -n %{lldbdev}
+%{_includedir}/lldb
+%{_libdir}/liblldb*.a
+#-----------------------------------------------------------
+
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -a5 -a6 -a7 -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -a5 -a6 -a7 -a8 -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
@@ -457,6 +491,7 @@ mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
 mv libunwind-%{version}%{?prerel}.src projects/libunwind
+mv lldb-%{version}%{?prerel}.src tools/lldb
 cd tools/clang
 %patch0 -p0 -b .soname~
 %patch1 -p1 -b .mandriva~
@@ -665,3 +700,4 @@ done
 # Relics of libcxx_msan installing a copy of libc++ headers to
 # %{buildroot}/$RPM_BUILD_DIR
 rm -rf %{buildroot}/home %{buildroot}/builddir
+rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
