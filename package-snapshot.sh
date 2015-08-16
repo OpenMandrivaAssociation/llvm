@@ -13,6 +13,7 @@ else
 fi
 cd "$TMP"
 export LANG=C
+export LC_ALL=C
 for i in llvm cfe clang-tools-extra compiler-rt polly libcxx libcxxabi lldb openmp libunwind; do
 	if [ "$i" = "libunwind" ]; then
 		# libunwind isn't branched with the rest of llvm for now
