@@ -34,6 +34,12 @@
 %else
 %bcond_with bootstrap_gcc
 %endif
+%ifarch %{ix86}
+# lldb uses some atomics that haven't been ported to x86_32 yet
+%bcond_with lldb
+%else
+%bcond_without lldb
+%endif
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
@@ -452,6 +458,7 @@ Objective-CAML bindings for LLVM
 %endif
 #-----------------------------------------------------------
 
+%if %{with lldb}
 %libpackage lldb %{major}
 
 %package -n lldb
@@ -480,10 +487,11 @@ Development files for the LLDB debugger
 %files -n %{lldbdev}
 %{_includedir}/lldb
 %{_libdir}/liblldb*.a
+%endif
 #-----------------------------------------------------------
 
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -a5 -a6 -a7 -a8 -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -a5 -a6 -a7 %{?with_lldb:-a8} -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
@@ -491,7 +499,9 @@ mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
 mv libunwind-%{version}%{?prerel}.src projects/libunwind
+%if %{with lldb}
 mv lldb-%{version}%{?prerel}.src tools/lldb
+%endif
 cd tools/clang
 %patch0 -p0 -b .soname~
 %patch1 -p1 -b .mandriva~
