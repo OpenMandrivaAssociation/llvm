@@ -111,6 +111,7 @@ BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
 BuildRequires:	flex
+BuildRequires:	pkgconfig(libedit)
 %if %{without bootstrap}
 BuildRequires:	graphviz
 %endif
