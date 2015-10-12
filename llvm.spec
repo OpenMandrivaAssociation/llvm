@@ -34,8 +34,9 @@
 %else
 %bcond_with bootstrap_gcc
 %endif
-%ifarch %{ix86}
+%ifarch %{ix86} aarch64
 # lldb uses some atomics that haven't been ported to x86_32 yet
+# lldb also fails on aarch64 as of 3.7.0
 %bcond_with lldb
 %else
 %bcond_without lldb
