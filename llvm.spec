@@ -29,8 +29,10 @@
 %endif
 %bcond_without ffi
 # Force gcc to compile, in case previous clang is busted
-%ifarch aarch64 %{arm}
-%bcond_with gcc
+%ifarch aarch64
+%bcond_without bootstrap_gcc
+# Temporary workaround for existing clang not working
+%define cross_compiling 0
 %else
 %bcond_with bootstrap_gcc
 %endif
