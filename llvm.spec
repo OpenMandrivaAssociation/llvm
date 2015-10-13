@@ -534,7 +534,10 @@ fi
 %patch26 -p1 -b .musl7~
 %patch27 -p1 -b .musl8~
 %patch29 -p1 -b .musl10~
+%ifnarch aarch64
+# AArch64 isn't supported by compiler-rt yet
 %patch30 -p1 -b .musl11~
+%endif
 %patch31 -p1 -b .musl12~
 
 %if %{cross_compiling}
