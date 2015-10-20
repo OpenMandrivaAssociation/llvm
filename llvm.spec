@@ -608,7 +608,7 @@ fi
 	-DCLANG_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
 	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \
 %ifarch %arm
-	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_arch}-%{_build_vendor}-%{_os}%{_build_gnu} \
+	-DLLVM_DEFAULT_TARGET_TRIPLE=%{product_arch}-%{_build_vendor}-%{_os}%{_build_gnu} \
 %endif
 	-DPOLLY_ENABLE_GPGPU_CODEGEN:BOOL=ON \
 	-DWITH_POLLY:BOOL=ON \
