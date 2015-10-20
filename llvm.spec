@@ -47,7 +47,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.0
-Release:	1
+Release:	1.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -607,6 +607,9 @@ fi
 	-DLLVM_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
 	-DCLANG_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
 	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \
+%ifarch %arm
+	-DLLVM_DEFAULT_TARGET_TRIPLE=%{__arch}-%{_build_vendor}-%{_os}%{_build_gnu} \
+%endif
 	-DPOLLY_ENABLE_GPGPU_CODEGEN:BOOL=ON \
 	-DWITH_POLLY:BOOL=ON \
 	-DLINK_POLLY_INTO_TOOLS:BOOL=ON \
