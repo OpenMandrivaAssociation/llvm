@@ -582,6 +582,17 @@ if echo %{_target_platform} | grep -q musl; then
 	sed -i -e 's,set(COMPILER_RT_HAS_SANITIZER_COMMON TRUE),set(COMPILER_RT_HAS_SANITIZER_COMMON FALSE),' projects/compiler-rt/cmake/config-ix.cmake
 fi
 
+%ifarch %ix86
+# Fix noexecstack
+for i in projects/compiler-rt/lib/builtins/i386/*.S; do
+	cat >>$i <<'EOF'
+#if defined(__linux__) && defined(__ELF__)
+.section .note.GNU-stack,"",%progbits
+#endif
+EOF
+done
+%endif
+
 # We set an RPATH in CMAKE_EXE_LINKER_FLAGS to make sure the newly built
 # clang and friends use the just-built shared libraries -- there's no guarantee
 # that the ABI remains compatible between a snapshot libclang.so.3.7 and the
