@@ -46,8 +46,8 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	3.7.0
-Release:	1.1
+Version:	3.7.1
+Release:	1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -105,7 +105,7 @@ Patch40:	libc++-3.7.0-musl-compat.patch
 Patch41:	llvm-3.7-bootstrap.patch
 # https://llvm.org/bugs/show_bug.cgi?id=12587
 # https://code.google.com/p/chromium/issues/detail?id=496370
-Patch42:	r-switch.patch
+Patch42:       r-switch.patch
 # Make it possible to override CLANG_LIBDIR_SUFFIX
 # (that is used only to find LLVMgold.so)
 # https://llvm.org/bugs/show_bug.cgi?id=23793
