@@ -572,6 +572,9 @@ TOP=$(pwd)
 # compiler-rt doesn't support ix86 with x<6 either
 export CFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64 -fno-devirtualize"
+
+# FIXME https://llvm.org/bugs/show_bug.cgi?id=22661
+sed -ri "/ifeq.*CompilerTargetArch/s#i386#i586#g" projects/compiler-rt/make/platform/clang_linux.mk
 %endif
 %ifarch %armx sparc mips
 export CFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
@@ -653,11 +656,6 @@ done
 # FIXME upstream need to fix this
 # llvm-config.cpp hardcodes lib in it
 sed -i 's|ActiveLibDir = ActivePrefix + "/lib"|ActiveLibDir = ActivePrefix + "/%{_lib}/%{name}"|g' tools/llvm-config/llvm-config.cpp
-
-%ifarch %ix86
-# FIXME https://llvm.org/bugs/show_bug.cgi?id=22661
-sed -ri "/ifeq.*CompilerTargetArch/s#i386#i586#g" projects/compiler-rt/make/platform/clang_linux.mk
-%endif
 
 ninja
 
