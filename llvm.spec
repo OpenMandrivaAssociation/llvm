@@ -47,7 +47,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.7.1
-Release:	2
+Release:	1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -570,11 +570,8 @@ TOP=$(pwd)
 # OSes
 %ifarch %ix86
 # compiler-rt doesn't support ix86 with x<6 either
-export CFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
-export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64 -fno-devirtualize"
-
-# FIXME https://llvm.org/bugs/show_bug.cgi?id=22661
-sed -ri "/ifeq.*CompilerTargetArch/s#i386#i586#g" projects/compiler-rt/make/platform/clang_linux.mk
+export CFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
+export CXXFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 %endif
 %ifarch %armx sparc mips
 export CFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
@@ -652,10 +649,6 @@ done
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
 %endif
 	-G Ninja
-
-# FIXME upstream need to fix this
-# llvm-config.cpp hardcodes lib in it
-sed -i 's|ActiveLibDir = ActivePrefix + "/lib"|ActiveLibDir = ActivePrefix + "/%{_lib}/%{name}"|g' tools/llvm-config/llvm-config.cpp
 
 ninja
 
