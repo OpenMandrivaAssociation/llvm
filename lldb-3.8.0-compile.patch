@@ -1,0 +1,24 @@
+--- llvm-3.8.0.src/tools/lldb/scripts/CMakeLists.txt.omv~	2016-01-26 14:42:50.522797492 +0100
++++ llvm-3.8.0.src/tools/lldb/scripts/CMakeLists.txt	2016-01-26 14:43:56.985463853 +0100
+@@ -23,6 +23,9 @@ add_custom_command(
+ set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/LLDBWrapPython.cpp PROPERTIES GENERATED 1)
+ set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/lldb.py PROPERTIES GENERATED 1)
+ 
++# Needed because of the way swig wraps SetErrorStringWithFormat
++add_definitions(-Wno-error=format-security)
++
+ add_custom_target(swig_wrapper ALL
+   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/LLDBWrapPython.cpp
+   )
+--- llvm-3.8.0.src/tools/lldb/source/API/CMakeLists.txt.omv~	2016-01-26 14:57:22.848946671 +0100
++++ llvm-3.8.0.src/tools/lldb/source/API/CMakeLists.txt	2016-01-26 14:59:06.458427711 +0100
+@@ -69,6 +69,9 @@ add_lldb_library(liblldb SHARED
+   ${LLDB_WRAP_PYTHON}
+   )
+ 
++# Needed because of the way swig wraps SetErrorStringWithFormat
++add_definitions(-Wno-error=format-security)
++
+ # This should not be part of LLDBDependencies.cmake, because we don't
+ # want every single library taking a dependency on the script interpreters.
+ target_link_libraries(liblldb PRIVATE

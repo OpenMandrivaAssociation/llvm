@@ -1,25 +1,22 @@
---- llvm-3.5/tools/clang/lib/Driver/Tools.cpp.armhf	2014-05-05 13:42:31.046661612 +0200
-+++ llvm-3.5/tools/clang/lib/Driver/Tools.cpp	2014-05-05 13:44:21.643278964 +0200
-@@ -561,6 +561,6 @@ StringRef tools::arm::getARMFloatABI(con
-       if (FloatABI != "soft" && FloatABI != "softfp" && FloatABI != "hard") {
+--- llvm-3.8.0.src/tools/clang/lib/Driver/Tools.cpp.armhf~	2016-01-25 20:11:08.436069568 +0100
++++ llvm-3.8.0.src/tools/clang/lib/Driver/Tools.cpp	2016-01-25 20:16:06.255147427 +0100
+@@ -676,7 +676,7 @@ arm::FloatABI arm::getARMFloatABI(const
+                 .Default(FloatABI::Invalid);
+       if (ABI == FloatABI::Invalid && !StringRef(A->getValue()).empty()) {
          D.Diag(diag::err_drv_invalid_mfloat_abi) << A->getAsString(Args);
--        FloatABI = "soft";
-+        FloatABI = "hard";
+-        ABI = FloatABI::Soft;
++        ABI = FloatABI::Hard;
        }
      }
-   }
-@@ -692,11 +692,11 @@ StringRef tools::arm::getARMFloatABI(con
+ 
+@@ -736,8 +736,8 @@ arm::FloatABI arm::getARMFloatABI(const
+         ABI = (SubArch == 7) ? FloatABI::SoftFP : FloatABI::Soft;
          break;
-       }
        default:
 -        // Assume "soft", but warn the user we are guessing.
--        FloatABI = "soft";
+-        ABI = FloatABI::Soft;
 +        // Assume "hard", but warn the user we are guessing.
-+        FloatABI = "hard";
++        ABI = FloatABI::Hard;
          if (Triple.getOS() != llvm::Triple::UnknownOS ||
              !Triple.isOSBinFormatMachO())
--          D.Diag(diag::warn_drv_assuming_mfloat_abi_is) << "soft";
-+          D.Diag(diag::warn_drv_assuming_mfloat_abi_is) << "hard";
-         break;
-       }
-     }
+           D.Diag(diag::warn_drv_assuming_mfloat_abi_is) << "soft";
