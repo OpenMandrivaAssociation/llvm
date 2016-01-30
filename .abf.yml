@@ -8,3 +8,4 @@ sources:
   llvm-3.8.0.src.tar.xz: d1b225e5bf06692850c4df444696b74963ca282e
   openmp-3.8.0.src.tar.xz: 7054e72bb625a536ed7d77363b3798e1775e2508
   polly-3.8.0.src.tar.xz: 7890f051b56a0d8c78a94040a8b9ff042524e039
+  libcxx-3.8.0.src.tar.xz: 5416858b46467ae0f206e4253b272a5650beeea8
