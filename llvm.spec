@@ -538,7 +538,9 @@ fi
 [ -d libcxxabi-%{version}%{?prerel}.src ] && mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
 %patch7 -p1 -b .gcc49~
 %patch9 -p1 -b .ddsan~
+%if %{with lldb}
 %patch10 -p1 -b .lldb~
+%endif
 %patch11 -p1 -b .libstdc++~
 %patch12 -p1 -b .soname~
 %patch13 -p1 -b .fixOptlevel~
