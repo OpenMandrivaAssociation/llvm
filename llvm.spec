@@ -50,7 +50,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.8.0
-Release:	0.259160.1
+Release:	0.259247.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -135,6 +135,8 @@ BuildRequires:	libstdc++-devel
 %if %{with ffi}
 BuildRequires:	pkgconfig(libffi)
 %endif
+# Temporary kludge because it wasn't pulled in properly
+BuildRequires:	%{_lib}unwind1.0
 BuildRequires:	pkgconfig(cloog-isl)
 BuildRequires:	pkgconfig(isl) >= 0.13
 BuildRequires:	pkgconfig(libtirpc)
@@ -383,6 +385,7 @@ Requires:	llvm%{?_isa} = %{EVRD}
 # clang requires gcc, clang++ requires libstdc++-devel
 Requires:	gcc
 Requires:	libstdc++-devel >= %{gcc_version}
+Requires:	%{_lib}unwind1.0 = %{EVRD}
 Obsoletes:	%{mklibname clang 3.7.0}
 %{expand:%(for i in %{ClangLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 
