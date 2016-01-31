@@ -1,0 +1,26 @@
+--- llvm-3.8.0.src/projects/libunwind/src/UnwindRegistersRestore.S.omv~	2016-01-31 15:39:15.465748773 +0100
++++ llvm-3.8.0.src/projects/libunwind/src/UnwindRegistersRestore.S	2016-01-31 15:40:47.713180399 +0100
+@@ -260,6 +260,10 @@ Lnovec:
+ 
+ #elif defined(__arm64__) || defined(__aarch64__)
+ 
++// Let's make GNU as happy
++#define fp x29
++#define lr x30
++
+ //
+ // void libunwind::Registers_arm64::jumpto()
+ //
+--- llvm-3.8.0.src/projects/libunwind/src/UnwindRegistersSave.S.omv~	2016-01-31 15:41:55.269777229 +0100
++++ llvm-3.8.0.src/projects/libunwind/src/UnwindRegistersSave.S	2016-01-31 15:42:17.472646868 +0100
+@@ -241,6 +241,10 @@ DEFINE_LIBUNWIND_FUNCTION(unw_getcontext
+ 
+ #elif defined(__arm64__) || defined(__aarch64__)
+ 
++// Make GNU as happy
++#define fp x29
++#define lr x30
++
+ //
+ // extern int unw_getcontext(unw_context_t* thread_state)
+ //

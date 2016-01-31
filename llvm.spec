@@ -23,9 +23,12 @@
 %bcond_with ocaml
 # No graphviz yet either
 %bcond_without bootstrap
+# libcxx fails to bootstrp with gcc
+%bcond_with build_libcxx
 %else
 %bcond_with ocaml
 %bcond_with bootstrap
+%bcond_without build_libcxx
 %endif
 %bcond_without ffi
 # Force gcc to compile, in case previous clang is busted
@@ -91,6 +94,7 @@ Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
 Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
+Patch15:	libunwind-3.8-aarch64-gas.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
 Patch21:	llvm-3.7-musl-triple.patch
@@ -508,7 +512,7 @@ Development files for the LLDB debugger
 #-----------------------------------------------------------
 
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -a5 -a6 -a7 %{?with_lldb:-a8} -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} -a7 %{?with_lldb:-a8} -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
@@ -538,11 +542,14 @@ fi
 [ -d libcxxabi-%{version}%{?prerel}.src ] && mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
 %patch7 -p1 -b .gcc49~
 %patch9 -p1 -b .ddsan~
+%if %{with lldb}
 %patch10 -p1 -b .lldb~
+%endif
 %patch11 -p1 -b .libstdc++~
 %patch12 -p1 -b .soname~
 %patch13 -p1 -b .fixOptlevel~
 %patch14 -p1 -b .unwind~
+%patch15 -p1 -b .unwindaarch64~
 
 %patch20 -p1 -b .musl1~
 %patch21 -p1 -b .musl2~
