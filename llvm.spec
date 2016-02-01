@@ -135,8 +135,6 @@ BuildRequires:	libstdc++-devel
 %if %{with ffi}
 BuildRequires:	pkgconfig(libffi)
 %endif
-# Temporary kludge because it wasn't pulled in properly
-BuildRequires:	%{_lib}unwind1.0
 BuildRequires:	pkgconfig(cloog-isl)
 BuildRequires:	pkgconfig(isl) >= 0.13
 BuildRequires:	pkgconfig(libtirpc)
@@ -231,6 +229,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_libdir}/libunwind.so.1
 
 #-----------------------------------------------------------
+%if %{with build_libcxx}
 %libpackage c++ 1
 %libpackage c++abi 1
 
@@ -260,6 +259,7 @@ Static library for libc++'s C++ ABI library
 
 %files -n %{cxxabistatic}
 %{_libdir}/libc++abi.a
+%endif
 
 #-----------------------------------------------------------
 %define libname %mklibname %{name} %{major}
