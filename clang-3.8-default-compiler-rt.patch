@@ -1,0 +1,11 @@
+--- llvm-3.8.0.src/tools/clang/include/clang/Driver/ToolChain.h.omv~	2016-02-07 23:39:44.399503709 +0100
++++ llvm-3.8.0.src/tools/clang/include/clang/Driver/ToolChain.h	2016-02-07 23:43:35.329954181 +0100
+@@ -253,7 +253,7 @@ public:
+ 
+   /// GetDefaultRuntimeLibType - Get the default runtime library variant to use.
+   virtual RuntimeLibType GetDefaultRuntimeLibType() const {
+-    return ToolChain::RLT_Libgcc;
++    return ToolChain::RLT_CompilerRT;
+   }
+ 
+   virtual std::string getCompilerRT(const llvm::opt::ArgList &Args,

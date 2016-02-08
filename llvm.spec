@@ -47,7 +47,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.8.0
-Release:	0.259247.1
+Release:	0.260001.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -110,6 +110,10 @@ Patch41:	llvm-3.7-bootstrap.patch
 # (that is used only to find LLVMgold.so)
 # https://llvm.org/bugs/show_bug.cgi?id=23793
 Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
+# Default to Compiler-RT over libgcc
+Patch44:	clang-3.8-default-compiler-rt.patch
+# Find Compiler-RT for i[45]86
+Patch45:	clang-3.8-compiler-rt-i586.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -556,16 +560,16 @@ fi
 %patch26 -p1 -b .musl7~
 %patch27 -p1 -b .musl8~
 %patch29 -p1 -b .musl10~
-%ifnarch aarch64
-# AArch64 isn't supported by compiler-rt yet
 %patch30 -p1 -b .musl11~
-%endif
 %patch31 -p1 -b .musl12~
 
 %if %{cross_compiling}
 # This is only needed when crosscompiling glibc to musl or the likes
 %patch41 -p1 -b .bootstrap~
 %endif
+
+%patch44 -p1 -b .crt~
+%patch45 -p1 -b .crt586~
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
