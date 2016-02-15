@@ -148,6 +148,8 @@ Obsoletes:	llvm-ocaml
 # For lldb
 BuildRequires:	swig
 BuildRequires:	pkgconfig(python2)
+# Temporary, to work around circular libc++/libc++abi build dep
+BuildRequires:	llvm-devel gcc
 
 %description
 LVM is a robust system, particularly well suited for developing new mid-level
