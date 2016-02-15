@@ -32,13 +32,7 @@
 %endif
 %bcond_without ffi
 # Force gcc to compile, in case previous clang is busted
-%ifarch aarch64
-%bcond_without bootstrap_gcc
-# Temporary workaround for existing clang not working
-%define cross_compiling 0
-%else
 %bcond_with bootstrap_gcc
-%endif
 %ifarch %{ix86} aarch64
 # lldb uses some atomics that haven't been ported to x86_32 yet
 # lldb also fails on aarch64 as of 3.7.0
@@ -673,7 +667,9 @@ done
 	-DCLANG_TABLEGEN=%{_bindir}/clang-tblgen \
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
 %endif
+%ifnarch armv7hl
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
+%endif
 	-G Ninja
 
 ninja
