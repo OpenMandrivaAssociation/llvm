@@ -50,7 +50,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.8.0
-Release:	0.260001.1
+Release:	0.260756.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
