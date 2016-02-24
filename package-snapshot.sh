@@ -14,9 +14,9 @@ fi
 cd "$TMP"
 export LANG=C
 export LC_ALL=C
-for i in llvm cfe clang-tools-extra compiler-rt polly libcxx libcxxabi lldb openmp libunwind; do
-	if [ "$i" = "libunwind" ]; then
-		# libunwind isn't branched with the rest of llvm for now
+for i in llvm cfe clang-tools-extra compiler-rt polly libcxx libcxxabi lldb openmp libunwind llgo lld; do
+	if [ "$i" = "llgo" ]; then
+		# llgo isn't versioned with the rest of llvm for now
 		svn co http://llvm.org/svn/llvm-project/$i/trunk $i
 	else
 		svn co http://llvm.org/svn/llvm-project/$i/$BRANCH $i
@@ -29,4 +29,5 @@ for i in llvm cfe clang-tools-extra compiler-rt polly libcxx libcxxabi lldb open
 	cd ..
 	tar cJf "$CUR"/$i-$VER.src.tar.xz $i-$VER.src
 done
+rm -rf "$TMP"
 echo "Packaged revision $REV"

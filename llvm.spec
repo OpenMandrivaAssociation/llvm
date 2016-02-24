@@ -40,11 +40,14 @@
 %else
 %bcond_without lldb
 %endif
+# Not built yet -- https://llvm.org/bugs/show_bug.cgi?id=26703
+%bcond_with llgo
+%bcond_without lld
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.8.0
-Release:	0.261015.1
+Release:	0.261684.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -62,6 +65,8 @@ Source5:	http://llvm.org/releases/%{version}/libcxx-%{version}.src.tar.xz
 Source6:	http://llvm.org/releases/%{version}/libcxxabi-%{version}.src.tar.xz
 Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
 Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
+Source9:	http://llvm.org/releases/%{version}/llgo-%{version}.src.tar.xz
+Source10:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
 Source1000:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
@@ -112,6 +117,8 @@ Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
 Patch44:	clang-3.8-default-compiler-rt.patch
 # Find Compiler-RT for i[45]86
 Patch45:	clang-3.8-compiler-rt-i586.patch
+# Make lld build
+Patch46:	lld-3.8.0-compile.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -142,6 +149,9 @@ BuildRequires:	cmake
 BuildRequires:	ninja
 %if %{with apidox}
 BuildRequires:	doxygen
+%endif
+%if %{with llgo}
+BuildRequires: gcc-go
 %endif
 Requires:	libstdc++-devel
 Obsoletes:	llvm-ocaml
@@ -223,7 +233,9 @@ for effective implementation, proper tail calls or garbage collection.
 
 %define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangCodeGen clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangIndex clangLex clangParse clangQuery clangRename clangRewrite clangRewriteFrontend clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyGoogleModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingCore
 
-%{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do echo %%libpackage $i %{major1}; done)}
+%define LLDLibs lldAArch64ELFTarget lldARMELFTarget lldCOFF lldConfig lldCore lldDriver lldELF lldELF2 lldExampleSubTarget lldHexagonELFTarget lldMachO lldMipsELFTarget lldReaderWriter lldX86ELFTarget lldX86_64ELFTarget lldYAML
+
+%{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
 
 %libpackage unwind 1.0
 %{_libdir}/libunwind.so.1
@@ -304,6 +316,7 @@ This package contains the development files for LLVM;
 %{_libdir}/lib*.so
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
+%exclude %{_libdir}/liblld*.so
 %exclude %{_libdir}/libLTO.so
 
 #-----------------------------------------------------------
@@ -512,10 +525,43 @@ Development files for the LLDB debugger
 %{_includedir}/lldb
 %{_libdir}/liblldb*.a
 %endif
+
+#-----------------------------------------------------------
+%if %{with lld}
+%package -n lld
+Summary:	The linker from the LLVM project
+License:	NCSA
+Group:		Development/Tools
+%{expand:%(for i in %{LLDLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
+
+%description -n lld
+The linker from the LLVM project
+
+%files -n lld
+%{_bindir}/ld.lld
+%{_bindir}/lld
+%{_bindir}/lld-link
+
+#-----------------------------------------------------------
+
+%define devlld %mklibname -d lld
+
+%package -n %{devlld}
+Summary:	Development files for lld
+Group:		Development/Other
+Requires:	lld = %{EVRD}
+
+%description -n %{devlld}
+This package contains header files and libraries needed for
+writing lld plugins
+
+%files -n %{devlld}
+%{_includedir}/lld
+%{_libdir}/liblld*.so
 #-----------------------------------------------------------
 
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} -a7 %{?with_lldb:-a8} -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} -a7 %{?with_lldb:-a8} %{?with_llgo:-a9} %{?with_lld:-a10} -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
@@ -525,6 +571,12 @@ mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
 mv libunwind-%{version}%{?prerel}.src projects/libunwind
 %if %{with lldb}
 mv lldb-%{version}%{?prerel}.src tools/lldb
+%endif
+%if %{with llgo}
+mv llgo-%{version}%{?prerel}.src tools/llgo
+%endif
+%if %{with lld}
+mv lld-%{version}%{?prerel}.src tools/lld
 %endif
 cd tools/clang
 %patch0 -p0 -b .soname~
@@ -571,6 +623,10 @@ fi
 
 %patch44 -p1 -b .crt~
 %patch45 -p1 -b .crt586~
+
+%if %{with lld}
+%patch46 -p1 -b .lldBuild~
+%endif
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
