@@ -558,6 +558,7 @@ writing lld plugins
 %files -n %{devlld}
 %{_includedir}/lld
 %{_libdir}/liblld*.so
+%endif
 #-----------------------------------------------------------
 
 %prep
