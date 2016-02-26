@@ -42,7 +42,12 @@
 %endif
 # Not built yet -- https://llvm.org/bugs/show_bug.cgi?id=26703
 %bcond_with llgo
+%ifarch %{ix86}
+# As of 3.8, lld doesn't build on i586 - undefined reference to __atomic_load_8
+%bcond_with lld
+%else
 %bcond_without lld
+%endif
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
