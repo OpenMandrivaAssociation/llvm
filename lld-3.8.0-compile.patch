@@ -38,3 +38,13 @@
    )
  
  include_directories(.)
+--- llvm-3.8.0.src/tools/lld/lib/Driver/CMakeLists.txt.omv~	2016-03-09 19:35:23.384520015 +0100
++++ llvm-3.8.0.src/tools/lld/lib/Driver/CMakeLists.txt	2016-03-09 19:35:32.714564363 +0100
+@@ -37,6 +37,7 @@ add_lld_library(lldDriver
+     LLVMObject
+     LLVMOption
+     LLVMSupport
++    pthread
+   )
+ 
+ add_dependencies(lldDriver DriverOptionsTableGen)
