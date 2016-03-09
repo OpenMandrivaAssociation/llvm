@@ -52,7 +52,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.8.0
-Release:	0.261684.1
+Release:	1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -122,7 +122,7 @@ Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
 Patch44:	clang-3.8-default-compiler-rt.patch
 # Find Compiler-RT for i[45]86
 Patch45:	clang-3.8-compiler-rt-i586.patch
-# Make lld build
+# Link lld to libpthread
 Patch46:	lld-3.8.0-compile.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
@@ -631,7 +631,7 @@ fi
 %patch45 -p1 -b .crt586~
 
 %if %{with lld}
-%patch46 -p1 -b .lldBuild~
+%patch46 -p1 -b .lldcompile~
 %endif
 
 # Fix bogus permissions
