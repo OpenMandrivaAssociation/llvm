@@ -636,7 +636,8 @@ fi
 %patch46 -p1 -b .lldcompile~
 %endif
 
-%patch47 -p1 -b .fixOz~
+# FIXME needs to be backported, works only on master
+#patch47 -p1 -b .fixOz~
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
