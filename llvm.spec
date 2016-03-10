@@ -124,6 +124,8 @@ Patch44:	clang-3.8-default-compiler-rt.patch
 Patch45:	clang-3.8-compiler-rt-i586.patch
 # Link lld to libpthread
 Patch46:	lld-3.8.0-compile.patch
+# Fix up -Oz
+Patch47:	http://reviews.llvm.org/file/data/vuyfecmpwn3sxn5hk2df/PHID-FILE-wto46iacueqpjjusetic/D18029.diff
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -634,6 +636,8 @@ fi
 %patch46 -p1 -b .lldcompile~
 %endif
 
+%patch47 -p1 -b .fixOz~
+
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
 
@@ -700,6 +704,9 @@ done
 	-DLLVM_INSTALL_UTILS:BOOL=ON \
 	-DLLVM_BINUTILS_INCDIR=%{_includedir} \
 	-DLLVM_BUILD_DOCS:BOOL=ON \
+	-DLLVM_BUILD_RUNTIME:BOOL=ON \
+	-DLLVM_BUILD_EXTERNAL_COMPILER_RT:BOOL=ON \
+	-DLLVM_TOOL_COMPILER_RT_BUILD:BOOL=ON \
 	-DOCAMLFIND=NOTFOUND \
 	-DLLVM_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
 	-DCLANG_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \

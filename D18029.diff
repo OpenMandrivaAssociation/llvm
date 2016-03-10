@@ -1,0 +1,39 @@
+Index: lib/Target/X86/X86FrameLowering.cpp
+===================================================================
+--- lib/Target/X86/X86FrameLowering.cpp
++++ lib/Target/X86/X86FrameLowering.cpp
+@@ -2447,7 +2447,8 @@
+ 
+     bool IsDef = false;
+     for (const MachineOperand &MO : Prev->implicit_operands()) {
+-      if (MO.isReg() && MO.isDef() && MO.getReg() == Candidate) {
++      if (MO.isReg() && MO.isDef() && 
++          TRI->isSuperOrSubRegisterEq(MO.getReg(), Candidate)) {
+         IsDef = true;
+         break;
+       }
+Index: test/CodeGen/X86/pop-stack-cleanup.ll
+===================================================================
+--- test/CodeGen/X86/pop-stack-cleanup.ll
++++ test/CodeGen/X86/pop-stack-cleanup.ll
+@@ -7,6 +7,7 @@
+ declare void @param2(i32 %a, i32 %b)
+ declare void @param3(i32 %a, i32 %b, i32 %c)
+ declare void @param8(i64, i64, i64, i64, i64, i64, i64, i64)
++declare i32 @param8_ret(i64, i64, i64, i64, i64, i64, i64, i64)
+ 
+ 
+ define void @test() minsize nounwind {
+@@ -74,3 +75,12 @@
+   call void @param8(i64 1, i64 2, i64 3, i64 4, i64 5, i64 6, i64 7, i64 8)
+   ret void
+ }
++
++define i32 @test_linux64_i32(i32 %size) minsize nounwind {
++; LINUX64-LABEL: test_linux64_i32:
++; LINUX64: callq param8
++; LINUX64-NOT: popq %rax
++  %a = alloca i64, i32 %size, align 8
++  %r = call i32 @param8_ret(i64 1, i64 2, i64 3, i64 4, i64 5, i64 6, i64 7, i64 8)
++  ret i32 %r
++}
