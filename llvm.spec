@@ -242,7 +242,9 @@ for effective implementation, proper tail calls or garbage collection.
 
 %define LLDLibs lldAArch64ELFTarget lldARMELFTarget lldCOFF lldConfig lldCore lldDriver lldELF lldELF2 lldExampleSubTarget lldHexagonELFTarget lldMachO lldMipsELFTarget lldReaderWriter lldX86ELFTarget lldX86_64ELFTarget lldYAML
 
+%if %{with lld}
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
+%endif
 
 %libpackage unwind 1.0
 %{_libdir}/libunwind.so.1
@@ -323,7 +325,9 @@ This package contains the development files for LLVM;
 %{_libdir}/lib*.so
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
+%if %{with lld}
 %exclude %{_libdir}/liblld*.so
+%endif
 %exclude %{_libdir}/libLTO.so
 
 #-----------------------------------------------------------
