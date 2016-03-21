@@ -52,7 +52,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.8.0
-Release:	1
+Release:	2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -97,7 +97,6 @@ Patch11:	llvm-nm-workaround-libstdc++.patch
 Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
-Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
 Patch15:	libunwind-3.8-aarch64-gas.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
@@ -426,7 +425,6 @@ as libraries and designed to be loosely-coupled and extensible.
 %files -n clang
 %{_bindir}/clang*
 %{_libdir}/LLVMgold.so
-%{_libdir}/libunwind.a
 %if %{build_lto}
 %{_libdir}/bfd-plugins/LLVMgold.so
 %endif
@@ -615,7 +613,6 @@ fi
 %patch11 -p1 -b .libstdc++~
 %patch12 -p1 -b .soname~
 %patch13 -p1 -b .fixOptlevel~
-%patch14 -p1 -b .unwind~
 %patch15 -p1 -b .unwindaarch64~
 
 %patch20 -p1 -b .musl1~
