@@ -97,6 +97,9 @@ Patch11:	llvm-nm-workaround-libstdc++.patch
 Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
+# because we have an odd combination (compiler-rt but using libstdc++) we need to add
+# the unwind exception handling code which is found in libgcc by linking to libgcc anyway...
+Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
 Patch15:	libunwind-3.8-aarch64-gas.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
@@ -615,6 +618,7 @@ fi
 %patch11 -p1 -b .libstdc++~
 %patch12 -p1 -b .soname~
 %patch13 -p1 -b .fixOptlevel~
+%patch14 -p1 -b .unwindlibstdc~
 %patch15 -p1 -b .unwindaarch64~
 
 %patch20 -p1 -b .musl1~
