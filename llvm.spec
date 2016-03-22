@@ -243,6 +243,8 @@ for effective implementation, proper tail calls or garbage collection.
 
 %if %{with lld}
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
+%else
+%{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do echo %%libpackage $i %{major1}; done)}
 %endif
 
 %libpackage unwind 1.0
