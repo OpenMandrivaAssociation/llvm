@@ -52,7 +52,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.8.0
-Release:	4
+Release:	5
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -128,6 +128,10 @@ Patch45:	clang-3.8-compiler-rt-i586.patch
 Patch46:	lld-3.8.0-compile.patch
 # Fix up -Oz
 Patch47:	http://reviews.llvm.org/file/data/vuyfecmpwn3sxn5hk2df/PHID-FILE-wto46iacueqpjjusetic/D18029.diff
+# Fix mcount name for arm and armv8
+# https://llvm.org/bugs/show_bug.cgi?id=27248
+Patch48:	llvm-3.8.0-mcount-name.patch
+BuildRequires:	bison
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -642,6 +646,8 @@ fi
 %if %{with lld}
 %patch46 -p1 -b .lldcompile~
 %endif
+
+%patch48 -p1 -b .mcount~
 
 # FIXME needs to be backported, works only on master
 #patch47 -p1 -b .fixOz~
