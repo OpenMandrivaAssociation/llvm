@@ -49,10 +49,13 @@
 %bcond_without lld
 %endif
 
+# Clang's libLLVMgold.so shouldn't trigger devel(*) dependencies
+%define __noautoreq 'devel.*'
+
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.8.0
-Release:	5
+Release:	5.265380.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -317,6 +320,13 @@ Group:		Development/Other
 Provides:	llvm-devel = %{EVRD}
 Requires:	%{libname} = %{EVRD}
 Requires:	%{name} = %{EVRD}
+# Have to do those manually because we filter
+# devel(*) deps for clang
+Requires:	pkgconfig(libedit)
+Requires:	ffi-devel
+Requires:	pkgconfig(ncursesw)
+Requires:	stdc++-devel
+Requires:	pkgconfig(zlib)
 Conflicts:	llvm < 3.0-7
 Conflicts:	%{_lib}llvm3.0 < 3.0-9
 
