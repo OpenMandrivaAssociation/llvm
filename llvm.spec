@@ -79,7 +79,7 @@ BuildRequires:	pkgconfig(libffi)
 BuildRequires:	pkgconfig(cloog-isl)
 BuildRequires:	pkgconfig(isl) >= 0.13
 BuildRequires:	pkgconfig(libtirpc)
-BuildRequires:	python >= 3.4
+BuildRequires:	python >= 3.3
 %if %{compile_apidox}
 BuildRequires:	doxygen
 %endif
