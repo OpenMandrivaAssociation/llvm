@@ -162,6 +162,7 @@ BuildRequires:	pkgconfig(libtirpc)
 BuildRequires:	pkgconfig(libxml-2.0)
 BuildRequires:	python >= 2.7
 BuildRequires:	cmake
+BuildRequires:	ninja
 %if %{with apidox}
 BuildRequires:	doxygen
 %endif
