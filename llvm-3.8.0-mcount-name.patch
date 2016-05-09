@@ -1,0 +1,17 @@
+--- llvm-3.8.0.src/tools/clang/lib/Basic/Targets.cpp.omv~	2016-04-06 19:54:24.491760691 +0200
++++ llvm-3.8.0.src/tools/clang/lib/Basic/Targets.cpp	2016-04-06 19:57:56.448725463 +0200
+@@ -431,8 +431,14 @@ public:
+     case llvm::Triple::ppc:
+     case llvm::Triple::ppc64:
+     case llvm::Triple::ppc64le:
++    case llvm::Triple::aarch64:
++    case llvm::Triple::aarch64_be:
+       this->MCountName = "_mcount";
+       break;
++    case llvm::Triple::arm:
++    case llvm::Triple::armeb:
++      this->MCountName = "__gnu_mcount_nc";
++      break;
+     }
+   }
+ 

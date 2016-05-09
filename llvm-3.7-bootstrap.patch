@@ -1,0 +1,8 @@
+--- llvm-3.7.0.src/tools/clang/lib/CMakeLists.txt.omv~	2015-06-24 18:25:16.802152888 +0200
++++ llvm-3.7.0.src/tools/clang/lib/CMakeLists.txt	2015-06-24 18:25:20.597141333 +0200
+@@ -1,3 +1,5 @@
++include_directories("${CLANG_SOURCE_DIR}/lib/Headers")
++
+ add_subdirectory(Headers)
+ add_subdirectory(Basic)
+ add_subdirectory(Lex)

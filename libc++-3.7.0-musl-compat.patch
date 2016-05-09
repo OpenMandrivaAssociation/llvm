@@ -1,0 +1,16 @@
+--- llvm-3.8.0.src/projects/libcxx/include/__config.libcxxmusl~	2016-01-25 20:19:45.127622742 +0100
++++ llvm-3.8.0.src/projects/libcxx/include/__config	2016-01-25 20:24:07.393531737 +0100
+@@ -385,6 +385,13 @@ typedef __char32_t char32_t;
+ #define _LIBCPP_HAS_NO_VARIABLE_TEMPLATES
+ #endif
+ 
++#include <features.h>
++#if defined(__linux__) && !defined(__ANDROID__) && !defined(__GLIBC__)
++// If it's Linux, but neither GLIBC nor Android, it's likely musl...
++// (uClibc defined __GLIBC__ for compatibility)
++#define _LIBCPP_HAS_MUSL_LIBC
++#endif
++
+ #if __ISO_C_VISIBLE >= 2011 || __cplusplus >= 201103L
+ #if defined(__FreeBSD__)
+ #define _LIBCPP_HAS_QUICK_EXIT

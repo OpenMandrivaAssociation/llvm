@@ -1,0 +1,94 @@
+--- llvm-3.8.0.src/tools/clang/lib/Driver/Tools.cpp.musl8~	2016-01-25 20:44:37.516593064 +0100
++++ llvm-3.8.0.src/tools/clang/lib/Driver/Tools.cpp	2016-01-25 20:57:20.955255194 +0100
+@@ -725,10 +725,12 @@ arm::FloatABI arm::getARMFloatABI(const
+       switch (Triple.getEnvironment()) {
+       case llvm::Triple::GNUEABIHF:
+       case llvm::Triple::EABIHF:
++      case llvm::Triple::MuslEABIHF:
+         ABI = FloatABI::Hard;
+         break;
+       case llvm::Triple::GNUEABI:
+       case llvm::Triple::EABI:
++      case llvm::Triple::MuslEABI:
+         // EABI is always AAPCS, and if it was not marked 'hard', it's softfp
+         ABI = FloatABI::SoftFP;
+         break;
+@@ -968,6 +970,8 @@ void Clang::AddARMTargetArgs(const llvm:
+     case llvm::Triple::Android:
+     case llvm::Triple::GNUEABI:
+     case llvm::Triple::GNUEABIHF:
++    case llvm::Triple::MuslEABI:
++    case llvm::Triple::MuslEABIHF:
+       ABIName = "aapcs-linux";
+       break;
+     case llvm::Triple::EABIHF:
+@@ -7857,6 +7861,8 @@ void freebsd::Assembler::ConstructJob(Co
+     switch (getToolChain().getTriple().getEnvironment()) {
+     case llvm::Triple::GNUEABIHF:
+     case llvm::Triple::GNUEABI:
++    case llvm::Triple::MuslEABIHF:
++    case llvm::Triple::MuslEABI:
+     case llvm::Triple::EABI:
+       CmdArgs.push_back("-meabi=5");
+       break;
+@@ -8638,14 +8644,22 @@ static std::string getLinuxDynamicLinker
+   else if (Arch == llvm::Triple::aarch64_be)
+     return "/lib/ld-linux-aarch64_be.so.1";
+   else if (Arch == llvm::Triple::arm || Arch == llvm::Triple::thumb) {
+-    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF ||
++    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::MuslEABIHF)
++      return "/lib/ld-musl-armhf.so.3";
++    else if (ToolChain.getTriple().getEnvironment() == llvm::Triple::MuslEABI)
++      return "/lib/ld-musl-arm.so.3";
++    else if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF ||
+         arm::getARMFloatABI(ToolChain, Args) == arm::FloatABI::Hard)
+       return "/lib/ld-linux-armhf.so.3";
+     else
+       return "/lib/ld-linux.so.3";
+   } else if (Arch == llvm::Triple::armeb || Arch == llvm::Triple::thumbeb) {
+     // TODO: check which dynamic linker name.
+-    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF ||
++    if (ToolChain.getTriple().getEnvironment() == llvm::Triple::MuslEABIHF)
++      return "/lib/ld-musl-armhf.so.3";
++    else if (ToolChain.getTriple().getEnvironment() == llvm::Triple::MuslEABI)
++      return "/lib/ld-musl-arm.so.3";
++    else if (ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUEABIHF ||
+         arm::getARMFloatABI(ToolChain, Args) == arm::FloatABI::Hard)
+       return "/lib/ld-linux-armhf.so.3";
+     else
+@@ -8681,8 +8695,13 @@ static std::string getLinuxDynamicLinker
+   else if (Arch == llvm::Triple::sparcv9)
+     return "/lib64/ld-linux.so.2";
+   else if (Arch == llvm::Triple::x86_64 &&
++           ToolChain.getTriple().getEnvironment() == llvm::Triple::MuslX32)
++    return "/libx32/ld-musl-x32.so.2";
++  else if (Arch == llvm::Triple::x86_64 &&
+            ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUX32)
+     return "/libx32/ld-linux-x32.so.2";
++  else if (ToolChain.getTriple().getEnvironment() == llvm::Triple::Musl)
++    return "/lib64/ld-musl-x86_64.so.1";
+   else
+     return "/lib64/ld-linux-x86-64.so.2";
+ }
+@@ -8771,6 +8790,11 @@ void gnutools::Linker::ConstructJob(Comp
+ 
+   const llvm::Triple::ArchType Arch = ToolChain.getArch();
+   const bool isAndroid = ToolChain.getTriple().isAndroid();
++  const bool isMusl =
++      ToolChain.getTriple().getEnvironment() == llvm::Triple::Musl ||
++      ToolChain.getTriple().getEnvironment() == llvm::Triple::MuslEABI ||
++      ToolChain.getTriple().getEnvironment() == llvm::Triple::MuslEABIHF ||
++      ToolChain.getTriple().getEnvironment() == llvm::Triple::MuslX32;
+   const bool IsPIE =
+       !Args.hasArg(options::OPT_shared) && !Args.hasArg(options::OPT_static) &&
+       (Args.hasArg(options::OPT_pie) || ToolChain.isPIEDefault());
+@@ -8857,7 +8881,8 @@ void gnutools::Linker::ConstructJob(Comp
+       if (crt1)
+         CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(crt1)));
+ 
+-      CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crti.o")));
++      if (!isMusl) // crti.o and crtbegin.o both want to define _init and _fini
++        CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crti.o")));
+     }
+ 
+     const char *crtbegin;

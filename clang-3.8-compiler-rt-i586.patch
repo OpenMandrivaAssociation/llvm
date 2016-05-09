@@ -1,0 +1,15 @@
+--- llvm-3.8.0.src/tools/clang/lib/Driver/ToolChain.cpp.omv~	2016-02-07 23:49:42.376598440 +0100
++++ llvm-3.8.0.src/tools/clang/lib/Driver/ToolChain.cpp	2016-02-07 23:52:27.526044604 +0100
+@@ -275,6 +275,12 @@ static StringRef getArchNameForCompilerR
+   if (Triple.isWindowsMSVCEnvironment() && TC.getArch() == llvm::Triple::x86)
+     return "i386";
+ 
++  if (TC.getArch() == llvm::Triple::x86) {
++    // There are no separate compiler-rt versions for i486 and i586...
++    if(TC.getArchName().data()[1] < '6')
++      return "i386";
++  }
++
+   if (TC.getArch() == llvm::Triple::arm || TC.getArch() == llvm::Triple::armeb)
+     return (arm::getARMFloatABI(TC, Args) == arm::FloatABI::Hard && !IsWindows)
+                ? "armhf"

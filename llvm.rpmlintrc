@@ -1,3 +1,13 @@
-addFilter("E: hardcoded-library-path")
-addFilter("E: external-depfilter-with-internal-depgen")
+#addFilter("E: hardcoded-library-path")
+#addFilter("E: external-depfilter-with-internal-depgen")
+# This is intentional -- it's so much easier to install 1 package that drags
+# in all the others...
+addFilter("E: explicit-lib-dependency")
+# Also intentional -- some of those "libraries" are plugins to be dlopen()ed
+addFilter("E: invalid-soname")
+addFilter("E: library-not-linked-against-libc")
+# 3.7 and 3.7.0 are identical for all that matters...
+addFilter("E: incoherent-version-in-name")
+# llvm-devel contains both llvm-config and modules rpmlint mistakes for libraries
+addFilter("E: executable-in-library-package")
 addFilter("E: devel-file-in-non-devel-package")

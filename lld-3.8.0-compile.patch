@@ -1,0 +1,50 @@
+--- llvm-3.8.0.src/tools/lld/COFF/CMakeLists.txt.omv~	2016-03-09 06:02:39.510886369 +0100
++++ llvm-3.8.0.src/tools/lld/COFF/CMakeLists.txt	2016-03-09 08:03:25.192228194 +0100
+@@ -28,6 +28,9 @@ add_lld_library(lldCOFF
+   Target
+   Option
+   Support
++
++  LINK_LIBS
++  pthread
+   )
+ 
+ add_dependencies(lldCOFF COFFOptionsTableGen)
+--- llvm-3.8.0.src/tools/lld/lib/ReaderWriter/CMakeLists.txt.omv~	2016-03-09 05:46:49.998889616 +0100
++++ llvm-3.8.0.src/tools/lld/lib/ReaderWriter/CMakeLists.txt	2016-03-09 05:47:31.509040836 +0100
+@@ -19,4 +19,5 @@ add_lld_library(lldReaderWriter
+     lldYAML
+     LLVMObject
+     LLVMSupport
++    pthread
+   )
+--- llvm-3.8.0.src/tools/lld/lib/ReaderWriter/ELF/CMakeLists.txt.omv~	2016-03-09 05:59:19.444142865 +0100
++++ llvm-3.8.0.src/tools/lld/lib/ReaderWriter/ELF/CMakeLists.txt	2016-03-09 05:59:25.564141824 +0100
+@@ -17,6 +17,7 @@ add_lld_library(lldELF
+     lldYAML
+     LLVMObject
+     LLVMSupport
++    pthread
+   )
+ 
+ include_directories(.)
+--- llvm-3.8.0.src/tools/lld/lib/ReaderWriter/MachO/CMakeLists.txt.omv~	2016-03-09 05:51:38.461853316 +0100
++++ llvm-3.8.0.src/tools/lld/lib/ReaderWriter/MachO/CMakeLists.txt	2016-03-09 05:51:43.911825975 +0100
+@@ -22,6 +22,7 @@ add_lld_library(lldMachO
+     lldYAML
+     LLVMObject
+     LLVMSupport
++    pthread
+   )
+ 
+ include_directories(.)
+--- llvm-3.8.0.src/tools/lld/lib/Driver/CMakeLists.txt.omv~	2016-03-09 19:35:23.384520015 +0100
++++ llvm-3.8.0.src/tools/lld/lib/Driver/CMakeLists.txt	2016-03-09 19:35:32.714564363 +0100
+@@ -37,6 +37,7 @@ add_lld_library(lldDriver
+     LLVMObject
+     LLVMOption
+     LLVMSupport
++    pthread
+   )
+ 
+ add_dependencies(lldDriver DriverOptionsTableGen)

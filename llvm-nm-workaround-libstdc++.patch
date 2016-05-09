@@ -1,0 +1,23 @@
+--- llvm-3.7.0.src/tools/llvm-nm/llvm-nm.cpp.omv~	2015-07-14 11:27:52.964448153 +0200
++++ llvm-3.7.0.src/tools/llvm-nm/llvm-nm.cpp	2015-07-14 11:52:11.649398638 +0200
+@@ -486,7 +486,7 @@ static void sortAndPrintSymbolList(Symbo
+                                    std::string ArchiveName,
+                                    std::string ArchitectureName) {
+   if (!NoSort) {
+-    std::function<bool(const NMSymbol &, const NMSymbol &)> Cmp;
++    bool (*Cmp)(const NMSymbol &, const NMSymbol &);
+     if (NumericSort)
+       Cmp = compareSymbolAddress;
+     else if (SizeSort)
+@@ -495,8 +495,9 @@ static void sortAndPrintSymbolList(Symbo
+       Cmp = compareSymbolName;
+ 
+     if (ReverseSort)
+-      Cmp = [=](const NMSymbol &A, const NMSymbol &B) { return Cmp(B, A); };
+-    std::sort(SymbolList.begin(), SymbolList.end(), Cmp);
++      std::sort(SymbolList.begin(), SymbolList.end(), [=](const NMSymbol &A, const NMSymbol &B) { return Cmp(B, A); });
++    else
++      std::sort(SymbolList.begin(), SymbolList.end(), Cmp);
+   }
+ 
+   if (!PrintFileName) {

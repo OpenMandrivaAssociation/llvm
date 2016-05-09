@@ -1,0 +1,12 @@
+--- llvm-3.8.0.src/lib/Target/X86/X86FrameLowering.cpp.omv~	2016-03-10 14:40:14.932606488 +0100
++++ llvm-3.8.0.src/lib/Target/X86/X86FrameLowering.cpp	2016-03-10 14:41:13.669328737 +0100
+@@ -2440,7 +2440,8 @@ bool X86FrameLowering::adjustStackWithPo
+ 
+     bool IsDef = false;
+     for (const MachineOperand &MO : Prev->implicit_operands()) {
+-      if (MO.isReg() && MO.isDef() && MO.getReg() == Candidate) {
++      if (MO.isReg() && MO.isDef() &&
++          TRI->isSuperOrSubRegisterEq(MO.getReg(), Candidate)) {
+         IsDef = true;
+         break;
+       }

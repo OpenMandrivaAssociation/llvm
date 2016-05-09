@@ -1,11 +1,11 @@
---- llvm-3.5/lib/CodeGen/GlobalMerge.cpp.EnableGlobalMerge~	2014-06-19 15:03:05.515698194 +0200
-+++ llvm-3.5/lib/CodeGen/GlobalMerge.cpp	2014-06-19 15:03:46.846698327 +0200
-@@ -72,7 +72,7 @@ using namespace llvm;
- 
+--- llvm-3.7.0.src/lib/CodeGen/GlobalMerge.cpp.EnableGlobalMerge~	2015-05-20 19:24:56.517833996 +0200
++++ llvm-3.7.0.src/lib/CodeGen/GlobalMerge.cpp	2015-05-20 19:25:28.593679217 +0200
+@@ -87,7 +87,7 @@ using namespace llvm;
  #define DEBUG_TYPE "global-merge"
  
+ // FIXME: This is only useful as a last-resort way to disable the pass.
 -static cl::opt<bool>
 +cl::opt<bool>
  EnableGlobalMerge("enable-global-merge", cl::Hidden,
-                   cl::desc("Enable global merge pass"),
+                   cl::desc("Enable the global merge pass"),
                    cl::init(true));

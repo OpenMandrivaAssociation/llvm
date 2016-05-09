@@ -1,0 +1,69 @@
+--- llvm-3.8.0.src/tools/clang/lib/Driver/ToolChain.cpp.omv~    2016-01-29 01:30:16.368838917 +0100
++++ llvm-3.8.0.src/tools/clang/lib/Driver/ToolChain.cpp 2016-01-29 01:30:33.589734817 +0100
+@@ -612,6 +612,10 @@
+
+   case ToolChain::CST_Libstdcxx:
+     CmdArgs.push_back("-lstdc++");
++    if (Args.hasArg(options::OPT_static))
++      CmdArgs.push_back("-lgcc_eh");
++    else
++      CmdArgs.push_back("-lgcc_s");
+     break;
+   }
+ }
+--- llvm-3.8.0.src/tools/clang/lib/Driver/Tools.cpp.omv~        2016-01-29 01:32:56.192884927 +0100
++++ llvm-3.8.0.src/tools/clang/lib/Driver/Tools.cpp     2016-01-29 01:33:44.257602738 +0100
+@@ -6189,6 +6189,10 @@
+       // Reverse translate some rewritten options.
+       if (A.getOption().matches(options::OPT_Z_reserved_lib_stdcxx)) {
+         CmdArgs.push_back("-lstdc++");
++        if (Args.hasArg(options::OPT_static))
++          CmdArgs.push_back("-lgcc_eh");
++        else
++          CmdArgs.push_back("-lgcc_s");
+         continue;
+       }
+
+@@ -10282,8 +10286,13 @@
+   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs);
+
+   if (UseDefaultLibs) {
+-    if (C.getDriver().CCCIsCXX())
++    if (C.getDriver().CCCIsCXX()) {
+       CmdArgs.push_back("-lstdc++");
++      if (Args.hasArg(options::OPT_static))
++        CmdArgs.push_back("-lgcc_eh");
++      else
++        CmdArgs.push_back("-lgcc_s");
++    }
+     if (T.getOS() == llvm::Triple::RTEMS) {
+       CmdArgs.push_back("--start-group");
+       CmdArgs.push_back("-lc");
+@@ -10505,11 +10514,13 @@
+       CmdArgs.push_back("-lcompiler_rt");
+     if (Args.hasArg(options::OPT_static)) {
+       CmdArgs.push_back("-lstdc++");
++      CmdArgs.push_back("-lgcc_eh");
+     } else if (Args.hasArg(options::OPT_pg)) {
+       CmdArgs.push_back("-lgcc_eh_p");
+     } else {
+       CmdArgs.push_back("--as-needed");
+       CmdArgs.push_back("-lstdc++");
++      CmdArgs.push_back("-lgcc_s");
+       CmdArgs.push_back("--no-as-needed");
+     }
+
+@@ -10548,11 +10559,13 @@
+
+     if (Args.hasArg(options::OPT_static)) {
+       CmdArgs.push_back("-lstdc++");
++      CmdArgs.push_back("-lgcc_eh");
+     } else if (Args.hasArg(options::OPT_pg)) {
+       CmdArgs.push_back("-lgcc_eh_p");
+     } else {
+       CmdArgs.push_back("--as-needed");
+       CmdArgs.push_back("-lstdc++");
++      CmdArgs.push_back("-lgcc_s");
+       CmdArgs.push_back("--no-as-needed");
+     }
+   }

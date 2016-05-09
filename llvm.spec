@@ -1,32 +1,61 @@
 %define debug_package %{nil}
+%define debugcflags %{nil}
+%define build_lto 1
 %define _disable_ld_no_undefined 0
+%define _disable_lto 1
 
 # clang header paths are hard-coded at compile time
 # and need adjustment whenever there's a new GCC version
 %define gcc_version %(gcc -dumpversion)
 
-%define default_compiler 1
+%bcond_without default_compiler
 
-%define compile_apidox 0
-%{?_with_apidox: %{expand: %%global compile_apidox 1}}
-
+# As of 238820, the "make install" target for apidox
+# is broken with cmake. Re-enable later.
+%bcond_with apidox
+# Note: --with libcxx doesn't mean "build libcxx", but "USE libcxx",
+# as in "link llvm libs and clang libs to libcxx rather than libstdc++
+# Don't do this if you care about binary compatibility...
+%bcond_with libcxx
 %bcond_without clang
 %ifarch aarch64
 # AArch64 doesn't have a working ocaml compiler yet
 %bcond_with ocaml
 # No graphviz yet either
 %bcond_without bootstrap
+# libcxx fails to bootstrp with gcc
+%bcond_with build_libcxx
 %else
 %bcond_with ocaml
 %bcond_with bootstrap
+%bcond_without build_libcxx
+%endif
+%bcond_without ffi
+# Force gcc to compile, in case previous clang is busted
+%bcond_with bootstrap_gcc
+%ifarch %{ix86} aarch64
+# lldb uses some atomics that haven't been ported to x86_32 yet
+# lldb also fails on aarch64 as of 3.7.0
+%bcond_with lldb
+%else
+%bcond_without lldb
+%endif
+# Not built yet -- https://llvm.org/bugs/show_bug.cgi?id=26703
+%bcond_with llgo
+%ifarch %{ix86}
+# As of 3.8, lld doesn't build on i586 - undefined reference to __atomic_load_8
+%bcond_with lld
+%else
+%bcond_without lld
 %endif
 
-%define _requires_exceptions devel\(libffi\)
+# Clang's libLLVMgold.so shouldn't trigger devel(*) dependencies
+%define __noautoreq 'devel.*'
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	3.6.0
-Release:	0.1
+Version:	3.8.0
+Release:	0.265380.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -40,6 +69,12 @@ Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.xz
 Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.xz
 Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.xz
+Source5:	http://llvm.org/releases/%{version}/libcxx-%{version}.src.tar.xz
+Source6:	http://llvm.org/releases/%{version}/libcxxabi-%{version}.src.tar.xz
+Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
+Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
+Source9:	http://llvm.org/releases/%{version}/llgo-%{version}.src.tar.xz
+Source10:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
 Source1000:	llvm.rpmlintrc
 # Versionize libclang.so (Anssi 08/2012):
 Patch0:		clang-soname.patch
@@ -49,6 +84,7 @@ Patch1:		0000-clang-mandriva.patch
 # see http://llvm.org/bugs/show_bug.cgi?id=15557
 # and https://bugzilla.redhat.com/show_bug.cgi?id=803433
 Patch2:		clang-hardfloat-hack.patch
+Patch3:		llvm-3.7.0-PATH_MAX-compile.patch
 # Claim compatibility with gcc 4.9.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
@@ -57,15 +93,57 @@ Patch8:		clang-fuse-ld.patch
 # Patches from AOSP
 Patch4:		0000-llvm-Add-support-for-64-bit-longs.patch
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
-Patch6:		llvm-3.5-detect-hardfloat.patch
-Patch9:		llvm-3.6.0.src-support-armv7hl-and-armv7hnl-triplets.patch
+# End AOSP patch section
+Patch9:		ddsan-compile.patch
+Patch10:	lldb-3.8.0-compile.patch
+Patch11:	llvm-nm-workaround-libstdc++.patch
+Patch12:	llvm-3.8.0-sonames.patch
+# Silently turn -O9 into -O3 etc. for increased gcc compatibility
+Patch13:	llvm-3.8.0-fix-optlevel.patch
+# because we have an odd combination (compiler-rt but using libstdc++) we need to add
+# the unwind exception handling code which is found in libgcc by linking to libgcc anyway...
+Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
+Patch15:	libunwind-3.8-aarch64-gas.patch
+# Patches for musl support, (partially) stolen from Alpine Linux and ported
+Patch20:	llvm-3.7-musl.patch
+Patch21:	llvm-3.7-musl-triple.patch
+Patch22:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-sanitizer-off_t.patch
+Patch23:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-3.6-musl-no-dlvsym.patch
+# http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
+# breaks exception handling -- removes gcc_eh
+Patch26:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-musl-use-init-array.patch
+Patch27:	clang-3.7-musl-fix-dynamic-linker-paths.patch
+Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
+Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-default-runtime-compiler-rt.patch
+Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
+Patch40:	libc++-3.7.0-musl-compat.patch
+# https://llvm.org/bugs/show_bug.cgi?id=23935
+Patch41:	llvm-3.7-bootstrap.patch
+# Make it possible to override CLANG_LIBDIR_SUFFIX
+# (that is used only to find LLVMgold.so)
+# https://llvm.org/bugs/show_bug.cgi?id=23793
+Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
+# Default to Compiler-RT over libgcc
+Patch44:	clang-3.8-default-compiler-rt.patch
+# Find Compiler-RT for i[45]86
+Patch45:	clang-3.8-compiler-rt-i586.patch
+# Link lld to libpthread
+Patch46:	lld-3.8.0-compile.patch
+# Fix up -Oz
+Patch47:	http://reviews.llvm.org/file/data/vuyfecmpwn3sxn5hk2df/PHID-FILE-wto46iacueqpjjusetic/D18029.diff
+# Fix mcount name for arm and armv8
+# https://llvm.org/bugs/show_bug.cgi?id=27248
+Patch48:	llvm-3.8.0-mcount-name.patch
+BuildRequires:	bison
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
 BuildRequires:	flex
+BuildRequires:	pkgconfig(libedit)
 %if %{without bootstrap}
 BuildRequires:	graphviz
 %endif
+BuildRequires:	chrpath
 BuildRequires:	groff
 BuildRequires:	libtool
 %if %{with ocaml}
@@ -75,16 +153,28 @@ BuildRequires:	tcl
 BuildRequires:	sed
 BuildRequires:	zip
 BuildRequires:	libstdc++-devel
+%if %{with ffi}
 BuildRequires:	pkgconfig(libffi)
+%endif
 BuildRequires:	pkgconfig(cloog-isl)
 BuildRequires:	pkgconfig(isl) >= 0.13
 BuildRequires:	pkgconfig(libtirpc)
+BuildRequires:	pkgconfig(libxml-2.0)
 BuildRequires:	python >= 2.7
-%if %{compile_apidox}
+BuildRequires:	cmake
+%if %{with apidox}
 BuildRequires:	doxygen
+%endif
+%if %{with llgo}
+BuildRequires: gcc-go
 %endif
 Requires:	libstdc++-devel
 Obsoletes:	llvm-ocaml
+# For lldb
+BuildRequires:	swig
+BuildRequires:	pkgconfig(python2)
+# Temporary, to work around circular libc++/libc++abi build dep
+BuildRequires:	llvm-devel gcc
 
 %description
 LVM is a robust system, particularly well suited for developing new mid-level
@@ -95,48 +185,114 @@ including those which require compile-time, link-time, or run-time optimization
 for effective implementation, proper tail calls or garbage collection. 
 
 %files
-%doc LICENSE.TXT
 %{_bindir}/FileCheck
 %{_bindir}/bugpoint
 %{_bindir}/count
+%{_bindir}/c-index-test
+%{_bindir}/git-clang-format
 %{_bindir}/llc
 %{_bindir}/lli
 %{_bindir}/opt
-%{_bindir}/lli-child-target
 %{_bindir}/llvm-ar
 %{_bindir}/llvm-as
 %{_bindir}/llvm-bcanalyzer
+%{_bindir}/llvm-c-test
 %{_bindir}/llvm-diff
 %{_bindir}/llvm-dis
 %{_bindir}/llvm-dsymutil
+%{_bindir}/llvm-dwp
 %{_bindir}/llvm-extract
+%{_bindir}/llvm-lib
 %{_bindir}/llvm-link
+%{_bindir}/llvm-lto
 %{_bindir}/llvm-mc
 %{_bindir}/llvm-nm
 %{_bindir}/llvm-objdump
 %{_bindir}/llvm-ranlib
 %{_bindir}/llvm-readobj
+%{_bindir}/llvm-split
 %{_bindir}/llvm-cov
 %{_bindir}/llvm-dwarfdump
 %{_bindir}/llvm-mcmarkup
+%{_bindir}/llvm-PerfectShuffle
 %{_bindir}/llvm-profdata
 %{_bindir}/llvm-rtdyld
 %{_bindir}/llvm-size
 %{_bindir}/llvm-stress
 %{_bindir}/llvm-symbolizer
 %{_bindir}/llvm-tblgen
-%{_bindir}/llvm-vtabledump
-%{_bindir}/pp-trace
+%{_bindir}/llvm-cxxdump
+%{_bindir}/llvm-pdbdump
+%{_bindir}/modularize
+%{_bindir}/sancov
 %{_bindir}/verify-uselistorder
 %{_bindir}/obj2yaml
 %{_bindir}/yaml2obj
-%{_bindir}/macho-dump
+%{_bindir}/yaml-bench
 %{_bindir}/not
-%dir %{_libdir}/llvm
+# clang static analyzer -- maybe should be a separate package
+%{_bindir}/scan-build
+%{_bindir}/scan-view
+%{_libexecdir}/ccc-analyzer
+%{_libexecdir}/c++-analyzer
+%{_datadir}/scan-build
+%{_datadir}/scan-view
+%{_mandir}/man1/scan-build.1*
 
 #-----------------------------------------------------------
 
-%define major %(echo %{version} |cut -d. -f1-2)
+%define major %(echo %{version} |cut -d. -f1-2)  
+%define major1 %(echo %{version} |cut -d. -f1)
+
+%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFInfo LLVMCodeGen LLVMCore LLVMCppBackendCodeGen LLVMCppBackendInfo LLVMDebugInfoCodeView LLVMDebugInfoDWARF LLVMDebugInfoPDB LLVMExecutionEngine LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMipo
+
+%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangCodeGen clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangIndex clangLex clangParse clangQuery clangRename clangRewrite clangRewriteFrontend clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyGoogleModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingCore
+
+%define LLDLibs lldAArch64ELFTarget lldARMELFTarget lldCOFF lldConfig lldCore lldDriver lldELF lldELF2 lldExampleSubTarget lldHexagonELFTarget lldMachO lldMipsELFTarget lldReaderWriter lldX86ELFTarget lldX86_64ELFTarget lldYAML
+
+%if %{with lld}
+%{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
+%else
+%{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do echo %%libpackage $i %{major1}; done)}
+%endif
+
+%libpackage unwind 1.0
+%{_libdir}/libunwind.so.1
+
+#-----------------------------------------------------------
+%if %{with build_libcxx}
+%libpackage c++ 1
+%libpackage c++abi 1
+
+%define cxxdevname %mklibname c++ -d
+%define cxxabistatic %mklibname c++abi -d -s
+
+%package -n %{cxxdevname}
+Summary: Development files for libc++, an alternative implementation of the STL
+Group: Development/C
+Requires: %{mklibname c++ 1} = %{EVRD}
+Requires: %{mklibname c++abi 1} = %{EVRD}
+Provides: c++-devel = %{EVRD}
+
+%description -n %{cxxdevname}
+Development files for libc++, an alternative implementation of the STL
+
+%files -n %{cxxdevname}
+%{_includedir}/c++
+
+%package -n %{cxxabistatic}
+Summary: Static library for libc++ C++ ABI support
+Group: Development/C
+Requires: %{cxxdevname} = %{EVRD}
+
+%description -n %{cxxabistatic}
+Static library for libc++'s C++ ABI library
+
+%files -n %{cxxabistatic}
+%{_libdir}/libc++abi.a
+%endif
+
+#-----------------------------------------------------------
 %define libname %mklibname %{name} %{major}
 
 %package -n %{libname}
@@ -144,13 +300,14 @@ Summary:	LLVM shared libraries
 Group:		System/Libraries
 Conflicts:	llvm < 3.0-4
 Obsoletes:	%{mklibname %{name} 3.5.0}
+Obsoletes:	%{mklibname %{name} 3.6.0}
+%{expand:%(for i in %{LLVMLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 
 %description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
 programs that are dynamically linked against libLLVM.
 
 %files -n %{libname}
-%{_libdir}/libLLVM-[0-9].*.so
 
 #-----------------------------------------------------------
 
@@ -162,6 +319,13 @@ Group:		Development/Other
 Provides:	llvm-devel = %{EVRD}
 Requires:	%{libname} = %{EVRD}
 Requires:	%{name} = %{EVRD}
+# Have to do those manually because we filter
+# devel(*) deps for clang
+Requires:	pkgconfig(libedit)
+Requires:	ffi-devel
+Requires:	pkgconfig(ncursesw)
+Requires:	stdc++-devel
+Requires:	pkgconfig(zlib)
 Conflicts:	llvm < 3.0-7
 Conflicts:	%{_lib}llvm3.0 < 3.0-9
 
@@ -170,15 +334,18 @@ This package contains the development files for LLVM;
 
 %files -n %{devname}
 %{_bindir}/%{name}-config
-%{_libdir}/libLLVM.so
 %{_includedir}/%{name}
 %{_includedir}/%{name}-c
-%{_libdir}/%{name}/BugpointPasses.so
-%{_libdir}/%{name}/libLLVM*.a
-%{_libdir}/%{name}/libLLVM*.so
-%{_libdir}/%{name}/libLTO.a
+%{_libdir}/BugpointPasses.so
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/cmake
+%{_libdir}/lib*.so
+# Stuff from clang
+%exclude %{_libdir}/libclang*.so
+%if %{with lld}
+%exclude %{_libdir}/liblld*.so
+%endif
+%exclude %{_libdir}/libLTO.so
 
 #-----------------------------------------------------------
 
@@ -194,11 +361,10 @@ Documentation for the LLVM compiler infrastructure.
 
 %files doc
 %doc README.txt
-%doc docs/*.css
 %doc docs/*.html
 %doc docs/tutorial
 %doc examples
-%if %{compile_apidox}
+%if %{with apidox}
 %doc docs/doxygen
 %endif
 
@@ -223,7 +389,7 @@ short vector instructions as well as dedicated accelerators.
 %files polly
 %{_bindir}/pollycc
 %{_bindir}/pollyc++
-%{_libdir}/llvm/LLVMPolly.so
+%{_libdir}/LLVMPolly.so
 
 #-----------------------------------------------------------
 %package polly-devel
@@ -247,14 +413,10 @@ short vector instructions as well as dedicated accelerators.
 
 %files polly-devel
 %{_includedir}/polly
+%{_libdir}/libPollyISL.a
 #-----------------------------------------------------------
 
 %if %{with clang}
-%define libclang %mklibname clang %version
-
-# TODO: %{_bindir}/clang is linked against static libclang.a, could it be
-# linked against libclang.so instead, like llvm-* are against livLLVM.so?
-
 %package -n clang
 Summary:	A C language family front-end for LLVM
 License:	NCSA
@@ -264,6 +426,9 @@ Requires:	llvm%{?_isa} = %{EVRD}
 # clang requires gcc, clang++ requires libstdc++-devel
 Requires:	gcc
 Requires:	libstdc++-devel >= %{gcc_version}
+Requires:	%{_lib}unwind1.0 = %{EVRD}
+Obsoletes:	%{mklibname clang 3.7.0}
+%{expand:%(for i in %{ClangLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 
 %description -n clang
 clang: noun
@@ -276,34 +441,20 @@ and Objective C++ front-end for the LLVM compiler. Its tools are built
 as libraries and designed to be loosely-coupled and extensible.
 
 %files -n clang
-%doc clang-docs/*
 %{_bindir}/clang*
-%{_libdir}/llvm/libmodernizeCore.a
-%{_libdir}/llvm/LLVMgold.so
-%{_libdir}/llvm/libLTO.so
 %{_libdir}/LLVMgold.so
+%if %{build_lto}
+%{_libdir}/bfd-plugins/LLVMgold.so
+%endif
 %{_libdir}/libLTO.so
-%{_bindir}/c-index-test
-%{_prefix}/lib/clang
-%doc %{_mandir}/man1/clang.1.*
-%if %{default_compiler}
+%{_libdir}/clang
+%{_datadir}/clang
+%if %{with default_compiler}
 %{_bindir}/cc
 %{_bindir}/c89
 %{_bindir}/c99
 %{_bindir}/c++
 %endif
-
-%package -n %{libclang}
-Summary:	Shared library for clang
-Group:		System/Libraries
-Obsoletes:	%mklibname clang %{major} < %{EVRD}
-
-%description -n %{libclang}
-Shared libraries for the clang compiler. This is needed by
-programs that are dynamically linked against libclang.
-
-%files -n %{libclang}
-%{_libdir}/libclang-%version.so
 
 #-----------------------------------------------------------
 
@@ -312,7 +463,7 @@ programs that are dynamically linked against libclang.
 %package -n %{devclang}
 Summary:	Development files for clang
 Group:		Development/Other
-Requires:	%{libclang} = %{EVRD}
+Requires:	clang = %{EVRD}
 Provides:	clang-devel = %{EVRD}
 Conflicts:	llvm-devel < 3.1
 Obsoletes:	clang-devel < 3.1
@@ -324,10 +475,7 @@ libclang.
 %files -n %{devclang}
 %{_includedir}/clang
 %{_includedir}/clang-c
-%{_libdir}/libclang.so
-%dir %{_libdir}/%{name}
-%{_libdir}/%{name}/libclang*.a
-%{_libdir}/%{name}/libclang*.so
+%{_libdir}/libclang*.so
 
 %package -n clang-analyzer
 Summary:	A source code analysis framework
@@ -345,9 +493,6 @@ programs. The standalone tool is invoked from the command-line, and is
 intended to run in tandem with a build of a project or code base.
 
 %files -n clang-analyzer
-%{_bindir}/scan-build
-%{_bindir}/scan-view
-%{_libdir}/clang-analyzer
 
 
 %package -n clang-doc
@@ -360,7 +505,6 @@ Requires:	%{name} = %{EVRD}
 Documentation for the Clang compiler front-end.
 
 %files -n clang-doc
-%doc clang-docs-full/*
 
 %endif
 
@@ -378,170 +522,270 @@ Objective-CAML bindings for LLVM
 %endif
 #-----------------------------------------------------------
 
+%if %{with lldb}
+%libpackage lldb %{major}
+
+%package -n lldb
+Summary:	Debugger from the LLVM toolchain
+Group:		Development/Tools
+
+%description -n lldb
+Debugger from the LLVM toolchain
+
+%files -n lldb
+%{_bindir}/lldb*
+%{_libdir}/python*/site-packages/lldb
+%{_libdir}/python*/site-packages/readline.so
+%{_libdir}/python*/site-packages/six.py
+
+%define lldbdev %mklibname -d lldb
+
+%package -n %{lldbdev}
+Summary:	Development files for the LLDB debugger
+Group:		Development/Tools
+Requires:	lldb = %{EVRD}
+
+%description -n %{lldbdev}
+Development files for the LLDB debugger
+
+%files -n %{lldbdev}
+%{_includedir}/lldb
+%{_libdir}/liblldb*.a
+%endif
+
+#-----------------------------------------------------------
+%if %{with lld}
+%package -n lld
+Summary:	The linker from the LLVM project
+License:	NCSA
+Group:		Development/Tools
+%{expand:%(for i in %{LLDLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
+
+%description -n lld
+The linker from the LLVM project
+
+%files -n lld
+%{_bindir}/ld.lld
+%{_bindir}/lld
+%{_bindir}/lld-link
+
+#-----------------------------------------------------------
+
+%define devlld %mklibname -d lld
+
+%package -n %{devlld}
+Summary:	Development files for lld
+Group:		Development/Other
+Requires:	lld = %{EVRD}
+
+%description -n %{devlld}
+This package contains header files and libraries needed for
+writing lld plugins
+
+%files -n %{devlld}
+%{_includedir}/lld
+%{_libdir}/liblld*.so
+%endif
+#-----------------------------------------------------------
+
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} -a7 %{?with_lldb:-a8} %{?with_llgo:-a9} %{?with_lld:-a10} -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
 mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
+mv libunwind-%{version}%{?prerel}.src projects/libunwind
+%if %{with lldb}
+mv lldb-%{version}%{?prerel}.src tools/lldb
+%endif
+%if %{with llgo}
+mv llgo-%{version}%{?prerel}.src tools/llgo
+%endif
+%if %{with lld}
+mv lld-%{version}%{?prerel}.src tools/lld
+%endif
 cd tools/clang
 %patch0 -p0 -b .soname~
 %patch1 -p1 -b .mandriva~
-%patch8 -p3 -b .fuseLd~
+%patch8 -p1 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~
+%patch3 -p1 -b .compile~
 %patch4 -p1 -b .64bitLongs~
 %patch5 -p1 -b .EnableGlobalMerge~
 %endif
-%patch6 -p1 -b .detectHardfloat~
+if [ -d libcxx-%{version}%{?prerel}.src ]; then
+	mv libcxx-%{version}%{?prerel}.src projects/libcxx
+	cd projects/libcxx
+%patch40 -p3 -b .libcxxmusl~
+	cd ../..
+fi
+[ -d libcxxabi-%{version}%{?prerel}.src ] && mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
 %patch7 -p1 -b .gcc49~
-%patch9 -p1 -b .triplet~
+%patch9 -p1 -b .ddsan~
+%if %{with lldb}
+%patch10 -p1 -b .lldb~
+%endif
+%patch11 -p1 -b .libstdc++~
+%patch12 -p1 -b .soname~
+%patch13 -p1 -b .fixOptlevel~
+%patch14 -p1 -b .unwindlibstdc~
+%patch15 -p1 -b .unwindaarch64~
 
-# Upstream tends to forget to remove "rc" and "svn" markers from version
-# numbers before making releases
-sed -i -re 's|^(AC_INIT[^,]*,\[)([0-9.]*)([^]])*(.*)|\1\2\4|' autoconf/configure.ac
-sed -i -re "s|(PACKAGE_VERSION='[0-9.]*)([^']*)(.*)|\1\3|g;s|(PACKAGE_STRING='LLVM [0-9.]*)([^']*)(.*)|\1\3|g" configure
-sed -i -re "s|^LLVM_VERSION_SUFFIX=.*|LLVM_VERSION_SUFFIX=|g" autoconf/configure.ac configure
-chmod +x configure autoconf/*
+%patch20 -p1 -b .musl1~
+%patch21 -p1 -b .musl2~
+%patch22 -p1 -b .musl3~
+%patch23 -p1 -b .musl4~
+%patch26 -p1 -b .musl7~
+%patch27 -p1 -b .musl8~
+%patch29 -p1 -b .musl10~
+%patch30 -p1 -b .musl11~
+%patch31 -p1 -b .musl12~
+
+%if %{cross_compiling}
+# This is only needed when crosscompiling glibc to musl or the likes
+%patch41 -p1 -b .bootstrap~
+%endif
+
+%patch44 -p1 -b .crt~
+%patch45 -p1 -b .crt586~
+
+%if %{with lld}
+%patch46 -p1 -b .lldcompile~
+%endif
+
+%patch48 -p1 -b .mcount~
+
+# FIXME needs to be backported, works only on master
+#patch47 -p1 -b .fixOz~
+
+# Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
 
 %build
+%if %{with bootstrap_gcc}
+export CC=gcc
+export CXX=g++
+%endif
+TOP=$(pwd)
+
 # Workaround for previous build having a problem with debug info
 # generation
-export CFLAGS="%{optflags} -g0"
-export CXXFLAGS="%{optflags} -g0"
+#export CFLAGS="%{optflags} -g0"
+#export CXXFLAGS="%{optflags} -g0"
 
-%configure \
-	--libdir=%{_libdir}/%{name} \
-	--datadir=%{_datadir}/%{name} \
-	--enable-shared \
-	--enable-polly \
-	--enable-cxx11 \
-	--enable-jit \
-	--enable-libffi \
-	--enable-optimized \
-	--enable-keep-symbols \
-	--enable-targets=all \
-	--enable-experimental-targets=R600 \
-	--disable-expensive-checks \
-	--enable-debug-runtime \
-	--disable-assertions \
-	--enable-threads \
-	--with-cloog=%{_prefix} \
-	--with-isl=%{_prefix} \
-	--with-binutils-include=%{_includedir} \
-%if %{compile_apidox}
-	--enable-doxygen
+# Currently broken, but potentially interesting:
+#	-DLLVM_ENABLE_MODULES:BOOL=ON
+
+# compiler-rt assumes off_t is 64 bits -- make sure this is true even on 32 bit
+# OSes
+%ifarch %ix86
+# compiler-rt doesn't support ix86 with x<6 either
+export CFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
+export CXXFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
+%endif
+%ifarch %armx sparc mips
+export CFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
+export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 %endif
 
-sed -i -e 's|^#define CLANG_LIBDIR_SUFFIX.*|#define CLANG_LIBDIR_SUFFIX \"64\"|' include/llvm/Config/config.h
+if echo %{_target_platform} | grep -q musl; then
+	sed -i -e 's,set(COMPILER_RT_HAS_SANITIZER_COMMON TRUE),set(COMPILER_RT_HAS_SANITIZER_COMMON FALSE),' projects/compiler-rt/cmake/config-ix.cmake
+fi
 
-# FIXME file this
-# configure does not properly specify libdir
-sed -i 's|(PROJ_prefix)/lib|(PROJ_prefix)/%{_lib}/%{name}|g' Makefile.config
+%ifarch %ix86
+# Fix noexecstack
+for i in projects/compiler-rt/lib/builtins/i386/*.S; do
+	cat >>$i <<'EOF'
+#if defined(__linux__) && defined(__ELF__)
+.section .note.GNU-stack,"",%progbits
+#endif
+EOF
+done
+%endif
 
-# FIXME upstream need to fix this
-# llvm-config.cpp hardcodes lib in it
-sed -i 's|ActiveLibDir = ActivePrefix + "/lib"|ActiveLibDir = ActivePrefix + "/%{_lib}/%{name}"|g' tools/llvm-config/llvm-config.cpp
+# We set an RPATH in CMAKE_EXE_LINKER_FLAGS to make sure the newly built
+# clang and friends use the just-built shared libraries -- there's no guarantee
+# that the ABI remains compatible between a snapshot libclang.so.3.8 and the
+# final libclang.so.3.8 at the moment.
+# We strip out the rpath in %%install though - so we aren't really being evil.
+%cmake \
+	-DBUILD_SHARED_LIBS:BOOL=ON \
+%if %{with ffi}
+	-DLLVM_ENABLE_FFI:BOOL=ON \
+%else
+	-DLLVM_ENABLE_FFI:BOOL=OFF \
+%endif
+	-DLLVM_TARGETS_TO_BUILD=all \
+	-DLLVM_ENABLE_CXX1Y:BOOL=ON \
+	-DLLVM_ENABLE_RTTI:BOOL=ON \
+	-DLLVM_ENABLE_PIC:BOOL=ON \
+	-DLLVM_INCLUDE_DOCS:BOOL=ON \
+	-DLLVM_ENABLE_EH:BOOL=ON \
+	-DLLVM_INSTALL_UTILS:BOOL=ON \
+	-DLLVM_BINUTILS_INCDIR=%{_includedir} \
+	-DLLVM_BUILD_DOCS:BOOL=ON \
+	-DLLVM_BUILD_RUNTIME:BOOL=ON \
+	-DLLVM_TOOL_COMPILER_RT_BUILD:BOOL=ON \
+	-DOCAMLFIND=NOTFOUND \
+	-DLLVM_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
+	-DCLANG_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
+	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \
+%ifarch %arm
+	-DLLVM_DEFAULT_TARGET_TRIPLE=%{product_arch}-%{_build_vendor}-%{_os}%{_build_gnu} \
+%endif
+	-DPOLLY_ENABLE_GPGPU_CODEGEN:BOOL=ON \
+	-DWITH_POLLY:BOOL=ON \
+	-DLINK_POLLY_INTO_TOOLS:BOOL=ON \
+%if %{with libcxx}
+	-DLLVM_ENABLE_LIBCXX:BOOL=ON \
+	-DLLVM_ENABLE_LIBCXXABI:BOOL=ON \
+%endif
+	-DLIBCXX_CXX_ABI=libcxxabi \
+	-DLIBCXX_ENABLE_CXX1Y:BOOL=ON \
+	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/projects/libcxx/include \
+	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/projects/libcxxabi/include \
+	-DLIBCXXABI_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
+	-DLIBCXX_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
+	-DCMAKE_SHARED_LINKER_FLAGS="-L`pwd`/%{_lib}" \
+	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,`pwd`/%{_lib}" \
+%if %{with apidox}
+	-DLLVM_ENABLE_DOXYGEN:BOOL=ON \
+%endif
+%if %{cross_compiling}
+	-DCMAKE_CROSSCOMPILING=True \
+	-DLLVM_TABLEGEN=%{_bindir}/llvm-tblgen \
+	-DCLANG_TABLEGEN=%{_bindir}/clang-tblgen \
+	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
+%endif
+%ifnarch armv7hl
+	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
+%endif
+	-G Ninja
 
-%make
+ninja
 
 %install
 %if %{with ocaml}
-cp bindings/ocaml/llvm/META.llvm bindings/ocaml/llvm/Release/
+#cp bindings/ocaml/llvm/META.llvm bindings/ocaml/llvm/Release/
 %endif
-%makeinstall_std \
-	KEEP_SYMBOLS=1 \
-	PROJ_docsdir=%{_docdir}/%{name} \
-	PROJ_etcdir=%{_sysconfdir}/%{name} \
-	PROJ_libdir=%{_libdir}/%{name}
-
-# Invalid dir 
-rm -rf %{buildroot}%{_bindir}/.dir
-
-# wrong rpath entries (Anssi 11/2011)
-file %{buildroot}/%{_bindir}/* | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath -d
-file %{buildroot}/%{_libdir}/llvm/*.so | awk -F: '$2~/ELF/{print $1}' | xargs -r chrpath -d
-
-# move shared libraries to standard library path and add devel symlink (Anssi 11/2011)
-mv %{buildroot}%{_libdir}/llvm/libLLVM-[0-9].*.so %{buildroot}%{_libdir}
-ln -s libLLVM-%{version}.so %{buildroot}%{_libdir}/libLLVM.so
-ln -s llvm/LLVMgold.so %{buildroot}%{_libdir}/
-ln -s llvm/libLTO.so %{buildroot}%{_libdir}/
-# Also, create shared library symlinks corresponding to all the static library
-# names, so that using e.g. "-lLLVMBitReader" will cause the binary to be linked
-# against the shared library instead of static library by default. (Anssi 08/2012)
-for staticlib in %{buildroot}%{_libdir}/llvm/libLLVM*.a; do
-	sharedlib="${staticlib%.a}.so"
-	[ -e "$sharedlib" ] && exit 1
-	ln -s ../libLLVM.so "$sharedlib"
-done
-
-%if %with clang
-# Versionize libclang.so (patch0 makes the same change to soname) and move it to standard path.
-mv %{buildroot}%{_libdir}/llvm/libclang.so %{buildroot}%{_libdir}/libclang-%{version}.so
-ln -s libclang-%version.so %{buildroot}%{_libdir}/libclang.so
-ln -s ../libclang.so %{buildroot}%{_libdir}/llvm/libclang.so
-
-# NOTE: We don't create devel symlinks for the libclang.so for libclang*.a libraries
-# like for libLLVM above, because libclang.so actually exports much less symbols
-# - some are not linked in (tools/libclang/Makefile) and others are restricted
-# by tools/libclang/libclang.exports. - Anssi 09/2012
-%endif
-
-# Since the static libraries are very huge, strip them of debug symbols as well
-# (Anssi 08/2012)
-strip --strip-debug %{buildroot}%{_libdir}/llvm/*.a
-
-%if %{with clang}
-
-# Static analyzer not installed by default:
-# http://clang-analyzer.llvm.org/installation#OtherPlatforms
-mkdir -p %{buildroot}%{_libdir}/clang-analyzer
-# create launchers
-for f in scan-{build,view}; do
-  ln -s %{_libdir}/clang-analyzer/$f/$f %{buildroot}%{_bindir}/$f
-done
-
-(cd tools/clang/tools && cp -pr scan-{build,view} \
- %{buildroot}%{_libdir}/clang-analyzer/)
-
-# And prepare Clang documentation
-#
-rm -rf clang-docs
-mkdir clang-docs
-for f in LICENSE.TXT NOTES.txt README.txt; do # TODO.txt; do
-  ln tools/clang/$f clang-docs/
-done
-rm -rf clang-docs-full
-cp -al tools/clang/docs clang-docs-full
-rm -rf clang-docs-full/{doxygen*,Makefile*,*.graffle,tools}
-find clang-docs-full docs examples -perm 0640 |xargs chmod 0644
+DESTDIR="%{buildroot}" ninja install -C build
 
 # Polly bits as described on
 # http://polly.llvm.org/example_load_Polly_into_clang.html
 cat >%{buildroot}%{_bindir}/pollycc <<'EOF'
 #!/bin/sh
-exec %{_bindir}/clang -O3 -Xclang -load -Xclang %{_libdir}/llvm/LLVMPolly.so "$@"
+exec %{_bindir}/clang -O3 -Xclang -load -Xclang %{_libdir}/LLVMPolly.so "$@"
 EOF
 cat >%{buildroot}%{_bindir}/pollyc++ <<'EOF'
 #!/bin/sh
-exec %{_bindir}/clang++ -O3 -Xclang -load -Xclang %{_libdir}/llvm/LLVMPolly.so "$@"
+exec %{_bindir}/clang++ -O3 -Xclang -load -Xclang %{_libdir}/LLVMPolly.so "$@"
 EOF
 chmod 0755 %{buildroot}%{_bindir}/pollycc %{buildroot}%{_bindir}/pollyc++
 
-%endif
-
-# Get rid of erroneously installed example files.
-rm %{buildroot}%{_libdir}/%{name}/LLVMHello.so
-
-# Fix bogus permissions
-find %{buildroot} -perm 0640 -o -name "*.a" |xargs chmod 0644
-find %{buildroot} -perm 0750 |xargs chmod 0755
-
-%if %{default_compiler}
+%if %{with default_compiler}
 ln -s clang %{buildroot}%{_bindir}/cc
 ln -s clang++ %{buildroot}%{_bindir}/c++
 cat >%{buildroot}%{_bindir}/c89 <<'EOF'
@@ -572,3 +816,34 @@ exec %{_bindir}/clang $fl ${1+"$@"}
 EOF
 chmod 0755 %{buildroot}%{_bindir}/c89 %{buildroot}%{_bindir}/c99
 %endif
+
+%if "%{_lib}" != "lib"
+# Buggy make install for Polly
+mv %{buildroot}%{_prefix}/lib/*.so* %{buildroot}%{_libdir}/
+
+sed -i -e 's,/lib/,/%{_lib}/,g' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports-release.cmake
+%endif
+
+# Code sample -- binary not needed
+rm %{buildroot}%{_libdir}/LLVMHello.so
+
+# Don't look for stuff we just deleted...
+sed -i -e 's,gtest gtest_main ,,;s, LLVMHello , ,' -e '/LLVMHello/d' -e '/gtest/d' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports.cmake
+sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/ { N;d }' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports-release.cmake
+
+%if %{build_lto}
+# Put the LTO plugin where ld can see it...
+mkdir -p %{buildroot}%{_libdir}/bfd-plugins
+ln -s %{_libdir}/LLVMgold.so %{buildroot}%{_libdir}/bfd-plugins/LLVMgold.so
+%endif
+
+for i in %{buildroot}%{_bindir}/*; do
+	# We allow this to fail because some stuff in %{_bindir}
+	# is shell scripts -- no point in excluding them separately
+	chrpath -d $i || :
+done
+
+# Relics of libcxx_msan installing a copy of libc++ headers to
+# %{buildroot}/$RPM_BUILD_DIR
+rm -rf %{buildroot}/home %{buildroot}/builddir
+rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
