@@ -10,6 +10,7 @@
 
 # (tpg) disable this for older than Lx3
 %bcond_with default_compiler
+%bcond_with compiler_rt
 
 # As of 238820, the "make install" target for apidox
 # is broken with cmake. Re-enable later.
@@ -29,7 +30,7 @@
 %else
 %bcond_with ocaml
 %bcond_with bootstrap
-%bcond_without build_libcxx
+%bcond_with build_libcxx
 %endif
 %bcond_without ffi
 # Force gcc to compile, in case previous clang is busted
@@ -39,7 +40,7 @@
 # lldb also fails on aarch64 as of 3.7.0
 %bcond_with lldb
 %else
-%bcond_without lldb
+%bcond_with lldb
 %endif
 # Not built yet -- https://llvm.org/bugs/show_bug.cgi?id=26703
 %bcond_with llgo
@@ -597,7 +598,9 @@ rm -rf tools/clang
 mv cfe-%{version}%{?prerel}.src tools/clang
 mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
+%if %{with compiler_rt}
 mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
+%endif
 mv libunwind-%{version}%{?prerel}.src projects/libunwind
 %if %{with lldb}
 mv lldb-%{version}%{?prerel}.src tools/lldb
@@ -626,7 +629,9 @@ if [ -d libcxx-%{version}%{?prerel}.src ]; then
 fi
 [ -d libcxxabi-%{version}%{?prerel}.src ] && mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
 %patch7 -p1 -b .gcc49~
+%if %{with compiler_rt}
 %patch9 -p1 -b .ddsan~
+%endif
 %if %{with lldb}
 %patch10 -p1 -b .lldb~
 %endif
@@ -638,8 +643,10 @@ fi
 
 %patch20 -p1 -b .musl1~
 %patch21 -p1 -b .musl2~
+%if %{with compiler_rt}
 %patch22 -p1 -b .musl3~
 %patch23 -p1 -b .musl4~
+%endif
 %patch26 -p1 -b .musl7~
 %patch27 -p1 -b .musl8~
 %patch29 -p1 -b .musl10~
@@ -651,8 +658,10 @@ fi
 %patch41 -p1 -b .bootstrap~
 %endif
 
+%if %{with compiler_rt}
 %patch44 -p1 -b .crt~
 %patch45 -p1 -b .crt586~
+%endif
 
 %if %{with lld}
 %patch46 -p1 -b .lldcompile~
