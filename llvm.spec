@@ -530,7 +530,7 @@ Objective-CAML bindings for LLVM
 
 %package -n lldb
 Summary:	Debugger from the LLVM toolchain
-Group:		Development/Tools
+Group:		Development/Other
 
 %description -n lldb
 Debugger from the LLVM toolchain
@@ -545,7 +545,7 @@ Debugger from the LLVM toolchain
 
 %package -n %{lldbdev}
 Summary:	Development files for the LLDB debugger
-Group:		Development/Tools
+Group:		Development/Other
 Requires:	lldb = %{EVRD}
 
 %description -n %{lldbdev}
@@ -561,7 +561,7 @@ Development files for the LLDB debugger
 %package -n lld
 Summary:	The linker from the LLVM project
 License:	NCSA
-Group:		Development/Tools
+Group:		Development/Other
 %{expand:%(for i in %{LLDLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 
 %description -n lld
