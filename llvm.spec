@@ -706,6 +706,7 @@ if echo %{_target_platform} | grep -q musl; then
 	sed -i -e 's,set(COMPILER_RT_HAS_SANITIZER_COMMON TRUE),set(COMPILER_RT_HAS_SANITIZER_COMMON FALSE),' projects/compiler-rt/cmake/config-ix.cmake
 fi
 
+%if %{with compiler_rt}
 %ifarch %ix86
 # Fix noexecstack
 for i in projects/compiler-rt/lib/builtins/i386/*.S; do
@@ -715,6 +716,7 @@ for i in projects/compiler-rt/lib/builtins/i386/*.S; do
 #endif
 EOF
 done
+%endif
 %endif
 
 # We set an RPATH in CMAKE_EXE_LINKER_FLAGS to make sure the newly built
