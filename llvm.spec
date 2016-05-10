@@ -48,7 +48,7 @@
 # As of 3.8, lld doesn't build on i586 - undefined reference to __atomic_load_8
 %bcond_with lld
 %else
-%bcond_without lld
+%bcond_with lld
 %endif
 
 # Clang's libLLVMgold.so shouldn't trigger devel(*) dependencies
