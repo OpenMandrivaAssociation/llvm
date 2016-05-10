@@ -8,7 +8,8 @@
 # and need adjustment whenever there's a new GCC version
 %define gcc_version %(gcc -dumpversion)
 
-%bcond_without default_compiler
+# (tpg) disable this for older than Lx3
+%bcond_with default_compiler
 
 # As of 238820, the "make install" target for apidox
 # is broken with cmake. Re-enable later.
