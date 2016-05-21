@@ -32,7 +32,7 @@
 %endif
 %bcond_without ffi
 # Force gcc to compile, in case previous clang is busted
-%bcond_with bootstrap_gcc
+%bcond_without bootstrap_gcc
 %ifarch %{ix86} aarch64
 # lldb uses some atomics that haven't been ported to x86_32 yet
 # lldb also fails on aarch64 as of 3.7.0
