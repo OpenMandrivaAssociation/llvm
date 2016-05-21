@@ -23,16 +23,23 @@
 %bcond_with ocaml
 # No graphviz yet either
 %bcond_without bootstrap
-# libcxx fails to bootstrp with gcc
-%bcond_with build_libcxx
 %else
 %bcond_with ocaml
 %bcond_with bootstrap
-%bcond_without build_libcxx
 %endif
 %bcond_without ffi
+%ifarch x86_64
 # Force gcc to compile, in case previous clang is busted
+%bcond_with bootstrap_gcc
+%else
 %bcond_without bootstrap_gcc
+%endif
+%if %{with bootstrap_gcc}
+# libcxx fails to bootstrap with gcc
+%bcond_with build_libcxx
+%else
+%bcond_without build_libcxx
+%endif
 %ifarch %{ix86} aarch64
 # lldb uses some atomics that haven't been ported to x86_32 yet
 # lldb also fails on aarch64 as of 3.7.0
