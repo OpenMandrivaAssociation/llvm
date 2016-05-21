@@ -667,7 +667,9 @@ fi
 %endif
 
 %patch48 -p1 -b .mcount~
+%if %{with build_libcxx}
 %patch49 -p1 -b .buildorder~
+%endif
 
 # FIXME needs to be backported, works only on master
 #patch47 -p1 -b .fixOz~
