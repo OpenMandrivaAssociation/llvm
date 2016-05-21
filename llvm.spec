@@ -55,7 +55,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.8.0
-Release:	5.265380.1
+Release:	5.270146.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -134,6 +134,7 @@ Patch47:	http://reviews.llvm.org/file/data/vuyfecmpwn3sxn5hk2df/PHID-FILE-wto46i
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
+Patch49:	llvm-3.8.1-cxxabi-cxx-build-order.patch
 BuildRequires:	bison
 BuildRequires:	bison
 BuildRequires:	binutils-devel
@@ -174,8 +175,7 @@ Obsoletes:	llvm-ocaml
 # For lldb
 BuildRequires:	swig
 BuildRequires:	pkgconfig(python2)
-# Temporary, to work around circular libc++/libc++abi build dep
-BuildRequires:	llvm-devel gcc
+BuildRequires:	gcc
 
 %description
 LVM is a robust system, particularly well suited for developing new mid-level
@@ -264,6 +264,7 @@ for effective implementation, proper tail calls or garbage collection.
 %if %{with build_libcxx}
 %libpackage c++ 1
 %libpackage c++abi 1
+%{_libdir}/libc++abi.so
 
 %define cxxdevname %mklibname c++ -d
 %define cxxabistatic %mklibname c++abi -d -s
@@ -341,6 +342,7 @@ This package contains the development files for LLVM;
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/cmake
 %{_libdir}/lib*.so
+%exclude %{_libdir}/libc++abi.so
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
 %if %{with lld}
@@ -658,6 +660,7 @@ fi
 %endif
 
 %patch48 -p1 -b .mcount~
+%patch49 -p1 -b .buildorder~
 
 # FIXME needs to be backported, works only on master
 #patch47 -p1 -b .fixOz~
@@ -766,7 +769,7 @@ done
 %endif
 	-G Ninja
 
-ninja
+ninja %{?_smp_mflags}
 
 %install
 %if %{with ocaml}
