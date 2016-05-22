@@ -28,10 +28,10 @@
 %bcond_with bootstrap
 %endif
 %bcond_without ffi
-%ifarch x86_64
-# Force gcc to compile, in case previous clang is busted
+%ifnarch x86_64 %{ix86} %{arm} %{armx}
 %bcond_with bootstrap_gcc
 %else
+# Force gcc to compile, in case previous clang is busted
 %bcond_without bootstrap_gcc
 %endif
 %if %{with bootstrap_gcc}
