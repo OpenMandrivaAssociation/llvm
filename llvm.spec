@@ -349,7 +349,9 @@ This package contains the development files for LLVM;
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/cmake
 %{_libdir}/lib*.so
+%if %{with build_libcxx}
 %exclude %{_libdir}/libc++abi.so
+%endif
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
 %if %{with lld}
