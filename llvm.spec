@@ -32,7 +32,7 @@
 %bcond_with bootstrap_gcc
 %else
 # Force gcc to compile, in case previous clang is busted
-%bcond_without bootstrap_gcc
+%bcond_with bootstrap_gcc
 %endif
 %if %{with bootstrap_gcc}
 # libcxx fails to bootstrap with gcc
