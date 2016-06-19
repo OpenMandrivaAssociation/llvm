@@ -1,0 +1,43 @@
+--- llvm-3.9.0.src/include/llvm/ADT/Triple.h.omv~	2016-06-18 13:37:04.360384640 +0200
++++ llvm-3.9.0.src/include/llvm/ADT/Triple.h	2016-06-18 13:37:12.409289673 +0200
+@@ -180,6 +180,8 @@ public:
+     EABIHF,
+     Android,
+     Musl,
++    MuslEABI,
++    MuslEABIHF,
+ 
+     MSVC,
+     Itanium,
+--- llvm-3.9.0.src/lib/Support/Triple.cpp.omv~	2016-06-18 13:37:21.714179980 +0200
++++ llvm-3.9.0.src/lib/Support/Triple.cpp	2016-06-18 13:37:39.742967715 +0200
+@@ -206,6 +206,8 @@ const char *Triple::getEnvironmentTypeNa
+   case EABIHF: return "eabihf";
+   case Android: return "android";
+   case Musl: return "musl";
++  case MuslEABI: return "muslgnueabi";
++  case MuslEABIHF: return "muslgnueabihf";
+   case MSVC: return "msvc";
+   case Itanium: return "itanium";
+   case Cygnus: return "cygnus";
+--- llvm-3.9.0.src/unittests/ADT/TripleTest.cpp.omv~	2016-06-18 13:37:46.281890815 +0200
++++ llvm-3.9.0.src/unittests/ADT/TripleTest.cpp	2016-06-18 13:39:35.366614249 +0200
+@@ -99,6 +99,18 @@ TEST(TripleTest, ParsedIDs) {
+   EXPECT_EQ(Triple::Linux, T.getOS());
+   EXPECT_EQ(Triple::Musl, T.getEnvironment());
+ 
++  T = Triple("armv7hl-none-linux-musl");
++  EXPECT_EQ(Triple::arm, T.getArch());
++  EXPECT_EQ(Triple::Linux, T.getOS());
++  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
++  EXPECT_EQ(Triple::Musl, T.getEnvironment());
++
++  T = Triple("armv7hl-none-linux-muslhf");
++  EXPECT_EQ(Triple::arm, T.getArch());
++  EXPECT_EQ(Triple::Linux, T.getOS());
++  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
++  EXPECT_EQ(Triple::MuslHF, T.getEnvironment());
++
+   T = Triple("powerpc-bgp-linux");
+   EXPECT_EQ(Triple::ppc, T.getArch());
+   EXPECT_EQ(Triple::BGP, T.getVendor());

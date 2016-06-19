@@ -1,6 +1,6 @@
---- llvm-3.8.0.src/tools/clang/lib/Basic/Targets.cpp.omv~	2016-04-06 19:54:24.491760691 +0200
-+++ llvm-3.8.0.src/tools/clang/lib/Basic/Targets.cpp	2016-04-06 19:57:56.448725463 +0200
-@@ -431,8 +431,14 @@ public:
+--- llvm-3.9.0.src/tools/clang/lib/Basic/Targets.cpp.mcount~	2016-06-18 13:34:35.412141933 +0200
++++ llvm-3.9.0.src/tools/clang/lib/Basic/Targets.cpp	2016-06-18 13:35:47.395296695 +0200
+@@ -358,10 +358,13 @@ public:
      case llvm::Triple::ppc:
      case llvm::Triple::ppc64:
      case llvm::Triple::ppc64le:
@@ -8,10 +8,10 @@
 +    case llvm::Triple::aarch64_be:
        this->MCountName = "_mcount";
        break;
-+    case llvm::Triple::arm:
+     case llvm::Triple::arm:
+-      this->MCountName = "__mcount";
 +    case llvm::Triple::armeb:
 +      this->MCountName = "__gnu_mcount_nc";
-+      break;
+       break;
      }
    }
- 
