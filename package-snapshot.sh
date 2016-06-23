@@ -22,8 +22,7 @@ for i in llvm cfe clang-tools-extra compiler-rt polly libcxx libcxxabi lldb open
 		svn co http://llvm.org/svn/llvm-project/$i/$BRANCH $i
 	fi
 	cd $i
-	[ "$VER" = 0 ] && VER=`grep "^PACKAGE_VERSION=" configure |cut -d= -f2 |sed -e "s,',,g;s,svn,,g"`
-	if [ -z "$VER" ]; then
+	if [ -z "$VER" -o "$VER" = "0" ]; then
 		# 3.9 drops the configure system, but earlier versions
 		# don't have reliable version info in CMakeLists.txt...
 		VER=$(grep 'set(LLVM_VERSION_MAJOR' CMakeLists.txt |sed -e 's,[^0-9]*,,g').$(grep 'set(LLVM_VERSION_MINOR' CMakeLists.txt |sed -e 's,[^0-9]*,,g').$(grep 'set(LLVM_VERSION_PATCH' CMakeLists.txt |sed -e 's,[^0-9]*,,g')
