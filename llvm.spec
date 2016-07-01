@@ -65,7 +65,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.9.0
-Release:	0.273118.1
+Release:	0.274374.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -100,7 +100,6 @@ Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
 Patch8:		clang-fuse-ld.patch
 # Patches from AOSP
-Patch4:		0000-llvm-Add-support-for-64-bit-longs.patch
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
 Patch9:		ddsan-compile.patch
@@ -122,7 +121,6 @@ Patch23:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-3.6-
 # breaks exception handling -- removes gcc_eh
 Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
 Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
-Patch35:	llvm-3.9.0-musl-triple-arm.patch
 Patch40:	libc++-3.7.0-musl-compat.patch
 # https://llvm.org/bugs/show_bug.cgi?id=23935
 Patch41:	llvm-3.7-bootstrap.patch
@@ -635,7 +633,6 @@ cd tools/clang
 cd -
 %patch2 -p1 -b .armhf~
 %patch3 -p1 -b .compile~
-%patch4 -p1 -b .64bitLongs~
 %patch5 -p1 -b .EnableGlobalMerge~
 %endif
 if [ -d libcxx-%{version}%{?prerel}.src ]; then
@@ -666,7 +663,6 @@ cd ../..
 %patch23 -p1 -b .musl4~
 %patch29 -p1 -b .musl10~
 %patch31 -p1 -b .musl12~
-%patch35 -p1 -b .muslarm1~
 
 %if %{cross_compiling}
 # This is only needed when crosscompiling glibc to musl or the likes
