@@ -45,8 +45,11 @@
 # lldb also fails on aarch64 as of 3.7.0
 %bcond_with lldb
 %else
+# Currently (2016/06/18) fails because of missing
+# llvm_regcomp llvm_regfree llvm_regexec
 %bcond_without lldb
 %endif
+%bcond_with openmp
 # Not built yet -- https://llvm.org/bugs/show_bug.cgi?id=26703
 %bcond_with llgo
 %ifarch %{ix86}
@@ -61,8 +64,8 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	3.8.1
-Release:	1
+Version:	3.9.0
+Release:	0.274374.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -82,9 +85,8 @@ Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
 Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
 Source9:	http://llvm.org/releases/%{version}/llgo-%{version}.src.tar.xz
 Source10:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
+Source11:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
 Source1000:	llvm.rpmlintrc
-# Versionize libclang.so (Anssi 08/2012):
-Patch0:		clang-soname.patch
 # Adjust search paths to match the OS
 Patch1:		0000-clang-mandriva.patch
 # ARM hardfloat hack
@@ -98,7 +100,6 @@ Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
 Patch8:		clang-fuse-ld.patch
 # Patches from AOSP
-Patch4:		0000-llvm-Add-support-for-64-bit-longs.patch
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
 Patch9:		ddsan-compile.patch
@@ -111,17 +112,14 @@ Patch13:	llvm-3.8.0-fix-optlevel.patch
 # the unwind exception handling code which is found in libgcc by linking to libgcc anyway...
 Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
 Patch15:	libunwind-3.8-aarch64-gas.patch
+Patch16:	lldb-3.9.0-compile.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
-Patch21:	llvm-3.7-musl-triple.patch
 Patch22:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-sanitizer-off_t.patch
 Patch23:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-3.6-musl-no-dlvsym.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
 # breaks exception handling -- removes gcc_eh
-Patch26:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-musl-use-init-array.patch
-Patch27:	clang-3.7-musl-fix-dynamic-linker-paths.patch
 Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
-Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-default-runtime-compiler-rt.patch
 Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
 Patch40:	libc++-3.7.0-musl-compat.patch
 # https://llvm.org/bugs/show_bug.cgi?id=23935
@@ -130,12 +128,8 @@ Patch41:	llvm-3.7-bootstrap.patch
 # (that is used only to find LLVMgold.so)
 # https://llvm.org/bugs/show_bug.cgi?id=23793
 Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
-# Default to Compiler-RT over libgcc
-Patch44:	clang-3.8-default-compiler-rt.patch
 # Find Compiler-RT for i[45]86
 Patch45:	clang-3.8-compiler-rt-i586.patch
-# Link lld to libpthread
-Patch46:	lld-3.8.0-compile.patch
 # Fix up -Oz
 Patch47:	http://reviews.llvm.org/file/data/vuyfecmpwn3sxn5hk2df/PHID-FILE-wto46iacueqpjjusetic/D18029.diff
 # Fix mcount name for arm and armv8
@@ -175,7 +169,7 @@ BuildRequires:	ninja
 BuildRequires:	doxygen
 %endif
 %if %{with llgo}
-BuildRequires: gcc-go
+BuildRequires:	go
 %endif
 Requires:	libstdc++-devel
 Obsoletes:	llvm-ocaml
@@ -233,6 +227,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-pdbdump
 %{_bindir}/modularize
 %{_bindir}/sancov
+%{_bindir}/sanstats
 %{_bindir}/verify-uselistorder
 %{_bindir}/obj2yaml
 %{_bindir}/yaml2obj
@@ -252,11 +247,11 @@ for effective implementation, proper tail calls or garbage collection.
 %define major %(echo %{version} |cut -d. -f1-2)  
 %define major1 %(echo %{version} |cut -d. -f1)
 
-%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFInfo LLVMCodeGen LLVMCore LLVMCppBackendCodeGen LLVMCppBackendInfo LLVMDebugInfoCodeView LLVMDebugInfoDWARF LLVMDebugInfoPDB LLVMExecutionEngine LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMipo
+%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFInfo LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMDebugInfoDWARF LLVMDebugInfoPDB LLVMExecutionEngine LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols
 
-%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangCodeGen clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangIndex clangLex clangParse clangQuery clangRename clangRewrite clangRewriteFrontend clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyGoogleModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingCore
+%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangCodeGen clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangIndex clangLex clangParse clangQuery clangRename clangRewrite clangRewriteFrontend clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyGoogleModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingCore clangIncludeFixer clangTidyBoostModule clangTidyPlugin
 
-%define LLDLibs lldAArch64ELFTarget lldARMELFTarget lldCOFF lldConfig lldCore lldDriver lldELF lldELF2 lldExampleSubTarget lldHexagonELFTarget lldMachO lldMipsELFTarget lldReaderWriter lldX86ELFTarget lldX86_64ELFTarget lldYAML
+%define LLDLibs lldCOFF lldConfig lldCore lldDriver lldELF lldMachO lldReaderWriter lldYAML
 
 %if %{with lld}
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
@@ -311,6 +306,8 @@ Conflicts:	llvm < 3.0-4
 Obsoletes:	%{mklibname %{name} 3.5.0}
 Obsoletes:	%{mklibname %{name} 3.6.0}
 %{expand:%(for i in %{LLVMLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
+Obsoletes:	%{mklibname LLVMCppBackendCodeGen 3} < %{EVRD}
+Obsoletes:	%{mklibname LLVMCppBackendInfo 3} < %{EVRD}
 
 %description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
@@ -346,8 +343,7 @@ This package contains the development files for LLVM;
 %{_includedir}/%{name}
 %{_includedir}/%{name}-c
 %{_libdir}/BugpointPasses.so
-%dir %{_datadir}/%{name}
-%{_datadir}/%{name}/cmake
+%{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
 %if %{with build_libcxx}
 %exclude %{_libdir}/libc++abi.so
@@ -488,6 +484,7 @@ libclang.
 %{_includedir}/clang
 %{_includedir}/clang-c
 %{_libdir}/libclang*.so
+%{_libdir}/cmake/clang
 
 %package -n clang-analyzer
 Summary:	A source code analysis framework
@@ -572,6 +569,15 @@ Summary:	The linker from the LLVM project
 License:	NCSA
 Group:		Development/Other
 %{expand:%(for i in %{LLDLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
+# Stuff from lld 3.8 that has been removed in 3.9
+Obsoletes:	%{mklibname lldAArch64ELFTarget 3} < %{EVRD}
+Obsoletes:	%{mklibname lldARMELFTarget 3} < %{EVRD}
+Obsoletes:	%{mklibname lldELF2 3} < %{EVRD}
+Obsoletes:	%{mklibname lldExampleSubTarget 3} < %{EVRD}
+Obsoletes:	%{mklibname lldHexagonELFTarget 3} < %{EVRD}
+Obsoletes:	%{mklibname lldMipsELFTarget 3} < %{EVRD}
+Obsoletes:	%{mklibname lldX86ELFTarget 3} < %{EVRD}
+Obsoletes:	%{mklibname lldX86_64ELFTarget 3} < %{EVRD}
 
 %description -n lld
 The linker from the LLVM project
@@ -601,7 +607,7 @@ writing lld plugins
 #-----------------------------------------------------------
 
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} -a7 %{?with_lldb:-a8} %{?with_llgo:-a9} %{?with_lld:-a10} -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} -a7 %{?with_lldb:-a8} %{?with_llgo:-a9} %{?with_lld:-a10} %{?with_openmp:-a11} -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
@@ -618,14 +624,15 @@ mv llgo-%{version}%{?prerel}.src tools/llgo
 %if %{with lld}
 mv lld-%{version}%{?prerel}.src tools/lld
 %endif
+%if %{with openmp}
+mv openmp-%{version}%{?prerel}.src projects/openmp
+%endif
 cd tools/clang
-%patch0 -p0 -b .soname~
 %patch1 -p1 -b .mandriva~
 %patch8 -p1 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~
 %patch3 -p1 -b .compile~
-%patch4 -p1 -b .64bitLongs~
 %patch5 -p1 -b .EnableGlobalMerge~
 %endif
 if [ -d libcxx-%{version}%{?prerel}.src ]; then
@@ -645,15 +652,16 @@ fi
 %patch13 -p1 -b .fixOptlevel~
 %patch14 -p1 -b .unwindlibstdc~
 %patch15 -p1 -b .unwindaarch64~
+%if %{with lldb}
+cd tools/lldb
+%patch16 -p1 -b .lldbcompile~
+cd ../..
+%endif
 
 %patch20 -p1 -b .musl1~
-%patch21 -p1 -b .musl2~
 %patch22 -p1 -b .musl3~
 %patch23 -p1 -b .musl4~
-%patch26 -p1 -b .musl7~
-%patch27 -p1 -b .musl8~
 %patch29 -p1 -b .musl10~
-%patch30 -p1 -b .musl11~
 %patch31 -p1 -b .musl12~
 
 %if %{cross_compiling}
@@ -661,12 +669,7 @@ fi
 %patch41 -p1 -b .bootstrap~
 %endif
 
-%patch44 -p1 -b .crt~
 %patch45 -p1 -b .crt586~
-
-%if %{with lld}
-%patch46 -p1 -b .lldcompile~
-%endif
 
 %patch48 -p1 -b .mcount~
 %if %{with build_libcxx}
@@ -744,6 +747,7 @@ done
 	-DLLVM_BUILD_DOCS:BOOL=ON \
 	-DLLVM_BUILD_RUNTIME:BOOL=ON \
 	-DLLVM_TOOL_COMPILER_RT_BUILD:BOOL=ON \
+	-DENABLE_LINKER_BUILD_ID:BOOL=ON \
 	-DOCAMLFIND=NOTFOUND \
 	-DLLVM_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
 	-DCLANG_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
@@ -832,19 +836,12 @@ EOF
 chmod 0755 %{buildroot}%{_bindir}/c89 %{buildroot}%{_bindir}/c99
 %endif
 
-%if "%{_lib}" != "lib"
-# Buggy make install for Polly
-mv %{buildroot}%{_prefix}/lib/*.so* %{buildroot}%{_libdir}/
-
-sed -i -e 's,/lib/,/%{_lib}/,g' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports-release.cmake
-%endif
-
 # Code sample -- binary not needed
 rm %{buildroot}%{_libdir}/LLVMHello.so
 
 # Don't look for stuff we just deleted...
-sed -i -e 's,gtest gtest_main ,,;s, LLVMHello , ,' -e '/LLVMHello/d' -e '/gtest/d' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports.cmake
-sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/ { N;d }' %{buildroot}%{_datadir}/llvm/cmake/LLVMExports-release.cmake
+sed -i -e 's,gtest gtest_main ,,;s, LLVMHello , ,' -e '/LLVMHello/d' -e '/gtest/d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports.cmake
+sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/ { N;d }' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports-release.cmake
 
 %if %{build_lto}
 # Put the LTO plugin where ld can see it...
