@@ -62,7 +62,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.8.1
-Release:	1
+Release:	1.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -142,7 +142,9 @@ Patch47:	http://reviews.llvm.org/file/data/vuyfecmpwn3sxn5hk2df/PHID-FILE-wto46i
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
 Patch49:	llvm-3.8.1-cxxabi-cxx-build-order.patch
-BuildRequires:	bison
+# https://llvm.org/bugs/show_bug.cgi?id=26012
+# https://issues.openmandriva.org/show_bug.cgi?id=1825
+Patch50:	D18029.diff
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
