@@ -137,7 +137,7 @@ Patch45:	clang-3.8-compiler-rt-i586.patch
 # Link lld to libpthread
 Patch46:	lld-3.8.0-compile.patch
 # Fix up -Oz
-Patch47:	http://reviews.llvm.org/file/data/vuyfecmpwn3sxn5hk2df/PHID-FILE-wto46iacueqpjjusetic/D18029.diff
+# Patch47:	http://reviews.llvm.org/file/data/vuyfecmpwn3sxn5hk2df/PHID-FILE-wto46iacueqpjjusetic/D18029.diff
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
