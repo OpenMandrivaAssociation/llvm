@@ -65,7 +65,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.9.0
-Release:	0.274374.1
+Release:	0.rc1.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -194,6 +194,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/git-clang-format
 %{_bindir}/llc
 %{_bindir}/lli
+%{_bindir}/lli-child-target
 %{_bindir}/opt
 %{_bindir}/llvm-ar
 %{_bindir}/llvm-as
@@ -422,6 +423,7 @@ short vector instructions as well as dedicated accelerators.
 %files polly-devel
 %{_includedir}/polly
 %{_libdir}/libPollyISL.a
+%{_libdir}/libPollyPPCG.a
 #-----------------------------------------------------------
 
 %if %{with clang}
