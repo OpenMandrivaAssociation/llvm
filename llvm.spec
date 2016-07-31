@@ -162,6 +162,7 @@ BuildRequires:	pkgconfig(cloog-isl)
 BuildRequires:	pkgconfig(isl) >= 0.13
 BuildRequires:	pkgconfig(libtirpc)
 BuildRequires:	pkgconfig(libxml-2.0)
+BuildRequires:	devel(libatomic)
 BuildRequires:	python >= 3.4
 BuildRequires:	cmake
 BuildRequires:	ninja
