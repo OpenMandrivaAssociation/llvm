@@ -28,7 +28,7 @@
 %bcond_with bootstrap
 %endif
 %bcond_without ffi
-%ifnarch x86_64 %{ix86} %{arm} %{armx}
+%ifnarch x86_64
 %bcond_with bootstrap_gcc
 %else
 # Force gcc to compile, in case previous clang is busted
