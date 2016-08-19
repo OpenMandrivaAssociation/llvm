@@ -28,10 +28,10 @@
 %bcond_with bootstrap
 %endif
 %bcond_without ffi
-%ifnarch x86_64
-%bcond_with bootstrap_gcc
-%else
+%ifarch %{ix86}
 # Force gcc to compile, in case previous clang is busted
+%bcond_without bootstrap_gcc
+%else
 %bcond_with bootstrap_gcc
 %endif
 %if %{with bootstrap_gcc}
@@ -65,7 +65,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	3.9.0
-Release:	0.rc1.1
+Release:	0.rc2.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -192,6 +192,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/bugpoint
 %{_bindir}/count
 %{_bindir}/c-index-test
+%{_bindir}/find-all-symbols
 %{_bindir}/git-clang-format
 %{_bindir}/llc
 %{_bindir}/lli
