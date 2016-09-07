@@ -130,15 +130,10 @@ Patch41:	llvm-3.7-bootstrap.patch
 Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
 # Find Compiler-RT for i[45]86
 Patch45:	clang-3.8-compiler-rt-i586.patch
-# Fix up -Oz
-# Patch47:	http://reviews.llvm.org/file/data/vuyfecmpwn3sxn5hk2df/PHID-FILE-wto46iacueqpjjusetic/D18029.diff
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
 Patch49:	llvm-3.8.1-cxxabi-cxx-build-order.patch
-# https://llvm.org/bugs/show_bug.cgi?id=26012
-# https://issues.openmandriva.org/show_bug.cgi?id=1825
-Patch50:	D18029.diff
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -683,9 +678,6 @@ cd ../..
 %if %{with build_libcxx}
 %patch49 -p1 -b .buildorder~
 %endif
-
-# FIXME needs to be backported, works only on master
-#patch47 -p1 -b .fixOz~
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
