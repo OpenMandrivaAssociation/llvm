@@ -28,12 +28,8 @@
 %bcond_with bootstrap
 %endif
 %bcond_without ffi
-%ifarch %{arm}
 # Force gcc to compile, in case previous clang is busted
 %bcond_without bootstrap_gcc
-%else
-%bcond_with bootstrap_gcc
-%endif
 %if %{with bootstrap_gcc}
 # libcxx fails to bootstrap with gcc
 %bcond_with build_libcxx
