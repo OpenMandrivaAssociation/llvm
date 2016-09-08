@@ -28,11 +28,11 @@
 %bcond_with bootstrap
 %endif
 %bcond_without ffi
-%ifarch %{arm}
 # Force gcc to compile, in case previous clang is busted
-%bcond_without bootstrap_gcc
-%else
+%ifarch x86_64
 %bcond_with bootstrap_gcc
+%else
+%bcond_without bootstrap_gcc
 %endif
 %if %{with bootstrap_gcc}
 # libcxx fails to bootstrap with gcc
@@ -707,6 +707,15 @@ export CXXFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SO
 %ifarch %armx sparc mips
 export CFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
+%endif
+%ifarch aarch64
+# Workaround for
+# /usr/bin/aarch64-mandriva-linux-gnu-ld: internal error in relocate_tls, at ../../gold/aarch64.cc:7419
+# collect2: error: ld returned 1 exit status
+# while linking lli built with gcc, last verified with gold 2.27
+export CFLAGS="$CFLAGS -fuse-ld=bfd"
+export CXXFLAGS="$CXXFLAGS -fuse-ld=bfd"
+export LDFLAGS="$LDFLAGS -fuse-ld=bfd"
 %endif
 
 if echo %{_target_platform} | grep -q musl; then
