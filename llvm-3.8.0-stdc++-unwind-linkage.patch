@@ -1,7 +1,7 @@
---- llvm-3.8.0.src/tools/clang/lib/Driver/ToolChain.cpp.omv~    2016-01-29 01:30:16.368838917 +0100
-+++ llvm-3.8.0.src/tools/clang/lib/Driver/ToolChain.cpp 2016-01-29 01:30:33.589734817 +0100
-@@ -612,6 +612,10 @@
-
+--- llvm-4.0.0.src/tools/clang/lib/Driver/ToolChain.cpp.unwindlibstdc~	2016-09-10 01:17:28.398668415 +0200
++++ llvm-4.0.0.src/tools/clang/lib/Driver/ToolChain.cpp	2016-09-10 01:17:28.419668060 +0200
+@@ -662,6 +662,10 @@ void ToolChain::AddCXXStdlibLibArgs(cons
+ 
    case ToolChain::CST_Libstdcxx:
      CmdArgs.push_back("-lstdc++");
 +    if (Args.hasArg(options::OPT_static))
@@ -11,9 +11,9 @@
      break;
    }
  }
---- llvm-3.8.0.src/tools/clang/lib/Driver/Tools.cpp.omv~        2016-01-29 01:32:56.192884927 +0100
-+++ llvm-3.8.0.src/tools/clang/lib/Driver/Tools.cpp     2016-01-29 01:33:44.257602738 +0100
-@@ -6189,6 +6189,10 @@
+--- llvm-4.0.0.src/tools/clang/lib/Driver/Tools.cpp.unwindlibstdc~	2016-09-10 01:17:28.400668381 +0200
++++ llvm-4.0.0.src/tools/clang/lib/Driver/Tools.cpp	2016-09-10 01:19:52.115250334 +0200
+@@ -6896,6 +6896,10 @@ void gcc::Common::ConstructJob(Compilati
        // Reverse translate some rewritten options.
        if (A.getOption().matches(options::OPT_Z_reserved_lib_stdcxx)) {
          CmdArgs.push_back("-lstdc++");
@@ -23,11 +23,11 @@
 +          CmdArgs.push_back("-lgcc_s");
          continue;
        }
-
-@@ -10282,8 +10286,13 @@
-   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs);
-
+ 
+@@ -11065,8 +11069,13 @@ void tools::Myriad::Linker::ConstructJob
    if (UseDefaultLibs) {
+     if (NeedsSanitizerDeps)
+       linkSanitizerRuntimeDeps(TC, CmdArgs);
 -    if (C.getDriver().CCCIsCXX())
 +    if (C.getDriver().CCCIsCXX()) {
        CmdArgs.push_back("-lstdc++");
@@ -39,7 +39,7 @@
      if (T.getOS() == llvm::Triple::RTEMS) {
        CmdArgs.push_back("--start-group");
        CmdArgs.push_back("-lc");
-@@ -10505,11 +10514,13 @@
+@@ -11288,11 +11297,13 @@ static void ConstructGoldLinkJob(const T
        CmdArgs.push_back("-lcompiler_rt");
      if (Args.hasArg(options::OPT_static)) {
        CmdArgs.push_back("-lstdc++");
@@ -52,9 +52,9 @@
 +      CmdArgs.push_back("-lgcc_s");
        CmdArgs.push_back("--no-as-needed");
      }
-
-@@ -10548,11 +10559,13 @@
-
+ 
+@@ -11331,11 +11342,13 @@ static void ConstructGoldLinkJob(const T
+ 
      if (Args.hasArg(options::OPT_static)) {
        CmdArgs.push_back("-lstdc++");
 +      CmdArgs.push_back("-lgcc_eh");

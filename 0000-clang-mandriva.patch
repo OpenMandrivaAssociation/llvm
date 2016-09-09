@@ -1,6 +1,6 @@
---- clang/lib/Driver/ToolChains.cpp.mandriva~	2016-06-17 18:47:14.000000000 +0200
-+++ clang/lib/Driver/ToolChains.cpp	2016-06-18 12:12:25.309779122 +0200
-@@ -1486,16 +1486,46 @@ bool Generic_GCC::GCCInstallationDetecto
+--- llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.cpp.mandriva~	2016-09-07 14:23:15.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.cpp	2016-09-08 18:59:25.853807815 +0200
+@@ -1490,16 +1490,46 @@ bool Generic_GCC::GCCInstallationDetecto
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
        "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-linux-android",
@@ -54,7 +54,7 @@
    static const char *const ARMebLibDirs[] = {"/lib"};
    static const char *const ARMebTriples[] = {"armeb-linux-gnueabi",
                                               "armeb-linux-androideabi"};
-@@ -1509,7 +1539,9 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1513,7 +1543,9 @@ bool Generic_GCC::GCCInstallationDetecto
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-linux-gnu",
        "x86_64-slackware-linux", "x86_64-linux-android",
@@ -65,7 +65,7 @@
    static const char *const X32LibDirs[] = {"/libx32"};
    static const char *const X86LibDirs[] = {"/lib32", "/lib"};
    static const char *const X86Triples[] = {
-@@ -1517,7 +1549,15 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1521,7 +1553,15 @@ bool Generic_GCC::GCCInstallationDetecto
        "i386-linux-gnu",       "i386-redhat-linux6E",   "i686-redhat-linux",
        "i586-redhat-linux",    "i386-redhat-linux",     "i586-suse-linux",
        "i486-slackware-linux", "i686-montavista-linux", "i686-linux-android",
@@ -82,7 +82,7 @@
  
    static const char *const MIPSLibDirs[] = {"/lib"};
    static const char *const MIPSTriples[] = {"mips-linux-gnu", "mips-mti-linux",
-@@ -1539,11 +1579,12 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1551,11 +1591,12 @@ bool Generic_GCC::GCCInstallationDetecto
    static const char *const PPCLibDirs[] = {"/lib32", "/lib"};
    static const char *const PPCTriples[] = {
        "powerpc-linux-gnu", "powerpc-unknown-linux-gnu", "powerpc-linux-gnuspe",
@@ -97,28 +97,28 @@
    static const char *const PPC64LELibDirs[] = {"/lib64", "/lib"};
    static const char *const PPC64LETriples[] = {
        "powerpc64le-linux-gnu", "powerpc64le-unknown-linux-gnu",
-@@ -3687,6 +3728,9 @@ enum Distro {
-   UbuntuVivid,
+@@ -3820,6 +3861,9 @@ enum Distro {
    UbuntuWily,
    UbuntuXenial,
+   UbuntuYakkety,
 +  Mandriva,
 +  OpenMandriva,
 +  ROSA,
    UnknownDistro
  };
  
-@@ -3704,6 +3748,10 @@ static bool IsUbuntu(enum Distro Distro)
-   return Distro >= UbuntuHardy && Distro <= UbuntuXenial;
+@@ -3837,6 +3881,10 @@ static bool IsUbuntu(enum Distro Distro)
+   return Distro >= UbuntuHardy && Distro <= UbuntuYakkety;
  }
  
 +static bool IsMandriva(enum Distro Distro) {
-+  return Distro >= Mandriva && Distro < UnknownDistro;
++  return Distro >= Mandriva && Distro <= ROSA;
 +}
 +
  static Distro DetectDistro(const Driver &D, llvm::Triple::ArchType Arch) {
    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File =
        llvm::MemoryBuffer::getFile("/etc/lsb-release");
-@@ -3712,7 +3760,17 @@ static Distro DetectDistro(const Driver
+@@ -3845,7 +3893,17 @@ static Distro DetectDistro(const Driver
      SmallVector<StringRef, 16> Lines;
      Data.split(Lines, "\n");
      Distro Version = UnknownDistro;
@@ -137,24 +137,24 @@
        if (Version == UnknownDistro && Line.startswith("DISTRIB_CODENAME="))
          Version = llvm::StringSwitch<Distro>(Line.substr(17))
                        .Case("hardy", UbuntuHardy)
-@@ -3733,6 +3791,7 @@ static Distro DetectDistro(const Driver
-                       .Case("wily", UbuntuWily)
+@@ -3867,6 +3925,7 @@ static Distro DetectDistro(const Driver
                        .Case("xenial", UbuntuXenial)
+                       .Case("yakkety", UbuntuYakkety)
                        .Default(UnknownDistro);
 +    }
      if (Version != UnknownDistro)
        return Version;
    }
-@@ -3893,7 +3952,7 @@ static std::string getMultiarchTriple(co
+@@ -4027,7 +4086,7 @@ static std::string getMultiarchTriple(co
    return TargetTriple.str();
  }
  
 -static StringRef getOSLibDir(const llvm::Triple &Triple, const ArgList &Args) {
 +static StringRef getOSLibDir(const enum Distro &Distro, const llvm::Triple &Triple, const ArgList &Args) {
    if (isMipsArch(Triple.getArch())) {
-     // lib32 directory has a special meaning on MIPS targets.
-     // It contains N32 ABI binaries. Use this folder if produce
-@@ -3909,11 +3968,15 @@ static StringRef getOSLibDir(const llvm:
+     if (Triple.isAndroid()) {
+       StringRef CPUName;
+@@ -4052,11 +4111,15 @@ static StringRef getOSLibDir(const llvm:
    // with a 'lib32' library search path being considered. So we only enable
    // them when we know we may need it.
    //
@@ -172,7 +172,7 @@
      return "lib32";
  
    if (Triple.getArch() == llvm::Triple::x86_64 &&
-@@ -3955,7 +4018,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4098,7 +4161,7 @@ Linux::Linux(const Driver &D, const llvm
  
    Distro Distro = DetectDistro(D, Arch);
  
@@ -181,7 +181,7 @@
      ExtraOpts.push_back("-z");
      ExtraOpts.push_back("relro");
    }
-@@ -3975,7 +4038,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4118,7 +4181,7 @@ Linux::Linux(const Driver &D, const llvm
    // ABI requires a mapping between the GOT and the symbol table.
    // Android loader does not support .gnu.hash.
    if (!IsMips && !IsAndroid) {
@@ -190,7 +190,7 @@
          (IsUbuntu(Distro) && Distro >= UbuntuMaverick))
        ExtraOpts.push_back("--hash-style=gnu");
  
-@@ -3991,7 +4054,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4134,7 +4197,7 @@ Linux::Linux(const Driver &D, const llvm
    ExtraOpts.push_back("--build-id");
  #endif
  
@@ -199,7 +199,7 @@
      ExtraOpts.push_back("--enable-new-dtags");
  
    // The selection of paths to try here is designed to match the patterns which
-@@ -4001,7 +4064,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4144,7 +4207,7 @@ Linux::Linux(const Driver &D, const llvm
    // to the link paths.
    path_list &Paths = getFilePaths();
  

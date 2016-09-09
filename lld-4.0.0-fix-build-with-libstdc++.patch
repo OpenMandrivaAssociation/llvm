@@ -1,0 +1,12 @@
+--- llvm-4.0.0.src/tools/lld/ELF/CMakeLists.txt.omv~	2016-09-09 23:12:31.490456885 +0200
++++ llvm-4.0.0.src/tools/lld/ELF/CMakeLists.txt	2016-09-09 23:12:58.048003242 +0200
+@@ -2,6 +2,9 @@ set(LLVM_TARGET_DEFINITIONS Options.td)
+ tablegen(LLVM Options.inc -gen-opt-parser-defs)
+ add_public_tablegen_target(ELFOptionsTableGen)
+ 
++# Without this, fails to build with libstdc++ 6.2.1
++add_definitions(-std=c++11)
++
+ add_lld_library(lldELF
+   Driver.cpp
+   DriverUtils.cpp
