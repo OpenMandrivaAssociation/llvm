@@ -1,0 +1,32 @@
+--- llvm-4.0.0.src/tools/lldb/cmake/modules/AddLLDB.cmake.lldbstatic~	2016-10-18 12:26:57.000000000 +0200
++++ llvm-4.0.0.src/tools/lldb/cmake/modules/AddLLDB.cmake	2016-11-02 20:41:14.676966205 +0100
+@@ -34,19 +34,7 @@ macro(add_lldb_library name)
+       ../../include/lldb${dir}/*.h)
+     set(srcs ${srcs} ${headers})
+   endif()
+-  if (PARAM_MODULE)
+-    set(libkind MODULE)
+-  elseif (PARAM_SHARED)
+-    set(libkind SHARED)
+-  elseif (PARAM_OBJECT)
+-    set(libkind OBJECT)
+-  else ()
+-    # PARAM_STATIC or library type unspecified. BUILD_SHARED_LIBS
+-    # does not control the kind of libraries created for LLDB,
+-    # only whether or not they link to shared/static LLVM/Clang
+-    # libraries.
+-    set(libkind STATIC)
+-  endif()
++  set(libkind STATIC)
+ 
+   #PIC not needed on Win
+   if (NOT MSVC)
+@@ -68,7 +56,7 @@ macro(add_lldb_library name)
+           )
+       endif()
+     else()
+-      llvm_add_library(${name} ${libking} ${srcs})
++      llvm_add_library(${name} ${libkind} ${srcs})
+     endif()
+ 
+     if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY OR ${name} STREQUAL "liblldb")

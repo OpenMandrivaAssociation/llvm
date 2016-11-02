@@ -1,6 +1,6 @@
---- llvm-4.0.0.src/tools/clang/lib/Driver/ToolChain.cpp.unwindlibstdc~	2016-09-10 01:17:28.398668415 +0200
-+++ llvm-4.0.0.src/tools/clang/lib/Driver/ToolChain.cpp	2016-09-10 01:17:28.419668060 +0200
-@@ -662,6 +662,10 @@ void ToolChain::AddCXXStdlibLibArgs(cons
+--- llvm-4.0.0.src/tools/clang/lib/Driver/ToolChain.cpp.unwindlibstdc~	2016-11-01 19:15:13.822411735 +0100
++++ llvm-4.0.0.src/tools/clang/lib/Driver/ToolChain.cpp	2016-11-01 19:15:13.852409340 +0100
+@@ -672,6 +672,10 @@ void ToolChain::AddCXXStdlibLibArgs(cons
  
    case ToolChain::CST_Libstdcxx:
      CmdArgs.push_back("-lstdc++");
@@ -11,9 +11,9 @@
      break;
    }
  }
---- llvm-4.0.0.src/tools/clang/lib/Driver/Tools.cpp.unwindlibstdc~	2016-09-10 01:17:28.400668381 +0200
-+++ llvm-4.0.0.src/tools/clang/lib/Driver/Tools.cpp	2016-09-10 01:19:52.115250334 +0200
-@@ -6896,6 +6896,10 @@ void gcc::Common::ConstructJob(Compilati
+--- llvm-4.0.0.src/tools/clang/lib/Driver/Tools.cpp.unwindlibstdc~	2016-11-01 19:15:13.826411415 +0100
++++ llvm-4.0.0.src/tools/clang/lib/Driver/Tools.cpp	2016-11-01 19:19:06.212484363 +0100
+@@ -7299,6 +7299,10 @@ void gcc::Common::ConstructJob(Compilati
        // Reverse translate some rewritten options.
        if (A.getOption().matches(options::OPT_Z_reserved_lib_stdcxx)) {
          CmdArgs.push_back("-lstdc++");
@@ -24,22 +24,22 @@
          continue;
        }
  
-@@ -11065,8 +11069,13 @@ void tools::Myriad::Linker::ConstructJob
-   if (UseDefaultLibs) {
-     if (NeedsSanitizerDeps)
-       linkSanitizerRuntimeDeps(TC, CmdArgs);
--    if (C.getDriver().CCCIsCXX())
-+    if (C.getDriver().CCCIsCXX()) {
-       CmdArgs.push_back("-lstdc++");
-+      if (Args.hasArg(options::OPT_static))
-+        CmdArgs.push_back("-lgcc_eh");
-+      else
-+        CmdArgs.push_back("-lgcc_s");
-+    }
+@@ -11633,8 +11637,13 @@ void tools::Myriad::Linker::ConstructJob
+       if (TC.GetCXXStdlibType(Args) == ToolChain::CST_Libcxx) {
+         CmdArgs.push_back("-lc++");
+         CmdArgs.push_back("-lc++abi");
+-      } else
++      } else {
+         CmdArgs.push_back("-lstdc++");
++        if (Args.hasArg(options::OPT_static))
++          CmdArgs.push_back("-lgcc_eh");
++        else
++          CmdArgs.push_back("-lgcc_s");
++      }
+     }
      if (T.getOS() == llvm::Triple::RTEMS) {
        CmdArgs.push_back("--start-group");
-       CmdArgs.push_back("-lc");
-@@ -11288,11 +11297,13 @@ static void ConstructGoldLinkJob(const T
+@@ -11858,11 +11867,13 @@ static void ConstructGoldLinkJob(const T
        CmdArgs.push_back("-lcompiler_rt");
      if (Args.hasArg(options::OPT_static)) {
        CmdArgs.push_back("-lstdc++");
@@ -53,7 +53,7 @@
        CmdArgs.push_back("--no-as-needed");
      }
  
-@@ -11331,11 +11342,13 @@ static void ConstructGoldLinkJob(const T
+@@ -11901,11 +11912,13 @@ static void ConstructGoldLinkJob(const T
  
      if (Args.hasArg(options::OPT_static)) {
        CmdArgs.push_back("-lstdc++");

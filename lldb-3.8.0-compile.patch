@@ -1,5 +1,5 @@
---- llvm-4.0.0.src/tools/lldb/scripts/CMakeLists.txt.lldb~	2016-09-22 12:34:57.092073221 +0200
-+++ llvm-4.0.0.src/tools/lldb/scripts/CMakeLists.txt	2016-09-22 12:35:49.415483853 +0200
+--- llvm-4.0.0.src/tools/lldb/scripts/CMakeLists.txt.lldb~	2016-09-21 23:02:16.000000000 +0200
++++ llvm-4.0.0.src/tools/lldb/scripts/CMakeLists.txt	2016-11-01 19:12:07.173469378 +0100
 @@ -45,6 +45,9 @@ add_custom_command(
  set_source_files_properties(${LLDB_WRAP_PYTHON} PROPERTIES GENERATED 1)
  set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/lldb.py PROPERTIES GENERATED 1)
@@ -10,11 +10,11 @@
  add_custom_target(swig_wrapper ALL DEPENDS ${LLDB_WRAP_PYTHON})
  
  # Install the LLDB python module on all operating systems (except Windows)
---- llvm-4.0.0.src/tools/lldb/source/API/CMakeLists.txt.lldb~	2016-09-21 23:02:16.000000000 +0200
-+++ llvm-4.0.0.src/tools/lldb/source/API/CMakeLists.txt	2016-09-22 12:34:57.092073221 +0200
-@@ -78,6 +78,9 @@ add_lldb_library(liblldb SHARED
-   ${LLDB_WRAP_PYTHON}
-   )
+--- llvm-4.0.0.src/tools/lldb/source/API/CMakeLists.txt.lldb~	2016-11-01 19:12:07.173469378 +0100
++++ llvm-4.0.0.src/tools/lldb/source/API/CMakeLists.txt	2016-11-01 19:14:34.885469962 +0100
+@@ -86,6 +86,9 @@ if (LLVM_ENABLE_WERROR)
+   endif()
+ endif()
  
 +# Needed because of the way swig wraps SetErrorStringWithFormat
 +add_definitions(-Wno-error=format-security)
