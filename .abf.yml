@@ -1,13 +1,13 @@
 sources:
-  cfe-4.0.0.src.tar.xz: fcf19de7f3bb89038a857f6941e6a553bd3f2dd7
-  clang-tools-extra-4.0.0.src.tar.xz: 1735d94c1a74d6b37a8155d5992d7cc802bccac5
-  compiler-rt-4.0.0.src.tar.xz: 624893ac4a394f8814dfb350d481110aa88ed896
-  libcxx-4.0.0.src.tar.xz: 410b4048849fbb1d5146011959947d94635ad6bf
-  libcxxabi-4.0.0.src.tar.xz: 986366416e818b68a4b10bee555feb530977fddb
-  libunwind-4.0.0.src.tar.xz: 1695ca062890f127c69df9b6be7eebe12e7cf38e
-  lld-4.0.0.src.tar.xz: 4e411a103fb49687d526d3ab8ff87a7be13501fd
-  lldb-4.0.0.src.tar.xz: 43617245e2e83814a00375094399fb5922cf12ee
-  llgo-4.0.0.src.tar.xz: 971d76e82d0d72ea6e40251900b8caa21c8c1708
-  llvm-4.0.0.src.tar.xz: 1389bd56b3d5e7c468b323df394126d9ed48c413
-  openmp-4.0.0.src.tar.xz: ae663c0c4af9fdf10df8454028df54dd65c9ab33
-  polly-4.0.0.src.tar.xz: fb51b5ff4d48b07f1bb6ee40c614be317796411d
+  cfe-4.0.0.src.tar.xz: 4b2fb3849f7872e29c90e774a5cdd98d13d00d86
+  clang-tools-extra-4.0.0.src.tar.xz: b66a6c2b6adc23a5275d6bba5ef5b7c5d1cac23d
+  compiler-rt-4.0.0.src.tar.xz: ad4b3f9169d8972719fb691f4732224e4fa173f2
+  libcxx-4.0.0.src.tar.xz: 95c19e16d6339e644a838cf9d4b0e7e62fd852f2
+  libcxxabi-4.0.0.src.tar.xz: 39f293113951ceaa17ef8556250f666466353aaa
+  libunwind-4.0.0.src.tar.xz: 301ce8e042da5a00a87bc6b330d1d0e45af91bb9
+  lld-4.0.0.src.tar.xz: 4db0ce838172856699f793e984422437cf799b83
+  lldb-4.0.0.src.tar.xz: 6412cd2b4ab511e6c6a21265784d569ecb595875
+  llgo-4.0.0.src.tar.xz: e42672c649b41fef3ea49e103bdced1c79aa938b
+  llvm-4.0.0.src.tar.xz: 1bea6779c352eee3e4eac51b66bc34027b3cfc1a
+  openmp-4.0.0.src.tar.xz: a4359301c58a832c77c7c25573d48dc5abc48e29
+  polly-4.0.0.src.tar.xz: 559d788999ac06cafb97d908c9ff23ad11e9e765

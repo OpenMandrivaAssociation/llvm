@@ -65,7 +65,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	4.0.0
-Release:	0.285856.1
+Release:	0.286254.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -666,7 +666,7 @@ fi
 %patch15 -p1 -b .unwindaarch64~
 %if %{with lldb}
 cd tools/lldb
-%patch16 -p1 -b .lldbcompile~
+%patch16 -p3 -b .lldbcompile~
 cd ../..
 # LLVM bug 30887
 %patch49 -p1 -b .lldbstatic~
