@@ -1,0 +1,7 @@
+--- llvm-4.0.0.src/tools/llvm-strings/CMakeLists.txt.omv~	2016-11-11 14:36:50.453775948 +0100
++++ llvm-4.0.0.src/tools/llvm-strings/CMakeLists.txt	2016-11-11 14:38:23.814822319 +0100
+@@ -6,3 +6,4 @@ add_llvm_tool(llvm-strings
+   llvm-strings.cpp
+   )
+ 
++target_link_libraries(llvm-strings LLVMSupport LLVMCore)

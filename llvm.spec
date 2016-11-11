@@ -65,7 +65,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	4.0.0
-Release:	0.286254.1
+Release:	0.286600.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -115,6 +115,8 @@ Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
 Patch15:	libunwind-3.8-aarch64-gas.patch
 Patch16:	lldb-3.9.0-compile.patch
 Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
+Patch18:	llvm-4.0-readd-LLVMAddAttribute-until-mesa-stops-using-it.patch
+Patch19:	llvm-strings-linkage.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
 Patch22:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-sanitizer-off_t.patch
@@ -228,6 +230,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-rtdyld
 %{_bindir}/llvm-size
 %{_bindir}/llvm-stress
+%{_bindir}/llvm-strings
 %{_bindir}/llvm-symbolizer
 %{_bindir}/llvm-tblgen
 %{_bindir}/llvm-cxxdump
@@ -674,6 +677,8 @@ cd ../..
 %if %{with lld}
 %patch17 -p1 -b .lldcompile~
 %endif
+%patch18 -p0 -b .mesa~
+%patch19 -p1 -b .stringsLinkage~
 
 %patch20 -p1 -b .musl1~
 %patch22 -p1 -b .musl3~
