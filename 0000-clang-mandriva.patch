@@ -1,6 +1,6 @@
---- llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.cpp.mandriva~	2016-10-29 19:28:48.000000000 +0200
-+++ llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.cpp	2016-11-01 19:11:07.127146923 +0100
-@@ -1538,16 +1538,46 @@ bool Generic_GCC::GCCInstallationDetecto
+--- llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.cpp.mandriva~	2016-11-18 01:41:22.000000000 +0100
++++ llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.cpp	2016-11-21 20:16:28.319583751 +0100
+@@ -1548,16 +1548,46 @@ bool Generic_GCC::GCCInstallationDetecto
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
        "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-linux-android",
@@ -54,7 +54,7 @@
    static const char *const ARMebLibDirs[] = {"/lib"};
    static const char *const ARMebTriples[] = {"armeb-linux-gnueabi",
                                               "armeb-linux-androideabi"};
-@@ -1561,7 +1591,9 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1571,7 +1601,9 @@ bool Generic_GCC::GCCInstallationDetecto
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-linux-gnu",
        "x86_64-slackware-linux", "x86_64-linux-android",
@@ -65,7 +65,7 @@
    static const char *const X32LibDirs[] = {"/libx32"};
    static const char *const X86LibDirs[] = {"/lib32", "/lib"};
    static const char *const X86Triples[] = {
-@@ -1569,7 +1601,15 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1579,7 +1611,15 @@ bool Generic_GCC::GCCInstallationDetecto
        "i386-linux-gnu",       "i386-redhat-linux6E",   "i686-redhat-linux",
        "i586-redhat-linux",    "i386-redhat-linux",     "i586-suse-linux",
        "i486-slackware-linux", "i686-montavista-linux", "i686-linux-android",
@@ -82,7 +82,7 @@
  
    static const char *const MIPSLibDirs[] = {"/lib"};
    static const char *const MIPSTriples[] = {"mips-linux-gnu", "mips-mti-linux",
-@@ -1599,11 +1639,12 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1609,11 +1649,12 @@ bool Generic_GCC::GCCInstallationDetecto
    static const char *const PPCLibDirs[] = {"/lib32", "/lib"};
    static const char *const PPCTriples[] = {
        "powerpc-linux-gnu", "powerpc-unknown-linux-gnu", "powerpc-linux-gnuspe",
@@ -97,18 +97,18 @@
    static const char *const PPC64LELibDirs[] = {"/lib64", "/lib"};
    static const char *const PPC64LETriples[] = {
        "powerpc64le-linux-gnu", "powerpc64le-unknown-linux-gnu",
-@@ -3865,6 +3906,9 @@ enum Distro {
-   UbuntuWily,
+@@ -3922,6 +3963,9 @@ enum Distro {
    UbuntuXenial,
    UbuntuYakkety,
+   UbuntuZesty,
 +  Mandriva,
 +  OpenMandriva,
 +  ROSA,
    UnknownDistro
  };
  
-@@ -3882,6 +3926,10 @@ static bool IsUbuntu(enum Distro Distro)
-   return Distro >= UbuntuHardy && Distro <= UbuntuYakkety;
+@@ -3939,6 +3983,10 @@ static bool IsUbuntu(enum Distro Distro)
+   return Distro >= UbuntuHardy && Distro <= UbuntuZesty;
  }
  
 +static bool IsMandriva(enum Distro Distro) {
@@ -118,7 +118,7 @@
  static Distro DetectDistro(vfs::FileSystem &VFS) {
    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File =
        VFS.getBufferForFile("/etc/lsb-release");
-@@ -3890,7 +3938,17 @@ static Distro DetectDistro(vfs::FileSyst
+@@ -3947,7 +3995,17 @@ static Distro DetectDistro(vfs::FileSyst
      SmallVector<StringRef, 16> Lines;
      Data.split(Lines, "\n");
      Distro Version = UnknownDistro;
@@ -137,15 +137,15 @@
        if (Version == UnknownDistro && Line.startswith("DISTRIB_CODENAME="))
          Version = llvm::StringSwitch<Distro>(Line.substr(17))
                        .Case("hardy", UbuntuHardy)
-@@ -3912,6 +3970,7 @@ static Distro DetectDistro(vfs::FileSyst
-                       .Case("xenial", UbuntuXenial)
+@@ -3970,6 +4028,7 @@ static Distro DetectDistro(vfs::FileSyst
                        .Case("yakkety", UbuntuYakkety)
+                       .Case("zesty", UbuntuZesty)
                        .Default(UnknownDistro);
 +    }
      if (Version != UnknownDistro)
        return Version;
    }
-@@ -4102,7 +4161,7 @@ static std::string getMultiarchTriple(co
+@@ -4160,7 +4219,7 @@ static std::string getMultiarchTriple(co
    return TargetTriple.str();
  }
  
@@ -154,7 +154,7 @@
    if (isMipsArch(Triple.getArch())) {
      if (Triple.isAndroid()) {
        StringRef CPUName;
-@@ -4127,11 +4186,15 @@ static StringRef getOSLibDir(const llvm:
+@@ -4185,11 +4244,15 @@ static StringRef getOSLibDir(const llvm:
    // with a 'lib32' library search path being considered. So we only enable
    // them when we know we may need it.
    //
@@ -172,7 +172,7 @@
      return "lib32";
  
    if (Triple.getArch() == llvm::Triple::x86_64 &&
-@@ -4173,7 +4236,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4230,7 +4293,7 @@ Linux::Linux(const Driver &D, const llvm
  
    Distro Distro = DetectDistro(D.getVFS());
  
@@ -181,7 +181,7 @@
      ExtraOpts.push_back("-z");
      ExtraOpts.push_back("relro");
    }
-@@ -4193,7 +4256,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4250,7 +4313,7 @@ Linux::Linux(const Driver &D, const llvm
    // ABI requires a mapping between the GOT and the symbol table.
    // Android loader does not support .gnu.hash.
    if (!IsMips && !IsAndroid) {
@@ -190,7 +190,7 @@
          (IsUbuntu(Distro) && Distro >= UbuntuMaverick))
        ExtraOpts.push_back("--hash-style=gnu");
  
-@@ -4209,7 +4272,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4266,7 +4329,7 @@ Linux::Linux(const Driver &D, const llvm
    ExtraOpts.push_back("--build-id");
  #endif
  
@@ -199,7 +199,7 @@
      ExtraOpts.push_back("--enable-new-dtags");
  
    // The selection of paths to try here is designed to match the patterns which
-@@ -4219,7 +4282,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4276,7 +4339,7 @@ Linux::Linux(const Driver &D, const llvm
    // to the link paths.
    path_list &Paths = getFilePaths();
  

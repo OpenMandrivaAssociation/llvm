@@ -1,0 +1,34 @@
+Index: lib/Sema/SemaTemplateDeduction.cpp
+===================================================================
+--- lib/Sema/SemaTemplateDeduction.cpp
++++ lib/Sema/SemaTemplateDeduction.cpp
+@@ -1921,8 +1921,9 @@
+ 
+       // Check whether we have enough arguments.
+       if (!hasTemplateArgumentForDeduction(Args, ArgIdx, NumArgs))
+-        return NumberOfArgumentsMustMatch ? Sema::TDK_TooFewArguments
+-                                          : Sema::TDK_Success;
++        return NumberOfArgumentsMustMatch
++                   ? Sema::TDK_MiscellaneousDeductionFailure
++                   : Sema::TDK_Success;
+ 
+       if (Args[ArgIdx].isPackExpansion()) {
+         // FIXME: We follow the logic of C++0x [temp.deduct.type]p22 here,
+Index: test/SemaTemplate/deduction.cpp
+===================================================================
+--- test/SemaTemplate/deduction.cpp
++++ test/SemaTemplate/deduction.cpp
+@@ -273,3 +273,13 @@
+   }
+   void g() { f(X<int*, nullptr>()); }
+ }
++
++namespace PR31043 {
++template <class... Ts>
++struct tuple {};
++
++template <class T>
++int foo(tuple<T>); // expected-note{{candidate template ignored: failed template argument deduction}}
++
++int z = foo(tuple<>{}); // expected-error{{no matching function call to 'foo'}}
++}
