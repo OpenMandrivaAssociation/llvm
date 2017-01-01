@@ -65,7 +65,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	4.0.0
-Release:	0.287544.1
+Release:	0.290796.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -206,6 +206,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-ar
 %{_bindir}/llvm-as
 %{_bindir}/llvm-bcanalyzer
+%{_bindir}/llvm-cat
 %{_bindir}/llvm-c-test
 %{_bindir}/llvm-cxxfilt
 %{_bindir}/llvm-diff
@@ -226,6 +227,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-cov
 %{_bindir}/llvm-dwarfdump
 %{_bindir}/llvm-mcmarkup
+%{_bindir}/llvm-modextract
 %{_bindir}/llvm-opt-report
 %{_bindir}/llvm-PerfectShuffle
 %{_bindir}/llvm-profdata
@@ -645,7 +647,7 @@ mv openmp-%{version}%{?prerel}.src projects/openmp
 %endif
 cd tools/clang
 %patch1 -p3 -b .mandriva~
-%patch4 -p0 -b .templateFix~
+%patch4 -p3 -b .templateFix~
 %patch8 -p1 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~

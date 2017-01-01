@@ -26,6 +26,10 @@ for i in llvm cfe clang-tools-extra compiler-rt polly libcxx libcxxabi lldb open
 		# 3.9 drops the configure system, but earlier versions
 		# don't have reliable version info in CMakeLists.txt...
 		VER=$(grep 'set(LLVM_VERSION_MAJOR' CMakeLists.txt |sed -e 's,[^0-9]*,,g').$(grep 'set(LLVM_VERSION_MINOR' CMakeLists.txt |sed -e 's,[^0-9]*,,g').$(grep 'set(LLVM_VERSION_PATCH' CMakeLists.txt |sed -e 's,[^0-9]*,,g')
+		if [ -z "$VER" -o "$VER" = "0" ]; then
+			echo "VER is $VER while packaging $i"
+			exit 1
+		fi
 	fi
 	R=`svn info |grep "^Last Changed Rev" |cut -d: -f2`
 	[ $R -gt $REV ] && REV=$R

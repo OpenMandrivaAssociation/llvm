@@ -1,8 +1,8 @@
---- llvm-4.0.0.src/tools/lld/ELF/CMakeLists.txt.omv~	2016-09-09 23:12:31.490456885 +0200
-+++ llvm-4.0.0.src/tools/lld/ELF/CMakeLists.txt	2016-09-09 23:12:58.048003242 +0200
-@@ -2,6 +2,9 @@ set(LLVM_TARGET_DEFINITIONS Options.td)
- tablegen(LLVM Options.inc -gen-opt-parser-defs)
- add_public_tablegen_target(ELFOptionsTableGen)
+--- llvm-4.0.0.src/tools/lld/ELF/CMakeLists.txt.lldcompile~	2016-12-30 22:54:04.832455930 +0100
++++ llvm-4.0.0.src/tools/lld/ELF/CMakeLists.txt	2016-12-30 23:20:36.622302095 +0100
+@@ -6,6 +6,9 @@ if(NOT LLD_BUILT_STANDALONE)
+   set(tablegen_deps intrinsics_gen)
+ endif()
  
 +# Without this, fails to build with libstdc++ 6.2.1
 +add_definitions(-std=c++11)
