@@ -65,7 +65,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	4.0.0
-Release:	0.290796.1
+Release:	0.rc1.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -647,7 +647,7 @@ mv openmp-%{version}%{?prerel}.src projects/openmp
 %endif
 cd tools/clang
 %patch1 -p3 -b .mandriva~
-%patch4 -p3 -b .templateFix~
+#patch4 -p3 -b .templateFix~
 %patch8 -p1 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~
