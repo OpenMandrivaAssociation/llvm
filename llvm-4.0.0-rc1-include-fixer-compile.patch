@@ -1,0 +1,8 @@
+--- llvm-4.0.0.src/tools/clang/tools/extra/include-fixer/plugin/CMakeLists.txt.omv~	2017-01-20 23:06:35.674775076 +0100
++++ llvm-4.0.0.src/tools/clang/tools/extra/include-fixer/plugin/CMakeLists.txt	2017-01-20 23:06:42.010838914 +0100
+@@ -9,4 +9,5 @@ add_clang_library(clangIncludeFixerPlugi
+   clangParse
+   clangSema
+   clangTooling
++  pthread
+   )

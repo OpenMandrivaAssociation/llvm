@@ -65,7 +65,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	4.0.0
-Release:	0.290796.1
+Release:	0.rc1.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -140,6 +140,7 @@ Patch45:	clang-3.8-compiler-rt-i586.patch
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
 Patch49:	llvm-4.0-lldb-static.patch
+Patch50:	llvm-4.0.0-rc1-include-fixer-compile.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -647,7 +648,7 @@ mv openmp-%{version}%{?prerel}.src projects/openmp
 %endif
 cd tools/clang
 %patch1 -p3 -b .mandriva~
-%patch4 -p3 -b .templateFix~
+#patch4 -p3 -b .templateFix~
 %patch8 -p1 -b .fuseLd~
 cd -
 %patch2 -p1 -b .armhf~
@@ -699,6 +700,7 @@ cd ../..
 %patch45 -p1 -b .crt586~
 
 %patch48 -p1 -b .mcount~
+%patch50 -p1 -b .fixBuild~
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
