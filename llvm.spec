@@ -271,7 +271,7 @@ for effective implementation, proper tail calls or garbage collection.
 
 # For now, LLD uses static libs -- restore shared lib packaging when fixed upstream
 #if %{with lld}
-#{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
+#{expand:#(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo ##libpackage $i %{major1}; done)}
 #else
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do echo %%libpackage $i %{major1}; done)}
 #endif
@@ -370,9 +370,9 @@ This package contains the development files for LLVM;
 %endif
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
-%if %{with lld}
-%exclude %{_libdir}/liblld*.so
-%endif
+#if %{with lld}
+#exclude %{_libdir}/liblld*.so
+#endif
 %exclude %{_libdir}/libLTO.so
 
 #-----------------------------------------------------------
