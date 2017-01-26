@@ -1,0 +1,22 @@
+--- llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.h.omv~	2017-01-25 16:12:14.021716384 +0100
++++ llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.h	2017-01-25 16:23:59.824917106 +0100
+@@ -883,6 +883,9 @@ public:
+   SanitizerMask getSupportedSanitizers() const override;
+   void addProfileRTLibs(const llvm::opt::ArgList &Args,
+                         llvm::opt::ArgStringList &CmdArgs) const override;
++  RuntimeLibType GetDefaultRuntimeLibType() const override {
++    return RuntimeLibType::RLT_CompilerRT;
++  }
+   virtual std::string computeSysRoot() const;
+ 
+   virtual std::string getDynamicLinker(const llvm::opt::ArgList &Args) const;
+@@ -972,8 +975,7 @@ public:
+   std::string computeSysRoot() const override;
+ 
+   RuntimeLibType GetDefaultRuntimeLibType() const override {
+-    return GCCInstallation.isValid() ? RuntimeLibType::RLT_Libgcc
+-                                     : RuntimeLibType::RLT_CompilerRT;
++    return RuntimeLibType::RLT_CompilerRT;
+   }
+ 
+   const char *getDefaultLinker() const override {

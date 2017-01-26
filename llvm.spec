@@ -59,6 +59,9 @@
 %bcond_without lld
 %endif
 
+# Prefer compiler-rt over libgcc
+%bcond_with default_compilerrt
+
 # Clang's libLLVMgold.so shouldn't trigger devel(*) dependencies
 %define __noautoreq 'devel.*'
 
@@ -140,7 +143,8 @@ Patch45:	clang-3.8-compiler-rt-i586.patch
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
 Patch49:	llvm-4.0-lldb-static.patch
-Patch50:	llvm-4.0.0-rc1-include-fixer-compile.patch
+Patch50:	llvm-4.0-default-compiler-rt.patch
+Patch51:	https://reviews.llvm.org/file/data/ghnkmls3gutacngc3d53/PHID-FILE-yg7mucnzntye7szgretg/D29007.diff
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -269,11 +273,8 @@ for effective implementation, proper tail calls or garbage collection.
 
 %define LLDLibs lldCOFF lldConfig lldCore lldDriver lldELF lldMachO lldReaderWriter lldYAML
 
-# For now, LLD uses static libs -- restore shared lib packaging when fixed upstream
-#if %{with lld}
-#{expand:#(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo ##libpackage $i %{major1}; done)}
-#else
-%{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do echo %%libpackage $i %{major1}; done)}
+%if %{with lld}
+%{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
 #endif
 
 %libpackage unwind 1.0
@@ -588,9 +589,7 @@ Development files for the LLDB debugger
 Summary:	The linker from the LLVM project
 License:	NCSA
 Group:		Development/Other
-# Restore when upstream fixes lld shared library support
-#{expand:%(for i in %{LLDLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
-%{expand:%(for i in %{LLDLibs}; do echo Obsoletes:	%%{mklibname $i %{major1}} < %{EVRD}; done)}
+%{expand:%(for i in %{LLDLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 # Stuff from lld 3.8 that has been removed in 3.9
 Obsoletes:	%{mklibname lldAArch64ELFTarget 3} < %{EVRD}
 Obsoletes:	%{mklibname lldARMELFTarget 3} < %{EVRD}
@@ -703,7 +702,15 @@ cd ../..
 %patch45 -p1 -b .crt586~
 
 %patch48 -p1 -b .mcount~
-%patch50 -p1 -b .fixBuild~
+%if %{with default_compilerrt}
+%patch50 -p1 -b .compilerrt~
+%endif
+
+%if %{with lld}
+cd tools/lld
+%patch51 -p2 -b .lddLinkage~
+cd ../..
+%endif
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
