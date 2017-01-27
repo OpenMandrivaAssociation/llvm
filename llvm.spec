@@ -49,9 +49,9 @@
 # llvm_regcomp llvm_regfree llvm_regexec
 %bcond_without lldb
 %endif
-%bcond_with openmp
+%bcond_without openmp
 # Not built yet -- https://llvm.org/bugs/show_bug.cgi?id=26703
-%bcond_with llgo
+%bcond_without llgo
 %ifarch %{ix86}
 # As of 3.8, lld doesn't build on i586 - undefined reference to __atomic_load_8
 %bcond_with lld
@@ -68,7 +68,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	4.0.0
-Release:	0.rc1.1
+Release:	0.293332.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -144,7 +144,9 @@ Patch45:	clang-3.8-compiler-rt-i586.patch
 Patch48:	llvm-3.8.0-mcount-name.patch
 Patch49:	llvm-4.0-lldb-static.patch
 Patch50:	llvm-4.0-default-compiler-rt.patch
-Patch51:	https://reviews.llvm.org/file/data/ghnkmls3gutacngc3d53/PHID-FILE-yg7mucnzntye7szgretg/D29007.diff
+# llgo bits
+Patch60:	llgo-4.0rc1-compile-workaround.patch
+Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -374,6 +376,9 @@ This package contains the development files for LLVM;
 #if %{with lld}
 #exclude %{_libdir}/liblld*.so
 #endif
+%if %{with llgo}
+%exclude %{_libdir}/libgo-llgo.so
+%endif
 %exclude %{_libdir}/libLTO.so
 
 #-----------------------------------------------------------
@@ -627,6 +632,24 @@ writing lld plugins
 %endif
 #-----------------------------------------------------------
 
+%package -n llgo
+Summary:	LLVM based implementation of the Go language
+Group:		Development/Other
+
+%description -n llgo
+LLVM based implementation of the Go language
+
+%files -n llgo
+%{_bindir}/llgo
+%{_bindir}/llgo-go
+%{_bindir}/llgoi
+%{_libdir}/libgo-llgo.so*
+%{_libdir}/libgo-llgo.a
+%{_libdir}/libgobegin-llgo.a
+%{_libdir}/go/llgo-%{version}
+
+#-----------------------------------------------------------
+
 %prep
 %setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} -a7 %{?with_lldb:-a8} %{?with_llgo:-a9} %{?with_lld:-a10} %{?with_openmp:-a11} -n %{name}-%{version}.src
 rm -rf tools/clang
@@ -706,10 +729,9 @@ cd ../..
 %patch50 -p1 -b .compilerrt~
 %endif
 
-%if %{with lld}
-cd tools/lld
-%patch51 -p2 -b .lddLinkage~
-cd ../..
+%if %{with llgo}
+%patch60 -p1 -b .llgoCompile~
+%patch61 -p1 -b .llgoCompilerFlags~
 %endif
 
 # Fix bogus permissions
@@ -901,3 +923,6 @@ done
 # %{buildroot}/$RPM_BUILD_DIR
 rm -rf %{buildroot}/home %{buildroot}/builddir
 rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
+
+# We get libgomp from gcc, so don't symlink libomp to it
+rm -f %{buildroot}%{_libdir}/libgomp.so
