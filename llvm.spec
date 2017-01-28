@@ -277,7 +277,7 @@ for effective implementation, proper tail calls or garbage collection.
 
 %if %{with lld}
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
-#endif
+%endif
 
 %libpackage unwind 1.0
 %{_libdir}/libunwind.so.1
@@ -373,9 +373,6 @@ This package contains the development files for LLVM;
 %endif
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
-#if %{with lld}
-#exclude %{_libdir}/liblld*.so
-#endif
 %if %{with llgo}
 %exclude %{_libdir}/libgo-llgo.so
 %endif
@@ -632,6 +629,7 @@ writing lld plugins
 %endif
 #-----------------------------------------------------------
 
+%if %{with llgo}
 %package -n llgo
 Summary:	LLVM based implementation of the Go language
 Group:		Development/Other
@@ -647,6 +645,7 @@ LLVM based implementation of the Go language
 %{_libdir}/libgo-llgo.a
 %{_libdir}/libgobegin-llgo.a
 %{_libdir}/go/llgo-%{version}
+%endif
 
 #-----------------------------------------------------------
 
