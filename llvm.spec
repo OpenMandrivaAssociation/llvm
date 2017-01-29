@@ -277,11 +277,13 @@ for effective implementation, proper tail calls or garbage collection.
 
 %define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRename clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyGoogleModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingCore clangIncludeFixer clangTidyBoostModule clangTidyPlugin
 
-%define LLDLibs lldCOFF lldConfig lldCore lldDriver lldELF lldMachO lldReaderWriter lldYAML
-
 %if %{with lld}
-%{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
+%define LLDLibs lldCOFF lldConfig lldCore lldDriver lldELF lldMachO lldReaderWriter lldYAML
+%else
+%define LLDLibs %{nil}
 %endif
+
+%{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
 
 %libpackage unwind 1.0
 %{_libdir}/libunwind.so.1
