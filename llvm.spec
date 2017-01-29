@@ -50,8 +50,12 @@
 %bcond_without lldb
 %endif
 %bcond_without openmp
-# Not built yet -- https://llvm.org/bugs/show_bug.cgi?id=26703
+# FIXME Currently llgo works only on x86_64, keep trying elsewhere
+%ifarch x86_64
 %bcond_without llgo
+%else
+%bcond_with llgo
+%endif
 %ifarch %{ix86}
 # As of 3.8, lld doesn't build on i586 - undefined reference to __atomic_load_8
 %bcond_with lld
