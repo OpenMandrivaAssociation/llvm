@@ -56,12 +56,12 @@
 %else
 %bcond_with llgo
 %endif
-%ifarch %{ix86}
+#ifarch %{ix86}
 # As of 3.8, lld doesn't build on i586 - undefined reference to __atomic_load_8
-%bcond_with lld
-%else
+#bcond_with lld
+#else
 %bcond_without lld
-%endif
+#endif
 
 # Prefer compiler-rt over libgcc
 %bcond_with default_compilerrt
