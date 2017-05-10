@@ -1,0 +1,20 @@
+--- llvm-4.0.0.src/projects/libcxx/lib/CMakeLists.txt.omv~	2016-09-09 02:07:09.606353306 +0200
++++ llvm-4.0.0.src/projects/libcxx/lib/CMakeLists.txt	2016-09-09 02:07:58.084775952 +0200
+@@ -147,7 +147,7 @@ set(LIBCXX_TARGETS)
+ # Build the shared library.
+ if (LIBCXX_ENABLE_SHARED)
+   add_library(cxx_shared SHARED $<TARGET_OBJECTS:cxx_objects>)
+-  target_link_libraries(cxx_shared ${LIBCXX_LIBRARIES})
++  target_link_libraries(cxx_shared ${LIBCXX_LIBRARIES} cxxabi_shared)
+   set_target_properties(cxx_shared
+     PROPERTIES
+       LINK_FLAGS    "${LIBCXX_LINK_FLAGS}"
+@@ -161,7 +161,7 @@ endif()
+ # Build the static library.
+ if (LIBCXX_ENABLE_STATIC)
+   add_library(cxx_static STATIC $<TARGET_OBJECTS:cxx_objects>)
+-  target_link_libraries(cxx_static ${LIBCXX_LIBRARIES})
++  target_link_libraries(cxx_static ${LIBCXX_LIBRARIES} cxxabi_static)
+   set_target_properties(cxx_static
+     PROPERTIES
+       LINK_FLAGS    "${LIBCXX_LINK_FLAGS}"

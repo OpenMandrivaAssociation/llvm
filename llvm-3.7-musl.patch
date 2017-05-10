@@ -1,5 +1,5 @@
---- llvm-3.9.0.src/include/llvm/Analysis/TargetLibraryInfo.h.musl1~	2016-06-18 13:22:16.771133519 +0200
-+++ llvm-3.9.0.src/include/llvm/Analysis/TargetLibraryInfo.h	2016-06-18 13:24:14.935875184 +0200
+--- llvm-4.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h.musl1~	2017-01-09 17:27:56.000000000 +0100
++++ llvm-4.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h	2017-01-20 18:41:38.680243199 +0100
 @@ -18,6 +18,17 @@
  #include "llvm/IR/PassManager.h"
  #include "llvm/Pass.h"
@@ -18,9 +18,9 @@
  namespace llvm {
  template <typename T> class ArrayRef;
  
---- llvm-3.9.0.src/lib/Analysis/TargetLibraryInfo.cpp.musl1~	2016-06-17 02:11:01.000000000 +0200
-+++ llvm-3.9.0.src/lib/Analysis/TargetLibraryInfo.cpp	2016-06-18 13:22:16.772133509 +0200
-@@ -373,14 +373,15 @@ static void initialize(TargetLibraryInfo
+--- llvm-4.0.0.src/lib/Analysis/TargetLibraryInfo.cpp.musl1~	2016-12-16 00:45:11.000000000 +0100
++++ llvm-4.0.0.src/lib/Analysis/TargetLibraryInfo.cpp	2017-01-20 18:41:38.681243205 +0100
+@@ -394,14 +394,15 @@ static void initialize(TargetLibraryInfo
    }
  
    // The following functions are available on at least Linux:
@@ -38,8 +38,8 @@
      TLI.setUnavailable(LibFunc::fopen64);
      TLI.setUnavailable(LibFunc::fseeko64);
      TLI.setUnavailable(LibFunc::fstat64);
---- llvm-3.9.0.src/lib/Support/DynamicLibrary.cpp.musl1~	2015-06-09 17:57:30.000000000 +0200
-+++ llvm-3.9.0.src/lib/Support/DynamicLibrary.cpp	2016-06-18 13:22:16.772133509 +0200
+--- llvm-4.0.0.src/lib/Support/DynamicLibrary.cpp.musl1~	2016-11-30 16:34:29.000000000 +0100
++++ llvm-4.0.0.src/lib/Support/DynamicLibrary.cpp	2017-01-20 18:41:38.682243211 +0100
 @@ -138,7 +138,7 @@ void* DynamicLibrary::SearchForAddressOf
  
  // This macro returns the address of a well-known, explicit symbol
@@ -49,24 +49,14 @@
  
  // On linux we have a weird situation. The stderr/out/in symbols are both
  // macros and global variables because of standards requirements. So, we
---- llvm-3.9.0.src/lib/Support/Unix/Signals.inc.musl1~	2016-06-18 13:22:16.772133509 +0200
-+++ llvm-3.9.0.src/lib/Support/Unix/Signals.inc	2016-06-18 13:23:24.975408595 +0200
-@@ -393,7 +393,7 @@ static int unwindBacktrace(void **StackT
- // On glibc systems we have the 'backtrace' function, which works nicely, but
- // doesn't demangle symbols.
- void llvm::sys::PrintStackTrace(raw_ostream &OS) {
--#if defined(ENABLE_BACKTRACES)
-+#if defined(__GLIBC__) && defined(ENABLE_BACKTRACES)
-   static void *StackTrace[256];
-   int depth = 0;
- #if defined(HAVE_BACKTRACE)
---- llvm-3.9.0.src/utils/unittest/googletest/src/gtest.cc.musl1~	2015-04-11 04:11:45.000000000 +0200
-+++ llvm-3.9.0.src/utils/unittest/googletest/src/gtest.cc	2016-06-18 13:22:16.773133498 +0200
-@@ -120,6 +120,7 @@
+--- llvm-4.0.0.src/lib/Support/Unix/Signals.inc.musl1~	2017-01-06 03:26:33.000000000 +0100
++++ llvm-4.0.0.src/lib/Support/Unix/Signals.inc	2017-01-20 18:41:38.682243211 +0100
+@@ -298,7 +298,7 @@ void llvm::sys::AddSignalHandler(void (*
+   RegisterHandlers();
+ }
  
- #if GTEST_CAN_STREAM_RESULTS_
- # include <arpa/inet.h>  // NOLINT
-+# include <sys/socket.h>  // NOLINT
- # include <netdb.h>  // NOLINT
- #endif
- 
+-#if defined(HAVE_BACKTRACE) && ENABLE_BACKTRACES && HAVE_LINK_H &&    \
++#if defined(HAVE_BACKTRACE) && defined(__GLIBC__) && ENABLE_BACKTRACES && HAVE_LINK_H &&    \
+     (defined(__linux__) || defined(__FreeBSD__) ||                             \
+      defined(__FreeBSD_kernel__) || defined(__NetBSD__))
+ struct DlIteratePhdrData {

@@ -1,0 +1,23 @@
+--- llvm-4.0.0.src/tools/llgo/third_party/gofrontend/libgo/runtime/heapdump.c.omv~	2017-01-27 09:31:41.823245653 +0100
++++ llvm-4.0.0.src/tools/llgo/third_party/gofrontend/libgo/runtime/heapdump.c	2017-01-27 09:33:01.333575363 +0100
+@@ -72,9 +72,9 @@ hwrite(const byte *data, uintptr len)
+ 		nbuf += len;
+ 		return;
+ 	}
+-	runtime_write(dumpfd, buf, nbuf);
++	(void)runtime_write(dumpfd, buf, nbuf);
+ 	if(len >= BufSize) {
+-		runtime_write(dumpfd, data, len);
++		(void)runtime_write(dumpfd, data, len);
+ 		nbuf = 0;
+ 	} else {
+ 		runtime_memmove(buf, data, len);
+@@ -85,7 +85,7 @@ hwrite(const byte *data, uintptr len)
+ static void
+ flush(void)
+ {
+-	runtime_write(dumpfd, buf, nbuf);
++	(void)runtime_write(dumpfd, buf, nbuf);
+ 	nbuf = 0;
+ }
+ 

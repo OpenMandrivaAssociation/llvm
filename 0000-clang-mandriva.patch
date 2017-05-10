@@ -1,60 +1,114 @@
---- clang/lib/Driver/ToolChains.cpp.mandriva~	2016-06-17 18:47:14.000000000 +0200
-+++ clang/lib/Driver/ToolChains.cpp	2016-06-18 12:12:25.309779122 +0200
-@@ -1486,16 +1486,46 @@ bool Generic_GCC::GCCInstallationDetecto
+--- llvm-4.0.0.src/tools/clang/include/clang/Driver/Distro.h.mandriva~	2016-11-28 22:11:14.000000000 +0100
++++ llvm-4.0.0.src/tools/clang/include/clang/Driver/Distro.h	2017-01-20 17:10:55.771048820 +0100
+@@ -57,6 +57,9 @@ public:
+     UbuntuXenial,
+     UbuntuYakkety,
+     UbuntuZesty,
++    Mandriva,
++    OpenMandriva,
++    ROSA,
+     UnknownDistro
+   };
+ 
+@@ -112,6 +115,10 @@ public:
+   bool IsUbuntu() const {
+     return DistroVal >= UbuntuHardy && DistroVal <= UbuntuZesty;
+   }
++
++  bool IsMandriva() const {
++    return DistroVal >= Mandriva && DistroVal <= ROSA;
++  }
+  
+   /// @}
+ };
+--- llvm-4.0.0.src/tools/clang/lib/Driver/Distro.cpp.mandriva~	2016-11-28 22:11:18.000000000 +0100
++++ llvm-4.0.0.src/tools/clang/lib/Driver/Distro.cpp	2017-01-20 17:10:55.772048824 +0100
+@@ -25,7 +25,7 @@ static Distro::DistroType DetectDistro(v
+     SmallVector<StringRef, 16> Lines;
+     Data.split(Lines, "\n");
+ 	Distro::DistroType Version = Distro::UnknownDistro;
+-    for (StringRef Line : Lines)
++    for (StringRef Line : Lines) {
+       if (Version == Distro::UnknownDistro && Line.startswith("DISTRIB_CODENAME="))
+         Version = llvm::StringSwitch<Distro::DistroType>(Line.substr(17))
+                       .Case("hardy", Distro::UbuntuHardy)
+@@ -48,10 +48,28 @@ static Distro::DistroType DetectDistro(v
+                       .Case("yakkety", Distro::UbuntuYakkety)
+                       .Case("zesty", Distro::UbuntuZesty)
+                       .Default(Distro::UnknownDistro);
++      if (Version == Distro::UnknownDistro && Line.startswith("DISTRIB_ID=MandrivaLinux"))
++        // It's either Mandriva or a close derivate, will get details
++	// from DISTRIB_DESCRIPTION
++	Version = Distro::Mandriva;
++      if (Version == Distro::Mandriva && Line.startswith("DISTRIB_DESCRIPTION=")) {
++        if(Line.substr(20).find("Open") != StringRef::npos)
++          Version = Distro::OpenMandriva;
++	else if(Line.substr(20).find("ROSA") != StringRef::npos)
++          Version = Distro::ROSA;
++      }
++    }
+     if (Version != Distro::UnknownDistro)
+       return Version;
+   }
+ 
++  // This must be checked before redhat-release because OpenMandriva
++  // provides a redhat-release file to give some hints to configure
++  // scripts not supporting OpenMandriva
++  if (VFS.exists("/etc/openmandriva-release"))
++    return Distro::OpenMandriva;
++
++
+   File = VFS.getBufferForFile("/etc/redhat-release");
+   if (File) {
+     StringRef Data = File.get()->getBuffer();
+--- llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.cpp.mandriva~	2017-01-10 22:13:08.000000000 +0100
++++ llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.cpp	2017-01-20 17:46:05.260286954 +0100
+@@ -1531,16 +1531,38 @@ bool Generic_GCC::GCCInstallationDetecto
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
        "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-linux-android",
--      "aarch64-redhat-linux"};
+-      "aarch64-redhat-linux", "aarch64-suse-linux"};
 -  static const char *const AArch64beLibDirs[] = {"/lib"};
--  static const char *const AArch64beTriples[] = {"aarch64_be-none-linux-gnu",
--                                                 "aarch64_be-linux-gnu"};
-+      "aarch64-redhat-linux", "aarch64-mandriva-linux-gnu",
++      "aarch64-redhat-linux", "aarch64-suse-linux", "aarch64-mandriva-linux-gnu",
 +      "aarch64-openmandriva-linux-gnu", "aarch64-openmandriva-linux-musl"};
 +  static const char *const AArch64beLibDirs[] = {"/lib64", "/lib"};
-+  static const char *const AArch64beTriples[] = {
-+      "aarch64_be-none-linux-gnu", "aarch64_be-linux-gnu",
-+      "aarch64_be-linux-android", "aarch64_be-mandriva-linux-gnu",
-+      "aarch64_be-openmandriva-linux-gnu", "aarch64_be-openmandriva-linux-musl"
-+  };
+   static const char *const AArch64beTriples[] = {"aarch64_be-none-linux-gnu",
+-                                                 "aarch64_be-linux-gnu"};
++      "aarch64_be-linux-gnu", "aarch64_be-linux-android",
++      "aarch64_be-mandriva-linux-gnu", "aarch64_be-openmandriva-linux-gnu",
++      "aarch64_be-openmandriva-linux-musl"};
  
    static const char *const ARMLibDirs[] = {"/lib"};
    static const char *const ARMTriples[] = {"arm-linux-gnueabi",
 -                                           "arm-linux-androideabi"};
 -  static const char *const ARMHFTriples[] = {"arm-linux-gnueabihf",
 -                                             "armv7hl-redhat-linux-gnueabi"};
-+                                           "arm-linux-androideabi",
-+                                           "arm-mandriva-linux-gnueabi",
-+                                           "arm-openmandriva-linux-gnueabi",
-+                                           "arm-openmandriva-linux-musl",
-+                                           "arm-openmandriva-linux-musleabi",
-+                                           "armv6-mandriva-linux-gnueabi",
-+                                           "armv6-openmandriva-linux-gnueabi",
-+                                           "armv7-mandriva-linux-gnueabi",
-+                                           "armv7-openmandriva-linux-gnueabi",
-+                                           "armv7-openmandriva-linux-musleabi"};
++      "arm-linux-androideabi", "arm-mandriva-linux-gnueabi",
++      "arm-openmandriva-linux-gnueabi", "arm-openmandriva-linux-musleabi",
++      "armv6-mandriva-linux-gnueabi", "armv6-openmandriva-linux-gnueabi",
++      "armv6-mandriva-linux-musleabi", "armv6-openmandriva-linux-musleabi",
++      "armv7-mandriva-linux-gnueabi", "armv7-openmandriva-linux-gnueabi",
++      "armv7-mandriva-linux-musleabi", "armv7-openmandriva-linux-musleabi"};
 +  static const char *const ARMHFTriples[] = {
-+      "arm-linux-gnueabihf",
-+      "armv7hl-redhat-linux-gnueabi",
-+      "arm-mandriva-linux-gnueabihf",
-+      "arm-openmandriva-linux-gnueabihf",
++      "arm-linux-gnueabihf", "armv7hl-redhat-linux-gnueabi",
++      "arm-mandriva-linux-gnueabihf", "arm-openmandriva-linux-gnueabihf",
 +      "arm-openmandriva-linux-musleabihf",
 +      "armv7hl-openmandriva-linux-gnueabi",
 +      "armv7hl-openmandriva-linux-gnueabihf",
++      "armv7hl-openmandriva-linux-muslabi",
++      "armv7hl-openmandriva-linux-musleabihf",
 +      "armv7hnl-openmandriva-linux-gnueabi",
-+      "armv7hnl-openmandriva-linux-musleabi",
-+      "armv7nl-openmandriva-linux-gnueabihf",
-+      "armv7nl-openmandriva-linux-musleabihf",
-+      "armv6hl-openmandriva-linux-gnueabi",
-+      "armv6hl-openmandriva-linux-gnueabihf",
-+      "armv6hnl-openmandriva-linux-gnueabi",
-+      "armv6hnl-openmandriva-linux-musleabi",
-+      "armv6nl-openmandriva-linux-gnueabihf",
-+      "armv6nl-openmandriva-linux-musleabihf"
-+  };
++      "armv7hnl-openmandriva-linux-gnueabihf",
++      "armv7hnl-openmandriva-linux-muslabi",
++      "armv7hnl-openmandriva-linux-musleabihf",
++      "armv8hl-openmandriva-linux-gnueabi",
++      "armv8hl-openmandriva-linux-gnueabihf",
++      "armv8hl-openmandriva-linux-muslabi",
++      "armv8hl-openmandriva-linux-musleabihf"};
    static const char *const ARMebLibDirs[] = {"/lib"};
    static const char *const ARMebTriples[] = {"armeb-linux-gnueabi",
                                               "armeb-linux-androideabi"};
-@@ -1509,7 +1539,9 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1554,7 +1576,9 @@ bool Generic_GCC::GCCInstallationDetecto
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-linux-gnu",
        "x86_64-slackware-linux", "x86_64-linux-android",
@@ -65,7 +119,7 @@
    static const char *const X32LibDirs[] = {"/libx32"};
    static const char *const X86LibDirs[] = {"/lib32", "/lib"};
    static const char *const X86Triples[] = {
-@@ -1517,7 +1549,15 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1562,7 +1586,15 @@ bool Generic_GCC::GCCInstallationDetecto
        "i386-linux-gnu",       "i386-redhat-linux6E",   "i686-redhat-linux",
        "i586-redhat-linux",    "i386-redhat-linux",     "i586-suse-linux",
        "i486-slackware-linux", "i686-montavista-linux", "i686-linux-android",
@@ -82,7 +136,7 @@
  
    static const char *const MIPSLibDirs[] = {"/lib"};
    static const char *const MIPSTriples[] = {"mips-linux-gnu", "mips-mti-linux",
-@@ -1539,11 +1579,12 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1592,11 +1624,12 @@ bool Generic_GCC::GCCInstallationDetecto
    static const char *const PPCLibDirs[] = {"/lib32", "/lib"};
    static const char *const PPCTriples[] = {
        "powerpc-linux-gnu", "powerpc-unknown-linux-gnu", "powerpc-linux-gnuspe",
@@ -97,64 +151,16 @@
    static const char *const PPC64LELibDirs[] = {"/lib64", "/lib"};
    static const char *const PPC64LETriples[] = {
        "powerpc64le-linux-gnu", "powerpc64le-unknown-linux-gnu",
-@@ -3687,6 +3728,9 @@ enum Distro {
-   UbuntuVivid,
-   UbuntuWily,
-   UbuntuXenial,
-+  Mandriva,
-+  OpenMandriva,
-+  ROSA,
-   UnknownDistro
- };
- 
-@@ -3704,6 +3748,10 @@ static bool IsUbuntu(enum Distro Distro)
-   return Distro >= UbuntuHardy && Distro <= UbuntuXenial;
- }
- 
-+static bool IsMandriva(enum Distro Distro) {
-+  return Distro >= Mandriva && Distro < UnknownDistro;
-+}
-+
- static Distro DetectDistro(const Driver &D, llvm::Triple::ArchType Arch) {
-   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File =
-       llvm::MemoryBuffer::getFile("/etc/lsb-release");
-@@ -3712,7 +3760,17 @@ static Distro DetectDistro(const Driver
-     SmallVector<StringRef, 16> Lines;
-     Data.split(Lines, "\n");
-     Distro Version = UnknownDistro;
--    for (StringRef Line : Lines)
-+    for (StringRef Line : Lines) {
-+      if (Version == UnknownDistro && Line.startswith("DISTRIB_ID=MandrivaLinux"))
-+        // It's either Mandriva or a close derivate, will get details
-+	// from DISTRIB_DESCRIPTION
-+        Version = Mandriva;
-+      if (Version == Mandriva && Line.startswith("DISTRIB_DESCRIPTION=")) {
-+        if(Line.substr(20).find("ROSA") != StringRef::npos)
-+          Version = ROSA;
-+        else if(Line.substr(20).find("Open") != StringRef::npos)
-+          Version = OpenMandriva;
-+      }
-       if (Version == UnknownDistro && Line.startswith("DISTRIB_CODENAME="))
-         Version = llvm::StringSwitch<Distro>(Line.substr(17))
-                       .Case("hardy", UbuntuHardy)
-@@ -3733,6 +3791,7 @@ static Distro DetectDistro(const Driver
-                       .Case("wily", UbuntuWily)
-                       .Case("xenial", UbuntuXenial)
-                       .Default(UnknownDistro);
-+    }
-     if (Version != UnknownDistro)
-       return Version;
-   }
-@@ -3893,7 +3952,7 @@ static std::string getMultiarchTriple(co
+@@ -4042,7 +4075,7 @@ static std::string getMultiarchTriple(co
    return TargetTriple.str();
  }
  
 -static StringRef getOSLibDir(const llvm::Triple &Triple, const ArgList &Args) {
-+static StringRef getOSLibDir(const enum Distro &Distro, const llvm::Triple &Triple, const ArgList &Args) {
++static StringRef getOSLibDir(const Distro &Distro, const llvm::Triple &Triple, const ArgList &Args) {
    if (isMipsArch(Triple.getArch())) {
-     // lib32 directory has a special meaning on MIPS targets.
-     // It contains N32 ABI binaries. Use this folder if produce
-@@ -3909,11 +3968,15 @@ static StringRef getOSLibDir(const llvm:
+     if (Triple.isAndroid()) {
+       StringRef CPUName;
+@@ -4067,11 +4100,15 @@ static StringRef getOSLibDir(const llvm:
    // with a 'lib32' library search path being considered. So we only enable
    // them when we know we may need it.
    //
@@ -166,40 +172,40 @@
    // GCCInstallationDetector, but that is a more significant refactoring.
 -  if (Triple.getArch() == llvm::Triple::x86 ||
 -      Triple.getArch() == llvm::Triple::ppc)
-+  if (!IsMandriva(Distro) &&
++  if (Distro.IsMandriva() &&
 +      (Triple.getArch() == llvm::Triple::x86 ||
 +       Triple.getArch() == llvm::Triple::ppc))
      return "lib32";
  
    if (Triple.getArch() == llvm::Triple::x86_64 &&
-@@ -3955,7 +4018,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4112,7 +4149,7 @@ Linux::Linux(const Driver &D, const llvm
  
-   Distro Distro = DetectDistro(D, Arch);
+   Distro Distro(D.getVFS());
  
--  if (IsOpenSUSE(Distro) || IsUbuntu(Distro)) {
-+  if (IsOpenSUSE(Distro) || IsUbuntu(Distro) || IsMandriva(Distro)) {
+-  if (Distro.IsOpenSUSE() || Distro.IsUbuntu()) {
++  if (Distro.IsOpenSUSE() || Distro.IsUbuntu() || Distro.IsMandriva()) {
      ExtraOpts.push_back("-z");
      ExtraOpts.push_back("relro");
    }
-@@ -3975,7 +4038,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4132,7 +4169,7 @@ Linux::Linux(const Driver &D, const llvm
    // ABI requires a mapping between the GOT and the symbol table.
    // Android loader does not support .gnu.hash.
    if (!IsMips && !IsAndroid) {
--    if (IsRedhat(Distro) || IsOpenSUSE(Distro) ||
-+    if (IsRedhat(Distro) || IsOpenSUSE(Distro) || IsMandriva(Distro) ||
-         (IsUbuntu(Distro) && Distro >= UbuntuMaverick))
+-    if (Distro.IsRedhat() || Distro.IsOpenSUSE() ||
++    if (Distro.IsRedhat() || Distro.IsOpenSUSE() || Distro.IsMandriva() ||
+         (Distro.IsUbuntu() && Distro >= Distro::UbuntuMaverick))
        ExtraOpts.push_back("--hash-style=gnu");
  
-@@ -3991,7 +4054,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4148,7 +4185,7 @@ Linux::Linux(const Driver &D, const llvm
    ExtraOpts.push_back("--build-id");
  #endif
  
--  if (IsOpenSUSE(Distro))
-+  if (IsOpenSUSE(Distro) || IsMandriva(Distro))
+-  if (Distro.IsOpenSUSE())
++  if (Distro.IsOpenSUSE() || Distro.IsMandriva())
      ExtraOpts.push_back("--enable-new-dtags");
  
    // The selection of paths to try here is designed to match the patterns which
-@@ -4001,7 +4064,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -4158,7 +4195,7 @@ Linux::Linux(const Driver &D, const llvm
    // to the link paths.
    path_list &Paths = getFilePaths();
  
