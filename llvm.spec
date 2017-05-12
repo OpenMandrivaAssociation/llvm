@@ -370,7 +370,7 @@ Provides:	devel(libomp(64bit))
 %else
 Provides:	devel(libomp)
 %endif
-%edif
+%endif
 %description -n %{devname}
 This package contains the development files for LLVM;
 
