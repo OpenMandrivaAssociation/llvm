@@ -365,7 +365,7 @@ Conflicts:	llvm < 3.0-7
 Conflicts:	%{_lib}llvm3.0 < 3.0-9
 %if %{with openmp}
 Provides:	openmp-devel = %{EVRD}
-%if %{_lib} = "lib64"
+%if %{_lib} == "lib64"
 Provides:	devel(libomp(64bit))
 %else
 Provides:	devel(libomp)
