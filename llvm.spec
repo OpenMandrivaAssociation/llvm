@@ -72,7 +72,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	4.0.1
-Release:	0.rc1.2
+Release:	0.rc1.3
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -148,6 +148,9 @@ Patch45:	clang-3.8-compiler-rt-i586.patch
 Patch48:	llvm-3.8.0-mcount-name.patch
 Patch49:	llvm-4.0-lldb-static.patch
 Patch50:	llvm-4.0-default-compiler-rt.patch
+# Show more information when aborting because posix_spawn failed
+# (happens in qemu aarch64 chroots)
+Patch51:	llvm-4.0.1-debug-posix_spawn.patch
 # llgo bits
 Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
@@ -740,6 +743,7 @@ cd ../..
 %if %{with default_compilerrt}
 %patch50 -p1 -b .compilerrt~
 %endif
+%patch51 -p1 -b .posix_spawn~
 
 %if %{with llgo}
 %patch60 -p1 -b .llgoCompile~
