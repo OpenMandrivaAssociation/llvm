@@ -69,10 +69,13 @@
 # Clang's libLLVMgold.so shouldn't trigger devel(*) dependencies
 %define __noautoreq 'devel.*'
 
+%define ompmajor 1
+%define ompname %mklibname omp %{ompmajor}
+
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	4.0.1
-Release:	0.rc2.1
+Release:	0.rc2.2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -143,6 +146,8 @@ Patch41:	llvm-3.7-bootstrap.patch
 Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
 # Find Compiler-RT for i[45]86
 Patch45:	clang-3.8-compiler-rt-i586.patch
+# Fix library versioning
+Patch46:	llvm-4.0.1-libomp-versioning.patch
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
@@ -368,6 +373,7 @@ Conflicts:	llvm < 3.0-7
 Conflicts:	%{_lib}llvm3.0 < 3.0-9
 %if %{with openmp}
 Provides:	openmp-devel = %{EVRD}
+Requires:	%{ompname} = %{EVRD}
 %if "%{_lib}" == "lib64"
 Provides:	devel(libomp(64bit))
 %else
@@ -384,6 +390,9 @@ This package contains the development files for LLVM;
 %{_libdir}/BugpointPasses.so
 %{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
+%if %{with openmp}
+%exclude %{_libdir}/libomp.so
+%endif
 %if %{with build_libcxx}
 %exclude %{_libdir}/libc++abi.so
 %endif
@@ -393,6 +402,53 @@ This package contains the development files for LLVM;
 %exclude %{_libdir}/libgo-llgo.so
 %endif
 %exclude %{_libdir}/libLTO.so
+%exclude %{_libdir}/libPolly.so
+%exclude %{_libdir}/libPollyISL.so
+%exclude %{_libdir}/libPollyPPCG.so
+
+#-----------------------------------------------------------
+%if %{with openmp}
+%package -n %{ompname}
+Summary:	LLVM OpenMP shared libraries
+Group:		System/Libraries
+# For libomp.so compatibility (see comment in file list)
+%if "%{_lib}" == "lib64"
+Provides:	libomp.so()(64bit)
+Provides:	libomp.so(GOMP_1.0)(64bit)
+Provides:	libomp.so(GOMP_2.0)(64bit)
+Provides:	libomp.so(GOMP_3.0)(64bit)
+Provides:	libomp.so(GOMP_4.0)(64bit)
+Provides:	libomp.so(OMP_1.0)(64bit)
+Provides:	libomp.so(OMP_2.0)(64bit)
+Provides:	libomp.so(OMP_3.0)(64bit)
+Provides:	libomp.so(OMP_3.1)(64bit)
+Provides:	libomp.so(OMP_4.0)(64bit)
+Provides:	libomp.so(VERSION)(64bit)
+%else
+Provides:	libomp.so
+Provides:	libomp.so(GOMP_1.0)
+Provides:	libomp.so(GOMP_2.0)
+Provides:	libomp.so(GOMP_3.0)
+Provides:	libomp.so(GOMP_4.0)
+Provides:	libomp.so(OMP_1.0)
+Provides:	libomp.so(OMP_2.0)
+Provides:	libomp.so(OMP_3.0)
+Provides:	libomp.so(OMP_3.1)
+Provides:	libomp.so(OMP_4.0)
+Provides:	libomp.so(VERSION)
+%endif
+
+%description -n %{ompname}
+Shared libraries for LLVM OpenMP support.
+
+%files -n %{ompname}
+# (Slightly) nonstandard behavior: We package the .so
+# file in the library package.
+# This is because upstream doesn't assign sonames, and
+# by keeping the .so we can keep compatible with binaries
+# built against upstream libomp
+%{_libdir}/libomp.so*
+%endif
 
 #-----------------------------------------------------------
 
@@ -437,12 +493,17 @@ short vector instructions as well as dedicated accelerators.
 %{_bindir}/pollycc
 %{_bindir}/pollyc++
 %{_libdir}/LLVMPolly.so
+# Unversioned library, not -devel file
+%{_libdir}/libPolly.so
+%{_libdir}/libPollyISL.so
+%{_libdir}/libPollyPPCG.so
 
 #-----------------------------------------------------------
 %package polly-devel
 Summary: Development files for Polly
 License: MIT
 Group: Development/Other
+Requires: %{name}-polly = %{EVRD}
 
 %description polly-devel
 Development files for Polly.
@@ -738,6 +799,7 @@ cd ../..
 %endif
 
 %patch45 -p1 -b .crt586~
+%patch46 -p1 -b .soname~
 
 %patch48 -p1 -b .mcount~
 %if %{with default_compilerrt}
