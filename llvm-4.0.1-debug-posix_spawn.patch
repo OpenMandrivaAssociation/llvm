@@ -1,0 +1,11 @@
+--- llvm-4.0.1.src/lib/Support/Unix/Program.inc.omv~	2017-05-26 00:42:58.011066627 +0200
++++ llvm-4.0.1.src/lib/Support/Unix/Program.inc	2017-05-26 00:44:57.474547104 +0200
+@@ -248,7 +248,7 @@ static bool Execute(ProcessInfo &PI, Str
+       posix_spawn_file_actions_destroy(FileActions);
+ 
+     if (Err)
+-     return !MakeErrMsg(ErrMsg, "posix_spawn failed", Err);
++     return !MakeErrMsg(ErrMsg, "posix_spawn " + Program.str() + " failed", Err);
+ 
+     PI.Pid = PID;
+ 

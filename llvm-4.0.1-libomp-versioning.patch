@@ -1,0 +1,16 @@
+--- llvm-4.0.1.src/projects/openmp/runtime/src/CMakeLists.txt.omv~	2017-06-04 21:08:05.776531323 +0200
++++ llvm-4.0.1.src/projects/openmp/runtime/src/CMakeLists.txt	2017-06-04 21:09:33.756460807 +0200
+@@ -141,6 +141,13 @@ endif()
+ libomp_get_ldflags(LIBOMP_CONFIGURED_LDFLAGS)
+ 
+ add_library(omp ${LIBOMP_LIBRARY_KIND} ${LIBOMP_SOURCE_FILES})
++if(UNIX)
++  if(NOT APPLE)
++    set_target_properties(omp PROPERTIES
++                              SOVERSION 1
++                              VERSION 1.${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}${LLVM_VERSION_SUFFIX})
++  endif()
++endif()
+ 
+ set_target_properties(omp PROPERTIES
+   PREFIX "" SUFFIX "" OUTPUT_NAME "${LIBOMP_LIB_FILE}"
