@@ -106,7 +106,7 @@ Patch2:		clang-hardfloat-hack.patch
 Patch3:		llvm-3.7.0-PATH_MAX-compile.patch
 # https://reviews.llvm.org/D26893
 Patch4:		https://reviews.llvm.org/file/data/xict532f6ykwoei2obz3/PHID-FILE-yztwplfdu7fncle5sjk2/D26893.diff
-# Claim compatibility with gcc 4.9.1 rather than 4.2.1, it's
+# Claim compatibility with gcc 7.1.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
@@ -764,7 +764,7 @@ if [ -d libcxx-%{version}%{?prerel}.src ]; then
 %patch6 -p1 -b .libcxxabi~
 fi
 [ -d libcxxabi-%{version}%{?prerel}.src ] && mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
-%patch7 -p1 -b .gcc49~
+%patch7 -p1 -b .gcc71~
 %patch9 -p1 -b .ddsan~
 %if %{with lldb}
 %patch10 -p1 -b .lldb~
