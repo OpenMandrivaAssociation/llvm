@@ -1,0 +1,31 @@
+--- llvm-5.0.0.src/docs/LangRef.rst.omv~	2017-06-16 14:15:08.006408829 +0200
++++ llvm-5.0.0.src/docs/LangRef.rst	2017-06-16 14:16:29.300462836 +0200
+@@ -4428,7 +4428,7 @@ source variable. DIExpressions also foll
+ doesn't have a trailing ``DW_OP_stack_value`` will describe an *address* when
+ combined with a concrete location.
+ 
+-.. code-block:: llvm
++.. code-block:: text
+ 
+     !0 = !DIExpression(DW_OP_deref)
+     !1 = !DIExpression(DW_OP_plus_uconst, 3)
+@@ -5184,7 +5184,7 @@ It does not have any effect on non-ELF t
+ 
+ Example:
+ 
+-.. code-block:: llvm
++.. code-block:: text
+ 
+     $a = comdat any
+     @a = global i32 1, comdat $a
+--- llvm-5.0.0.src/docs/SourceLevelDebugging.rst.omv~	2017-06-16 14:17:13.703402740 +0200
++++ llvm-5.0.0.src/docs/SourceLevelDebugging.rst	2017-06-16 14:17:17.894302778 +0200
+@@ -187,7 +187,7 @@ description of the variable.  The third
+ <LangRef.html#diexpression>`_.  An `llvm.dbg.declare` instrinsic describes the
+ *location* of a source variable.
+ 
+-.. code-block:: llvm
++.. code-block:: text
+ 
+     %i.addr = alloca i32, align 4
+     call void @llvm.dbg.declare(metadata i32* %i.addr, metadata !1, metadata !2), !dbg !3
