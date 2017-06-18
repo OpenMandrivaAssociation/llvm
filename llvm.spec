@@ -75,7 +75,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	5.0.0
-Release:	0.305474.1
+Release:	0.305643.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -130,7 +130,6 @@ Patch19:	llvm-strings-linkage.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
 Patch21:	llvm-5.0-MuslX32.patch
-Patch22:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-sanitizer-off_t.patch
 Patch23:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-3.6-musl-no-dlvsym.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
 # breaks exception handling -- removes gcc_eh
@@ -808,7 +807,6 @@ fi
 
 %patch20 -p1 -b .musl1~
 %patch21 -p1 -b .musl2~
-%patch22 -p1 -b .musl3~
 %patch23 -p1 -b .musl4~
 %patch29 -p1 -b .musl10~
 %patch31 -p1 -b .musl12~
@@ -901,6 +899,7 @@ done
 	-DLLVM_ENABLE_FFI:BOOL=OFF \
 %endif
 	-DLLVM_ENABLE_SPHINX:BOOL=ON \
+	-DSPHINX_WARNINGS_AS_ERRORS:BOOL=OFF \
 	-DLLVM_TARGETS_TO_BUILD=all \
 	-DLLVM_ENABLE_CXX1Y:BOOL=ON \
 	-DLLVM_ENABLE_RTTI:BOOL=ON \
