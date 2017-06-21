@@ -131,7 +131,6 @@ Patch18:	llvm-4.0-readd-LLVMAddAttribute-until-mesa-stops-using-it.patch
 Patch19:	llvm-strings-linkage.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
-Patch22:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-sanitizer-off_t.patch
 Patch23:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-3.6-musl-no-dlvsym.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
 # breaks exception handling -- removes gcc_eh
@@ -788,7 +787,6 @@ cd ../..
 %patch19 -p1 -b .stringsLinkage~
 
 %patch20 -p1 -b .musl1~
-%patch22 -p1 -b .musl3~
 %patch23 -p1 -b .musl4~
 %patch29 -p1 -b .musl10~
 %patch31 -p1 -b .musl12~
