@@ -75,7 +75,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	4.0.1
-Release:	0.rc3.1
+Release:	1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -106,7 +106,7 @@ Patch2:		clang-hardfloat-hack.patch
 Patch3:		llvm-3.7.0-PATH_MAX-compile.patch
 # https://reviews.llvm.org/D26893
 Patch4:		https://reviews.llvm.org/file/data/xict532f6ykwoei2obz3/PHID-FILE-yztwplfdu7fncle5sjk2/D26893.diff
-# Claim compatibility with gcc 4.9.1 rather than 4.2.1, it's
+# Claim compatibility with gcc 7.1.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
@@ -131,7 +131,6 @@ Patch18:	llvm-4.0-readd-LLVMAddAttribute-until-mesa-stops-using-it.patch
 Patch19:	llvm-strings-linkage.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
-Patch22:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-sanitizer-off_t.patch
 Patch23:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/compiler-rt-3.6-musl-no-dlvsym.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
 # breaks exception handling -- removes gcc_eh
@@ -764,7 +763,7 @@ if [ -d libcxx-%{version}%{?prerel}.src ]; then
 %patch6 -p1 -b .libcxxabi~
 fi
 [ -d libcxxabi-%{version}%{?prerel}.src ] && mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
-%patch7 -p1 -b .gcc49~
+%patch7 -p1 -b .gcc71~
 %patch9 -p1 -b .ddsan~
 %if %{with lldb}
 %patch10 -p1 -b .lldb~
@@ -788,7 +787,6 @@ cd ../..
 %patch19 -p1 -b .stringsLinkage~
 
 %patch20 -p1 -b .musl1~
-%patch22 -p1 -b .musl3~
 %patch23 -p1 -b .musl4~
 %patch29 -p1 -b .musl10~
 %patch31 -p1 -b .musl12~
