@@ -75,7 +75,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	5.0.0
-Release:	0.305643.1
+Release:	0.306843.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -106,15 +106,15 @@ Patch2:		clang-hardfloat-hack.patch
 Patch3:		llvm-3.7.0-PATH_MAX-compile.patch
 # https://reviews.llvm.org/D26893
 Patch4:		https://reviews.llvm.org/file/data/xict532f6ykwoei2obz3/PHID-FILE-yztwplfdu7fncle5sjk2/D26893.diff
+# Patches from AOSP
+Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
+# End AOSP patch section
+Patch6:		llvm-4.0.0-libcxx-libcxxabi-dep.patch
 # Claim compatibility with gcc 7.1.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
 Patch8:		clang-fuse-ld.patch
-# Patches from AOSP
-Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
-# End AOSP patch section
-Patch6:		llvm-4.0.0-libcxx-libcxxabi-dep.patch
 Patch9:		ddsan-compile.patch
 Patch10:	lldb-3.8.0-compile.patch
 Patch11:	llvm-nm-workaround-libstdc++.patch
@@ -125,6 +125,7 @@ Patch13:	llvm-3.8.0-fix-optlevel.patch
 # the unwind exception handling code which is found in libgcc by linking to libgcc anyway...
 Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
 Patch15:	libunwind-3.8-aarch64-gas.patch
+Patch16:	clang-rename-fix-linkage.patch
 Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
 Patch19:	llvm-strings-linkage.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
@@ -292,7 +293,7 @@ for effective implementation, proper tail calls or garbage collection.
 
 %define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMExecutionEngine LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiAsmPrinter LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVInfo LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols
 
-%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangDaemon clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRename clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingCore clangToolingRefactor clangIncludeFixer clangTidyBoostModule clangTidyPlugin
+%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangDaemon clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyAndroidModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingCore clangToolingRefactor clangIncludeFixer clangTidyBoostModule clangTidyPlugin
 
 %if %{with lld}
 %define LLDLibs lldCOFF lldConfig lldCore lldDriver lldELF lldMachO lldReaderWriter lldYAML
@@ -796,6 +797,7 @@ fi
 %patch13 -p1 -b .fixOptlevel~
 %patch14 -p1 -b .unwindlibstdc~
 %patch15 -p1 -b .unwindaarch64~
+%patch16 -p1 -b .clangRenameLink~
 %if %{with lldb}
 # LLVM bug 30887
 %patch49 -p1 -b .lldbstatic~

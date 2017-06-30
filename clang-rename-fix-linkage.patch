@@ -1,0 +1,10 @@
+--- llvm-5.0.0.src/tools/clang/tools/clang-rename/CMakeLists.txt.omv~	2017-06-30 20:01:08.473847233 +0200
++++ llvm-5.0.0.src/tools/clang/tools/clang-rename/CMakeLists.txt	2017-06-30 20:01:16.441659726 +0200
+@@ -7,6 +7,7 @@ target_link_libraries(clang-rename
+   clangTooling
+   clangToolingCore
+   clangToolingRefactor
++  LLVMSupport
+   )
+ 
+ install(TARGETS clang-rename RUNTIME DESTINATION bin)
