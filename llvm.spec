@@ -75,15 +75,10 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	5.0.0
-Release:	0.312080.1
+Release:	0.312378.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
-# There's a branch of LLVM maintained at
-# git://people.freedesktop.org/~tstellar/llvm
-# Ir is the working branch of the AMDGPU/R600 backend needed by Mesa (and is otherwise
-# more or less identical to upstream llvm).
-# At times it may be necessary to package this branch instead.
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
 Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.xz
