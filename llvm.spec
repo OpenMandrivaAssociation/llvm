@@ -810,6 +810,7 @@ fi
 
 %patch20 -p1 -b .musl1~
 %patch21 -p1 -b .musl2~
+
 %patch23 -p1 -b .musl4~
 %patch29 -p1 -b .musl10~
 %patch31 -p1 -b .musl12~
