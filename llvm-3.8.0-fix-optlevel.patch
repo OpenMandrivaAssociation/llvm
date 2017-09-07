@@ -1,6 +1,6 @@
---- llvm-4.0.0.src/tools/gold/gold-plugin.cpp.fixOptlevel~	2016-10-25 14:02:03.000000000 +0200
-+++ llvm-4.0.0.src/tools/gold/gold-plugin.cpp	2016-11-02 22:03:36.541039596 +0100
-@@ -207,9 +207,12 @@ namespace options {
+--- llvm-5.0.0.src/tools/gold/gold-plugin.cpp.fixOptlevel~	2017-05-22 23:11:35.000000000 +0200
++++ llvm-5.0.0.src/tools/gold/gold-plugin.cpp	2017-06-15 23:34:14.118573439 +0200
+@@ -223,9 +223,12 @@ namespace options {
      } else if (opt.startswith("cache-dir=")) {
        cache_dir = opt.substr(strlen("cache-dir="));
      } else if (opt.size() == 2 && opt[0] == 'O') {
@@ -16,9 +16,9 @@
      } else if (opt.startswith("jobs=")) {
        if (StringRef(opt_ + 5).getAsInteger(10, Parallelism))
          message(LDPL_FATAL, "Invalid parallelism level: %s", opt_ + 5);
---- llvm-4.0.0.src/tools/llvm-lto/llvm-lto.cpp.fixOptlevel~	2016-11-02 17:43:50.000000000 +0100
-+++ llvm-4.0.0.src/tools/llvm-lto/llvm-lto.cpp	2016-11-02 22:03:36.541039596 +0100
-@@ -748,8 +748,10 @@ int main(int argc, char **argv) {
+--- llvm-5.0.0.src/tools/llvm-lto/llvm-lto.cpp.fixOptlevel~	2017-05-19 19:54:58.000000000 +0200
++++ llvm-5.0.0.src/tools/llvm-lto/llvm-lto.cpp	2017-06-15 23:34:14.118573439 +0200
+@@ -755,8 +755,10 @@ int main(int argc, char **argv) {
    llvm_shutdown_obj Y; // Call llvm_shutdown() on exit.
    cl::ParseCommandLineOptions(argc, argv, "llvm LTO linker\n");
  
@@ -31,9 +31,9 @@
  
    // Initialize the configured targets.
    InitializeAllTargets();
---- llvm-4.0.0.src/tools/lto/lto.cpp.fixOptlevel~	2016-11-02 22:03:36.541039596 +0100
-+++ llvm-4.0.0.src/tools/lto/lto.cpp	2016-11-02 22:05:50.784465787 +0100
-@@ -156,9 +156,12 @@ static void lto_add_attrs(lto_code_gen_t
+--- llvm-5.0.0.src/tools/lto/lto.cpp.fixOptlevel~	2017-06-15 23:34:14.118573439 +0200
++++ llvm-5.0.0.src/tools/lto/lto.cpp	2017-06-15 23:35:31.380734827 +0200
+@@ -160,9 +160,12 @@ static void lto_add_attrs(lto_code_gen_t
      CG->setAttr(attrs);
    }
  
@@ -46,6 +46,6 @@
 +    CG->setOptLevel(3);
 +  else
 +    CG->setOptLevel(OptLevel - '0');
+   CG->setFreestanding(EnableFreestanding);
  }
  
- extern const char* lto_get_version() {

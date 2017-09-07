@@ -1,7 +1,5 @@
-diff --git a/tools/clang/lib/Headers/stdint.h b/tools/clang/lib/Headers/stdint.h
-index 0303db9..8ca28df 100644
---- a/tools/clang/lib/Headers/stdint.h
-+++ b/tools/clang/lib/Headers/stdint.h
+--- llvm-5.0.0.src/tools/clang/lib/Headers/stdint.h.musl12~	2017-04-27 23:49:45.000000000 +0200
++++ llvm-5.0.0.src/tools/clang/lib/Headers/stdint.h	2017-06-15 23:47:54.427058662 +0200
 @@ -22,8 +22,6 @@
   *
  \*===----------------------------------------------------------------------===*/
@@ -20,9 +18,9 @@ index 0303db9..8ca28df 100644
  
  /* C99 7.18.1.1 Exact-width integer types.
   * C99 7.18.1.2 Minimum-width integer types.
-@@ -703,5 +703,5 @@ typedef __UINTMAX_TYPE__ uintmax_t;
- #define INTMAX_C(v)   __INTN_C(__INTMAX_WIDTH__, v)
- #define UINTMAX_C(v) __UINTN_C(__INTMAX_WIDTH__, v)
+@@ -700,5 +700,5 @@ typedef __UINTMAX_TYPE__ uintmax_t;
+ #define  INTMAX_C(v) __int_c(v,  __INTMAX_C_SUFFIX__)
+ #define UINTMAX_C(v) __int_c(v, __UINTMAX_C_SUFFIX__)
  
 -#endif /* __STDC_HOSTED__ */
  #endif /* __CLANG_STDINT_H */
