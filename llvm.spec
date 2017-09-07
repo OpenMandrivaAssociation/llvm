@@ -47,7 +47,7 @@
 %else
 # Currently (2016/06/18) fails because of missing
 # llvm_regcomp llvm_regfree llvm_regexec
-%bcond_without lldb
+%bcond_with lldb
 %endif
 %bcond_without openmp
 # FIXME Currently llgo works only on x86_64, keep trying elsewhere
@@ -60,7 +60,7 @@
 # As of 3.8, lld doesn't build on i586 - undefined reference to __atomic_load_8
 #bcond_with lld
 #else
-%bcond_without lld
+%bcond_with lld
 #endif
 
 # Prefer compiler-rt over libgcc
