@@ -43,7 +43,7 @@
 %ifarch %{ix86} aarch64
 # lldb uses some atomics that haven't been ported to x86_32 yet
 # lldb also fails on aarch64 as of 3.7.0
-%bcond_with lldb
+%bcond_without lldb
 %else
 # Currently (2016/06/18) fails because of missing
 # llvm_regcomp llvm_regfree llvm_regexec
