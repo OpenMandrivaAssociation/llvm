@@ -75,7 +75,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	5.0.0
-Release:	1
+Release:	2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -310,10 +310,22 @@ for effective implementation, proper tail calls or garbage collection.
 
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
 
-%libpackage unwind 1.0
+%define libunwind_major 1.0
+%define libunwind %mklibname unwind %{libunwind_major}
+
+%package -n %{libunwind}
+Summary: Development files for libunwind
+Group: Development/C
+Conflicts: libunwind-devel < %{EVRD}
+
+%description -n %{libunwind}
+The unwind library, a part of llvm.
+
+%files -n %{libunwind}
+%doc %{_docdir}/libunwind
+%{_libdir}/libunwind.so.%{libunwind_major}
 %{_libdir}/libunwind.so.1
 %{_libdir}/libunwind.a
-%doc %{_docdir}/libunwind
 
 #-----------------------------------------------------------
 %if %{with build_libcxx}
