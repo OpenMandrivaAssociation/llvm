@@ -198,6 +198,9 @@ Obsoletes:	llvm-ocaml
 BuildRequires:	swig
 BuildRequires:	pkgconfig(python2)
 BuildRequires:	gcc
+%if !%{with lld}
+BuildRequires:	lld < %{EVRD}
+%endif
 
 Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
 Obsoletes: %{mklibname LLVMRISCVDesc 5} < %{EVRD}
@@ -260,6 +263,11 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-tblgen
 %{_bindir}/llvm-cxxdump
 %{_bindir}/llvm-xray
+%if !%{with lld}
+%{_bindir}/llvm-dlltool
+%{_bindir}/llvm-mt
+%{_bindir}/llvm-readelf
+%endif	
 %{_bindir}/modularize
 %{_bindir}/sancov
 %{_bindir}/sanstats
@@ -326,7 +334,7 @@ Requires: %{mklibname c++abi 1} = %{EVRD}
 Provides: c++-devel = %{EVRD}
 
 %description -n %{cxxdevname}
-Development files for libc++, an alternative implementation of the STL
+Development files for libc++, an alternative implementation of the STL.
 
 %files -n %{cxxdevname}
 %doc %{_docdir}/libcxx
@@ -338,7 +346,7 @@ Group: Development/C
 Requires: %{cxxdevname} = %{EVRD}
 
 %description -n %{cxxabistatic}
-Static library for libc++'s C++ ABI library
+Static library for libc++'s C++ ABI library.
 
 %files -n %{cxxabistatic}
 %{_libdir}/libc++abi.a
@@ -392,7 +400,7 @@ Provides:	devel(libomp)
 %endif
 %endif
 %description -n %{devname}
-This package contains the development files for LLVM;
+This package contains the development files for LLVM.
 
 %files -n %{devname}
 %doc %{_docdir}/llvm
@@ -641,7 +649,7 @@ Group:		Development/Other
 Requires:	%{name} = %{EVRD}
 
 %description -n ocaml-%{name}
-Objective-CAML bindings for LLVM
+Objective-CAML bindings for LLVM.
 
 %files -n ocaml-%{name}
 %{_libdir}/ocaml/*
@@ -675,7 +683,7 @@ Group:		Development/Other
 Requires:	lldb = %{EVRD}
 
 %description -n %{lldbdev}
-Development files for the LLDB debugger
+Development files for the LLDB debugger.
 
 %files -n %{lldbdev}
 %{_includedir}/lldb
@@ -700,7 +708,7 @@ Obsoletes:	%{mklibname lldX86ELFTarget 3} < %{EVRD}
 Obsoletes:	%{mklibname lldX86_64ELFTarget 3} < %{EVRD}
 
 %description -n lld
-The linker from the LLVM project
+The linker from the LLVM project.
 
 %files -n lld
 %doc %{_docdir}/lld
@@ -722,7 +730,7 @@ Requires:	lld = %{EVRD}
 
 %description -n %{devlld}
 This package contains header files and libraries needed for
-writing lld plugins
+writing lld plugins.
 
 %files -n %{devlld}
 %{_includedir}/lld
@@ -736,7 +744,7 @@ Summary:	LLVM based implementation of the Go language
 Group:		Development/Other
 
 %description -n llgo
-LLVM based implementation of the Go language
+LLVM based implementation of the Go language.
 
 %files -n llgo
 %{_bindir}/llgo
