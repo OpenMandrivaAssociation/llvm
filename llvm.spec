@@ -75,7 +75,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	5.0.0
-Release:	2
+Release:	3
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -200,6 +200,9 @@ BuildRequires:	pkgconfig(python2)
 BuildRequires:	gcc
 %if !%{with lld}
 BuildRequires:	lld < %{EVRD}
+%endif
+%if %{with openmp}
+Requires:	%{ompname} = %{EVRD}
 %endif
 
 Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
@@ -507,6 +510,8 @@ Documentation for the LLVM compiler infrastructure.
 Summary: Polyhedral optimizations for LLVM
 License: MIT
 Group: Development/Other
+Obsoletes: %{_}llvm-devel < 4.0.1
+Conflicst: %{_}llvm-devel < 4.0.1
 
 %description polly
 Polly is a polyhedral optimizer for LLVM.
