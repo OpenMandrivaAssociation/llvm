@@ -511,7 +511,7 @@ Summary: Polyhedral optimizations for LLVM
 License: MIT
 Group: Development/Other
 Obsoletes: %{_lib}llvm-devel < 4.0.1
-Conflicst: %{_lib}llvm-devel < 4.0.1
+Conflicts: %{_lib}llvm-devel < 4.0.1
 
 %description polly
 Polly is a polyhedral optimizer for LLVM.
