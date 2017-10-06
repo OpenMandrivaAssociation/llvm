@@ -75,7 +75,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	5.0.0
-Release:	3
+Release:	4
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -319,7 +319,6 @@ for effective implementation, proper tail calls or garbage collection.
 %package -n %{libunwind}
 Summary: Development files for libunwind
 Group: Development/C
-Conflicts: libunwind-devel < %{EVRD}
 
 %description -n %{libunwind}
 The unwind library, a part of llvm.
@@ -1055,3 +1054,7 @@ rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
 
 # We get libgomp from gcc, so don't symlink libomp to it
 rm -f %{buildroot}%{_libdir}/libgomp.so
+
+# (tpg) fix bug https://issues.openmandriva.org/show_bug.cgi?id=2214
+mv %{buildoor}%{_libdir}/libunwind.so %{buildoor}%{_libdir}/libunwind-llvm.so
+
