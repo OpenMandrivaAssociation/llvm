@@ -193,8 +193,10 @@ Obsoletes:	llvm-ocaml
 BuildRequires:	swig
 BuildRequires:	pkgconfig(python2)
 BuildRequires:	gcc
+%if %mdvver > 3000000
 %if !%{with lld}
 BuildRequires:	lld < %{EVRD}
+%endif
 %endif
 %if %{with openmp}
 Requires:	%{ompname} = %{EVRD}
