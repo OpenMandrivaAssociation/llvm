@@ -56,12 +56,7 @@
 %else
 %bcond_with llgo
 %endif
-#ifarch %{ix86}
-# As of 3.8, lld doesn't build on i586 - undefined reference to __atomic_load_8
-#bcond_with lld
-#else
-%bcond_with lld
-#endif
+%bcond_without lld
 
 # Prefer compiler-rt over libgcc
 %bcond_with default_compilerrt
@@ -198,9 +193,11 @@ Obsoletes:	llvm-ocaml
 BuildRequires:	swig
 BuildRequires:	pkgconfig(python2)
 BuildRequires:	gcc
-#if !%{with lld}
-#BuildRequires:	lld < %{EVRD}
-#endif
+%if %mdvver > 3000000
+%if !%{with lld}
+BuildRequires:	lld < %{EVRD}
+%endif
+%endif
 %if %{with openmp}
 Requires:	%{ompname} = %{EVRD}
 %endif
