@@ -47,7 +47,7 @@
 %else
 # Currently (2016/06/18) fails because of missing
 # llvm_regcomp llvm_regfree llvm_regexec
-%bcond_without lldb
+%bcond_with lldb
 %endif
 %bcond_without openmp
 # FIXME Currently llgo works only on x86_64, keep trying elsewhere
