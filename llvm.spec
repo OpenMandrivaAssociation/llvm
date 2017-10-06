@@ -1056,5 +1056,5 @@ rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
 rm -f %{buildroot}%{_libdir}/libgomp.so
 
 # (tpg) fix bug https://issues.openmandriva.org/show_bug.cgi?id=2214
-mv %{buildoor}%{_libdir}/libunwind.so %{buildoor}%{_libdir}/libunwind-llvm.so
+mv %{buildroot}%{_libdir}/libunwind.so %{buildroot}%{_libdir}/libunwind-llvm.so
 
