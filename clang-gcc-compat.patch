@@ -16,7 +16,7 @@
      // introduce a non-pedantically GCC compatible mode to Clang in which we
      // provide sensible definitions for -dumpversion, __VERSION__, etc.
 -    llvm::outs() << "4.2.1\n";
-+    llvm::outs() << "7.1.1\n";
++    llvm::outs() << "7.2.1\n";
      return false;
    }
  
@@ -27,10 +27,10 @@
                        + getClangFullRepositoryVersion() + "\"");
    if (!LangOpts.MSVCCompat) {
 -    // Currently claim to be compatible with GCC 4.2.1-5621, but only if we're
-+    // Currently claim to be compatible with GCC 7.1.1, but only if we're
++    // Currently claim to be compatible with GCC 7.2.1, but only if we're
      // not compiling for MSVC compatibility
 -    Builder.defineMacro("__GNUC_MINOR__", "2");
-+    Builder.defineMacro("__GNUC_MINOR__", "1");
++    Builder.defineMacro("__GNUC_MINOR__", "2");
      Builder.defineMacro("__GNUC_PATCHLEVEL__", "1");
 -    Builder.defineMacro("__GNUC__", "4");
 -    Builder.defineMacro("__GXX_ABI_VERSION", "1002");
@@ -45,10 +45,10 @@
  
    // As sad as it is, enough software depends on the __VERSION__ for version
 -  // checks that it is necessary to report 4.2.1 (the base GCC version we claim
-+  // checks that it is necessary to report 7.1.1 (the base GCC version we claim
++  // checks that it is necessary to report 7.2.1 (the base GCC version we claim
    // compatibility with) first.
 -  Builder.defineMacro("__VERSION__", "\"4.2.1 Compatible " + 
-+  Builder.defineMacro("__VERSION__", "\"7.1.1 Compatible " + 
++  Builder.defineMacro("__VERSION__", "\"7.2.1 Compatible " + 
                        Twine(getClangFullCPPVersion()) + "\"");
  
    // Initialize language-specific preprocessor defines.
@@ -68,7 +68,7 @@
  
  // RUN: %clang -dumpversion | FileCheck %s -check-prefix=DUMPVERSION
 -// DUMPVERSION: 4.2.1
-+// DUMPVERSION: 7.1.1
++// DUMPVERSION: 7.2.1
  
  // RUN: %clang -print-search-dirs | FileCheck %s -check-prefix=PRINT-SEARCH-DIRS
  // PRINT-SEARCH-DIRS: programs: ={{.*}}
@@ -79,7 +79,20 @@
  // SPARC:#define __UINT_LEAST8_TYPE__ unsigned char
  // SPARC:#define __USER_LABEL_PREFIX__
 -// SPARC:#define __VERSION__ "4.2.1 Compatible{{.*}}
-+// SPARC:#define __VERSION__ "7.1.1 Compatible{{.*}}
++// SPARC:#define __VERSION__ "7.2.1 Compatible{{.*}}
  // SPARC:#define __WCHAR_MAX__ 2147483647
  // SPARC:#define __WCHAR_TYPE__ int
  // SPARC:#define __WCHAR_WIDTH__ 32
+--- llvm-5.0.1.src/tools/clang/lib/Frontend/CompilerInvocation.cpp.omv~	2017-10-09 05:21:37.042037433 +0200
++++ llvm-5.0.1.src/tools/clang/lib/Frontend/CompilerInvocation.cpp	2017-10-09 05:22:19.190062881 +0200
+@@ -1693,8 +1693,8 @@ void CompilerInvocation::setLangDefaults
+       // The PS4 uses C++11 as the default C++ standard.
+       if (T.isPS4())
+         LangStd = LangStandard::lang_gnucxx11;
+-      else
+-        LangStd = LangStandard::lang_gnucxx98;
++      else // Let's move on to C++14 -- gcc 7.2 does the same
++        LangStd = LangStandard::lang_gnucxx14;
+       break;
+     case InputKind::RenderScript:
+       LangStd = LangStandard::lang_c99;
