@@ -1,0 +1,392 @@
+Index: include/clang/Driver/Options.td
+===================================================================
+--- include/clang/Driver/Options.td
++++ include/clang/Driver/Options.td
+@@ -2138,6 +2138,7 @@
+ def nostdincxx : Flag<["-"], "nostdinc++">, Flags<[CC1Option]>,
+   HelpText<"Disable standard #include directories for the C++ standard library">;
+ def nostdlib : Flag<["-"], "nostdlib">;
++def nostdlibxx : Flag<["-"], "nostdlib++">;
+ def object : Flag<["-"], "object">;
+ def o : JoinedOrSeparate<["-"], "o">, Flags<[DriverOption, RenderAsInput, CC1Option, CC1AsOption]>,
+   HelpText<"Write output to <file>">, MetaVarName<"<file>">;
+Index: include/clang/Driver/ToolChain.h
+===================================================================
+--- include/clang/Driver/ToolChain.h
++++ include/clang/Driver/ToolChain.h
+@@ -432,6 +432,10 @@
+   AddClangCXXStdlibIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                                llvm::opt::ArgStringList &CC1Args) const;
+ 
++  /// Returns if the C++ standard library should be linked in.
++  /// Note that e.g. -lm should still be linked even if this returns false.
++  bool ShouldLinkCXXStdlib(const llvm::opt::ArgList &Args) const;
++
+   /// AddCXXStdlibLibArgs - Add the system specific linker arguments to use
+   /// for the given C++ standard library type.
+   virtual void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
+Index: lib/Driver/ToolChain.cpp
+===================================================================
+--- lib/Driver/ToolChain.cpp
++++ lib/Driver/ToolChain.cpp
+@@ -648,8 +648,16 @@
+   DriverArgs.AddAllArgs(CC1Args, options::OPT_stdlib_EQ);
+ }
+ 
++bool ToolChain::ShouldLinkCXXStdlib(const llvm::opt::ArgList &Args) const {
++  return getDriver().CCCIsCXX() &&
++         !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs,
++                      options::OPT_nostdlibxx);
++}
++
+ void ToolChain::AddCXXStdlibLibArgs(const ArgList &Args,
+                                     ArgStringList &CmdArgs) const {
++  assert(!Args.hasArg(options::OPT_nostdlibxx) &&
++         "should not have called this");
+   CXXStdlibType Type = GetCXXStdlibType(Args);
+ 
+   switch (Type) {
+Index: lib/Driver/ToolChains/Ananas.cpp
+===================================================================
+--- lib/Driver/ToolChains/Ananas.cpp
++++ lib/Driver/ToolChains/Ananas.cpp
+@@ -91,11 +91,10 @@
+ 
+   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
+ 
+-  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+-    if (D.CCCIsCXX())
+-      ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
++  if (ToolChain.ShouldLinkCXXStdlib(Args))
++    ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
++  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs))
+     CmdArgs.push_back("-lc");
+-  }
+ 
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
+     CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crtend.o")));
+Index: lib/Driver/ToolChains/BareMetal.cpp
+===================================================================
+--- lib/Driver/ToolChains/BareMetal.cpp
++++ lib/Driver/ToolChains/BareMetal.cpp
+@@ -192,10 +192,9 @@
+                             options::OPT_e, options::OPT_s, options::OPT_t,
+                             options::OPT_Z_Flag, options::OPT_r});
+ 
++  if (TC.ShouldLinkCXXStdlib(Args))
++    TC.AddCXXStdlibLibArgs(Args, CmdArgs);
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+-    if (C.getDriver().CCCIsCXX())
+-      TC.AddCXXStdlibLibArgs(Args, CmdArgs);
+-
+     CmdArgs.push_back("-lc");
+     CmdArgs.push_back("-lm");
+ 
+Index: lib/Driver/ToolChains/CloudABI.cpp
+===================================================================
+--- lib/Driver/ToolChains/CloudABI.cpp
++++ lib/Driver/ToolChains/CloudABI.cpp
+@@ -80,9 +80,9 @@
+ 
+   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
+ 
++  if (ToolChain.ShouldLinkCXXStdlib(Args))
++    ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+-    if (D.CCCIsCXX())
+-      ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
+     CmdArgs.push_back("-lc");
+     CmdArgs.push_back("-lcompiler_rt");
+   }
+Index: lib/Driver/ToolChains/CommonArgs.cpp
+===================================================================
+--- lib/Driver/ToolChains/CommonArgs.cpp
++++ lib/Driver/ToolChains/CommonArgs.cpp
+@@ -600,10 +600,12 @@
+ static void addLibFuzzerRuntime(const ToolChain &TC,
+                                 const ArgList &Args,
+                                 ArgStringList &CmdArgs) {
+-    StringRef ParentDir = llvm::sys::path::parent_path(TC.getDriver().InstalledDir);
+-    SmallString<128> P(ParentDir);
+-    llvm::sys::path::append(P, "lib", "libLLVMFuzzer.a");
+-    CmdArgs.push_back(Args.MakeArgString(P));
++  StringRef ParentDir =
++      llvm::sys::path::parent_path(TC.getDriver().InstalledDir);
++  SmallString<128> P(ParentDir);
++  llvm::sys::path::append(P, "lib", "libLLVMFuzzer.a");
++  CmdArgs.push_back(Args.MakeArgString(P));
++  if (!Args.hasArg(clang::driver::options::OPT_nostdlibxx))
+     TC.AddCXXStdlibLibArgs(Args, CmdArgs);
+ }
+ 
+Index: lib/Driver/ToolChains/CrossWindows.cpp
+===================================================================
+--- lib/Driver/ToolChains/CrossWindows.cpp
++++ lib/Driver/ToolChains/CrossWindows.cpp
+@@ -160,8 +160,7 @@
+   TC.AddFilePathLibArgs(Args, CmdArgs);
+   AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
+ 
+-  if (D.CCCIsCXX() && !Args.hasArg(options::OPT_nostdlib) &&
+-      !Args.hasArg(options::OPT_nodefaultlibs)) {
++  if (TC.ShouldLinkCXXStdlib(Args)) {
+     bool StaticCXX = Args.hasArg(options::OPT_static_libstdcxx) &&
+                      !Args.hasArg(options::OPT_static);
+     if (StaticCXX)
+Index: lib/Driver/ToolChains/Darwin.cpp
+===================================================================
+--- lib/Driver/ToolChains/Darwin.cpp
++++ lib/Driver/ToolChains/Darwin.cpp
+@@ -549,10 +549,9 @@
+         Args.MakeArgString(Twine("-threads=") + llvm::to_string(Parallelism)));
+   }
+ 
++  if (getToolChain().ShouldLinkCXXStdlib(Args))
++    getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+-    if (getToolChain().getDriver().CCCIsCXX())
+-      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+-
+     // link_ssp spec is empty.
+ 
+     // Let the tool chain choose which runtime library to link.
+Index: lib/Driver/ToolChains/DragonFly.cpp
+===================================================================
+--- lib/Driver/ToolChains/DragonFly.cpp
++++ lib/Driver/ToolChains/DragonFly.cpp
+@@ -127,7 +127,8 @@
+     }
+ 
+     if (D.CCCIsCXX()) {
+-      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
++      if (getToolChain().ShouldLinkCXXStdlib(Args))
++        getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+       CmdArgs.push_back("-lm");
+     }
+ 
+Index: lib/Driver/ToolChains/FreeBSD.cpp
+===================================================================
+--- lib/Driver/ToolChains/FreeBSD.cpp
++++ lib/Driver/ToolChains/FreeBSD.cpp
+@@ -240,7 +240,8 @@
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+     addOpenMPRuntime(CmdArgs, ToolChain, Args);
+     if (D.CCCIsCXX()) {
+-      ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
++      if (ToolChain.ShouldLinkCXXStdlib(Args))
++        ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
+       if (Args.hasArg(options::OPT_pg))
+         CmdArgs.push_back("-lm_p");
+       else
+Index: lib/Driver/ToolChains/Fuchsia.cpp
+===================================================================
+--- lib/Driver/ToolChains/Fuchsia.cpp
++++ lib/Driver/ToolChains/Fuchsia.cpp
+@@ -107,13 +107,15 @@
+       CmdArgs.push_back("-Bdynamic");
+ 
+     if (D.CCCIsCXX()) {
+-      bool OnlyLibstdcxxStatic = Args.hasArg(options::OPT_static_libstdcxx) &&
+-                                 !Args.hasArg(options::OPT_static);
+-      if (OnlyLibstdcxxStatic)
+-        CmdArgs.push_back("-Bstatic");
+-      ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
+-      if (OnlyLibstdcxxStatic)
+-        CmdArgs.push_back("-Bdynamic");
++      if (ToolChain.ShouldLinkCXXStdlib(Args)) {
++        bool OnlyLibstdcxxStatic = Args.hasArg(options::OPT_static_libstdcxx) &&
++                                   !Args.hasArg(options::OPT_static);
++        if (OnlyLibstdcxxStatic)
++          CmdArgs.push_back("-Bstatic");
++        ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
++        if (OnlyLibstdcxxStatic)
++          CmdArgs.push_back("-Bdynamic");
++      }
+       CmdArgs.push_back("-lm");
+     }
+ 
+Index: lib/Driver/ToolChains/Gnu.cpp
+===================================================================
+--- lib/Driver/ToolChains/Gnu.cpp
++++ lib/Driver/ToolChains/Gnu.cpp
+@@ -560,13 +560,15 @@
+ 
+   if (D.CCCIsCXX() &&
+       !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+-    bool OnlyLibstdcxxStatic = Args.hasArg(options::OPT_static_libstdcxx) &&
+-                               !Args.hasArg(options::OPT_static);
+-    if (OnlyLibstdcxxStatic)
+-      CmdArgs.push_back("-Bstatic");
+-    ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
+-    if (OnlyLibstdcxxStatic)
+-      CmdArgs.push_back("-Bdynamic");
++    if (ToolChain.ShouldLinkCXXStdlib(Args)) {
++      bool OnlyLibstdcxxStatic = Args.hasArg(options::OPT_static_libstdcxx) &&
++                                 !Args.hasArg(options::OPT_static);
++      if (OnlyLibstdcxxStatic)
++        CmdArgs.push_back("-Bstatic");
++      ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
++      if (OnlyLibstdcxxStatic)
++        CmdArgs.push_back("-Bdynamic");
++    }
+     CmdArgs.push_back("-lm");
+   }
+   // Silence warnings when linking C code with a C++ '-stdlib' argument.
+Index: lib/Driver/ToolChains/Hexagon.cpp
+===================================================================
+--- lib/Driver/ToolChains/Hexagon.cpp
++++ lib/Driver/ToolChains/Hexagon.cpp
+@@ -248,7 +248,8 @@
+   //----------------------------------------------------------------------------
+   if (IncStdLib && IncDefLibs) {
+     if (D.CCCIsCXX()) {
+-      HTC.AddCXXStdlibLibArgs(Args, CmdArgs);
++      if (HTC.ShouldLinkCXXStdlib(Args))
++        HTC.AddCXXStdlibLibArgs(Args, CmdArgs);
+       CmdArgs.push_back("-lm");
+     }
+ 
+Index: lib/Driver/ToolChains/MinGW.cpp
+===================================================================
+--- lib/Driver/ToolChains/MinGW.cpp
++++ lib/Driver/ToolChains/MinGW.cpp
+@@ -185,8 +185,7 @@
+ 
+   // TODO: Add profile stuff here
+ 
+-  if (D.CCCIsCXX() &&
+-      !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
++  if (TC.ShouldLinkCXXStdlib(Args)) {
+     bool OnlyLibstdcxxStatic = Args.hasArg(options::OPT_static_libstdcxx) &&
+                                !Args.hasArg(options::OPT_static);
+     if (OnlyLibstdcxxStatic)
+Index: lib/Driver/ToolChains/Minix.cpp
+===================================================================
+--- lib/Driver/ToolChains/Minix.cpp
++++ lib/Driver/ToolChains/Minix.cpp
+@@ -72,7 +72,8 @@
+ 
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+     if (D.CCCIsCXX()) {
+-      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
++      if (getToolChain().ShouldLinkCXXStdlib(Args))
++        getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+       CmdArgs.push_back("-lm");
+     }
+   }
+Index: lib/Driver/ToolChains/NaCl.cpp
+===================================================================
+--- lib/Driver/ToolChains/NaCl.cpp
++++ lib/Driver/ToolChains/NaCl.cpp
+@@ -133,13 +133,15 @@
+ 
+   if (D.CCCIsCXX() &&
+       !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+-    bool OnlyLibstdcxxStatic =
+-        Args.hasArg(options::OPT_static_libstdcxx) && !IsStatic;
+-    if (OnlyLibstdcxxStatic)
+-      CmdArgs.push_back("-Bstatic");
+-    ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
+-    if (OnlyLibstdcxxStatic)
+-      CmdArgs.push_back("-Bdynamic");
++    if (ToolChain.ShouldLinkCXXStdlib(Args)) {
++      bool OnlyLibstdcxxStatic =
++          Args.hasArg(options::OPT_static_libstdcxx) && !IsStatic;
++      if (OnlyLibstdcxxStatic)
++        CmdArgs.push_back("-Bstatic");
++      ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
++      if (OnlyLibstdcxxStatic)
++        CmdArgs.push_back("-Bdynamic");
++    }
+     CmdArgs.push_back("-lm");
+   }
+ 
+Index: lib/Driver/ToolChains/NetBSD.cpp
+===================================================================
+--- lib/Driver/ToolChains/NetBSD.cpp
++++ lib/Driver/ToolChains/NetBSD.cpp
+@@ -278,7 +278,8 @@
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+     addOpenMPRuntime(CmdArgs, getToolChain(), Args);
+     if (D.CCCIsCXX()) {
+-      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
++      if (getToolChain().ShouldLinkCXXStdlib(Args))
++        getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+       CmdArgs.push_back("-lm");
+     }
+     if (NeedsSanitizerDeps)
+Index: lib/Driver/ToolChains/OpenBSD.cpp
+===================================================================
+--- lib/Driver/ToolChains/OpenBSD.cpp
++++ lib/Driver/ToolChains/OpenBSD.cpp
+@@ -177,7 +177,8 @@
+ 
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+     if (D.CCCIsCXX()) {
+-      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
++      if (getToolChain().ShouldLinkCXXStdlib(Args))
++        getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+       if (Args.hasArg(options::OPT_pg))
+         CmdArgs.push_back("-lm_p");
+       else
+Index: lib/Driver/ToolChains/PS4CPU.cpp
+===================================================================
+--- lib/Driver/ToolChains/PS4CPU.cpp
++++ lib/Driver/ToolChains/PS4CPU.cpp
+@@ -227,7 +227,8 @@
+     // libraries for both C and C++ compilations.
+     CmdArgs.push_back("-lkernel");
+     if (D.CCCIsCXX()) {
+-      ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
++      if (ToolChain.ShouldLinkCXXStdlib(Args))
++        ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
+       if (Args.hasArg(options::OPT_pg))
+         CmdArgs.push_back("-lm_p");
+       else
+Index: lib/Driver/ToolChains/Solaris.cpp
+===================================================================
+--- lib/Driver/ToolChains/Solaris.cpp
++++ lib/Driver/ToolChains/Solaris.cpp
+@@ -100,7 +100,7 @@
+   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
+ 
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+-    if (getToolChain().getDriver().CCCIsCXX())
++    if (getToolChain().ShouldLinkCXXStdlib(Args))
+       getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+     CmdArgs.push_back("-lgcc_s");
+     CmdArgs.push_back("-lc");
+Index: lib/Driver/ToolChains/WebAssembly.cpp
+===================================================================
+--- lib/Driver/ToolChains/WebAssembly.cpp
++++ lib/Driver/ToolChains/WebAssembly.cpp
+@@ -38,7 +38,6 @@
+                                 const char *LinkingOutput) const {
+ 
+   const ToolChain &ToolChain = getToolChain();
+-  const Driver &D = ToolChain.getDriver();
+   const char *Linker = Args.MakeArgString(ToolChain.GetLinkerPath());
+   ArgStringList CmdArgs;
+   CmdArgs.push_back("-flavor");
+@@ -77,7 +76,7 @@
+   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
+ 
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+-    if (D.CCCIsCXX())
++    if (ToolChain.ShouldLinkCXXStdlib(Args))
+       ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
+ 
+     if (Args.hasArg(options::OPT_pthread))
+Index: test/Driver/nostdlibxx.cpp
+===================================================================
+--- test/Driver/nostdlibxx.cpp
++++ test/Driver/nostdlibxx.cpp
+@@ -0,0 +1,8 @@
++// RUN: %clangxx -target i686-pc-linux-gnu -### -nostdlib++ %s 2> %t
++// RUN: FileCheck < %t %s
++
++// We should still have -lm and the C standard libraries, but not -lstdc++.
++
++// CHECK-NOT: -lstdc++
++// CHECK-NOT: -lc++
++// CHECK: -lm

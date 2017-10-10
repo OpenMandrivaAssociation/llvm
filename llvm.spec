@@ -70,7 +70,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	5.0.1
-Release:	0.315198.1
+Release:	0.315224.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -137,6 +137,8 @@ Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
 Patch45:	clang-3.8-compiler-rt-i586.patch
 # Fix library versioning
 Patch46:	llvm-4.0.1-libomp-versioning.patch
+# Add -nostdlib++ option to make Chromium happy
+Patch47:	https://reviews.llvm.org/file/data/on63rojo56oivnvuxzqq/PHID-FILE-a3ygo4plbj2co2jwe3n2/D35780.diff
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
@@ -843,6 +845,9 @@ fi
 
 %patch45 -p1 -b .crt586~
 %patch46 -p1 -b .soname~
+cd tools/clang
+%patch47 -p0 -b .nostdlib++~
+cd ../..
 
 %patch48 -p1 -b .mcount~
 %if %{with default_compilerrt}
