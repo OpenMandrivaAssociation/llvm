@@ -1,6 +1,6 @@
---- llvm-4.0.1.src/include/llvm/Support/Compiler.h.gcc71~	2016-10-23 21:39:16.000000000 +0200
-+++ llvm-4.0.1.src/include/llvm/Support/Compiler.h	2017-06-15 17:54:50.944839544 +0200
-@@ -308,7 +308,7 @@
+--- llvm-6.0.0.src/include/llvm/Support/Compiler.h.gcc71~	2017-10-15 16:32:27.000000000 +0200
++++ llvm-6.0.0.src/include/llvm/Support/Compiler.h	2017-12-08 22:36:58.772052117 +0100
+@@ -304,7 +304,7 @@
  
  /// \macro LLVM_ASSUME_ALIGNED
  /// \brief Returns a pointer with an assumed alignment.
@@ -9,9 +9,9 @@
  # define LLVM_ASSUME_ALIGNED(p, a) __builtin_assume_aligned(p, a)
  #elif defined(LLVM_BUILTIN_UNREACHABLE)
  // As of today, clang does not support __builtin_assume_aligned.
---- llvm-4.0.1.src/tools/clang/lib/Driver/Driver.cpp.gcc71~	2017-01-05 06:20:27.000000000 +0100
-+++ llvm-4.0.1.src/tools/clang/lib/Driver/Driver.cpp	2017-06-15 17:54:50.945839520 +0200
-@@ -1113,7 +1113,7 @@ bool Driver::HandleImmediateArgs(const C
+--- llvm-6.0.0.src/tools/clang/lib/Driver/Driver.cpp.gcc71~	2017-11-20 19:49:14.000000000 +0100
++++ llvm-6.0.0.src/tools/clang/lib/Driver/Driver.cpp	2017-12-08 22:36:58.772052117 +0100
+@@ -1223,7 +1223,7 @@ bool Driver::HandleImmediateArgs(const C
      // If we want to return a more correct answer some day, then we should
      // introduce a non-pedantically GCC compatible mode to Clang in which we
      // provide sensible definitions for -dumpversion, __VERSION__, etc.
@@ -20,72 +20,9 @@
      return false;
    }
  
---- llvm-4.0.1.src/tools/clang/lib/Frontend/InitPreprocessor.cpp.gcc71~	2017-02-24 19:46:08.000000000 +0100
-+++ llvm-4.0.1.src/tools/clang/lib/Frontend/InitPreprocessor.cpp	2017-06-15 17:58:33.683614030 +0200
-@@ -551,12 +551,13 @@ static void InitializePredefinedMacros(c
-                       "\"" CLANG_VERSION_STRING " "
-                       + getClangFullRepositoryVersion() + "\"");
-   if (!LangOpts.MSVCCompat) {
--    // Currently claim to be compatible with GCC 4.2.1-5621, but only if we're
-+    // Currently claim to be compatible with GCC 7.2.1, but only if we're
-     // not compiling for MSVC compatibility
--    Builder.defineMacro("__GNUC_MINOR__", "2");
-+    Builder.defineMacro("__GNUC_MINOR__", "2");
-     Builder.defineMacro("__GNUC_PATCHLEVEL__", "1");
--    Builder.defineMacro("__GNUC__", "4");
--    Builder.defineMacro("__GXX_ABI_VERSION", "1002");
-+    Builder.defineMacro("__GNUC__", "7");
-+    if (LangOpts.CPlusPlus)
-+      Builder.defineMacro("__GXX_ABI_VERSION", "1011");
-   }
- 
-   // Define macros for the C11 / C++11 memory orderings
-@@ -571,9 +572,9 @@ static void InitializePredefinedMacros(c
-   Builder.defineMacro("__PRAGMA_REDEFINE_EXTNAME", "1");
- 
-   // As sad as it is, enough software depends on the __VERSION__ for version
--  // checks that it is necessary to report 4.2.1 (the base GCC version we claim
-+  // checks that it is necessary to report 7.2.1 (the base GCC version we claim
-   // compatibility with) first.
--  Builder.defineMacro("__VERSION__", "\"4.2.1 Compatible " + 
-+  Builder.defineMacro("__VERSION__", "\"7.2.1 Compatible " + 
-                       Twine(getClangFullCPPVersion()) + "\"");
- 
-   // Initialize language-specific preprocessor defines.
-@@ -656,7 +657,7 @@ static void InitializePredefinedMacros(c
-     Builder.defineMacro("__DEPRECATED");
- 
-   if (!LangOpts.MSVCCompat && LangOpts.CPlusPlus) {
--    Builder.defineMacro("__GNUG__", "4");
-+    Builder.defineMacro("__GNUG__", "7");
-     Builder.defineMacro("__GXX_WEAK__");
-     Builder.defineMacro("__private_extern__", "extern");
-   }
---- llvm-4.0.1.src/tools/clang/test/Driver/immediate-options.c.gcc71~	2013-07-18 22:29:38.000000000 +0200
-+++ llvm-4.0.1.src/tools/clang/test/Driver/immediate-options.c	2017-06-15 17:54:50.945839520 +0200
-@@ -7,7 +7,7 @@
- // HELP-HIDDEN: driver-mode
- 
- // RUN: %clang -dumpversion | FileCheck %s -check-prefix=DUMPVERSION
--// DUMPVERSION: 4.2.1
-+// DUMPVERSION: 7.2.1
- 
- // RUN: %clang -print-search-dirs | FileCheck %s -check-prefix=PRINT-SEARCH-DIRS
- // PRINT-SEARCH-DIRS: programs: ={{.*}}
---- llvm-4.0.1.src/tools/clang/test/Preprocessor/init.c.gcc71~	2017-04-28 02:36:13.000000000 +0200
-+++ llvm-4.0.1.src/tools/clang/test/Preprocessor/init.c	2017-06-15 17:54:50.947839473 +0200
-@@ -7265,7 +7265,7 @@
- // SPARC:#define __UINT_LEAST8_MAX__ 255
- // SPARC:#define __UINT_LEAST8_TYPE__ unsigned char
- // SPARC:#define __USER_LABEL_PREFIX__
--// SPARC:#define __VERSION__ "4.2.1 Compatible{{.*}}
-+// SPARC:#define __VERSION__ "7.2.1 Compatible{{.*}}
- // SPARC:#define __WCHAR_MAX__ 2147483647
- // SPARC:#define __WCHAR_TYPE__ int
- // SPARC:#define __WCHAR_WIDTH__ 32
---- llvm-5.0.1.src/tools/clang/lib/Frontend/CompilerInvocation.cpp.omv~	2017-10-09 05:21:37.042037433 +0200
-+++ llvm-5.0.1.src/tools/clang/lib/Frontend/CompilerInvocation.cpp	2017-10-09 05:22:19.190062881 +0200
-@@ -1693,8 +1693,8 @@ void CompilerInvocation::setLangDefaults
+--- llvm-6.0.0.src/tools/clang/lib/Frontend/CompilerInvocation.cpp.gcc71~	2017-12-08 00:04:11.000000000 +0100
++++ llvm-6.0.0.src/tools/clang/lib/Frontend/CompilerInvocation.cpp	2017-12-08 22:36:58.774052120 +0100
+@@ -1732,8 +1732,8 @@ void CompilerInvocation::setLangDefaults
        // The PS4 uses C++11 as the default C++ standard.
        if (T.isPS4())
          LangStd = LangStandard::lang_gnucxx11;
@@ -96,3 +33,65 @@
        break;
      case InputKind::RenderScript:
        LangStd = LangStandard::lang_c99;
+--- llvm-6.0.0.src/tools/clang/lib/Frontend/InitPreprocessor.cpp.gcc71~	2017-12-08 00:04:11.000000000 +0100
++++ llvm-6.0.0.src/tools/clang/lib/Frontend/InitPreprocessor.cpp	2017-12-08 22:37:39.147134575 +0100
+@@ -565,12 +565,13 @@ static void InitializePredefinedMacros(c
+                       "\"" CLANG_VERSION_STRING " "
+                       + getClangFullRepositoryVersion() + "\"");
+   if (!LangOpts.MSVCCompat) {
+-    // Currently claim to be compatible with GCC 4.2.1-5621, but only if we're
++    // Currently claim to be compatible with GCC 7.2.1, but only if we're
+     // not compiling for MSVC compatibility
+     Builder.defineMacro("__GNUC_MINOR__", "2");
+     Builder.defineMacro("__GNUC_PATCHLEVEL__", "1");
+-    Builder.defineMacro("__GNUC__", "4");
+-    Builder.defineMacro("__GXX_ABI_VERSION", "1002");
++    Builder.defineMacro("__GNUC__", "7");
++    if (LangOpts.CPlusPlus)
++      Builder.defineMacro("__GXX_ABI_VERSION", "1011");
+   }
+ 
+   // Define macros for the C11 / C++11 memory orderings
+@@ -599,9 +600,9 @@ static void InitializePredefinedMacros(c
+   Builder.defineMacro("__PRAGMA_REDEFINE_EXTNAME", "1");
+ 
+   // As sad as it is, enough software depends on the __VERSION__ for version
+-  // checks that it is necessary to report 4.2.1 (the base GCC version we claim
++  // checks that it is necessary to report 7.2.1 (the base GCC version we claim
+   // compatibility with) first.
+-  Builder.defineMacro("__VERSION__", "\"4.2.1 Compatible " +
++  Builder.defineMacro("__VERSION__", "\"7.2.1 Compatible " +
+                       Twine(getClangFullCPPVersion()) + "\"");
+ 
+   // Initialize language-specific preprocessor defines.
+@@ -692,7 +693,7 @@ static void InitializePredefinedMacros(c
+     Builder.defineMacro("__DEPRECATED");
+ 
+   if (!LangOpts.MSVCCompat && LangOpts.CPlusPlus) {
+-    Builder.defineMacro("__GNUG__", "4");
++    Builder.defineMacro("__GNUG__", "7");
+     Builder.defineMacro("__GXX_WEAK__");
+     Builder.defineMacro("__private_extern__", "extern");
+   }
+--- llvm-6.0.0.src/tools/clang/test/Driver/immediate-options.c.gcc71~	2017-04-04 23:46:50.000000000 +0200
++++ llvm-6.0.0.src/tools/clang/test/Driver/immediate-options.c	2017-12-08 22:36:58.773052119 +0100
+@@ -7,7 +7,7 @@
+ // HELP-HIDDEN: driver-mode
+ 
+ // RUN: %clang -dumpversion | FileCheck %s -check-prefix=DUMPVERSION
+-// DUMPVERSION: 4.2.1
++// DUMPVERSION: 7.2.1
+ 
+ // RUN: %clang -print-search-dirs | FileCheck %s -check-prefix=PRINT-SEARCH-DIRS
+ // PRINT-SEARCH-DIRS: programs: ={{.*}}
+--- llvm-6.0.0.src/tools/clang/test/Preprocessor/init.c.gcc71~	2017-12-05 10:13:18.000000000 +0100
++++ llvm-6.0.0.src/tools/clang/test/Preprocessor/init.c	2017-12-08 22:36:58.773052119 +0100
+@@ -7569,7 +7569,7 @@
+ // SPARC:#define __UINT_LEAST8_MAX__ 255
+ // SPARC:#define __UINT_LEAST8_TYPE__ unsigned char
+ // SPARC:#define __USER_LABEL_PREFIX__
+-// SPARC:#define __VERSION__ "4.2.1 Compatible{{.*}}
++// SPARC:#define __VERSION__ "7.2.1 Compatible{{.*}}
+ // SPARC:#define __WCHAR_MAX__ 2147483647
+ // SPARC:#define __WCHAR_TYPE__ int
+ // SPARC:#define __WCHAR_WIDTH__ 32

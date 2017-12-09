@@ -50,12 +50,10 @@
 %bcond_with lldb
 %endif
 %bcond_without openmp
-# FIXME Currently llgo works only on x86_64, keep trying elsewhere
-%ifarch x86_64
-%bcond_without llgo
-%else
+# FIXME Currently llgo fails to build on anything but x86_64,
+# and triggers https://sourceware.org/bugzilla/show_bug.cgi?id=17729
+# on x86_64
 %bcond_with llgo
-%endif
 %bcond_without lld
 
 # Prefer compiler-rt over libgcc
@@ -69,8 +67,8 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	5.0.1
-Release:	0.319287.1
+Version:	6.0.0
+Release:	0.320194.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -117,7 +115,6 @@ Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
 Patch15:	libunwind-3.8-aarch64-gas.patch
 Patch16:	clang-rename-fix-linkage.patch
 Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
-Patch19:	llvm-strings-linkage.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
 Patch21:	llvm-5.0-MuslX32.patch
@@ -133,12 +130,8 @@ Patch41:	llvm-3.7-bootstrap.patch
 # (that is used only to find LLVMgold.so)
 # https://llvm.org/bugs/show_bug.cgi?id=23793
 Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
-# Find Compiler-RT for i[45]86
-Patch45:	clang-3.8-compiler-rt-i586.patch
 # Fix library versioning
 Patch46:	llvm-4.0.1-libomp-versioning.patch
-# Add -nostdlib++ option to make Chromium happy
-Patch47:	https://reviews.llvm.org/file/data/on63rojo56oivnvuxzqq/PHID-FILE-a3ygo4plbj2co2jwe3n2/D35780.diff
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
@@ -147,11 +140,9 @@ Patch50:	llvm-4.0-default-compiler-rt.patch
 # Show more information when aborting because posix_spawn failed
 # (happens in qemu aarch64 chroots)
 Patch51:	llvm-4.0.1-debug-posix_spawn.patch
-Patch52:	llvm-5.0.1-compiler-rt-try-cross.patch
 # llgo bits
 Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
-Patch62:	llvm-5.0-workaround-for-doc-build-failures.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -208,6 +199,7 @@ Requires:	%{ompname} = %{EVRD}
 Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
 Obsoletes: %{mklibname LLVMRISCVDesc 5} < %{EVRD}
 Obsoletes: %{mklibname LLVMRISCVInfo 5} < %{EVRD}
+Obsoletes: %{mklibname lldConfig 5} < %{EVRD}
 
 %description
 LVM is a robust system, particularly well suited for developing new mid-level
@@ -233,6 +225,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-bcanalyzer
 %{_bindir}/llvm-cat
 %{_bindir}/llvm-c-test
+%{_bindir}/llvm-cfi-verify
 %{_bindir}/llvm-cvtres
 %{_bindir}/llvm-cxxfilt
 %{_bindir}/llvm-diff
@@ -247,8 +240,10 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-mc
 %{_bindir}/llvm-nm
 %{_bindir}/llvm-objdump
+%{_bindir}/llvm-objcopy
 %{_bindir}/llvm-pdbutil
 %{_bindir}/llvm-ranlib
+%{_bindir}/llvm-rc
 %{_bindir}/llvm-readobj
 %{_bindir}/llvm-split
 %{_bindir}/llvm-cov
@@ -276,6 +271,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/sanstats
 %{_bindir}/verify-uselistorder
 %{_bindir}/obj2yaml
+%{_bindir}/wasm-ld
 %{_bindir}/yaml2obj
 %{_bindir}/yaml-bench
 %{_bindir}/not
@@ -288,6 +284,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_datadir}/scan-view
 %{_mandir}/man1/FileCheck.1*
 %{_mandir}/man1/bugpoint.1*
+%{_mandir}/man1/dsymutil.1*
 %{_mandir}/man1/lit.1*
 %{_mandir}/man1/llc.1*
 %{_mandir}/man1/lli.1*
@@ -301,12 +298,12 @@ for effective implementation, proper tail calls or garbage collection.
 %define major %(echo %{version} |cut -d. -f1-2)  
 %define major1 %(echo %{version} |cut -d. -f1)
 
-%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiAsmPrinter LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols
+%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiAsmPrinter LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols
 
-%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangDaemon clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyAndroidModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingCore clangToolingRefactor clangIncludeFixer clangTidyBoostModule clangTidyPlugin
+%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangCrossTU clangDaemon clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyAndroidModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingASTDiff clangToolingCore clangToolingRefactor clangIncludeFixer clangTidyBoostModule clangTidyPlugin
 
 %if %{with lld}
-%define LLDLibs lldCOFF lldConfig lldCore lldDriver lldELF lldMachO lldReaderWriter lldYAML
+%define LLDLibs lldCOFF lldCommon lldCore lldDriver lldELF lldMachO lldMinGW lldReaderWriter lldWasm lldYAML
 %else
 %define LLDLibs %{nil}
 %endif
@@ -722,6 +719,9 @@ Obsoletes:	%{mklibname lldHexagonELFTarget 3} < %{EVRD}
 Obsoletes:	%{mklibname lldMipsELFTarget 3} < %{EVRD}
 Obsoletes:	%{mklibname lldX86ELFTarget 3} < %{EVRD}
 Obsoletes:	%{mklibname lldX86_64ELFTarget 3} < %{EVRD}
+# Stuff from lld 5.0 that has been removed in 6.0
+Obsoletes:	%{mklibname lldELF 5} < %{EVRD}
+Obsoletes:	%{mklibname lldConfig 5} < %{EVRD}
 
 %description -n lld
 The linker from the LLVM project.
@@ -729,6 +729,7 @@ The linker from the LLVM project.
 %files -n lld
 %doc %{_docdir}/lld
 %{_bindir}/ld.lld
+%{_bindir}/ld64.lld
 %{_bindir}/lld
 %{_bindir}/lld-link
 %{_bindir}/llvm-dlltool
@@ -830,7 +831,6 @@ fi
 %if %{with lld}
 %patch17 -p1 -b .lldcompile~
 %endif
-%patch19 -p1 -b .stringsLinkage~
 
 %patch20 -p1 -b .musl1~
 %patch21 -p1 -b .musl2~
@@ -844,25 +844,18 @@ fi
 %patch41 -p1 -b .bootstrap~
 %endif
 
-%patch45 -p1 -b .crt586~
 %patch46 -p1 -b .soname~
-cd tools/clang
-%patch47 -p0 -b .nostdlib++~
-cd ../..
 
 %patch48 -p1 -b .mcount~
 %if %{with default_compilerrt}
 %patch50 -p1 -b .compilerrt~
 %endif
 %patch51 -p1 -b .posix_spawn~
-%patch52 -p1 -b .crt686~
 
 %if %{with llgo}
 %patch60 -p1 -b .llgoCompile~
 %patch61 -p1 -b .llgoCompilerFlags~
 %endif
-
-%patch62 -p1 -b .docbuild~
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done

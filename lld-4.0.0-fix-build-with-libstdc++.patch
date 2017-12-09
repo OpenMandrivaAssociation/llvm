@@ -1,5 +1,5 @@
---- llvm-5.0.0.src/tools/lld/ELF/CMakeLists.txt.lldcompile~	2017-06-17 13:58:16.615078449 +0200
-+++ llvm-5.0.0.src/tools/lld/ELF/CMakeLists.txt	2017-06-17 13:58:58.537104895 +0200
+--- llvm-6.0.0.src/tools/lld/ELF/CMakeLists.txt.lldcompile~	2017-12-08 22:42:11.494608930 +0100
++++ llvm-6.0.0.src/tools/lld/ELF/CMakeLists.txt	2017-12-08 22:42:48.027676457 +0100
 @@ -6,6 +6,9 @@ if(NOT LLD_BUILT_STANDALONE)
    set(tablegen_deps intrinsics_gen)
  endif()
@@ -8,5 +8,5 @@
 +add_definitions(-std=c++11)
 +
  add_lld_library(lldELF
+   AArch64ErrataFix.cpp
    Arch/AArch64.cpp
-   Arch/AMDGPU.cpp

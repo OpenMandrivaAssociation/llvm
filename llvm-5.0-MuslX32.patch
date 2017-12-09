@@ -1,6 +1,6 @@
---- llvm-5.0.0.src/include/llvm/ADT/Triple.h.omv~	2017-06-16 13:32:19.151272344 +0200
-+++ llvm-5.0.0.src/include/llvm/ADT/Triple.h	2017-06-16 13:32:49.270569697 +0200
-@@ -194,6 +194,7 @@ public:
+--- llvm-6.0.0.src/include/llvm/ADT/Triple.h.musl2~	2017-11-14 01:49:16.000000000 +0100
++++ llvm-6.0.0.src/include/llvm/ADT/Triple.h	2017-12-08 22:44:29.881851684 +0100
+@@ -198,6 +198,7 @@ public:
      Musl,
      MuslEABI,
      MuslEABIHF,
@@ -8,7 +8,7 @@
  
      MSVC,
      Itanium,
-@@ -625,7 +626,8 @@ public:
+@@ -637,7 +638,8 @@ public:
    bool isMusl() const {
      return getEnvironment() == Triple::Musl ||
             getEnvironment() == Triple::MuslEABI ||
@@ -18,9 +18,9 @@
    }
  
    /// Tests whether the target is NVPTX (32- or 64-bit).
---- llvm-5.0.0.src/lib/Support/Triple.cpp.omv~	2017-06-16 13:36:15.896795140 +0200
-+++ llvm-5.0.0.src/lib/Support/Triple.cpp	2017-06-16 13:37:11.605521014 +0200
-@@ -224,6 +224,7 @@ StringRef Triple::getEnvironmentTypeName
+--- llvm-6.0.0.src/lib/Support/Triple.cpp.musl2~	2017-10-23 23:51:50.000000000 +0200
++++ llvm-6.0.0.src/lib/Support/Triple.cpp	2017-12-08 22:44:29.882851685 +0100
+@@ -229,6 +229,7 @@ StringRef Triple::getEnvironmentTypeName
    case Musl: return "musl";
    case MuslEABI: return "musleabi";
    case MuslEABIHF: return "musleabihf";
@@ -28,7 +28,7 @@
    case MSVC: return "msvc";
    case Itanium: return "itanium";
    case Cygnus: return "cygnus";
-@@ -502,6 +503,7 @@ static Triple::EnvironmentType parseEnvi
+@@ -519,6 +520,7 @@ static Triple::EnvironmentType parseEnvi
      .StartsWith("android", Triple::Android)
      .StartsWith("musleabihf", Triple::MuslEABIHF)
      .StartsWith("musleabi", Triple::MuslEABI)
@@ -36,9 +36,9 @@
      .StartsWith("musl", Triple::Musl)
      .StartsWith("msvc", Triple::MSVC)
      .StartsWith("itanium", Triple::Itanium)
---- llvm-5.0.0.src/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp.omv~	2017-06-16 13:34:13.850596549 +0200
-+++ llvm-5.0.0.src/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp	2017-06-16 13:34:28.415256773 +0200
-@@ -875,7 +875,7 @@ MCAsmBackend *llvm::createX86_64AsmBacke
+--- llvm-6.0.0.src/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp.musl2~	2017-11-13 09:17:30.000000000 +0100
++++ llvm-6.0.0.src/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp	2017-12-08 22:44:29.882851685 +0100
+@@ -882,7 +882,7 @@ MCAsmBackend *llvm::createX86_64AsmBacke
  
    uint8_t OSABI = MCELFObjectTargetWriter::getOSABI(TheTriple.getOS());
  
@@ -47,8 +47,8 @@
      return new ELFX86_X32AsmBackend(T, OSABI, CPU);
    return new ELFX86_64AsmBackend(T, OSABI, CPU);
  }
---- llvm-5.0.0.src/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp.omv~	2017-06-16 13:34:37.793038000 +0200
-+++ llvm-5.0.0.src/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp	2017-06-16 13:35:00.985504661 +0200
+--- llvm-6.0.0.src/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp.musl2~	2017-12-01 01:53:10.000000000 +0100
++++ llvm-6.0.0.src/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp	2017-12-08 22:44:29.882851685 +0100
 @@ -87,7 +87,7 @@ void X86ELFMCAsmInfo::anchor() { }
  
  X86ELFMCAsmInfo::X86ELFMCAsmInfo(const Triple &T) {
@@ -58,8 +58,8 @@
  
    // For ELF, x86-64 pointer size depends on the ABI.
    // For x86-64 without the x32 ABI, pointer size is 8. For x86 and for x86-64
---- llvm-5.0.0.src/lib/Target/X86/X86RegisterInfo.cpp.omv~	2017-06-16 13:35:47.334447492 +0200
-+++ llvm-5.0.0.src/lib/Target/X86/X86RegisterInfo.cpp	2017-06-16 13:36:07.299991555 +0200
+--- llvm-6.0.0.src/lib/Target/X86/X86RegisterInfo.cpp.musl2~	2017-11-26 14:02:45.000000000 +0100
++++ llvm-6.0.0.src/lib/Target/X86/X86RegisterInfo.cpp	2017-12-08 22:44:29.882851685 +0100
 @@ -66,7 +66,7 @@ X86RegisterInfo::X86RegisterInfo(const T
      // This matches the simplified 32-bit pointer code in the data layout
      // computation.
@@ -69,9 +69,9 @@
      StackPtr = Use64BitReg ? X86::RSP : X86::ESP;
      FramePtr = Use64BitReg ? X86::RBP : X86::EBP;
      BasePtr = Use64BitReg ? X86::RBX : X86::EBX;
---- llvm-5.0.0.src/lib/Target/X86/X86Subtarget.h.omv~	2017-06-16 13:33:06.174175357 +0200
-+++ llvm-5.0.0.src/lib/Target/X86/X86Subtarget.h	2017-06-16 13:33:59.544930282 +0200
-@@ -410,12 +410,14 @@ public:
+--- llvm-6.0.0.src/lib/Target/X86/X86Subtarget.h.musl2~	2017-11-26 14:02:45.000000000 +0100
++++ llvm-6.0.0.src/lib/Target/X86/X86Subtarget.h	2017-12-08 22:44:29.882851685 +0100
+@@ -452,12 +452,14 @@ public:
    /// Is this x86_64 with the ILP32 programming model (x32 ABI)?
    bool isTarget64BitILP32() const {
      return In64BitMode && (TargetTriple.getEnvironment() == Triple::GNUX32 ||
@@ -86,9 +86,9 @@
                             !TargetTriple.isOSNaCl());
    }
  
---- llvm-5.0.0.src/lib/Target/X86/X86TargetMachine.cpp.omv~	2017-06-16 13:35:17.051138427 +0200
-+++ llvm-5.0.0.src/lib/Target/X86/X86TargetMachine.cpp	2017-06-16 13:35:38.363652246 +0200
-@@ -109,7 +109,7 @@ static std::string computeDataLayout(con
+--- llvm-6.0.0.src/lib/Target/X86/X86TargetMachine.cpp.musl2~	2017-11-17 02:07:10.000000000 +0100
++++ llvm-6.0.0.src/lib/Target/X86/X86TargetMachine.cpp	2017-12-08 22:44:29.882851685 +0100
+@@ -113,7 +113,7 @@ static std::string computeDataLayout(con
    Ret += DataLayout::getManglingComponent(TT);
    // X86 and x32 have 32 bit pointers.
    if ((TT.isArch64Bit() &&
@@ -97,20 +97,9 @@
        !TT.isArch64Bit())
      Ret += "-p:32:32";
  
---- llvm-5.0.0.src/tools/clang/lib/Basic/Targets.cpp.omv~	2017-06-16 13:42:49.913744948 +0200
-+++ llvm-5.0.0.src/tools/clang/lib/Basic/Targets.cpp	2017-06-16 13:43:08.406318437 +0200
-@@ -4783,7 +4783,7 @@ class X86_64TargetInfo : public X86Targe
- public:
-   X86_64TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-       : X86TargetInfo(Triple, Opts) {
--    const bool IsX32 = getTriple().getEnvironment() == llvm::Triple::GNUX32;
-+    const bool IsX32 = (getTriple().getEnvironment() == llvm::Triple::GNUX32) || (getTriple().getEnvironment() == llvm::Triple::MuslX32);
-     bool IsWinCOFF =
-         getTriple().isOSWindows() && getTriple().isOSBinFormatCOFF();
-     LongWidth = LongAlign = PointerWidth = PointerAlign = IsX32 ? 32 : 64;
---- llvm-5.0.0.src/tools/clang/lib/Driver/Driver.cpp.omv~	2017-06-16 13:37:38.012916286 +0200
-+++ llvm-5.0.0.src/tools/clang/lib/Driver/Driver.cpp	2017-06-16 13:40:04.278559188 +0200
-@@ -397,14 +397,21 @@ static llvm::Triple computeTargetTriple(
+--- llvm-6.0.0.src/tools/clang/lib/Driver/Driver.cpp.musl2~	2017-12-08 22:44:29.863851664 +0100
++++ llvm-6.0.0.src/tools/clang/lib/Driver/Driver.cpp	2017-12-08 22:44:29.882851685 +0100
+@@ -412,14 +412,21 @@ static llvm::Triple computeTargetTriple(
        AT = Target.get64BitArchVariant().getArch();
        if (Target.getEnvironment() == llvm::Triple::GNUX32)
          Target.setEnvironment(llvm::Triple::GNU);
@@ -133,9 +122,9 @@
      } else if (A->getOption().matches(options::OPT_m16) &&
                 Target.get32BitArchVariant().getArch() == llvm::Triple::x86) {
        AT = llvm::Triple::x86;
---- llvm-5.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp.omv~	2017-06-16 13:43:12.482224414 +0200
-+++ llvm-5.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp	2017-06-16 13:44:21.839623664 +0200
-@@ -397,7 +397,7 @@ static const char *getLDMOption(const ll
+--- llvm-6.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp.musl2~	2017-12-08 22:44:29.873851675 +0100
++++ llvm-6.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp	2017-12-08 22:44:29.883851686 +0100
+@@ -294,7 +294,7 @@ static const char *getLDMOption(const ll
    case llvm::Triple::systemz:
      return "elf64_s390";
    case llvm::Triple::x86_64:
@@ -144,7 +133,7 @@
        return "elf32_x86_64";
      return "elf_x86_64";
    default:
-@@ -673,7 +673,7 @@ void tools::gnutools::Assembler::Constru
+@@ -600,7 +600,7 @@ void tools::gnutools::Assembler::Constru
      CmdArgs.push_back("--32");
      break;
    case llvm::Triple::x86_64:
@@ -153,7 +142,7 @@
        CmdArgs.push_back("--x32");
      else
        CmdArgs.push_back("--64");
-@@ -1517,7 +1517,7 @@ static bool findBiarchMultilibs(const Dr
+@@ -1443,7 +1443,7 @@ static bool findBiarchMultilibs(const Dr
    // Determine default multilib from: 32, 64, x32
    // Also handle cases such as 64 on 32, 32 on 64, etc.
    enum { UNKNOWN, WANT32, WANT64, WANTX32 } Want = UNKNOWN;
@@ -162,7 +151,7 @@
    if (TargetTriple.isArch32Bit() && !NonExistent(Alt32))
      Want = WANT64;
    else if (TargetTriple.isArch64Bit() && IsX32 && !NonExistent(Altx32))
-@@ -1950,7 +1950,7 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1876,7 +1876,7 @@ bool Generic_GCC::GCCInstallationDetecto
      TripleAliases.append(begin(X86_64Triples), end(X86_64Triples));
      // x32 is always available when x86_64 is available, so adding it as
      // secondary arch with x86_64 triples
@@ -171,8 +160,8 @@
        BiarchLibDirs.append(begin(X32LibDirs), end(X32LibDirs));
        BiarchTripleAliases.append(begin(X86_64Triples), end(X86_64Triples));
      } else {
---- llvm-5.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp.omv~	2017-06-16 13:40:16.932268222 +0200
-+++ llvm-5.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp	2017-06-16 13:42:32.710141623 +0200
+--- llvm-6.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp.musl2~	2017-12-08 22:44:29.851851650 +0100
++++ llvm-6.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp	2017-12-08 22:44:29.883851686 +0100
 @@ -81,6 +81,9 @@ static std::string getMultiarchTriple(co
      if (TargetEnvironment != llvm::Triple::GNUX32 &&
          D.getVFS().exists(SysRoot + "/lib/x86_64-linux-gnu"))
@@ -183,7 +172,7 @@
      break;
    case llvm::Triple::aarch64:
      if (D.getVFS().exists(SysRoot + "/lib/aarch64-linux-gnu"))
-@@ -529,7 +532,7 @@ std::string Linux::getDynamicLinker(cons
+@@ -534,7 +537,7 @@ std::string Linux::getDynamicLinker(cons
      Loader = "ld-linux.so.2";
      break;
    case llvm::Triple::x86_64: {

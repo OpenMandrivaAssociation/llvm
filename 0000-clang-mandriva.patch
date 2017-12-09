@@ -1,28 +1,28 @@
---- clang/include/clang/Driver/Distro.h.omv~	2017-06-15 19:32:32.386755497 +0200
-+++ clang/include/clang/Driver/Distro.h	2017-06-15 22:08:08.544748195 +0200
-@@ -58,6 +58,9 @@ public:
-     UbuntuYakkety,
+--- clang/include/clang/Driver/Distro.h.mandriva~	2017-12-08 22:31:54.434381617 +0100
++++ clang/include/clang/Driver/Distro.h	2017-12-08 22:33:57.650714858 +0100
+@@ -61,6 +61,9 @@ public:
      UbuntuZesty,
      UbuntuArtful,
+     UbuntuBionic,
 +    Mandriva,
 +    OpenMandriva,
 +    ROSA,
      UnknownDistro
    };
  
-@@ -114,6 +117,10 @@ public:
-     return DistroVal >= UbuntuHardy && DistroVal <= UbuntuArtful;
+@@ -117,6 +120,10 @@ public:
+     return DistroVal >= UbuntuHardy && DistroVal <= UbuntuBionic;
    }
  
 +  bool IsMandriva() const {
 +    return DistroVal >= Mandriva && DistroVal <= ROSA;
 +  }
 +
-   /// @}
- };
- 
---- clang/lib/Driver/Distro.cpp.omv~	2017-05-04 14:46:38.000000000 +0200
-+++ clang/lib/Driver/Distro.cpp	2017-06-15 22:07:25.691746515 +0200
+   bool IsAlpineLinux() const {
+     return DistroVal == AlpineLinux;
+   }
+--- clang/lib/Driver/Distro.cpp.mandriva~	2017-11-19 01:08:12.000000000 +0100
++++ clang/lib/Driver/Distro.cpp	2017-12-08 22:35:01.913827761 +0100
 @@ -25,7 +25,7 @@ static Distro::DistroType DetectDistro(v
      SmallVector<StringRef, 16> Lines;
      Data.split(Lines, "\n");
@@ -32,9 +32,9 @@
        if (Version == Distro::UnknownDistro && Line.startswith("DISTRIB_CODENAME="))
          Version = llvm::StringSwitch<Distro::DistroType>(Line.substr(17))
                        .Case("hardy", Distro::UbuntuHardy)
-@@ -49,10 +49,27 @@ static Distro::DistroType DetectDistro(v
-                       .Case("zesty", Distro::UbuntuZesty)
+@@ -50,10 +50,27 @@ static Distro::DistroType DetectDistro(v
                        .Case("artful", Distro::UbuntuArtful)
+                       .Case("bionic", Distro::UbuntuBionic)
                        .Default(Distro::UnknownDistro);
 +      if (Version == Distro::UnknownDistro && Line.startswith("DISTRIB_ID=MandrivaLinux"))
 +        // It's either Mandriva or a close derivate, will get details
@@ -60,9 +60,9 @@
    File = VFS.getBufferForFile("/etc/redhat-release");
    if (File) {
      StringRef Data = File.get()->getBuffer();
---- clang/lib/Driver/ToolChains/Gnu.cpp.omv~	2017-06-15 21:46:51.005002456 +0200
-+++ clang/lib/Driver/ToolChains/Gnu.cpp	2017-06-15 21:56:08.429428126 +0200
-@@ -1783,7 +1783,9 @@ bool Generic_GCC::GCCInstallationDetecto
+--- clang/lib/Driver/ToolChains/Gnu.cpp.mandriva~	2017-11-29 17:42:44.000000000 +0100
++++ clang/lib/Driver/ToolChains/Gnu.cpp	2017-12-08 22:31:54.434381617 +0100
+@@ -1709,7 +1709,9 @@ bool Generic_GCC::GCCInstallationDetecto
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
        "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-linux-android",
@@ -73,7 +73,7 @@
    static const char *const AArch64beLibDirs[] = {"/lib"};
    static const char *const AArch64beTriples[] = {"aarch64_be-none-linux-gnu",
                                                   "aarch64_be-linux-gnu"};
-@@ -1794,7 +1796,24 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1720,7 +1722,24 @@ bool Generic_GCC::GCCInstallationDetecto
    static const char *const ARMHFTriples[] = {"arm-linux-gnueabihf",
                                               "armv7hl-redhat-linux-gnueabi",
                                               "armv6hl-suse-linux-gnueabi",
@@ -99,7 +99,7 @@
    static const char *const ARMebLibDirs[] = {"/lib"};
    static const char *const ARMebTriples[] = {"armeb-linux-gnueabi",
                                               "armeb-linux-androideabi"};
-@@ -1808,7 +1827,12 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1734,7 +1753,12 @@ bool Generic_GCC::GCCInstallationDetecto
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-linux-gnu",
        "x86_64-slackware-linux", "x86_64-linux-android",
@@ -113,7 +113,7 @@
    static const char *const X32LibDirs[] = {"/libx32"};
    static const char *const X86LibDirs[] = {"/lib32", "/lib"};
    static const char *const X86Triples[] = {
-@@ -1816,7 +1840,11 @@ bool Generic_GCC::GCCInstallationDetecto
+@@ -1742,7 +1766,11 @@ bool Generic_GCC::GCCInstallationDetecto
        "i386-linux-gnu",       "i386-redhat-linux6E",   "i686-redhat-linux",
        "i586-redhat-linux",    "i386-redhat-linux",     "i586-suse-linux",
        "i486-slackware-linux", "i686-montavista-linux", "i686-linux-android",
@@ -126,8 +126,8 @@
  
    static const char *const MIPSLibDirs[] = {"/lib"};
    static const char *const MIPSTriples[] = {"mips-linux-gnu", "mips-mti-linux",
---- clang/lib/Driver/ToolChains/Linux.cpp.omv~	2017-06-15 21:56:24.260064811 +0200
-+++ clang/lib/Driver/ToolChains/Linux.cpp	2017-06-15 22:02:24.488748142 +0200
+--- clang/lib/Driver/ToolChains/Linux.cpp.mandriva~	2017-11-20 22:46:29.000000000 +0100
++++ clang/lib/Driver/ToolChains/Linux.cpp	2017-12-08 22:36:06.761949477 +0100
 @@ -140,7 +140,7 @@ static std::string getMultiarchTriple(co
    return TargetTriple.str();
  }
@@ -158,34 +158,34 @@
      return "libx32";
  
    return Triple.isArch32Bit() ? "lib" : "lib64";
-@@ -210,7 +215,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -215,7 +220,7 @@ Linux::Linux(const Driver &D, const llvm
+     ExtraOpts.push_back("now");
+   }
  
-   Distro Distro(D.getVFS());
- 
--  if (Distro.IsOpenSUSE() || Distro.IsUbuntu()) {
-+  if (Distro.IsOpenSUSE() || Distro.IsUbuntu() || Distro.IsMandriva()) {
+-  if (Distro.IsOpenSUSE() || Distro.IsUbuntu() || Distro.IsAlpineLinux()) {
++  if (Distro.IsOpenSUSE() || Distro.IsUbuntu() || Distro.IsAlpineLinux() || Distro.IsMandriva()) {
      ExtraOpts.push_back("-z");
      ExtraOpts.push_back("relro");
    }
-@@ -232,7 +237,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -237,7 +242,7 @@ Linux::Linux(const Driver &D, const llvm
    // Android loader does not support .gnu.hash.
    // Hexagon linker/loader does not support .gnu.hash
    if (!IsMips && !IsAndroid && !IsHexagon) {
--    if (Distro.IsRedhat() || Distro.IsOpenSUSE() ||
-+    if (Distro.IsRedhat() || Distro.IsOpenSUSE() || Distro.IsMandriva() ||
+-    if (Distro.IsRedhat() || Distro.IsOpenSUSE() || Distro.IsAlpineLinux() ||
++    if (Distro.IsRedhat() || Distro.IsOpenSUSE() || Distro.IsAlpineLinux() || Distro.IsMandriva() ||
          (Distro.IsUbuntu() && Distro >= Distro::UbuntuMaverick))
        ExtraOpts.push_back("--hash-style=gnu");
  
-@@ -248,7 +253,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -253,7 +258,7 @@ Linux::Linux(const Driver &D, const llvm
    ExtraOpts.push_back("--build-id");
  #endif
  
--  if (Distro.IsOpenSUSE())
-+  if (Distro.IsOpenSUSE() || Distro.IsMandriva())
+-  if (IsAndroid || Distro.IsOpenSUSE())
++  if (IsAndroid || Distro.IsOpenSUSE() || Distro.IsMandriva())
      ExtraOpts.push_back("--enable-new-dtags");
  
    // The selection of paths to try here is designed to match the patterns which
-@@ -258,7 +263,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -263,7 +268,7 @@ Linux::Linux(const Driver &D, const llvm
    // to the link paths.
    path_list &Paths = getFilePaths();
  

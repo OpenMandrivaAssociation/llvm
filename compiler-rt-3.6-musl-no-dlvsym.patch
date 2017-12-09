@@ -1,19 +1,11 @@
-diff --git a/projects/compiler-rt/lib/interception/interception_linux.cc b/lib/interception/interception_linux.cc
-index 6e908ac..7fcf2a6 100644
---- a/projects/compiler-rt/lib/interception/interception_linux.cc
-+++ b/projects/compiler-rt/lib/interception/interception_linux.cc
-@@ -21,13 +21,13 @@ namespace __interception {
- bool GetRealFunctionAddress(const char *func_name, uptr *func_addr,
-     uptr real, uptr wrapper) {
-   *func_addr = (uptr)dlsym(RTLD_NEXT, func_name);
+--- llvm-6.0.0.src/projects/compiler-rt/lib/interception/interception_linux.cc.musl4~	2017-12-08 22:47:39.315115330 +0100
++++ llvm-6.0.0.src/projects/compiler-rt/lib/interception/interception_linux.cc	2017-12-08 22:48:36.148211410 +0100
+@@ -41,7 +41,7 @@ bool GetRealFunctionAddress(const char *
    return real == wrapper;
  }
-
--#if !defined(__ANDROID__)  // android does not have dlvsym
-+#if defined(__GLIBC__) // !defined(__ANDROID__)  // android does not have dlvsym
+ 
+-#if !SANITIZER_ANDROID  // android does not have dlvsym
++#if defined(__GLIBC__) // !SANITIZER_ANDROID  // android does not have dlvsym, neither does musl
  void *GetFuncAddrVer(const char *func_name, const char *ver) {
    return dlvsym(RTLD_NEXT, func_name, ver);
  }
- #endif  // !defined(__ANDROID__)
-
- }  // namespace __interception
