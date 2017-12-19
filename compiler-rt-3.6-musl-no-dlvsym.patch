@@ -1,11 +1,13 @@
---- llvm-6.0.0.src/projects/compiler-rt/lib/interception/interception_linux.cc.musl4~	2017-12-08 22:47:39.315115330 +0100
-+++ llvm-6.0.0.src/projects/compiler-rt/lib/interception/interception_linux.cc	2017-12-08 22:48:36.148211410 +0100
-@@ -41,7 +41,7 @@ bool GetRealFunctionAddress(const char *
+--- llvm-6.0.0.src/projects/compiler-rt/lib/interception/interception_linux.cc.musl4~	2017-12-19 23:39:15.696971874 +0100
++++ llvm-6.0.0.src/projects/compiler-rt/lib/interception/interception_linux.cc	2017-12-19 23:40:08.010401008 +0100
+@@ -42,8 +42,8 @@ bool GetRealFunctionAddress(const char *
    return real == wrapper;
  }
  
--#if !SANITIZER_ANDROID  // android does not have dlvsym
-+#if defined(__GLIBC__) // !SANITIZER_ANDROID  // android does not have dlvsym, neither does musl
+-// Android and Solaris do not have dlvsym
+-#if !SANITIZER_ANDROID && !SANITIZER_SOLARIS
++// Android, musl and Solaris do not have dlvsym
++#if defined(__GLIBC__) && !SANITIZER_ANDROID && !SANITIZER_SOLARIS
  void *GetFuncAddrVer(const char *func_name, const char *ver) {
    return dlvsym(RTLD_NEXT, func_name, ver);
  }

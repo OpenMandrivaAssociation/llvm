@@ -20,19 +20,6 @@
      return false;
    }
  
---- llvm-6.0.0.src/tools/clang/lib/Frontend/CompilerInvocation.cpp.gcc71~	2017-12-08 00:04:11.000000000 +0100
-+++ llvm-6.0.0.src/tools/clang/lib/Frontend/CompilerInvocation.cpp	2017-12-08 22:36:58.774052120 +0100
-@@ -1732,8 +1732,8 @@ void CompilerInvocation::setLangDefaults
-       // The PS4 uses C++11 as the default C++ standard.
-       if (T.isPS4())
-         LangStd = LangStandard::lang_gnucxx11;
--      else
--        LangStd = LangStandard::lang_gnucxx98;
-+      else // Let's move on to C++14 -- gcc 7.2 does the same
-+        LangStd = LangStandard::lang_gnucxx14;
-       break;
-     case InputKind::RenderScript:
-       LangStd = LangStandard::lang_c99;
 --- llvm-6.0.0.src/tools/clang/lib/Frontend/InitPreprocessor.cpp.gcc71~	2017-12-08 00:04:11.000000000 +0100
 +++ llvm-6.0.0.src/tools/clang/lib/Frontend/InitPreprocessor.cpp	2017-12-08 22:37:39.147134575 +0100
 @@ -565,12 +565,13 @@ static void InitializePredefinedMacros(c
