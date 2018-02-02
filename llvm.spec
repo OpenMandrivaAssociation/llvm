@@ -68,7 +68,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	6.0.0
-Release:	0.322287.1
+Release:	0.322287.2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -414,7 +414,6 @@ Provides:	devel(libomp)
 This package contains the development files for LLVM.
 
 %files -n %{devname}
-%doc %{_docdir}/llvm
 %{_bindir}/%{name}-config
 %{_includedir}/%{name}
 %{_includedir}/%{name}-c
@@ -488,7 +487,7 @@ Summary:	Documentation for LLVM
 Group:		Books/Computer books
 Requires:	%{name} = %{version}
 BuildArch:	noarch
-Obsoletes:	llvm-doc-devel
+Obsoletes:	llvm-doc-devel < 6.0.0
 
 %description doc
 Documentation for the LLVM compiler infrastructure.
@@ -497,6 +496,7 @@ Documentation for the LLVM compiler infrastructure.
 %doc README.txt
 %doc docs/tutorial
 %doc examples
+%doc %{_docdir}/llvm
 %if %{with apidox}
 %doc docs/doxygen
 %endif
@@ -583,8 +583,6 @@ and Objective C++ front-end for the LLVM compiler. Its tools are built
 as libraries and designed to be loosely-coupled and extensible.
 
 %files -n clang
-%doc %{_docdir}/clang-tools
-%doc %{_docdir}/clang
 %{_bindir}/clang*
 %{_libdir}/LLVMgold.so
 %if %{build_lto}
@@ -652,7 +650,8 @@ Requires:	%{name} = %{EVRD}
 Documentation for the Clang compiler front-end.
 
 %files -n clang-doc
-
+%doc %{_docdir}/clang-tools
+%doc %{_docdir}/clang
 %endif
 
 %if %{with ocaml}
@@ -678,7 +677,7 @@ Group:		Development/Other
 Obsoletes:	%{oldlib} < %{EVRD}
 
 %description -n lldb
-Debugger from the LLVM toolchain
+Debugger from the LLVM toolchain.
 
 %files -n lldb
 %{_bindir}/lldb*
@@ -886,6 +885,7 @@ export CXXFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SO
 export CFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 %endif
+
 %ifarch aarch64
 # Workaround for
 # /usr/bin/aarch64-mandriva-linux-gnu-ld: internal error in relocate_tls, at ../../gold/aarch64.cc:7419
@@ -973,13 +973,14 @@ done
 %endif
 	-G Ninja
 
-ninja %{?_smp_mflags}
+%ninja_build
 
 %install
 %if %{with ocaml}
 #cp bindings/ocaml/llvm/META.llvm bindings/ocaml/llvm/Release/
 %endif
-DESTDIR="%{buildroot}" ninja install -C build
+
+%ninja_install -C build
 
 # Polly bits as described on
 # http://polly.llvm.org/example_load_Polly_into_clang.html
@@ -987,6 +988,7 @@ cat >%{buildroot}%{_bindir}/pollycc <<'EOF'
 #!/bin/sh
 exec %{_bindir}/clang -O3 -Xclang -load -Xclang %{_libdir}/LLVMPolly.so "$@"
 EOF
+
 cat >%{buildroot}%{_bindir}/pollyc++ <<'EOF'
 #!/bin/sh
 exec %{_bindir}/clang++ -O3 -Xclang -load -Xclang %{_libdir}/LLVMPolly.so "$@"
@@ -1054,4 +1056,3 @@ rm -f %{buildroot}%{_libdir}/libgomp.so
 
 # (tpg) fix bug https://issues.openmandriva.org/show_bug.cgi?id=2214
 mv %{buildroot}%{_libdir}/libunwind.so %{buildroot}%{_libdir}/libunwind-llvm.so
-
