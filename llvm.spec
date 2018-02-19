@@ -506,6 +506,7 @@ Documentation for the LLVM compiler infrastructure.
 Summary: Polyhedral optimizations for LLVM
 License: MIT
 Group: Development/Other
+Obsoletes: llvm-devel < 4.0.1
 Obsoletes: %{_lib}llvm-devel < 4.0.1
 Conflicts: %{_lib}llvm-devel < 4.0.1
 
