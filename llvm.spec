@@ -1,3 +1,6 @@
+# Barfs because of python2 files
+%define _python_bytecompile_build 0
+
 %define debug_package %{nil}
 %define debugcflags %{nil}
 %define build_lto 1
