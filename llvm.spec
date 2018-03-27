@@ -159,6 +159,7 @@ BuildRequires:	groff
 BuildRequires:	libtool
 BuildRequires:	python-sphinx
 BuildRequires:	python-setuptools
+BuildRequires:	python-requests
 %if %{with ocaml}
 BuildRequires:	ocaml-compiler ocaml-compiler-libs ocaml-camlp4 ocaml-findlib >= 1.5.5-2 ocaml-ctypes
 %endif
