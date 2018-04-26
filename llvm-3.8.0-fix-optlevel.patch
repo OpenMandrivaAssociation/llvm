@@ -1,6 +1,7 @@
---- llvm-6.0.0.src/tools/gold/gold-plugin.cpp.fixOptlevel~	2017-12-08 22:38:10.626200421 +0100
-+++ llvm-6.0.0.src/tools/gold/gold-plugin.cpp	2017-12-08 22:40:19.459417277 +0100
-@@ -230,9 +230,12 @@ namespace options {
+diff -up llvm-7.0.0.src/tools/gold/gold-plugin.cpp.fixOptlevel~ llvm-7.0.0.src/tools/gold/gold-plugin.cpp
+--- llvm-7.0.0.src/tools/gold/gold-plugin.cpp.fixOptlevel~	2018-04-20 12:18:36.000000000 +0200
++++ llvm-7.0.0.src/tools/gold/gold-plugin.cpp	2018-04-25 19:11:48.153310176 +0200
+@@ -254,9 +254,12 @@ namespace options {
      } else if (opt.startswith("cache-policy=")) {
        cache_policy = opt.substr(strlen("cache-policy="));
      } else if (opt.size() == 2 && opt[0] == 'O') {
@@ -16,23 +17,25 @@
      } else if (opt.startswith("jobs=")) {
        if (StringRef(opt_ + 5).getAsInteger(10, Parallelism))
          message(LDPL_FATAL, "Invalid parallelism level: %s", opt_ + 5);
---- llvm-6.0.0.src/tools/llvm-lto/llvm-lto.cpp.fixOptlevel~	2017-11-27 20:43:58.000000000 +0100
-+++ llvm-6.0.0.src/tools/llvm-lto/llvm-lto.cpp	2017-12-08 22:38:10.626200421 +0100
-@@ -791,8 +791,10 @@ int main(int argc, char **argv) {
-   llvm_shutdown_obj Y; // Call llvm_shutdown() on exit.
+diff -up llvm-7.0.0.src/tools/llvm-lto/llvm-lto.cpp.fixOptlevel~ llvm-7.0.0.src/tools/llvm-lto/llvm-lto.cpp
+--- llvm-7.0.0.src/tools/llvm-lto/llvm-lto.cpp.fixOptlevel~	2018-04-25 19:11:48.153310176 +0200
++++ llvm-7.0.0.src/tools/llvm-lto/llvm-lto.cpp	2018-04-25 19:13:22.568158313 +0200
+@@ -800,8 +800,10 @@ int main(int argc, char **argv) {
+   InitLLVM X(argc, argv);
    cl::ParseCommandLineOptions(argc, argv, "llvm LTO linker\n");
  
 -  if (OptLevel < '0' || OptLevel > '3')
 -    error("optimization level must be between 0 and 3");
 +  if (OptLevel < '0')
 +    OptLevel = '0';
-+  else if(OptLevel > '3')
++  else if (OptLevel > '3')
 +    OptLevel = '3';
  
    // Initialize the configured targets.
    InitializeAllTargets();
---- llvm-6.0.0.src/tools/lto/lto.cpp.fixOptlevel~	2017-11-27 20:43:58.000000000 +0100
-+++ llvm-6.0.0.src/tools/lto/lto.cpp	2017-12-08 22:38:10.626200421 +0100
+diff -up llvm-7.0.0.src/tools/lto/lto.cpp.fixOptlevel~ llvm-7.0.0.src/tools/lto/lto.cpp
+--- llvm-7.0.0.src/tools/lto/lto.cpp.fixOptlevel~	2018-04-11 20:49:37.000000000 +0200
++++ llvm-7.0.0.src/tools/lto/lto.cpp	2018-04-25 19:11:48.153310176 +0200
 @@ -164,9 +164,12 @@ static void lto_add_attrs(lto_code_gen_t
      CG->setAttr(attrs);
    }
