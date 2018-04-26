@@ -1,5 +1,6 @@
---- llvm-5.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h.musl1~	2017-06-08 22:00:09.000000000 +0200
-+++ llvm-5.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h	2017-06-15 23:43:26.884422292 +0200
+diff -up llvm-7.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h.musl1~ llvm-7.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h
+--- llvm-7.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h.musl1~	2017-09-26 04:36:57.000000000 +0200
++++ llvm-7.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h	2018-04-25 19:13:53.224459769 +0200
 @@ -19,6 +19,17 @@
  #include "llvm/IR/PassManager.h"
  #include "llvm/Pass.h"
@@ -18,28 +19,10 @@
  namespace llvm {
  template <typename T> class ArrayRef;
  
---- llvm-5.0.0.src/lib/Analysis/TargetLibraryInfo.cpp.musl1~	2017-06-15 23:43:26.885422268 +0200
-+++ llvm-5.0.0.src/lib/Analysis/TargetLibraryInfo.cpp	2017-06-15 23:44:50.174441128 +0200
-@@ -439,14 +439,15 @@ static void initialize(TargetLibraryInfo
-   }
- 
-   // The following functions are available on at least Linux:
--  if (!T.isOSLinux()) {
-+  if (!T.isOSLinux())
-+    TLI.setUnavailable(LibFunc_memalign);
-+  if (1 /*!T.isGlibc()*/) {
-     TLI.setUnavailable(LibFunc_dunder_strdup);
-     TLI.setUnavailable(LibFunc_dunder_strtok_r);
-     TLI.setUnavailable(LibFunc_dunder_isoc99_scanf);
-     TLI.setUnavailable(LibFunc_dunder_isoc99_sscanf);
-     TLI.setUnavailable(LibFunc_under_IO_getc);
-     TLI.setUnavailable(LibFunc_under_IO_putc);
--    TLI.setUnavailable(LibFunc_memalign);
-     TLI.setUnavailable(LibFunc_fopen64);
-     TLI.setUnavailable(LibFunc_fseeko64);
-     TLI.setUnavailable(LibFunc_fstat64);
---- llvm-5.0.0.src/lib/Support/Unix/Signals.inc.musl1~	2017-06-06 13:49:48.000000000 +0200
-+++ llvm-5.0.0.src/lib/Support/Unix/Signals.inc	2017-06-15 23:43:26.885422268 +0200
+diff -up llvm-7.0.0.src/lib/Analysis/TargetLibraryInfo.cpp.musl1~ llvm-7.0.0.src/lib/Analysis/TargetLibraryInfo.cpp
+diff -up llvm-7.0.0.src/lib/Support/Unix/Signals.inc.musl1~ llvm-7.0.0.src/lib/Support/Unix/Signals.inc
+--- llvm-7.0.0.src/lib/Support/Unix/Signals.inc.musl1~	2018-02-20 06:41:26.000000000 +0100
++++ llvm-7.0.0.src/lib/Support/Unix/Signals.inc	2018-04-25 19:13:53.224459769 +0200
 @@ -294,7 +294,7 @@ void llvm::sys::AddSignalHandler(void (*
    RegisterHandlers();
  }
