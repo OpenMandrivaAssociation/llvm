@@ -1,6 +1,6 @@
 diff -up llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h.mandriva~ llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h
 --- llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h.mandriva~	2017-11-19 01:08:12.000000000 +0100
-+++ llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h	2018-04-25 18:55:12.600008478 +0200
++++ llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h	2018-04-28 18:15:45.017915931 +0200
 @@ -61,6 +61,9 @@ public:
      UbuntuZesty,
      UbuntuArtful,
@@ -24,7 +24,7 @@ diff -up llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h.mandriva~ llvm
    }
 diff -up llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp.mandriva~ llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp
 --- llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp.mandriva~	2017-11-19 01:08:12.000000000 +0100
-+++ llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp	2018-04-25 18:55:12.600008478 +0200
++++ llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp	2018-04-28 18:15:45.018915908 +0200
 @@ -25,7 +25,7 @@ static Distro::DistroType DetectDistro(v
      SmallVector<StringRef, 16> Lines;
      Data.split(Lines, "\n");
@@ -63,75 +63,89 @@ diff -up llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp.mandriva~ llvm-7.0.0.s
    if (File) {
      StringRef Data = File.get()->getBuffer();
 diff -up llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp.mandriva~ llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp
---- llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp.mandriva~	2018-04-25 00:06:40.000000000 +0200
-+++ llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp	2018-04-25 18:55:12.601008456 +0200
-@@ -1817,7 +1817,9 @@ void Generic_GCC::GCCInstallationDetecto
+--- llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp.mandriva~	2018-04-28 18:15:45.018915908 +0200
++++ llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp	2018-04-28 18:22:24.646842418 +0200
+@@ -1817,7 +1817,8 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
-       "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-linux-android",
--      "aarch64-redhat-linux", "aarch64-suse-linux"};
-+      "aarch64-redhat-linux", "aarch64-suse-linux", "aarch64-mandriva-linux-gnu",
-+      "aarch64-openmandriva-linux-gnu", "aarch64-mandriva-linux-musl",
+       "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-redhat-linux",
+-      "aarch64-suse-linux"};
++      "aarch64-suse-linux", "aarch64-mandriva-linux-gnu", "aarch64-openmandriva-linux-gnu",
 +      "aarch64-openmandriva-linux-musl" };
    static const char *const AArch64beLibDirs[] = {"/lib"};
    static const char *const AArch64beTriples[] = {"aarch64_be-none-linux-gnu",
                                                   "aarch64_be-linux-gnu"};
-@@ -1828,7 +1830,24 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -1827,7 +1828,40 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const ARMHFTriples[] = {"arm-linux-gnueabihf",
                                               "armv7hl-redhat-linux-gnueabi",
                                               "armv6hl-suse-linux-gnueabi",
 -                                             "armv7hl-suse-linux-gnueabi"};
 +                                             "armv7hl-suse-linux-gnueabi",
-+					     "arm-mandriva-linux-gnueabihf",
-+					     "armv7-mandriva-linux-gnueabihf",
-+					     "armv7hl-mandriva-linux-gnueabihf",
-+					     "armv7hnl-mandriva-linux-gnueabihf",
-+					     "arm-mandriva-linux-musleabihf",
-+					     "armv7-mandriva-linux-musleabihf",
-+					     "armv7hl-mandriva-linux-musleabihf",
-+					     "armv7hnl-mandriva-linux-musleabihf",
-+					     "arm-openmandriva-linux-gnueabihf",
-+					     "armv7-openmandriva-linux-gnueabihf",
-+					     "armv7hl-openmandriva-linux-gnueabihf",
-+					     "armv7hnl-openmandriva-linux-gnueabihf",
-+					     "arm-openmandriva-linux-musleabihf",
-+					     "armv7-openmandriva-linux-musleabihf",
-+					     "armv7hl-openmandriva-linux-musleabihf",
-+					     "armv7hnl-openmandriva-linux-musleabihf",
++                                             "arm-mandriva-linux-gnueabihf",
++                                             "armv7l-mandriva-linux-gnueabihf",
++                                             "armv7hl-mandriva-linux-gnueabihf",
++                                             "armv7hnl-mandriva-linux-gnueabihf",
++                                             "armv8l-mandriva-linux-gnueabihf",
++                                             "armv8hl-mandriva-linux-gnueabihf",
++                                             "armv8hnl-mandriva-linux-gnueabihf",
++                                             "armv8hcnl-mandriva-linux-gnueabihf",
++                                             "arm-mandriva-linux-musleabihf",
++                                             "armv7l-mandriva-linux-musleabihf",
++                                             "armv7hl-mandriva-linux-musleabihf",
++                                             "armv7hnl-mandriva-linux-musleabihf",
++                                             "armv8l-mandriva-linux-musleabihf",
++                                             "armv8hl-mandriva-linux-musleabihf",
++                                             "armv8hnl-mandriva-linux-musleabihf",
++                                             "armv8hcnl-mandriva-linux-musleabihf",
++                                             "arm-openmandriva-linux-gnueabihf",
++                                             "armv7l-openmandriva-linux-gnueabihf",
++                                             "armv7hl-openmandriva-linux-gnueabihf",
++                                             "armv7hnl-openmandriva-linux-gnueabihf",
++                                             "armv8l-openmandriva-linux-gnueabihf",
++                                             "armv8hl-openmandriva-linux-gnueabihf",
++                                             "armv8hnl-openmandriva-linux-gnueabihf",
++                                             "armv8hcnl-openmandriva-linux-gnueabihf",
++                                             "arm-openmandriva-linux-musleabihf",
++                                             "armv7l-openmandriva-linux-musleabihf",
++                                             "armv7hl-openmandriva-linux-musleabihf",
++                                             "armv7hnl-openmandriva-linux-musleabihf",
++                                             "armv8l-openmandriva-linux-musleabihf",
++                                             "armv8hl-openmandriva-linux-musleabihf",
++                                             "armv8hnl-openmandriva-linux-musleabihf",
++                                             "armv8hcnl-openmandriva-linux-musleabihf",
 +  };
    static const char *const ARMebLibDirs[] = {"/lib"};
-   static const char *const ARMebTriples[] = {"armeb-linux-gnueabi",
-                                              "armeb-linux-androideabi"};
-@@ -1842,7 +1861,12 @@ void Generic_GCC::GCCInstallationDetecto
+   static const char *const ARMebTriples[] = {"armeb-linux-gnueabi"};
+   static const char *const ARMebHFTriples[] = {
+@@ -1839,14 +1873,23 @@ void Generic_GCC::GCCInstallationDetecto
+       "x86_64-pc-linux-gnu",    "x86_64-redhat-linux6E",
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-linux-gnu",
-       "x86_64-slackware-linux", "x86_64-linux-android",
--      "x86_64-unknown-linux"};
-+      "x86_64-unknown-linux",   "x86_64-mandriva-linux-gnu",
-+      "x86_64-mandriva-linux-musl", "x86_64-openmandriva-linux-gnu",
-+      "x86_64-openmandriva-linux-musl", "x86_64-mandriva-linux-gnux32",
-+      "x86_64-openmandriva-linux-gnux32", "x86_64-mandriva-linux-muslx32",
-+      "x86_64-openmandriva-linux-muslx32"
+-      "x86_64-slackware-linux", "x86_64-unknown-linux"};
++      "x86_64-slackware-linux", "x86_64-unknown-linux",
++      "x86_64-mandriva-linux-gnu", "x86_64-mandriva-linux-musl",
++      "x86_64-openmandriva-linux-gnu", "x86_64-openmandriva-linux-musl"
++      "x86_64-openmandriva-linux-gnux32", "x86_64-openmandriva-linux-muslx32"
 +  };
    static const char *const X32LibDirs[] = {"/libx32"};
    static const char *const X86LibDirs[] = {"/lib32", "/lib"};
    static const char *const X86Triples[] = {
-@@ -1850,7 +1874,11 @@ void Generic_GCC::GCCInstallationDetecto
+       "i686-linux-gnu",       "i686-pc-linux-gnu",     "i486-linux-gnu",
        "i386-linux-gnu",       "i386-redhat-linux6E",   "i686-redhat-linux",
        "i586-redhat-linux",    "i386-redhat-linux",     "i586-suse-linux",
-       "i486-slackware-linux", "i686-montavista-linux", "i686-linux-android",
--      "i586-linux-gnu"};
-+      "i586-linux-gnu",       "i586-mandriva-linux-gnu", "i586-openmandriva-linux-gnu",
+-      "i486-slackware-linux", "i686-montavista-linux", "i586-linux-gnu"};
++      "i486-slackware-linux", "i686-montavista-linux", "i586-linux-gnu",
++      "i586-mandriva-linux-gnu", "i586-openmandriva-linux-gnu",
 +      "i586-mandriva-linux-musl", "i586-openmandriva-linux-musl",
-+      "i686-mandriva-linux-gnu",  "i686-openmandriva-linux-gnu",
-+      "i686-mandriva-linux-musl", "i686-openmandriva-linux-musl",
++      "i686-mandriva-linux-gnu", "i686-openmandriva-linux-gnu",
++      "i686-mandriva-linux-musl", "i686-openmandriva-linux-musl"
 +  };
  
    static const char *const MIPSLibDirs[] = {"/lib"};
    static const char *const MIPSTriples[] = {"mips-linux-gnu", "mips-mti-linux",
 diff -up llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp.mandriva~ llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp
 --- llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp.mandriva~	2018-04-17 22:42:07.000000000 +0200
-+++ llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp	2018-04-25 18:59:16.888444064 +0200
++++ llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp	2018-04-28 18:15:45.018915908 +0200
 @@ -155,7 +155,7 @@ static std::string getMultiarchTriple(co
    return TargetTriple.str();
  }

@@ -71,7 +71,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	7.0.0
-Release:	0.330841.1
+Release:	0.331113.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -1043,7 +1043,7 @@ rm %{buildroot}%{_libdir}/LLVMHello.so
 
 # Don't look for stuff we just deleted...
 sed -i -e 's,gtest gtest_main ,,;s, LLVMHello , ,' -e '/LLVMHello/d' -e '/gtest/d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports.cmake
-sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/ { N;d }' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports-release.cmake
+sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/,+2d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports-release.cmake
 
 %if %{build_lto}
 # Put the LTO plugin where ld can see it...
