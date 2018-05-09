@@ -1,19 +1,30 @@
-diff -up llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake.omv~ llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake
---- llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake.omv~	2018-04-26 00:38:39.790637290 +0200
-+++ llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake	2018-04-26 00:40:49.579645615 +0200
+diff -up llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake.crt~ llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake
+--- llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake.crt~	2018-03-03 12:48:54.000000000 +0100
++++ llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake	2018-05-09 18:07:44.291104400 +0200
 @@ -148,6 +148,7 @@ macro(test_targets)
          else()
            test_target_arch(x86_64 "" "-m64")
--          test_target_arch(i386 __i386__ "-m32")
-+          test_target_arch(i386 __i386__ "-m32")
+           test_target_arch(i386 __i386__ "-m32")
 +          test_target_arch(i686 __i686__ "-m32 -march=i686")
          endif()
        else()
          if (CMAKE_SIZEOF_VOID_P EQUAL 4)
-diff -up llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt.omv~ llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt
---- llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt.omv~	2018-04-26 00:40:53.720549976 +0200
-+++ llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt	2018-04-26 00:41:29.108738413 +0200
-@@ -527,7 +527,7 @@ else ()
+diff -up llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake.crt~ llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake
+--- llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake.crt~	2018-05-09 18:07:44.291104400 +0200
++++ llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake	2018-05-09 18:08:10.176504719 +0200
+@@ -26,7 +26,7 @@ int foo(int x, int y) {
+ set(ARM64 aarch64)
+ set(ARM32 arm armhf armv6m armv7m armv7em armv7 armv7s armv7k)
+ set(HEXAGON hexagon)
+-set(X86 i386)
++set(X86 i386 i686)
+ set(X86_64 x86_64)
+ set(MIPS32 mips mipsel)
+ set(MIPS64 mips64 mips64el)
+diff -up llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt.crt~ llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt
+--- llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt.crt~	2018-05-09 16:44:54.000000000 +0200
++++ llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt	2018-05-09 18:07:44.291104400 +0200
+@@ -562,7 +562,7 @@ else ()
        set(_arch ${arch})
        if("${arch}" STREQUAL "armv6m")
          set(_arch "arm|armv6m")
@@ -22,15 +33,3 @@ diff -up llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt.omv~ ll
          set(_arch "arm")
        endif()
  
-diff -up llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake.omv~ llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake
---- llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake.omv~	2018-04-26 10:01:49.874949799 +0000
-+++ llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake	2018-04-26 10:05:11.734960213 +0000
-@@ -25,7 +25,7 @@ int foo(int x, int y) {
- 
- set(ARM64 aarch64)
- set(ARM32 arm armhf armv6m armv7m armv7em armv7 armv7s armv7k)
--set(X86 i386)
-+set(X86 i386 i686)
- set(X86_64 x86_64)
- set(MIPS32 mips mipsel)
- set(MIPS64 mips64 mips64el)
