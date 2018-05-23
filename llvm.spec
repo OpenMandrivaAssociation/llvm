@@ -71,7 +71,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	7.0.0
-Release:	0.331886.1
+Release:	0.333117.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -219,6 +219,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/bugpoint
 %{_bindir}/count
 %{_bindir}/c-index-test
+%{_bindir}/diagtool
 %{_bindir}/dsymutil
 %{_bindir}/find-all-symbols
 %{_bindir}/git-clang-format
@@ -291,6 +292,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_datadir}/scan-view
 %{_mandir}/man1/FileCheck.1*
 %{_mandir}/man1/bugpoint.1*
+%{_mandir}/man1/diagtool.1*
 %{_mandir}/man1/dsymutil.1*
 %{_mandir}/man1/lit.1*
 %{_mandir}/man1/llc.1*
@@ -1040,11 +1042,11 @@ chmod 0755 %{buildroot}%{_bindir}/c89 %{buildroot}%{_bindir}/c99
 %endif
 
 # Code sample -- binary not needed
-rm %{buildroot}%{_libdir}/LLVMHello.so
+rm %{buildroot}%{_libdir}/LLVMHello.so %{buildroot}%{_libdir}/TestPlugin.so
 
 # Don't look for stuff we just deleted...
-sed -i -e 's,gtest gtest_main ,,;s, LLVMHello , ,' -e '/LLVMHello/d' -e '/gtest/d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports.cmake
-sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/,+2d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports-release.cmake
+sed -i -e 's,gtest gtest_main ,,;s, LLVMHello , ,;s, TestPlugin,,' -e '/LLVMHello/d' -e '/TestPlugin/d' -e '/gtest/d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports.cmake
+sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/,+2d' -e '/TestPlugin/,+3d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports-release.cmake
 
 %if %{build_lto}
 # Put the LTO plugin where ld can see it...
