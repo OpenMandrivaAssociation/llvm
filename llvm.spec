@@ -71,7 +71,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	7.0.0
-Release:	0.333385.1
+Release:	0.333395.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -1007,6 +1007,7 @@ done
 %ninja_install -C build
 
 # Install the clang python bits
+mkdir -p %{buildroot}%{python_sitelib}
 cp -a tools/clang/bindings/python/clang %{buildroot}%{python_sitelib}/
 
 # Polly bits as described on
