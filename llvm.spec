@@ -71,7 +71,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	7.0.0
-Release:	0.333117.1
+Release:	0.333385.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -783,6 +783,16 @@ LLVM based implementation of the Go language.
 %endif
 
 #-----------------------------------------------------------
+%package -n python-clang
+Summary:	Python bindings to parts of the Clang library
+Group:		Development/Python
+
+%description -n python-clang
+Python bindings to parts of the Clang library
+
+%files -n python-clang
+%{python_sitelib}/clang
+#-----------------------------------------------------------
 
 %prep
 %setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} -a7 %{?with_lldb:-a8} %{?with_llgo:-a9} %{?with_lld:-a10} %{?with_openmp:-a11} -n %{name}-%{version}.src
@@ -995,6 +1005,9 @@ done
 %endif
 
 %ninja_install -C build
+
+# Install the clang python bits
+cp -a tools/clang/bindings/python/clang %{buildroot}%{python_sitelib}/
 
 # Polly bits as described on
 # http://polly.llvm.org/example_load_Polly_into_clang.html
