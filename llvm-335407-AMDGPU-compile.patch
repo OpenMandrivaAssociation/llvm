@@ -1,0 +1,40 @@
+diff -up llvm-7.0.0.src/lib/Target/AMDGPU/AMDGPUIntrinsicInfo.cpp.omv~ llvm-7.0.0.src/lib/Target/AMDGPU/AMDGPUIntrinsicInfo.cpp
+--- llvm-7.0.0.src/lib/Target/AMDGPU/AMDGPUIntrinsicInfo.cpp.omv~	2018-06-23 04:49:00.163308712 +0200
++++ llvm-7.0.0.src/lib/Target/AMDGPU/AMDGPUIntrinsicInfo.cpp	2018-06-23 04:49:51.213305899 +0200
+@@ -25,13 +25,13 @@ AMDGPUIntrinsicInfo::AMDGPUIntrinsicInfo
+ 
+ static const char *const IntrinsicNameTable[] = {
+ #define GET_INTRINSIC_NAME_TABLE
+-#include "AMDGPUGenIntrinsics.inc"
++#include "AMDGPUGenIntrinsicImpl.inc"
+ #undef GET_INTRINSIC_NAME_TABLE
+ };
+ 
+ namespace {
+ #define GET_INTRINSIC_ATTRIBUTES
+-#include "AMDGPUGenIntrinsics.inc"
++#include "AMDGPUGenIntrinsicImpl.inc"
+ #undef GET_INTRINSIC_ATTRIBUTES
+ }
+ 
+@@ -80,7 +80,7 @@ unsigned AMDGPUIntrinsicInfo::lookupName
+ bool AMDGPUIntrinsicInfo::isOverloaded(unsigned id) const {
+ // Overload Table
+ #define GET_INTRINSIC_OVERLOAD_TABLE
+-#include "AMDGPUGenIntrinsics.inc"
++#include "AMDGPUGenIntrinsicImpl.inc"
+ #undef GET_INTRINSIC_OVERLOAD_TABLE
+ }
+ 
+diff -up llvm-7.0.0.src/lib/Target/AMDGPU/AMDGPUIntrinsicInfo.h.omv~ llvm-7.0.0.src/lib/Target/AMDGPU/AMDGPUIntrinsicInfo.h
+--- llvm-7.0.0.src/lib/Target/AMDGPU/AMDGPUIntrinsicInfo.h.omv~	2018-06-23 04:45:59.289318679 +0200
++++ llvm-7.0.0.src/lib/Target/AMDGPU/AMDGPUIntrinsicInfo.h	2018-06-23 04:47:59.421312059 +0200
+@@ -24,7 +24,7 @@ namespace AMDGPUIntrinsic {
+ enum ID {
+   last_non_AMDGPU_intrinsic = Intrinsic::num_intrinsics - 1,
+ #define GET_INTRINSIC_ENUM_VALUES
+-#include "AMDGPUGenIntrinsics.inc"
++#include "AMDGPUGenIntrinsicEnums.inc"
+ #undef GET_INTRINSIC_ENUM_VALUES
+       , num_AMDGPU_intrinsics
+ };
