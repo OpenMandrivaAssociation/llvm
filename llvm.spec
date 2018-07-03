@@ -71,7 +71,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	7.0.0
-Release:	0.335407.1
+Release:	0.336214.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -108,7 +108,6 @@ Patch7:		clang-gcc-compat.patch
 Patch8:		clang-fuse-ld.patch
 Patch9:		ddsan-compile.patch
 Patch10:	lldb-3.8.0-compile.patch
-Patch11:	llvm-335407-AMDGPU-compile.patch
 Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
@@ -837,7 +836,6 @@ fi
 %if %{with lldb}
 %patch10 -p1 -b .lldb~
 %endif
-%patch11 -p1 -b .amdgpuCompile~
 %patch12 -p1 -b .soname~
 %patch13 -p1 -b .fixOptlevel~
 %patch14 -p1 -b .unwindlibstdc~
