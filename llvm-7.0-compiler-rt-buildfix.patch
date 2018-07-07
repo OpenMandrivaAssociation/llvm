@@ -1,0 +1,12 @@
+diff -up llvm-7.0.0.src/projects/compiler-rt/lib/sanitizer_common/sanitizer_platform_limits_linux.cc.omv~ llvm-7.0.0.src/projects/compiler-rt/lib/sanitizer_common/sanitizer_platform_limits_linux.cc
+--- llvm-7.0.0.src/projects/compiler-rt/lib/sanitizer_common/sanitizer_platform_limits_linux.cc.omv~	2018-07-07 04:33:37.879574171 +0200
++++ llvm-7.0.0.src/projects/compiler-rt/lib/sanitizer_common/sanitizer_platform_limits_linux.cc	2018-07-07 04:34:15.673575581 +0200
+@@ -49,6 +49,8 @@
+ #undef off_t
+ #endif
+ 
++#include <time.h>
++#define _STRUCT_TIMESPEC
+ #include <linux/aio_abi.h>
+ 
+ #if !SANITIZER_ANDROID
