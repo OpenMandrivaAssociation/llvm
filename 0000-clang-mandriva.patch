@@ -1,6 +1,6 @@
-diff -up llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h.mandriva~ llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h
---- llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h.mandriva~	2018-05-10 10:45:43.000000000 +0200
-+++ llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h	2018-07-03 19:19:54.603804084 +0200
+diff -up clang/include/clang/Driver/Distro.h.mandriva~ clang/include/clang/Driver/Distro.h
+--- clang/include/clang/Driver/Distro.h.mandriva~	2018-05-10 10:45:43.000000000 +0200
++++ clang/include/clang/Driver/Distro.h	2018-08-03 09:50:14.359659364 +0200
 @@ -62,6 +62,10 @@ public:
      UbuntuArtful,
      UbuntuBionic,
@@ -23,13 +23,13 @@ diff -up llvm-7.0.0.src/tools/clang/include/clang/Driver/Distro.h.mandriva~ llvm
    /// @}
  };
  
-diff -up llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp.mandriva~ llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp
---- llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp.mandriva~	2018-05-10 10:45:43.000000000 +0200
-+++ llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp	2018-07-03 19:19:54.603804084 +0200
+diff -up clang/lib/Driver/Distro.cpp.mandriva~ clang/lib/Driver/Distro.cpp
+--- clang/lib/Driver/Distro.cpp.mandriva~	2018-07-20 10:19:20.000000000 +0200
++++ clang/lib/Driver/Distro.cpp	2018-08-03 09:53:25.989632697 +0200
 @@ -25,7 +25,7 @@ static Distro::DistroType DetectDistro(v
      SmallVector<StringRef, 16> Lines;
      Data.split(Lines, "\n");
- 	Distro::DistroType Version = Distro::UnknownDistro;
+     Distro::DistroType Version = Distro::UnknownDistro;
 -    for (StringRef Line : Lines)
 +    for (StringRef Line : Lines) {
        if (Version == Distro::UnknownDistro && Line.startswith("DISTRIB_CODENAME="))
@@ -65,9 +65,9 @@ diff -up llvm-7.0.0.src/tools/clang/lib/Driver/Distro.cpp.mandriva~ llvm-7.0.0.s
    File = VFS.getBufferForFile("/etc/redhat-release");
    if (File) {
      StringRef Data = File.get()->getBuffer();
-diff -up llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp.mandriva~ llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp
---- llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp.mandriva~	2018-06-29 21:18:17.000000000 +0200
-+++ llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp	2018-07-03 19:19:54.604804084 +0200
+diff -up clang/lib/Driver/ToolChains/Gnu.cpp.mandriva~ clang/lib/Driver/ToolChains/Gnu.cpp
+--- clang/lib/Driver/ToolChains/Gnu.cpp.mandriva~	2018-07-31 16:21:46.000000000 +0200
++++ clang/lib/Driver/ToolChains/Gnu.cpp	2018-08-03 09:56:17.784238067 +0200
 @@ -1812,7 +1812,8 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
@@ -120,15 +120,15 @@ diff -up llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp.mandriva~ llvm
    static const char *const ARMebLibDirs[] = {"/lib"};
    static const char *const ARMebTriples[] = {"armeb-linux-gnueabi"};
    static const char *const ARMebHFTriples[] = {
-@@ -1834,14 +1868,23 @@ void Generic_GCC::GCCInstallationDetecto
-       "x86_64-pc-linux-gnu",    "x86_64-redhat-linux6E",
+@@ -1835,14 +1869,23 @@ void Generic_GCC::GCCInstallationDetecto
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-linux-gnu",
--      "x86_64-slackware-linux", "x86_64-unknown-linux"};
-+      "x86_64-slackware-linux", "x86_64-unknown-linux",
-+      "x86_64-mandriva-linux-gnu", "x86_64-mandriva-linux-musl",
-+      "x86_64-openmandriva-linux-gnu", "x86_64-openmandriva-linux-musl"
-+      "x86_64-openmandriva-linux-gnux32", "x86_64-openmandriva-linux-muslx32"
+       "x86_64-slackware-linux", "x86_64-unknown-linux",
+-      "x86_64-amazon-linux"};
++      "x86_64-amazon-linux",	"x86_64-mandriva-linux-gnu",
++      "x86_64-mandriva-linux-musl", "x86_64-openmandriva-linux-gnu",
++      "x86_64-openmandriva-linux-musl", "x86_64-openmandriva-linux-gnux32",
++      "x86_64-openmandriva-linux-muslx32"
 +  };
    static const char *const X32LibDirs[] = {"/libx32"};
    static const char *const X86LibDirs[] = {"/lib32", "/lib"};
@@ -146,9 +146,9 @@ diff -up llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Gnu.cpp.mandriva~ llvm
  
    static const char *const MIPSLibDirs[] = {"/lib"};
    static const char *const MIPSTriples[] = {"mips-linux-gnu", "mips-mti-linux",
-diff -up llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp.mandriva~ llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp.mandriva~	2018-07-03 16:39:29.000000000 +0200
-+++ llvm-7.0.0.src/tools/clang/lib/Driver/ToolChains/Linux.cpp	2018-07-03 19:20:58.784799425 +0200
+diff -up clang/lib/Driver/ToolChains/Linux.cpp.mandriva~ clang/lib/Driver/ToolChains/Linux.cpp
+--- clang/lib/Driver/ToolChains/Linux.cpp.mandriva~	2018-07-30 21:44:13.000000000 +0200
++++ clang/lib/Driver/ToolChains/Linux.cpp	2018-08-03 09:50:14.360659375 +0200
 @@ -155,7 +155,7 @@ static std::string getMultiarchTriple(co
    return TargetTriple.str();
  }

@@ -71,7 +71,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	7.0.0
-Release:	0.337441.1
+Release:	0.338892.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -257,6 +257,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-readobj
 %{_bindir}/llvm-split
 %{_bindir}/llvm-strip
+%{_bindir}/llvm-undname
 %{_bindir}/llvm-cov
 %{_bindir}/llvm-dwarfdump
 %{_bindir}/llvm-modextract
@@ -343,6 +344,7 @@ The unwind library, a part of llvm.
 %libpackage c++abi 1
 %{_libdir}/libc++abi.so
 %{_libdir}/libc++.a
+%{_libdir}/libc++fs.a
 %{_libdir}/libc++experimental.a
 
 %define cxxdevname %mklibname c++ -d
@@ -816,7 +818,7 @@ mv lld-%{version}%{?prerel}.src tools/lld
 mv openmp-%{version}%{?prerel}.src projects/openmp
 %endif
 cd tools/clang
-%patch1 -p3 -b .mandriva~
+%patch1 -p1 -b .mandriva~
 #patch4 -p3 -b .templateFix~
 %patch8 -p1 -b .fuseLd~
 cd -
