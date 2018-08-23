@@ -1046,7 +1046,7 @@ rm %{buildroot}%{_libdir}/LLVMHello.so %{buildroot}%{_libdir}/TestPlugin.so
 
 # Don't look for stuff we just deleted...
 sed -i -e 's,gtest gtest_main ,,;s, LLVMHello , ,;s, TestPlugin,,' -e '/LLVMHello/d' -e '/TestPlugin/d' -e '/gtest/d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports.cmake
-sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/,+2d' -e '/TestPlugin/,+3d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports-release.cmake
+sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/,+3d' -e '/TestPlugin/,+3d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports-release.cmake
 
 %if %{build_lto}
 # Put the LTO plugin where ld can see it...
