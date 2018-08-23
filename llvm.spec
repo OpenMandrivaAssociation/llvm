@@ -32,11 +32,7 @@
 %endif
 %bcond_without ffi
 # Force gcc to compile, in case previous clang is busted
-%ifarch x86_64
-%bcond_with bootstrap_gcc
-%else
 %bcond_without bootstrap_gcc
-%endif
 %if %{with bootstrap_gcc}
 # libcxx fails to bootstrap with gcc
 %bcond_with build_libcxx
