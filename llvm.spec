@@ -32,7 +32,7 @@
 %endif
 %bcond_without ffi
 # Force gcc to compile, in case previous clang is busted
-%bcond_without bootstrap_gcc
+%bcond_with bootstrap_gcc
 %if %{with bootstrap_gcc}
 # libcxx fails to bootstrap with gcc
 %bcond_with build_libcxx
@@ -67,7 +67,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	7.0.0
-Release:	0.340496.1
+Release:	0.341220.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
