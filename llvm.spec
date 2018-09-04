@@ -48,7 +48,14 @@
 # llvm_regcomp llvm_regfree llvm_regexec
 %bcond_with lldb
 %endif
+%ifarch %{riscv}
+# OpenMP and libunwind aren't working on RISC-V yet
+%bcond_with openmp
+%bcond_with unwind
+%else
 %bcond_without openmp
+%bcond_without unwind
+%endif
 # FIXME Currently llgo fails to build on anything but x86_64,
 # and triggers https://sourceware.org/bugzilla/show_bug.cgi?id=17729
 # on x86_64
@@ -67,7 +74,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	7.0.0
-Release:	0.341220.1
+Release:	0.341359.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -318,6 +325,7 @@ for effective implementation, proper tail calls or garbage collection.
 
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
 
+%if %{with unwind}
 %define libunwind_major 1.0
 %define libunwind %mklibname unwind %{libunwind_major}
 
@@ -333,6 +341,7 @@ The unwind library, a part of llvm.
 %{_libdir}/libunwind.so.%{libunwind_major}
 %{_libdir}/libunwind.so.1
 %{_libdir}/libunwind.a
+%endif
 
 #-----------------------------------------------------------
 %if %{with build_libcxx}
@@ -576,7 +585,9 @@ Requires:	llvm%{?_isa} = %{EVRD}
 # clang requires gcc, clang++ requires libstdc++-devel
 Requires:	gcc
 Requires:	libstdc++-devel >= %{gcc_version}
+%if %{with unwind}
 Requires:	%{_lib}unwind1.0 = %{EVRD}
+%endif
 Obsoletes:	%{mklibname clang 3.7.0}
 %{expand:%(for i in %{ClangLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 
@@ -793,14 +804,16 @@ Python bindings to parts of the Clang library
 #-----------------------------------------------------------
 
 %prep
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} -a7 %{?with_lldb:-a8} %{?with_llgo:-a9} %{?with_lld:-a10} %{?with_openmp:-a11} -n %{name}-%{version}.src
+%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} %{?with_unwind:-a7} %{?with_lldb:-a8} %{?with_llgo:-a9} %{?with_lld:-a10} %{?with_openmp:-a11} -n %{name}-%{version}.src
 rm -rf tools/clang
 %if %{with clang}
 mv cfe-%{version}%{?prerel}.src tools/clang
 mv polly-%{version}%{?prerel}.src tools/polly
 mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
 mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
+%if %{with unwind}
 mv libunwind-%{version}%{?prerel}.src projects/libunwind
+%endif
 %if %{with lldb}
 mv lldb-%{version}%{?prerel}.src tools/lldb
 %endif
@@ -837,8 +850,10 @@ fi
 %endif
 %patch12 -p1 -b .soname~
 %patch13 -p1 -b .fixOptlevel~
+%if %{with unwind}
 %patch14 -p1 -b .unwindlibstdc~
 %patch15 -p1 -b .unwindaarch64~
+%endif
 %patch16 -p1 -b .clangRenameLink~
 %if %{with lldb}
 # LLVM bug 30887
@@ -1068,5 +1083,7 @@ rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
 # We get libgomp from gcc, so don't symlink libomp to it
 rm -f %{buildroot}%{_libdir}/libgomp.so
 
+%if %{with unwind}
 # (tpg) fix bug https://issues.openmandriva.org/show_bug.cgi?id=2214
 mv %{buildroot}%{_libdir}/libunwind.so %{buildroot}%{_libdir}/libunwind-llvm.so
+%endif
