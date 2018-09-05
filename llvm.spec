@@ -74,7 +74,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	7.0.0
-Release:	0.341359.1
+Release:	0.341453.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -209,6 +209,13 @@ Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
 Obsoletes: %{mklibname LLVMRISCVDesc 5} < %{EVRD}
 Obsoletes: %{mklibname LLVMRISCVInfo 5} < %{EVRD}
 Obsoletes: %{mklibname lldConfig 5} < %{EVRD}
+
+%ifarch %{ix86}
+%if ! %{with bootstrap_gcc}
+# Work around undefined reference to __atomic_load_8 when building clangd
+%global optflags %{optflags} --rtlib=compiler-rt
+%endif
+%endif
 
 %description
 LVM is a robust system, particularly well suited for developing new mid-level
