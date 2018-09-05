@@ -847,7 +847,7 @@ if [ -d libcxx-%{version}%{?prerel}.src ]; then
 	cd projects/libcxx
 %patch40 -p3 -b .libcxxmusl~
 	cd ../..
-#patch6 -p1 -b .libcxxabi~
+%patch6 -p1 -b .libcxxabi~
 fi
 [ -d libcxxabi-%{version}%{?prerel}.src ] && mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
 %patch7 -p1 -b .gcc71~
