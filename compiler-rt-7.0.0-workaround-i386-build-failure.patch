@@ -1,0 +1,38 @@
+diff -up llvm-7.0.0.src/projects/compiler-rt/lib/builtins/int_math.h.omv~ llvm-7.0.0.src/projects/compiler-rt/lib/builtins/int_math.h
+--- llvm-7.0.0.src/projects/compiler-rt/lib/builtins/int_math.h.omv~	2018-09-12 15:19:39.331797489 +0200
++++ llvm-7.0.0.src/projects/compiler-rt/lib/builtins/int_math.h	2018-09-12 15:20:13.196201045 +0200
+@@ -81,34 +81,16 @@
+ #define crt_fabsl(x) __builtin_fabsl((x))
+ #endif
+ 
+-#if defined(_MSC_VER) && !defined(__clang__)
+-#define crt_fmax(x, y) __max((x), (y))
+-#define crt_fmaxf(x, y) __max((x), (y))
+-#define crt_fmaxl(x, y) __max((x), (y))
+-#else
+ #define crt_fmax(x, y) __builtin_fmax((x), (y))
+ #define crt_fmaxf(x, y) __builtin_fmaxf((x), (y))
+ #define crt_fmaxl(x, y) __builtin_fmaxl((x), (y))
+-#endif
+ 
+-#if defined(_MSC_VER) && !defined(__clang__)
+-#define crt_logb(x) logb((x))
+-#define crt_logbf(x) logbf((x))
+-#define crt_logbl(x) logbl((x))
+-#else
+ #define crt_logb(x) __builtin_logb((x))
+ #define crt_logbf(x) __builtin_logbf((x))
+ #define crt_logbl(x) __builtin_logbl((x))
+-#endif
+ 
+-#if defined(_MSC_VER) && !defined(__clang__)
+-#define crt_scalbn(x, y) scalbn((x), (y))
+-#define crt_scalbnf(x, y) scalbnf((x), (y))
+-#define crt_scalbnl(x, y) scalbnl((x), (y))
+-#else
+ #define crt_scalbn(x, y) __builtin_scalbn((x), (y))
+ #define crt_scalbnf(x, y) __builtin_scalbnf((x), (y))
+ #define crt_scalbnl(x, y) __builtin_scalbnl((x), (y))
+-#endif
+ 
+ #endif /* INT_MATH_H */

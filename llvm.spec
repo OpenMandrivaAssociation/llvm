@@ -125,6 +125,7 @@ Patch20:	llvm-3.7-musl.patch
 Patch21:	llvm-5.0-MuslX32.patch
 Patch25:	llvm-7.0-compiler-rt-arches.patch
 Patch26:	llvm-7.0-compiler-rt-buildfix.patch
+Patch27:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
 # breaks exception handling -- removes gcc_eh
 Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
@@ -878,6 +879,7 @@ fi
 
 %patch25 -p1 -b .crt~
 %patch26 -p1 -b .crtBuildfix~
+%patch27 -p1 -b .crti386Workaround~
 
 %if %{cross_compiling}
 # This is only needed when crosscompiling glibc to musl or the likes
