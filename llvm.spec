@@ -6,6 +6,8 @@
 %define build_lto 1
 %define _disable_ld_no_undefined 0
 %define _disable_lto 1
+# (tpg) optimize it a bit
+%global optflags %{optflags} -O3
 
 # clang header paths are hard-coded at compile time
 # and need adjustment whenever there's a new GCC version
@@ -66,7 +68,7 @@
 %bcond_with default_compilerrt
 
 # Clang's libLLVMgold.so shouldn't trigger devel(*) dependencies
-%define __noautoreq 'devel.*'
+%define __requires_exclude 'devel.*'
 
 %define ompmajor 1
 %define ompname %mklibname omp %{ompmajor}
@@ -74,7 +76,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	7.0.0
-Release:	1
+Release:	2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -197,6 +199,7 @@ Obsoletes:	llvm-ocaml
 BuildRequires:	swig
 BuildRequires:	pkgconfig(python2)
 BuildRequires:	gcc
+BuildRequires:	pkgconfig(libtirpc)
 %if %mdvver > 3000000
 %if !%{with lld}
 BuildRequires:	lld < %{EVRD}
