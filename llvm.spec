@@ -23,7 +23,7 @@
 # Don't do this if you care about binary compatibility...
 %bcond_with libcxx
 %bcond_without clang
-%ifarch aarch64
+%ifarch aarch64 riscv64
 # AArch64 doesn't have a working ocaml compiler yet
 %bcond_with ocaml
 # No graphviz yet either
@@ -50,7 +50,7 @@
 # llvm_regcomp llvm_regfree llvm_regexec
 %bcond_with lldb
 %endif
-%ifarch %{riscv}
+%ifarch %{riscv} riscv64
 # OpenMP and libunwind aren't working on RISC-V yet
 %bcond_with openmp
 %bcond_with unwind
@@ -181,7 +181,7 @@ BuildRequires:	pkgconfig(isl) >= 0.13
 BuildRequires:	pkgconfig(libtirpc)
 BuildRequires:	pkgconfig(libxml-2.0)
 BuildRequires:	pkgconfig(icu-i18n)
-%ifnarch aarch64
+%ifnarch aarch64 riscv64
 BuildRequires:	devel(libatomic)
 %endif
 BuildRequires:	python >= 3.4
@@ -905,6 +905,8 @@ fi
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
 
+%config_update
+
 %build
 %if %{with bootstrap_gcc}
 export CC=gcc
@@ -927,12 +929,12 @@ TOP=$(pwd)
 export CFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 export CXXFLAGS="%{optflags} -march=i686 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 %endif
-%ifarch %armx sparc mips
+%ifarch %armx sparc mips riscv64
 export CFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 %endif
 
-%ifarch aarch64
+%ifarch aarch64 riscv64
 # Workaround for
 # /usr/bin/aarch64-mandriva-linux-gnu-ld: internal error in relocate_tls, at ../../gold/aarch64.cc:7419
 # collect2: error: ld returned 1 exit status
