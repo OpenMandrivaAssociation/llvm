@@ -1,7 +1,7 @@
-diff --git a/tools/clang/lib/Headers/unwind.h b/tools/clang/lib/Headers/unwind.h
+diff --git a/clang/lib/Headers/unwind.h b/tools/clang/lib/Headers/unwind.h
 index 90aca16..ef96969 100644
---- a/tools/clang/lib/Headers/unwind.h
-+++ b/tools/clang/lib/Headers/unwind.h
+--- a/clang/lib/Headers/unwind.h
++++ b/clang/lib/Headers/unwind.h
 @@ -23,9 +23,6 @@
  
  /* See "Data Definitions for libgcc_s" in the Linux Standard Base.*/

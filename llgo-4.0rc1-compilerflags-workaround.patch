@@ -1,5 +1,5 @@
---- llvm-4.0.0.src/tools/llgo/cmd/gllgo/gllgo.go.omv~	2017-01-27 11:46:22.675091121 +0100
-+++ llvm-4.0.0.src/tools/llgo/cmd/gllgo/gllgo.go	2017-01-27 11:47:31.539695007 +0100
+--- llvm-4.0.0.src/llgo/cmd/gllgo/gllgo.go.omv~	2017-01-27 11:46:22.675091121 +0100
++++ llvm-4.0.0.src/llgo/cmd/gllgo/gllgo.go	2017-01-27 11:47:31.539695007 +0100
 @@ -415,6 +415,9 @@ func parseArguments(args []string) (opts
  		case args[0] == "-static-libgo":
  			opts.staticLibgo = true

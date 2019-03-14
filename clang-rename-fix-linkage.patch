@@ -1,5 +1,5 @@
---- llvm-6.0.0.src/tools/clang/tools/clang-rename/CMakeLists.txt.clangRenameLink~	2017-12-08 22:40:51.757469954 +0100
-+++ llvm-6.0.0.src/tools/clang/tools/clang-rename/CMakeLists.txt	2017-12-08 22:41:39.227551239 +0100
+--- llvm-6.0.0.src/clang/tools/clang-rename/CMakeLists.txt.clangRenameLink~	2017-12-08 22:40:51.757469954 +0100
++++ llvm-6.0.0.src/clang/tools/clang-rename/CMakeLists.txt	2017-12-08 22:41:39.227551239 +0100
 @@ -13,6 +13,7 @@ target_link_libraries(clang-rename
    clangTooling
    clangToolingCore

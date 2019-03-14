@@ -1,6 +1,6 @@
-diff -up llvm-7.0.0.src/tools/clang/lib/Driver/Driver.cpp.gcc71~ llvm-7.0.0.src/tools/clang/lib/Driver/Driver.cpp
---- llvm-7.0.0.src/tools/clang/lib/Driver/Driver.cpp.gcc71~	2018-04-18 20:25:03.000000000 +0200
-+++ llvm-7.0.0.src/tools/clang/lib/Driver/Driver.cpp	2018-04-25 19:04:57.149678788 +0200
+diff -up llvm-7.0.0.src/clang/lib/Driver/Driver.cpp.gcc71~ llvm-7.0.0.src/clang/lib/Driver/Driver.cpp
+--- llvm-7.0.0.src/clang/lib/Driver/Driver.cpp.gcc71~	2018-04-18 20:25:03.000000000 +0200
++++ llvm-7.0.0.src/clang/lib/Driver/Driver.cpp	2018-04-25 19:04:57.149678788 +0200
 @@ -1508,7 +1508,7 @@ bool Driver::HandleImmediateArgs(const C
      // If we want to return a more correct answer some day, then we should
      // introduce a non-pedantically GCC compatible mode to Clang in which we
@@ -10,9 +10,9 @@ diff -up llvm-7.0.0.src/tools/clang/lib/Driver/Driver.cpp.gcc71~ llvm-7.0.0.src/
      return false;
    }
  
-diff -up llvm-7.0.0.src/tools/clang/lib/Frontend/InitPreprocessor.cpp.gcc71~ llvm-7.0.0.src/tools/clang/lib/Frontend/InitPreprocessor.cpp
---- llvm-7.0.0.src/tools/clang/lib/Frontend/InitPreprocessor.cpp.gcc71~	2018-04-25 15:33:19.000000000 +0200
-+++ llvm-7.0.0.src/tools/clang/lib/Frontend/InitPreprocessor.cpp	2018-04-25 19:04:57.149678788 +0200
+diff -up llvm-7.0.0.src/clang/lib/Frontend/InitPreprocessor.cpp.gcc71~ llvm-7.0.0.src/clang/lib/Frontend/InitPreprocessor.cpp
+--- llvm-7.0.0.src/clang/lib/Frontend/InitPreprocessor.cpp.gcc71~	2018-04-25 15:33:19.000000000 +0200
++++ llvm-7.0.0.src/clang/lib/Frontend/InitPreprocessor.cpp	2018-04-25 19:04:57.149678788 +0200
 @@ -579,12 +579,13 @@ static void InitializePredefinedMacros(c
                        "\"" CLANG_VERSION_STRING " "
                        + getClangFullRepositoryVersion() + "\"");
@@ -51,9 +51,9 @@ diff -up llvm-7.0.0.src/tools/clang/lib/Frontend/InitPreprocessor.cpp.gcc71~ llv
      Builder.defineMacro("__GXX_WEAK__");
      Builder.defineMacro("__private_extern__", "extern");
    }
-diff -up llvm-7.0.0.src/tools/clang/test/Driver/immediate-options.c.gcc71~ llvm-7.0.0.src/tools/clang/test/Driver/immediate-options.c
---- llvm-7.0.0.src/tools/clang/test/Driver/immediate-options.c.gcc71~	2017-04-04 23:46:50.000000000 +0200
-+++ llvm-7.0.0.src/tools/clang/test/Driver/immediate-options.c	2018-04-25 19:04:57.149678788 +0200
+diff -up llvm-7.0.0.src/clang/test/Driver/immediate-options.c.gcc71~ llvm-7.0.0.src/clang/test/Driver/immediate-options.c
+--- llvm-7.0.0.src/clang/test/Driver/immediate-options.c.gcc71~	2017-04-04 23:46:50.000000000 +0200
++++ llvm-7.0.0.src/clang/test/Driver/immediate-options.c	2018-04-25 19:04:57.149678788 +0200
 @@ -7,7 +7,7 @@
  // HELP-HIDDEN: driver-mode
  
@@ -63,9 +63,9 @@ diff -up llvm-7.0.0.src/tools/clang/test/Driver/immediate-options.c.gcc71~ llvm-
  
  // RUN: %clang -print-search-dirs | FileCheck %s -check-prefix=PRINT-SEARCH-DIRS
  // PRINT-SEARCH-DIRS: programs: ={{.*}}
-diff -up llvm-7.0.0.src/tools/clang/test/Preprocessor/init.c.gcc71~ llvm-7.0.0.src/tools/clang/test/Preprocessor/init.c
---- llvm-7.0.0.src/tools/clang/test/Preprocessor/init.c.gcc71~	2018-04-13 00:50:50.000000000 +0200
-+++ llvm-7.0.0.src/tools/clang/test/Preprocessor/init.c	2018-04-25 19:04:57.150678765 +0200
+diff -up llvm-7.0.0.src/clang/test/Preprocessor/init.c.gcc71~ llvm-7.0.0.src/clang/test/Preprocessor/init.c
+--- llvm-7.0.0.src/clang/test/Preprocessor/init.c.gcc71~	2018-04-13 00:50:50.000000000 +0200
++++ llvm-7.0.0.src/clang/test/Preprocessor/init.c	2018-04-25 19:04:57.150678765 +0200
 @@ -7569,7 +7569,7 @@
  // SPARC:#define __UINT_LEAST8_MAX__ 255
  // SPARC:#define __UINT_LEAST8_TYPE__ unsigned char

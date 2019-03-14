@@ -1,6 +1,6 @@
-diff -up llvm-7.0.0.src/lib/Support/Unix/Program.inc.posix_spawn~ llvm-7.0.0.src/lib/Support/Unix/Program.inc
---- llvm-7.0.0.src/lib/Support/Unix/Program.inc.posix_spawn~	2018-06-23 04:32:35.199362988 +0200
-+++ llvm-7.0.0.src/lib/Support/Unix/Program.inc	2018-06-23 04:36:12.525351012 +0200
+diff -up llvm-7.0.0.src/llvm/lib/Support/Unix/Program.inc.posix_spawn~ llvm-7.0.0.src/lib/Support/Unix/Program.inc
+--- llvm-7.0.0.src/llvm/lib/Support/Unix/Program.inc.posix_spawn~	2018-06-23 04:32:35.199362988 +0200
++++ llvm-7.0.0.src/llvm/lib/Support/Unix/Program.inc	2018-06-23 04:36:12.525351012 +0200
 @@ -257,7 +257,7 @@ static bool Execute(ProcessInfo &PI, Str
        posix_spawn_file_actions_destroy(FileActions);
  

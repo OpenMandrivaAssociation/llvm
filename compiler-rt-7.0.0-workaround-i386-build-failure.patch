@@ -1,7 +1,7 @@
-diff -up llvm-7.0.0.src/projects/compiler-rt/lib/builtins/int_math.h.omv~ llvm-7.0.0.src/projects/compiler-rt/lib/builtins/int_math.h
---- llvm-7.0.0.src/projects/compiler-rt/lib/builtins/int_math.h.omv~	2018-09-12 15:19:39.331797489 +0200
-+++ llvm-7.0.0.src/projects/compiler-rt/lib/builtins/int_math.h	2018-09-12 15:20:13.196201045 +0200
-@@ -81,34 +81,16 @@
+diff -up llvm-9.0.0.src/compiler-rt/lib/builtins/int_math.h.crti386Workaround~ llvm-9.0.0.src/projects/compiler-rt/lib/builtins/int_math.h
+--- llvm-9.0.0.src/compiler-rt/lib/builtins/int_math.h.crti386Workaround~	2019-03-12 20:21:28.625165216 +0100
++++ llvm-9.0.0.src/compiler-rt/lib/builtins/int_math.h	2019-03-12 20:23:04.267837351 +0100
+@@ -80,30 +80,14 @@
  #define crt_fabsl(x) __builtin_fabsl((x))
  #endif
  
@@ -16,12 +16,8 @@ diff -up llvm-7.0.0.src/projects/compiler-rt/lib/builtins/int_math.h.omv~ llvm-7
 -#endif
  
 -#if defined(_MSC_VER) && !defined(__clang__)
--#define crt_logb(x) logb((x))
--#define crt_logbf(x) logbf((x))
 -#define crt_logbl(x) logbl((x))
 -#else
- #define crt_logb(x) __builtin_logb((x))
- #define crt_logbf(x) __builtin_logbf((x))
  #define crt_logbl(x) __builtin_logbl((x))
 -#endif
  

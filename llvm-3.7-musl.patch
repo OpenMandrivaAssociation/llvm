@@ -1,6 +1,6 @@
-diff -up llvm-7.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h.musl1~ llvm-7.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h
---- llvm-7.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h.musl1~	2017-09-26 04:36:57.000000000 +0200
-+++ llvm-7.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h	2018-04-25 19:13:53.224459769 +0200
+diff -up llvm-7.0.0.src/llvm/include/llvm/Analysis/TargetLibraryInfo.h.musl1~ llvm-7.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h
+--- llvm-7.0.0.src/llvm/include/llvm/Analysis/TargetLibraryInfo.h.musl1~	2017-09-26 04:36:57.000000000 +0200
++++ llvm-7.0.0.src/llvm/include/llvm/Analysis/TargetLibraryInfo.h	2018-04-25 19:13:53.224459769 +0200
 @@ -19,6 +19,17 @@
  #include "llvm/IR/PassManager.h"
  #include "llvm/Pass.h"
@@ -21,8 +21,8 @@ diff -up llvm-7.0.0.src/include/llvm/Analysis/TargetLibraryInfo.h.musl1~ llvm-7.
  
 diff -up llvm-7.0.0.src/lib/Analysis/TargetLibraryInfo.cpp.musl1~ llvm-7.0.0.src/lib/Analysis/TargetLibraryInfo.cpp
 diff -up llvm-7.0.0.src/lib/Support/Unix/Signals.inc.musl1~ llvm-7.0.0.src/lib/Support/Unix/Signals.inc
---- llvm-7.0.0.src/lib/Support/Unix/Signals.inc.musl1~	2018-02-20 06:41:26.000000000 +0100
-+++ llvm-7.0.0.src/lib/Support/Unix/Signals.inc	2018-04-25 19:13:53.224459769 +0200
+--- llvm-7.0.0.src/llvm/lib/Support/Unix/Signals.inc.musl1~	2018-02-20 06:41:26.000000000 +0100
++++ llvm-7.0.0.src/llvm/lib/Support/Unix/Signals.inc	2018-04-25 19:13:53.224459769 +0200
 @@ -294,7 +294,7 @@ void llvm::sys::AddSignalHandler(void (*
    RegisterHandlers();
  }

@@ -1,5 +1,5 @@
---- llvm-4.0.0.src/tools/llgo/third_party/gofrontend/libgo/runtime/heapdump.c.omv~	2017-01-27 09:31:41.823245653 +0100
-+++ llvm-4.0.0.src/tools/llgo/third_party/gofrontend/libgo/runtime/heapdump.c	2017-01-27 09:33:01.333575363 +0100
+--- llvm-4.0.0.src/llgo/third_party/gofrontend/libgo/runtime/heapdump.c.omv~	2017-01-27 09:31:41.823245653 +0100
++++ llvm-4.0.0.src/llgo/third_party/gofrontend/libgo/runtime/heapdump.c	2017-01-27 09:33:01.333575363 +0100
 @@ -72,9 +72,9 @@ hwrite(const byte *data, uintptr len)
  		nbuf += len;
  		return;

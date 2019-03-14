@@ -1,21 +1,8 @@
-From d07632abe23d55eec2aae303a142a97765a77d32 Mon Sep 17 00:00:00 2001
-From: =?UTF-8?q?Micha=C5=82=20G=C3=B3rny?= <mgorny@gentoo.org>
-Date: Tue, 9 Jun 2015 12:20:06 +0200
-Subject: [PATCH 2/2] cmake: Make CLANG_LIBDIR_SUFFIX overridable
-
-Make CLANG_LIBDIR_SUFFIX a cache variable so that it can be explicitly
-overriden. It is used purely to find the LLVMgold.so plugin, so we want
-to set it to native suffix.
----
- CMakeLists.txt | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 357286b..647f976 100644
---- a/tools/clang/CMakeLists.txt
-+++ b/tools/clang/CMakeLists.txt
-@@ -203,7 +203,7 @@ set(CLANG_VENDOR_UTI "org.llvm.clang" CACHE STRING
-   "Vendor-specific uti.")
+diff -up llvm-9.0.0-20190313/clang/CMakeLists.txt.24~ llvm-9.0.0-20190313/clang/CMakeLists.txt
+--- llvm-9.0.0-20190313/clang/CMakeLists.txt.24~	2019-03-13 02:29:11.218969778 +0100
++++ llvm-9.0.0-20190313/clang/CMakeLists.txt	2019-03-13 02:36:22.398164361 +0100
+@@ -305,7 +305,7 @@ set(CLANG_PYTHON_BINDINGS_VERSIONS "" CA
+     "Python versions to install libclang python bindings for")
  
  # The libdir suffix must exactly match whatever LLVM's configuration used.
 -set(CLANG_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}")
@@ -23,6 +10,3 @@ index 357286b..647f976 100644
  
  set(CLANG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
  set(CLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
--- 
-2.4.3
-

@@ -1,13 +1,2 @@
 sources:
-  cfe-7.0.1.src.tar.xz: f9b1461394141a34bea786a3a5276c5478512f31
-  clang-tools-extra-7.0.1.src.tar.xz: 97f5813ca1dbf098aaaf1e1dc524c4456cccd1ca
-  compiler-rt-7.0.1.src.tar.xz: f2bdc8c640aabd822cbdc24b02e0a4d5df1b2d68
-  libcxx-7.0.1.src.tar.xz: 1f59bfa697c8a22fc58a137fcc247674c317f008
-  libcxxabi-7.0.1.src.tar.xz: 0acc5630507ae6987b466294d2e06685f20dda16
-  libunwind-7.0.1.src.tar.xz: a5b843d756f531e320ee7a9103551af19b4e5b49
-  lld-7.0.1.src.tar.xz: 2a320c1fde74789ff3b792facc945e5f2346767c
-  lldb-7.0.1.src.tar.xz: 73e5930002907b505fc1544e747761c117ceaaad
-  llgo-7.0.1.src.tar.xz: f99d86fd110e7bc6bfa417eea3b9d3345eea3138
-  llvm-7.0.1.src.tar.xz: 472c5667c31ea8c159cf61ff2fb6d9edc6ed634c
-  openmp-7.0.1.src.tar.xz: 375b9948597c18645da45bdbceee7aa2f7a62696
-  polly-7.0.1.src.tar.xz: 5fd2c718a804729d0b62149eef8ba359be870e02
+  llvm-9.0.0-20190314.tar.xz: 83c2a0660bf7c7377210a25fed488ced654d9c31

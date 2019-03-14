@@ -1,5 +1,5 @@
---- llvm-3.7.0.src/projects/compiler-rt/lib/tsan/dd/dd_interceptors.cc.omv~	2015-06-02 13:45:40.856457552 +0200
-+++ llvm-3.7.0.src/projects/compiler-rt/lib/tsan/dd/dd_interceptors.cc	2015-06-02 13:46:05.401452554 +0200
+--- llvm-3.7.0.src/compiler-rt/lib/tsan/dd/dd_interceptors.cc.omv~	2015-06-02 13:45:40.856457552 +0200
++++ llvm-3.7.0.src/compiler-rt/lib/tsan/dd/dd_interceptors.cc	2015-06-02 13:46:05.401452554 +0200
 @@ -7,11 +7,14 @@
  //
  //===----------------------------------------------------------------------===//
