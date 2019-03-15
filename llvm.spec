@@ -171,6 +171,7 @@ BuildRequires:	libtool
 BuildRequires:	python-sphinx
 # For sphinx plugins
 BuildRequires:	python-recommonmark
+BuildRequires:	python-sphinxcontrib-websupport
 BuildRequires:	python-setuptools
 BuildRequires:	python-requests
 %if %{with ocaml}
