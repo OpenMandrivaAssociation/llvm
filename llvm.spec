@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%define date 20190314
+%define date 20190315
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -832,6 +832,12 @@ Python bindings to parts of the Clang library
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
+
+# LLVM doesn't use autoconf, but it uses autoconf's config.guess
+# to find target arch and friends (hidden away in cmake/).
+# Let's make sure we replace its outdated copy (which doesn't
+# know what riscv64 is) with a current version.
+%config_update
 
 %build
 COMPONENTS="llvm"
