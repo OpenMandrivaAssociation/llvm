@@ -969,7 +969,7 @@ done
 	-DCLANG_TABLEGEN=%{_bindir}/clang-tblgen \
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
 %endif
-%ifnarch armv7hl
+%if %{with unwind}
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
 %endif
 	-G Ninja \
