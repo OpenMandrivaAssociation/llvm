@@ -43,10 +43,10 @@
 %else
 %bcond_without build_libcxx
 %endif
-%ifarch %{ix86} aarch64
-# lldb uses some atomics that haven't been ported to x86_32 yet
-# (let's see if this is still the case...)
-%bcond_without lldb
+%ifarch %{riscv}
+# Disabled until we get a RISC-V implementation of NativeRegisterContext
+# lldb/source/Plugins/Process/Linux/NativeRegisterContext*
+%bcond_with lldb
 %else
 %bcond_without lldb
 %endif
@@ -151,6 +151,7 @@ Patch46:	llvm-4.0.1-libomp-versioning.patch
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
+Patch49:	llvm-9.0-riscv.patch
 # Show more information when aborting because posix_spawn failed
 # (happens in qemu aarch64 chroots)
 Patch51:	llvm-4.0.1-debug-posix_spawn.patch

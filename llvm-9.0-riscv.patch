@@ -1,0 +1,43 @@
+diff -up llvm-9.0.0-20190315/clang-tools-extra/clangd/tool/CMakeLists.txt.omv~ llvm-9.0.0-20190315/clang-tools-extra/clangd/tool/CMakeLists.txt
+diff -up llvm-9.0.0-20190315/clang/lib/Headers/stddef.h.omv~ llvm-9.0.0-20190315/clang/lib/Headers/stddef.h
+--- llvm-9.0.0-20190315/clang/lib/Headers/stddef.h.omv~	2019-03-15 18:58:39.000000000 +0000
++++ llvm-9.0.0-20190315/clang/lib/Headers/stddef.h	2019-03-15 18:59:34.000000000 +0000
+@@ -27,6 +27,10 @@
+     defined(__need_size_t) || defined(__need_wchar_t) ||                       \
+     defined(__need_NULL) || defined(__need_wint_t)
+ 
++#if !defined(__clang__) && __GNUC__ < 9
++#define __has_feature(x) 0
++#endif
++
+ #if !defined(__need_ptrdiff_t) && !defined(__need_size_t) &&                   \
+     !defined(__need_wchar_t) && !defined(__need_NULL) &&                       \
+     !defined(__need_wint_t)
+diff -up llvm-9.0.0-20190315/llvm/tools/dsymutil/CMakeLists.txt.omv~ llvm-9.0.0-20190315/llvm/tools/dsymutil/CMakeLists.txt
+--- llvm-9.0.0-20190315/llvm/tools/dsymutil/CMakeLists.txt.omv~	2019-03-15 23:48:34.000000000 +0000
++++ llvm-9.0.0-20190315/llvm/tools/dsymutil/CMakeLists.txt	2019-03-16 00:37:22.000000000 +0000
+@@ -28,4 +28,6 @@ add_llvm_tool(dsymutil
+ 
+ if(APPLE)
+   target_link_libraries(dsymutil PRIVATE "-framework CoreFoundation")
++else(APPLE)
++  target_link_libraries(dsymutil PRIVATE "-latomic")
+ endif(APPLE)
+diff -up llvm-9.0.0-20190315/llvm/utils/benchmark/src/cycleclock.h.omv~ llvm-9.0.0-20190315/llvm/utils/benchmark/src/cycleclock.h
+--- llvm-9.0.0-20190315/llvm/utils/benchmark/src/cycleclock.h.omv~	2019-03-16 00:06:47.000000000 +0000
++++ llvm-9.0.0-20190315/llvm/utils/benchmark/src/cycleclock.h	2019-03-16 00:12:04.000000000 +0000
+@@ -165,10 +165,10 @@ inline BENCHMARK_ALWAYS_INLINE int64_t N
+   asm("stck %0" : "=Q" (tsc) : : "cc");
+   return tsc;
+ #else
+-// The soft failover to a generic implementation is automatic only for ARM.
+-// For other platforms the developer is expected to make an attempt to create
+-// a fast implementation and use generic version if nothing better is available.
+-#error You need to define CycleTimer for your OS and CPU
++  // Generic implementation to make ports to new arches (Hello RISC-V!!!) happy
++  struct timespec ts = { 0, 0 };
++  clock_gettime(CLOCK_MONOTONIC, &ts);
++  return static_cast<int64_t>(ts.tv_sec) * 1000000000 + ts.tv_nsec;
+ #endif
+ }
+ }  // end namespace cycleclock
