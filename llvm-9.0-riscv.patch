@@ -55,3 +55,29 @@ diff -up llvm-9.0.0-20190315/clang-tools-extra/clangd/CMakeLists.txt.omv~ llvm-9
  
  add_clang_library(clangDaemon
    AST.cpp
+diff -up llvm-9.0.0-20190315/clang/lib/Driver/ToolChains/Gnu.cpp.omv~ llvm-9.0.0-20190315/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-9.0.0-20190315/clang/lib/Driver/ToolChains/Gnu.cpp.omv~	2019-03-16 19:13:56.000000000 +0000
++++ llvm-9.0.0-20190315/clang/lib/Driver/ToolChains/Gnu.cpp	2019-03-16 19:17:49.000000000 +0000
+@@ -2012,7 +2012,10 @@ void Generic_GCC::GCCInstallationDetecto
+   static const char *const RISCV32LibDirs[] = {"/lib", "/lib32"};
+   static const char *const RISCVTriples[] = {"riscv32-unknown-linux-gnu",
+                                              "riscv64-unknown-linux-gnu",
+-                                             "riscv32-unknown-elf"};
++                                             "riscv32-unknown-elf",
++					     "riscv64-openmandriva-linux-gnu",
++					     "riscv64-openmandriva-linux-musl"
++  };
+ 
+   static const char *const SPARCv8LibDirs[] = {"/lib32", "/lib"};
+   static const char *const SPARCv8Triples[] = {"sparc-linux-gnu",
+diff -up llvm-9.0.0-20190315/llvm/CMakeLists.txt.omv~ llvm-9.0.0-20190315/llvm/CMakeLists.txt
+--- llvm-9.0.0-20190315/llvm/CMakeLists.txt.omv~	2019-03-16 20:22:23.000000000 +0000
++++ llvm-9.0.0-20190315/llvm/CMakeLists.txt	2019-03-16 20:22:30.000000000 +0000
+@@ -327,6 +327,7 @@ set(LLVM_ALL_TARGETS
+   MSP430
+   NVPTX
+   PowerPC
++  RISCV
+   Sparc
+   SystemZ
+   WebAssembly
