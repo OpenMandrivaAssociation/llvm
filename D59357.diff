@@ -1,0 +1,1176 @@
+Index: llvm/llvm/lib/Target/RISCV/RISCVCallingConv.td
+===================================================================
+--- llvm/llvm/lib/Target/RISCV/RISCVCallingConv.td
++++ llvm/llvm/lib/Target/RISCV/RISCVCallingConv.td
+@@ -16,6 +16,14 @@
+ def CSR_ILP32_LP64
+     : CalleeSavedRegs<(add X1, X3, X4, X8, X9, (sequence "X%u", 18, 27))>;
+ 
++def CSR_ILP32F_LP64F
++    : CalleeSavedRegs<(add CSR_ILP32_LP64,
++                       F8_32, F9_32, (sequence "F%u_32", 18, 27))>;
++
++def CSR_ILP32D_LP64D
++    : CalleeSavedRegs<(add CSR_ILP32_LP64,
++                       F8_64, F9_64, (sequence "F%u_64", 18, 27))>;
++
+ // Needed for implementation of RISCVRegisterInfo::getNoPreservedMask()
+ def CSR_NoRegs : CalleeSavedRegs<(add)>;
+ 
+Index: llvm/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
+===================================================================
+--- llvm/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
++++ llvm/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
+@@ -45,8 +45,17 @@
+   RISCVABI::ABI ABI = Subtarget.getTargetABI();
+   assert(ABI != RISCVABI::ABI_Unknown && "Improperly initialised target ABI");
+ 
+-  if (ABI != RISCVABI::ABI_ILP32 && ABI != RISCVABI::ABI_LP64)
++  switch (ABI) {
++  default:
+     report_fatal_error("Don't know how to lower this ABI");
++  case RISCVABI::ABI_ILP32:
++  case RISCVABI::ABI_ILP32F:
++  case RISCVABI::ABI_ILP32D:
++  case RISCVABI::ABI_LP64:
++  case RISCVABI::ABI_LP64F:
++  case RISCVABI::ABI_LP64D:
++    break;
++  }
+ 
+   MVT XLenVT = Subtarget.getXLenVT();
+ 
+@@ -894,6 +903,14 @@
+   RISCV::X10, RISCV::X11, RISCV::X12, RISCV::X13,
+   RISCV::X14, RISCV::X15, RISCV::X16, RISCV::X17
+ };
++static const MCPhysReg ArgFPR32s[] = {
++  RISCV::F10_32, RISCV::F11_32, RISCV::F12_32, RISCV::F13_32,
++  RISCV::F14_32, RISCV::F15_32, RISCV::F16_32, RISCV::F17_32
++};
++static const MCPhysReg ArgFPR64s[] = {
++  RISCV::F10_64, RISCV::F11_64, RISCV::F12_64, RISCV::F13_64,
++  RISCV::F14_64, RISCV::F15_64, RISCV::F16_64, RISCV::F17_64
++};
+ 
+ // Pass a 2*XLEN argument that has been split into two XLEN values through
+ // registers or the stack as necessary.
+@@ -934,9 +951,10 @@
+ }
+ 
+ // Implements the RISC-V calling convention. Returns true upon failure.
+-static bool CC_RISCV(const DataLayout &DL, unsigned ValNo, MVT ValVT, MVT LocVT,
+-                     CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags,
+-                     CCState &State, bool IsFixed, bool IsRet, Type *OrigTy) {
++static bool CC_RISCV(const DataLayout &DL, RISCVABI::ABI ABI, unsigned ValNo,
++                     MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo,
++                     ISD::ArgFlagsTy ArgFlags, CCState &State, bool IsFixed,
++                     bool IsRet, Type *OrigTy) {
+   unsigned XLen = DL.getLargestLegalIntTypeSizeInBits();
+   assert(XLen == 32 || XLen == 64);
+   MVT XLenVT = XLen == 32 ? MVT::i32 : MVT::i64;
+@@ -946,10 +964,42 @@
+   if (IsRet && ValNo > 1)
+     return true;
+ 
+-  if (ValVT == MVT::f32) {
++  // UseGPRForF32 if targeting one of the soft-float ABIs, if passing a
++  // variadic argument, or if no F32 argument registers are available.
++  bool UseGPRForF32 = true;
++  // UseGPRForF64 if targeting soft-float ABIs or an FLEN=32 ABI, if passing a
++  // variadic argument, or if no F64 argument registers are available.
++  bool UseGPRForF64 = true;
++
++  switch (ABI) {
++  default:
++    llvm_unreachable("Unexpected ABI");
++  case RISCVABI::ABI_ILP32:
++  case RISCVABI::ABI_LP64:
++    break;
++  case RISCVABI::ABI_ILP32F:
++  case RISCVABI::ABI_LP64F:
++    UseGPRForF32 = !IsFixed;
++    break;
++  case RISCVABI::ABI_ILP32D:
++  case RISCVABI::ABI_LP64D:
++    UseGPRForF32 = !IsFixed;
++    UseGPRForF64 = !IsFixed;
++    break;
++  }
++
++  if (State.getFirstUnallocated(ArgFPR32s) == array_lengthof(ArgFPR32s))
++    UseGPRForF32 = true;
++  if (State.getFirstUnallocated(ArgFPR64s) == array_lengthof(ArgFPR64s))
++    UseGPRForF64 = true;
++
++  // From this point on, rely on UseGPRForF32, UseGPRForF64 and similar local
++  // variables rather than directly checking against the target ABI.
++
++  if (UseGPRForF32 && ValVT == MVT::f32) {
+     LocVT = XLenVT;
+     LocInfo = CCValAssign::BCvt;
+-  } else if (XLen == 64 && ValVT == MVT::f64) {
++  } else if (UseGPRForF64 && XLen == 64 && ValVT == MVT::f64) {
+     LocVT = MVT::i64;
+     LocInfo = CCValAssign::BCvt;
+   }
+@@ -977,8 +1027,9 @@
+   assert(PendingLocs.size() == PendingArgFlags.size() &&
+          "PendingLocs and PendingArgFlags out of sync");
+ 
+-  // Handle passing f64 on RV32D with a soft float ABI.
+-  if (XLen == 32 && ValVT == MVT::f64) {
++  // Handle passing f64 on RV32D with a soft float ABI or when floating point
++  // registers are exhausted.
++  if (UseGPRForF64 && XLen == 32 && ValVT == MVT::f64) {
+     assert(!ArgFlags.isSplit() && PendingLocs.empty() &&
+            "Can't lower f64 if it is split");
+     // Depending on available argument GPRS, f64 may be passed in a pair of
+@@ -1027,7 +1078,13 @@
+   }
+ 
+   // Allocate to a register if possible, or else a stack slot.
+-  unsigned Reg = State.AllocateReg(ArgGPRs);
++  unsigned Reg;
++  if (ValVT == MVT::f32 && !UseGPRForF32)
++    Reg = State.AllocateReg(ArgFPR32s, ArgFPR64s);
++  else if (ValVT == MVT::f64 && !UseGPRForF64)
++    Reg = State.AllocateReg(ArgFPR64s, ArgFPR32s);
++  else
++    Reg = Reg = State.AllocateReg(ArgGPRs);
+   unsigned StackOffset = Reg ? 0 : State.AllocateStack(XLen / 8, XLen / 8);
+ 
+   // If we reach this point and PendingLocs is non-empty, we must be at the
+@@ -1048,7 +1105,8 @@
+     return false;
+   }
+ 
+-  assert(LocVT == XLenVT && "Expected an XLenVT at this stage");
++  assert((!UseGPRForF32 || !UseGPRForF64 || LocVT == XLenVT) &&
++         "Expected an XLenVT at this stage");
+ 
+   if (Reg) {
+     State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+@@ -1080,7 +1138,8 @@
+     else if (Ins[i].isOrigArg())
+       ArgTy = FType->getParamType(Ins[i].getOrigArgIndex());
+ 
+-    if (CC_RISCV(MF.getDataLayout(), i, ArgVT, ArgVT, CCValAssign::Full,
++    RISCVABI::ABI ABI = MF.getSubtarget<RISCVSubtarget>().getTargetABI();
++    if (CC_RISCV(MF.getDataLayout(), ABI, i, ArgVT, ArgVT, CCValAssign::Full,
+                  ArgFlags, CCInfo, /*IsRet=*/true, IsRet, ArgTy)) {
+       LLVM_DEBUG(dbgs() << "InputArg #" << i << " has unhandled type "
+                         << EVT(ArgVT).getEVTString() << '\n');
+@@ -1100,7 +1159,8 @@
+     ISD::ArgFlagsTy ArgFlags = Outs[i].Flags;
+     Type *OrigTy = CLI ? CLI->getArgs()[Outs[i].OrigArgIndex].Ty : nullptr;
+ 
+-    if (CC_RISCV(MF.getDataLayout(), i, ArgVT, ArgVT, CCValAssign::Full,
++    RISCVABI::ABI ABI = MF.getSubtarget<RISCVSubtarget>().getTargetABI();
++    if (CC_RISCV(MF.getDataLayout(), ABI, i, ArgVT, ArgVT, CCValAssign::Full,
+                  ArgFlags, CCInfo, Outs[i].IsFixed, IsRet, OrigTy)) {
+       LLVM_DEBUG(dbgs() << "OutputArg #" << i << " has unhandled type "
+                         << EVT(ArgVT).getEVTString() << "\n");
+@@ -1137,8 +1197,24 @@
+   MachineRegisterInfo &RegInfo = MF.getRegInfo();
+   EVT LocVT = VA.getLocVT();
+   SDValue Val;
++  const TargetRegisterClass *RC;
++
++  switch (LocVT.getSimpleVT().SimpleTy) {
++  default:
++    llvm_unreachable("Unexpected register type");
++  case MVT::i32:
++  case MVT::i64:
++    RC = &RISCV::GPRRegClass;
++    break;
++  case MVT::f32:
++    RC = &RISCV::FPR32RegClass;
++    break;
++  case MVT::f64:
++    RC = &RISCV::FPR64RegClass;
++    break;
++  }
+ 
+-  unsigned VReg = RegInfo.createVirtualRegister(&RISCV::GPRRegClass);
++  unsigned VReg = RegInfo.createVirtualRegister(RC);
+   RegInfo.addLiveIn(VA.getLocReg(), VReg);
+   Val = DAG.getCopyFromReg(Chain, DL, VReg, LocVT);
+ 
+@@ -1715,8 +1791,9 @@
+   for (unsigned i = 0, e = Outs.size(); i != e; ++i) {
+     MVT VT = Outs[i].VT;
+     ISD::ArgFlagsTy ArgFlags = Outs[i].Flags;
+-    if (CC_RISCV(MF.getDataLayout(), i, VT, VT, CCValAssign::Full, ArgFlags,
+-                 CCInfo, /*IsFixed=*/true, /*IsRet=*/true, nullptr))
++    RISCVABI::ABI ABI = MF.getSubtarget<RISCVSubtarget>().getTargetABI();
++    if (CC_RISCV(MF.getDataLayout(), ABI, i, VT, VT, CCValAssign::Full,
++                 ArgFlags, CCInfo, /*IsFixed=*/true, /*IsRet=*/true, nullptr))
+       return false;
+   }
+   return true;
+Index: llvm/llvm/lib/Target/RISCV/RISCVRegisterInfo.cpp
+===================================================================
+--- llvm/llvm/lib/Target/RISCV/RISCVRegisterInfo.cpp
++++ llvm/llvm/lib/Target/RISCV/RISCVRegisterInfo.cpp
+@@ -40,7 +40,20 @@
+       return CSR_XLEN_F32_Interrupt_SaveList;
+     return CSR_Interrupt_SaveList;
+   }
+-  return CSR_ILP32_LP64_SaveList;
++
++  switch (Subtarget.getTargetABI()) {
++  default:
++    llvm_unreachable("Unrecognized ABI");
++  case RISCVABI::ABI_ILP32:
++  case RISCVABI::ABI_LP64:
++    return CSR_ILP32_LP64_SaveList;
++  case RISCVABI::ABI_ILP32F:
++  case RISCVABI::ABI_LP64F:
++    return CSR_ILP32F_LP64F_SaveList;
++  case RISCVABI::ABI_ILP32D:
++  case RISCVABI::ABI_LP64D:
++    return CSR_ILP32D_LP64D_SaveList;
++  }
+ }
+ 
+ BitVector RISCVRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
+@@ -127,5 +140,18 @@
+       return CSR_XLEN_F32_Interrupt_RegMask;
+     return CSR_Interrupt_RegMask;
+   }
+-  return CSR_ILP32_LP64_RegMask;
++
++  switch (Subtarget.getTargetABI()) {
++  default:
++    llvm_unreachable("Unrecognized ABI");
++  case RISCVABI::ABI_ILP32:
++  case RISCVABI::ABI_LP64:
++    return CSR_ILP32_LP64_RegMask;
++  case RISCVABI::ABI_ILP32F:
++  case RISCVABI::ABI_LP64F:
++    return CSR_ILP32F_LP64F_RegMask;
++  case RISCVABI::ABI_ILP32D:
++  case RISCVABI::ABI_LP64D:
++    return CSR_ILP32D_LP64D_RegMask;
++  }
+ }
+Index: llvm/llvm/test/CodeGen/RISCV/callee-saved-fpr32s.ll
+===================================================================
+--- llvm/llvm/test/CodeGen/RISCV/callee-saved-fpr32s.ll
++++ llvm/llvm/test/CodeGen/RISCV/callee-saved-fpr32s.ll
+@@ -2,10 +2,19 @@
+ ; RUN:   | FileCheck %s -check-prefix=ILP32-LP64
+ ; RUN: llc -mtriple=riscv64 -mattr=+f -verify-machineinstrs < %s \
+ ; RUN:   | FileCheck %s -check-prefix=ILP32-LP64
++; RUN: llc -mtriple=riscv32 -mattr=+f -target-abi ilp32f -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=ILP32F-LP64F
++; RUN: llc -mtriple=riscv64 -mattr=+f -target-abi lp64f -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=ILP32F-LP64F
++; RUN: llc -mtriple=riscv32 -mattr=+d -target-abi ilp32d -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=ILP32D-LP64D
++; RUN: llc -mtriple=riscv64 -mattr=+d -target-abi lp64d -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=ILP32D-LP64D
+ 
+ @var = global [32 x float] zeroinitializer
+ 
+ ; All floating point registers are temporaries for the ilp32 and lp64 ABIs.
++; fs0-fs11 are callee-saved for the ilp32f, ilp32d, lp64f, and lp64d ABIs.
+ 
+ ; This function tests that RISCVRegisterInfo::getCalleeSavedRegs returns
+ ; something appropriate.
+@@ -80,6 +89,42 @@
+ ; ILP32-LP64-NEXT:    fsw ft1, 4(a1)
+ ; ILP32-LP64-NEXT:    fsw ft0, %lo(var)(a0)
+ ; ILP32-LP64-NEXT:    ret
++;
++; ILP32F-LP64F-LABEL: callee:
++; ILP32F-LP64F:       # %bb.0:
++; ILP32F-LP64F-NEXT:    addi sp, sp, -48
++; ILP32F-LP64F-NEXT:    fsw fs0, 44(sp)
++; ILP32F-LP64F-NEXT:    fsw fs1, 40(sp)
++; ILP32F-LP64F-NEXT:    fsw fs2, 36(sp)
++; ILP32F-LP64F-NEXT:    fsw fs3, 32(sp)
++; ILP32F-LP64F-NEXT:    fsw fs4, 28(sp)
++; ILP32F-LP64F-NEXT:    fsw fs5, 24(sp)
++; ILP32F-LP64F-NEXT:    fsw fs6, 20(sp)
++; ILP32F-LP64F-NEXT:    fsw fs7, 16(sp)
++; ILP32F-LP64F-NEXT:    fsw fs8, 12(sp)
++; ILP32F-LP64F-NEXT:    fsw fs9, 8(sp)
++; ILP32F-LP64F-NEXT:    fsw fs10, 4(sp)
++; ILP32F-LP64F-NEXT:    fsw fs11, 0(sp)
++; ILP32F-LP64F-NEXT:    lui a0, %hi(var)
++; ILP32F-LP64F-NEXT:    addi a1, a0, %lo(var)
++;
++; ILP32D-LP64D-LABEL: callee:
++; ILP32D-LP64D:       # %bb.0:
++; ILP32D-LP64D-NEXT:    addi sp, sp, -96
++; ILP32D-LP64D-NEXT:    fsd fs0, 88(sp)
++; ILP32D-LP64D-NEXT:    fsd fs1, 80(sp)
++; ILP32D-LP64D-NEXT:    fsd fs2, 72(sp)
++; ILP32D-LP64D-NEXT:    fsd fs3, 64(sp)
++; ILP32D-LP64D-NEXT:    fsd fs4, 56(sp)
++; ILP32D-LP64D-NEXT:    fsd fs5, 48(sp)
++; ILP32D-LP64D-NEXT:    fsd fs6, 40(sp)
++; ILP32D-LP64D-NEXT:    fsd fs7, 32(sp)
++; ILP32D-LP64D-NEXT:    fsd fs8, 24(sp)
++; ILP32D-LP64D-NEXT:    fsd fs9, 16(sp)
++; ILP32D-LP64D-NEXT:    fsd fs10, 8(sp)
++; ILP32D-LP64D-NEXT:    fsd fs11, 0(sp)
++; ILP32D-LP64D-NEXT:    lui a0, %hi(var)
++; ILP32D-LP64D-NEXT:    addi a1, a0, %lo(var)
+   %val = load [32 x float], [32 x float]* @var
+   store volatile [32 x float] %val, [32 x float]* @var
+   ret void
+@@ -89,17 +134,75 @@
+ ; something appropriate.
+ ;
+ ; For the soft float ABIs, no floating point registers are preserved, and
+-; codegen will use only ft0 in the body of caller.
++; codegen will use only ft0 in the body of caller. For the 'f' and 'd ABIs,
++; fs0-fs11 are preserved across calls.
+ 
+ define void @caller() {
+ ; ILP32-LP64-LABEL: caller:
+ ; ILP32-LP64-NOT:     ft{{[1-9][0-9]*}}
+ ; ILP32-LP64-NOT:     fs{{[0-9]+}}
+ ; ILP32-LP64-NOT:     fa{{[0-9]+}}
+-; ILP32-LP64:         ret
++; ILP32-LP64:         call callee
+ ; ILP32-LP64-NOT:     ft{{[1-9][0-9]*}}
+ ; ILP32-LP64-NOT:     fs{{[0-9]+}}
+ ; ILP32-LP64-NOT:     fa{{[0-9]+}}
++; ILP32-LP64:         ret
++;
++; ILP32F-LP64F-LABEL: caller:
++; ILP32F-LP64F:       flw fs8, 80(s1)
++; ILP32F-LP64F-NEXT:  flw fs9, 84(s1)
++; ILP32F-LP64F-NEXT:  flw fs10, 88(s1)
++; ILP32F-LP64F-NEXT:  flw fs11, 92(s1)
++; ILP32F-LP64F-NEXT:  flw fs0, 96(s1)
++; ILP32F-LP64F-NEXT:  flw fs1, 100(s1)
++; ILP32F-LP64F-NEXT:  flw fs2, 104(s1)
++; ILP32F-LP64F-NEXT:  flw fs3, 108(s1)
++; ILP32F-LP64F-NEXT:  flw fs4, 112(s1)
++; ILP32F-LP64F-NEXT:  flw fs5, 116(s1)
++; ILP32F-LP64F-NEXT:  flw fs6, 120(s1)
++; ILP32F-LP64F-NEXT:  flw fs7, 124(s1)
++; ILP32F-LP64F-NEXT:  call callee
++; ILP32F-LP64F-NEXT:  fsw fs7, 124(s1)
++; ILP32F-LP64F-NEXT:  fsw fs6, 120(s1)
++; ILP32F-LP64F-NEXT:  fsw fs5, 116(s1)
++; ILP32F-LP64F-NEXT:  fsw fs4, 112(s1)
++; ILP32F-LP64F-NEXT:  fsw fs3, 108(s1)
++; ILP32F-LP64F-NEXT:  fsw fs2, 104(s1)
++; ILP32F-LP64F-NEXT:  fsw fs1, 100(s1)
++; ILP32F-LP64F-NEXT:  fsw fs0, 96(s1)
++; ILP32F-LP64F-NEXT:  fsw fs11, 92(s1)
++; ILP32F-LP64F-NEXT:  fsw fs10, 88(s1)
++; ILP32F-LP64F-NEXT:  fsw fs9, 84(s1)
++; ILP32F-LP64F-NEXT:  fsw fs8, 80(s1)
++; ILP32F-LP64F-NEXT:  lw ft0, {{[0-9]+}}(sp)
++;
++; ILP32D-LP64D-LABEL: caller:
++; ILP32D-LP64D:       flw fs8, 80(s1)
++; ILP32D-LP64D-NEXT:  flw fs9, 84(s1)
++; ILP32D-LP64D-NEXT:  flw fs10, 88(s1)
++; ILP32D-LP64D-NEXT:  flw fs11, 92(s1)
++; ILP32D-LP64D-NEXT:  flw fs0, 96(s1)
++; ILP32D-LP64D-NEXT:  flw fs1, 100(s1)
++; ILP32D-LP64D-NEXT:  flw fs2, 104(s1)
++; ILP32D-LP64D-NEXT:  flw fs3, 108(s1)
++; ILP32D-LP64D-NEXT:  flw fs4, 112(s1)
++; ILP32D-LP64D-NEXT:  flw fs5, 116(s1)
++; ILP32D-LP64D-NEXT:  flw fs6, 120(s1)
++; ILP32D-LP64D-NEXT:  flw fs7, 124(s1)
++; ILP32D-LP64D-NEXT:  call callee
++; ILP32D-LP64D-NEXT:  fsw fs7, 124(s1)
++; ILP32D-LP64D-NEXT:  fsw fs6, 120(s1)
++; ILP32D-LP64D-NEXT:  fsw fs5, 116(s1)
++; ILP32D-LP64D-NEXT:  fsw fs4, 112(s1)
++; ILP32D-LP64D-NEXT:  fsw fs3, 108(s1)
++; ILP32D-LP64D-NEXT:  fsw fs2, 104(s1)
++; ILP32D-LP64D-NEXT:  fsw fs1, 100(s1)
++; ILP32D-LP64D-NEXT:  fsw fs0, 96(s1)
++; ILP32D-LP64D-NEXT:  fsw fs11, 92(s1)
++; ILP32D-LP64D-NEXT:  fsw fs10, 88(s1)
++; ILP32D-LP64D-NEXT:  fsw fs9, 84(s1)
++; ILP32D-LP64D-NEXT:  fsw fs8, 80(s1)
++; ILP32D-LP64D-NEXT:  flw ft0, {{[0-9]+}}(sp)
+   %val = load [32 x float], [32 x float]* @var
+   call void @callee()
+   store volatile [32 x float] %val, [32 x float]* @var
+Index: llvm/llvm/test/CodeGen/RISCV/callee-saved-fpr64s.ll
+===================================================================
+--- llvm/llvm/test/CodeGen/RISCV/callee-saved-fpr64s.ll
++++ llvm/llvm/test/CodeGen/RISCV/callee-saved-fpr64s.ll
+@@ -1,12 +1,16 @@
+-; NOTE: Assertions have been autogenerated by utils/update_llc_test_checks.py
+ ; RUN: llc -mtriple=riscv32 -mattr=+d -verify-machineinstrs < %s \
+ ; RUN:   | FileCheck %s -check-prefix=ILP32-LP64
+ ; RUN: llc -mtriple=riscv64 -mattr=+d -verify-machineinstrs < %s \
+ ; RUN:   | FileCheck %s -check-prefix=ILP32-LP64
++; RUN: llc -mtriple=riscv32 -mattr=+d -target-abi ilp32d -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=ILP32D-LP64D
++; RUN: llc -mtriple=riscv64 -mattr=+d -target-abi lp64d -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=ILP32D-LP64D
+ 
+ @var = global [32 x double] zeroinitializer
+ 
+ ; All floating point registers are temporaries for the ilp32 and lp64 ABIs.
++; fs0-fs11 are callee-saved for the ilp32f, ilp32d, lp64f, and lp64d ABIs.
+ 
+ ; This function tests that RISCVRegisterInfo::getCalleeSavedRegs returns
+ ; something appropriate.
+@@ -81,6 +85,24 @@
+ ; ILP32-LP64-NEXT:    fsd ft1, 8(a1)
+ ; ILP32-LP64-NEXT:    fsd ft0, %lo(var)(a0)
+ ; ILP32-LP64-NEXT:    ret
++;
++; ILP32D-LP64D-LABEL: callee:
++; ILP32D-LP64D:       # %bb.0:
++; ILP32D-LP64D-NEXT:    addi sp, sp, -96
++; ILP32D-LP64D-NEXT:    fsd fs0, 88(sp)
++; ILP32D-LP64D-NEXT:    fsd fs1, 80(sp)
++; ILP32D-LP64D-NEXT:    fsd fs2, 72(sp)
++; ILP32D-LP64D-NEXT:    fsd fs3, 64(sp)
++; ILP32D-LP64D-NEXT:    fsd fs4, 56(sp)
++; ILP32D-LP64D-NEXT:    fsd fs5, 48(sp)
++; ILP32D-LP64D-NEXT:    fsd fs6, 40(sp)
++; ILP32D-LP64D-NEXT:    fsd fs7, 32(sp)
++; ILP32D-LP64D-NEXT:    fsd fs8, 24(sp)
++; ILP32D-LP64D-NEXT:    fsd fs9, 16(sp)
++; ILP32D-LP64D-NEXT:    fsd fs10, 8(sp)
++; ILP32D-LP64D-NEXT:    fsd fs11, 0(sp)
++; ILP32D-LP64D-NEXT:    lui a0, %hi(var)
++; ILP32D-LP64D-NEXT:    addi a1, a0, %lo(var)
+   %val = load [32 x double], [32 x double]* @var
+   store volatile [32 x double] %val, [32 x double]* @var
+   ret void
+@@ -90,17 +112,47 @@
+ ; something appropriate.
+ ;
+ ; For the soft float ABIs, no floating point registers are preserved, and
+-; codegen will use only ft0 in the body of caller.
++; codegen will use only ft0 in the body of caller. For the 'f' and 'd ABIs,
++; fs0-fs11 are preserved across calls.
+ 
+ define void @caller() {
+ ; ILP32-LP64-LABEL: caller:
+ ; ILP32-LP64-NOT:     ft{{[1-9][0-9]*}}
+ ; ILP32-LP64-NOT:     fs{{[0-9]+}}
+ ; ILP32-LP64-NOT:     fa{{[0-9]+}}
+-; ILP32-LP64:         ret
++; ILP32-LP64:         call callee
+ ; ILP32-LP64-NOT:     ft{{[1-9][0-9]*}}
+ ; ILP32-LP64-NOT:     fs{{[0-9]+}}
+ ; ILP32-LP64-NOT:     fa{{[0-9]+}}
++; ILP32-LP64:         ret
++;
++; ILP32F-LP64D-LABEL: caller:
++; ILP32D-LP64D: fld	fs8, 160(s1)
++; ILP32D-LP64D-NEXT: fld fs9, 168(s1)
++; ILP32D-LP64D-NEXT: fld fs10, 176(s1)
++; ILP32D-LP64D-NEXT: fld fs11, 184(s1)
++; ILP32D-LP64D-NEXT: fld fs0, 192(s1)
++; ILP32D-LP64D-NEXT: fld fs1, 200(s1)
++; ILP32D-LP64D-NEXT: fld fs2, 208(s1)
++; ILP32D-LP64D-NEXT: fld fs3, 216(s1)
++; ILP32D-LP64D-NEXT: fld fs4, 224(s1)
++; ILP32D-LP64D-NEXT: fld fs5, 232(s1)
++; ILP32D-LP64D-NEXT: fld fs6, 240(s1)
++; ILP32D-LP64D-NEXT: fld fs7, 248(s1)
++; ILP32D-LP64D-NEXT: call	callee
++; ILP32D-LP64D-NEXT: fsd fs7, 248(s1)
++; ILP32D-LP64D-NEXT: fsd fs6, 240(s1)
++; ILP32D-LP64D-NEXT: fsd fs5, 232(s1)
++; ILP32D-LP64D-NEXT: fsd fs4, 224(s1)
++; ILP32D-LP64D-NEXT: fsd fs3, 216(s1)
++; ILP32D-LP64D-NEXT: fsd fs2, 208(s1)
++; ILP32D-LP64D-NEXT: fsd fs1, 200(s1)
++; ILP32D-LP64D-NEXT: fsd fs0, 192(s1)
++; ILP32D-LP64D-NEXT: fsd fs11, 184(s1)
++; ILP32D-LP64D-NEXT: fsd fs10, 176(s1)
++; ILP32D-LP64D-NEXT: fsd fs9, 168(s1)
++; ILP32D-LP64D-NEXT: fsd fs8, 160(s1)
++; ILP32D-LP64D-NEXT: fld ft0, {{[0-9]+}}(sp)
+   %val = load [32 x double], [32 x double]* @var
+   call void @callee()
+   store volatile [32 x double] %val, [32 x double]* @var
+Index: llvm/llvm/test/CodeGen/RISCV/callee-saved-gprs.ll
+===================================================================
+--- llvm/llvm/test/CodeGen/RISCV/callee-saved-gprs.ll
++++ llvm/llvm/test/CodeGen/RISCV/callee-saved-gprs.ll
+@@ -1,9 +1,21 @@
+ ; RUN: llc -mtriple=riscv32 -verify-machineinstrs < %s \
+ ; RUN:   | FileCheck %s -check-prefix=RV32I
++; RUN: llc -mtriple=riscv32 -mattr=+f -target-abi ilp32f -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=RV32I
++; RUN: llc -mtriple=riscv32 -mattr=+d -target-abi ilp32f -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=RV32I
++; RUN: llc -mtriple=riscv32 -mattr=+d -target-abi ilp32d -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=RV32I
+ ; RUN: llc -mtriple=riscv32 -verify-machineinstrs -frame-pointer=all < %s \
+ ; RUN:   | FileCheck %s -check-prefix=RV32I-WITH-FP
+ ; RUN: llc -mtriple=riscv64 -verify-machineinstrs < %s \
+ ; RUN:   | FileCheck %s -check-prefix=RV64I
++; RUN: llc -mtriple=riscv64 -mattr=+f -target-abi ilp32f -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=RV64I
++; RUN: llc -mtriple=riscv64 -mattr=+d -target-abi ilp32f -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=RV64I
++; RUN: llc -mtriple=riscv64 -mattr=+d -target-abi ilp32d -verify-machineinstrs < %s \
++; RUN:   | FileCheck %s -check-prefix=RV64I
+ ; RUN: llc -mtriple=riscv64 -verify-machineinstrs -frame-pointer=all < %s \
+ ; RUN:   | FileCheck %s -check-prefix=RV64I-WITH-FP
+ 
+Index: llvm/llvm/test/CodeGen/RISCV/calling-conv-ilp32-ilp32f-common.ll
+===================================================================
+--- llvm/llvm/test/CodeGen/RISCV/calling-conv-ilp32-ilp32f-common.ll
++++ llvm/llvm/test/CodeGen/RISCV/calling-conv-ilp32-ilp32f-common.ll
+@@ -1,8 +1,14 @@
+ ; NOTE: Assertions have been autogenerated by utils/update_llc_test_checks.py
+ ; RUN: llc -mtriple=riscv32 -verify-machineinstrs < %s \
+ ; RUN:   | FileCheck -check-prefix=RV32I-FPELIM %s
++; RUN: llc -mtriple=riscv32 -mattr=+f -target-abi ilp32f \
++; RUN:    -verify-machineinstrs < %s \
++; RUN:   | FileCheck -check-prefix=RV32I-FPELIM %s
+ ; RUN: llc -mtriple=riscv32 -verify-machineinstrs -frame-pointer=all < %s \
+ ; RUN:   | FileCheck -check-prefix=RV32I-WITHFP %s
++; RUN: llc -mtriple=riscv32 -verify-machineinstrs -frame-pointer=all \
++; RUN:   -mattr=+f -target-abi ilp32f < %s \
++; RUN:   | FileCheck -check-prefix=RV32I-WITHFP %s
+ 
+ ; This file contains tests that should have identical output for the ilp32,
+ ; and ilp32f. As well as calling convention details, we check that
+Index: llvm/llvm/test/CodeGen/RISCV/calling-conv-ilp32-ilp32f-ilp32d-common.ll
+===================================================================
+--- llvm/llvm/test/CodeGen/RISCV/calling-conv-ilp32-ilp32f-ilp32d-common.ll
++++ llvm/llvm/test/CodeGen/RISCV/calling-conv-ilp32-ilp32f-ilp32d-common.ll
+@@ -1,8 +1,20 @@
+ ; NOTE: Assertions have been autogenerated by utils/update_llc_test_checks.py
+ ; RUN: llc -mtriple=riscv32 -verify-machineinstrs < %s \
+ ; RUN:   | FileCheck -check-prefix=RV32I-FPELIM %s
++; RUN: llc -mtriple=riscv32 -mattr=+f -target-abi ilp32f \
++; RUN:    -verify-machineinstrs < %s \
++; RUN:   | FileCheck -check-prefix=RV32I-FPELIM %s
++; RUN: llc -mtriple=riscv32 -mattr=+d -target-abi ilp32d \
++; RUN:    -verify-machineinstrs < %s \
++; RUN:   | FileCheck -check-prefix=RV32I-FPELIM %s
+ ; RUN: llc -mtriple=riscv32 -verify-machineinstrs -frame-pointer=all < %s \
+ ; RUN:   | FileCheck -check-prefix=RV32I-WITHFP %s
++; RUN: llc -mtriple=riscv32 -verify-machineinstrs -frame-pointer=all \
++; RUN:   -mattr=+f -target-abi ilp32f < %s \
++; RUN:   | FileCheck -check-prefix=RV32I-WITHFP %s
++; RUN: llc -mtriple=riscv32 -verify-machineinstrs -frame-pointer=all \
++; RUN:   -mattr=+d -target-abi ilp32d < %s \
++; RUN:   | FileCheck -check-prefix=RV32I-WITHFP %s
+ 
+ ; This file contains tests that should have identical output for the ilp32,
+ ; ilp32f, and ilp32d ABIs. i.e. where no arguments are passed according to
+Index: llvm/llvm/test/CodeGen/RISCV/calling-conv-ilp32d.ll
+===================================================================
+--- /dev/null
++++ llvm/llvm/test/CodeGen/RISCV/calling-conv-ilp32d.ll
+@@ -0,0 +1,302 @@
++; NOTE: Assertions have been autogenerated by utils/update_llc_test_checks.py
++; RUN: llc -mtriple=riscv32 -verify-machineinstrs -mattr=+d \
++; RUN:     -target-abi ilp32d < %s \
++; RUN:   | FileCheck -check-prefix=RV32-ILP32D %s
++
++; This file contains tests that will have differing output for the ilp32 and
++; ilp32f ABIs.
++
++define i32 @callee_double_in_fpr(i32 %a, double %b) nounwind {
++; RV32-ILP32D-LABEL: callee_double_in_fpr:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    fcvt.w.d a1, fa0, rtz
++; RV32-ILP32D-NEXT:    add a0, a0, a1
++; RV32-ILP32D-NEXT:    ret
++  %b_fptosi = fptosi double %b to i32
++  %1 = add i32 %a, %b_fptosi
++  ret i32 %1
++}
++
++define i32 @caller_double_in_fpr() nounwind {
++; RV32-ILP32D-LABEL: caller_double_in_fpr:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    addi sp, sp, -16
++; RV32-ILP32D-NEXT:    sw ra, 12(sp)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI1_0)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI1_0)
++; RV32-ILP32D-NEXT:    fld fa0, 0(a0)
++; RV32-ILP32D-NEXT:    addi a0, zero, 1
++; RV32-ILP32D-NEXT:    call callee_double_in_fpr
++; RV32-ILP32D-NEXT:    lw ra, 12(sp)
++; RV32-ILP32D-NEXT:    addi sp, sp, 16
++; RV32-ILP32D-NEXT:    ret
++  %1 = call i32 @callee_double_in_fpr(i32 1, double 2.0)
++  ret i32 %1
++}
++
++; Must keep define on a single line due to an update_llc_test_checks.py limitation
++define i32 @callee_double_in_fpr_exhausted_gprs(i64 %a, i64 %b, i64 %c, i64 %d, i32 %e, double %f) nounwind {
++; RV32-ILP32D-LABEL: callee_double_in_fpr_exhausted_gprs:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    fcvt.w.d a0, fa0, rtz
++; RV32-ILP32D-NEXT:    lw a1, 0(sp)
++; RV32-ILP32D-NEXT:    add a0, a1, a0
++; RV32-ILP32D-NEXT:    ret
++  %f_fptosi = fptosi double %f to i32
++  %1 = add i32 %e, %f_fptosi
++  ret i32 %1
++}
++
++define i32 @caller_double_in_fpr_exhausted_gprs() nounwind {
++; RV32-ILP32D-LABEL: caller_double_in_fpr_exhausted_gprs:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    addi sp, sp, -16
++; RV32-ILP32D-NEXT:    sw ra, 12(sp)
++; RV32-ILP32D-NEXT:    addi a0, zero, 5
++; RV32-ILP32D-NEXT:    sw a0, 0(sp)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI3_0)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI3_0)
++; RV32-ILP32D-NEXT:    fld fa0, 0(a0)
++; RV32-ILP32D-NEXT:    addi a0, zero, 1
++; RV32-ILP32D-NEXT:    mv a1, zero
++; RV32-ILP32D-NEXT:    addi a2, zero, 2
++; RV32-ILP32D-NEXT:    mv a3, zero
++; RV32-ILP32D-NEXT:    addi a4, zero, 3
++; RV32-ILP32D-NEXT:    mv a5, zero
++; RV32-ILP32D-NEXT:    addi a6, zero, 4
++; RV32-ILP32D-NEXT:    mv a7, zero
++; RV32-ILP32D-NEXT:    call callee_double_in_fpr_exhausted_gprs
++; RV32-ILP32D-NEXT:    lw ra, 12(sp)
++; RV32-ILP32D-NEXT:    addi sp, sp, 16
++; RV32-ILP32D-NEXT:    ret
++  %1 = call i32 @callee_double_in_fpr_exhausted_gprs(
++      i64 1, i64 2, i64 3, i64 4, i32 5, double 6.0)
++  ret i32 %1
++}
++
++; Must keep define on a single line due to an update_llc_test_checks.py limitation
++define i32 @callee_double_in_gpr_exhausted_fprs(double %a, double %b, double %c, double %d, double %e, double %f, double %g, double %h, double %i) nounwind {
++; RV32-ILP32D-LABEL: callee_double_in_gpr_exhausted_fprs:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    addi sp, sp, -16
++; RV32-ILP32D-NEXT:    sw a0, 8(sp)
++; RV32-ILP32D-NEXT:    sw a1, 12(sp)
++; RV32-ILP32D-NEXT:    fld ft0, 8(sp)
++; RV32-ILP32D-NEXT:    fcvt.w.d a0, ft0, rtz
++; RV32-ILP32D-NEXT:    fcvt.w.d a1, fa7, rtz
++; RV32-ILP32D-NEXT:    add a0, a1, a0
++; RV32-ILP32D-NEXT:    addi sp, sp, 16
++; RV32-ILP32D-NEXT:    ret
++  %h_fptosi = fptosi double %h to i32
++  %i_fptosi = fptosi double %i to i32
++  %1 = add i32 %h_fptosi, %i_fptosi
++  ret i32 %1
++}
++
++define i32 @caller_double_in_gpr_exhausted_fprs() nounwind {
++; RV32-ILP32D-LABEL: caller_double_in_gpr_exhausted_fprs:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    addi sp, sp, -16
++; RV32-ILP32D-NEXT:    sw ra, 12(sp)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI5_0)
++; RV32-ILP32D-NEXT:    addi a6, a0, %lo(.LCPI5_0)
++; RV32-ILP32D-NEXT:    lui a1, %hi(.LCPI5_1)
++; RV32-ILP32D-NEXT:    addi a1, a1, %lo(.LCPI5_1)
++; RV32-ILP32D-NEXT:    lui a2, %hi(.LCPI5_2)
++; RV32-ILP32D-NEXT:    addi a2, a2, %lo(.LCPI5_2)
++; RV32-ILP32D-NEXT:    lui a3, %hi(.LCPI5_3)
++; RV32-ILP32D-NEXT:    addi a3, a3, %lo(.LCPI5_3)
++; RV32-ILP32D-NEXT:    lui a4, %hi(.LCPI5_4)
++; RV32-ILP32D-NEXT:    addi a4, a4, %lo(.LCPI5_4)
++; RV32-ILP32D-NEXT:    lui a5, %hi(.LCPI5_5)
++; RV32-ILP32D-NEXT:    addi a5, a5, %lo(.LCPI5_5)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI5_6)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI5_6)
++; RV32-ILP32D-NEXT:    fld fa0, 0(a0)
++; RV32-ILP32D-NEXT:    fld fa1, 0(a5)
++; RV32-ILP32D-NEXT:    fld fa2, 0(a4)
++; RV32-ILP32D-NEXT:    fld fa3, 0(a3)
++; RV32-ILP32D-NEXT:    fld fa4, 0(a2)
++; RV32-ILP32D-NEXT:    fld fa5, 0(a1)
++; RV32-ILP32D-NEXT:    fld fa6, 0(a6)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI5_7)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI5_7)
++; RV32-ILP32D-NEXT:    fld fa7, 0(a0)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI5_8)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI5_8)
++; RV32-ILP32D-NEXT:    fld ft0, 0(a0)
++; RV32-ILP32D-NEXT:    fsd ft0, 0(sp)
++; RV32-ILP32D-NEXT:    lw a0, 0(sp)
++; RV32-ILP32D-NEXT:    lw a1, 4(sp)
++; RV32-ILP32D-NEXT:    call callee_double_in_gpr_exhausted_fprs
++; RV32-ILP32D-NEXT:    lw ra, 12(sp)
++; RV32-ILP32D-NEXT:    addi sp, sp, 16
++; RV32-ILP32D-NEXT:    ret
++  %1 = call i32 @callee_double_in_gpr_exhausted_fprs(
++      double 1.0, double 2.0, double 3.0, double 4.0, double 5.0, double 6.0,
++      double 7.0, double 8.0, double 9.0)
++  ret i32 %1
++}
++
++; Must keep define on a single line due to an update_llc_test_checks.py limitation
++define i32 @callee_double_in_gpr_and_stack_almost_exhausted_gprs_fprs(i64 %a, double %b, i64 %c, double %d, i64 %e, double %f, i32 %g, double %h, double %i, double %j, double %k, double %l, double %m) nounwind {
++; RV32-ILP32D-LABEL: callee_double_in_gpr_and_stack_almost_exhausted_gprs_fprs:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    addi sp, sp, -16
++; RV32-ILP32D-NEXT:    lw a0, 16(sp)
++; RV32-ILP32D-NEXT:    sw a7, 8(sp)
++; RV32-ILP32D-NEXT:    sw a0, 12(sp)
++; RV32-ILP32D-NEXT:    fld ft0, 8(sp)
++; RV32-ILP32D-NEXT:    fcvt.w.d a0, ft0, rtz
++; RV32-ILP32D-NEXT:    add a0, a6, a0
++; RV32-ILP32D-NEXT:    addi sp, sp, 16
++; RV32-ILP32D-NEXT:    ret
++  %m_fptosi = fptosi double %m to i32
++  %1 = add i32 %g, %m_fptosi
++  ret i32 %1
++}
++
++define i32 @caller_double_in_gpr_and_stack_almost_exhausted_gprs_fprs() nounwind {
++; RV32-ILP32D-LABEL: caller_double_in_gpr_and_stack_almost_exhausted_gprs_fprs:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    addi sp, sp, -32
++; RV32-ILP32D-NEXT:    sw ra, 28(sp)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI7_0)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI7_0)
++; RV32-ILP32D-NEXT:    fld ft0, 0(a0)
++; RV32-ILP32D-NEXT:    fsd ft0, 16(sp)
++; RV32-ILP32D-NEXT:    lw a7, 16(sp)
++; RV32-ILP32D-NEXT:    lw a0, 20(sp)
++; RV32-ILP32D-NEXT:    sw a0, 0(sp)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI7_1)
++; RV32-ILP32D-NEXT:    addi a6, a0, %lo(.LCPI7_1)
++; RV32-ILP32D-NEXT:    lui a1, %hi(.LCPI7_2)
++; RV32-ILP32D-NEXT:    addi a1, a1, %lo(.LCPI7_2)
++; RV32-ILP32D-NEXT:    lui a2, %hi(.LCPI7_3)
++; RV32-ILP32D-NEXT:    addi a2, a2, %lo(.LCPI7_3)
++; RV32-ILP32D-NEXT:    lui a3, %hi(.LCPI7_4)
++; RV32-ILP32D-NEXT:    addi a3, a3, %lo(.LCPI7_4)
++; RV32-ILP32D-NEXT:    lui a4, %hi(.LCPI7_5)
++; RV32-ILP32D-NEXT:    addi a4, a4, %lo(.LCPI7_5)
++; RV32-ILP32D-NEXT:    lui a5, %hi(.LCPI7_6)
++; RV32-ILP32D-NEXT:    addi a5, a5, %lo(.LCPI7_6)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI7_7)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI7_7)
++; RV32-ILP32D-NEXT:    fld fa0, 0(a0)
++; RV32-ILP32D-NEXT:    fld fa1, 0(a5)
++; RV32-ILP32D-NEXT:    fld fa2, 0(a4)
++; RV32-ILP32D-NEXT:    fld fa3, 0(a3)
++; RV32-ILP32D-NEXT:    fld fa4, 0(a2)
++; RV32-ILP32D-NEXT:    fld fa5, 0(a1)
++; RV32-ILP32D-NEXT:    fld fa6, 0(a6)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI7_8)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI7_8)
++; RV32-ILP32D-NEXT:    fld fa7, 0(a0)
++; RV32-ILP32D-NEXT:    addi a0, zero, 1
++; RV32-ILP32D-NEXT:    mv a1, zero
++; RV32-ILP32D-NEXT:    addi a2, zero, 3
++; RV32-ILP32D-NEXT:    mv a3, zero
++; RV32-ILP32D-NEXT:    addi a4, zero, 5
++; RV32-ILP32D-NEXT:    mv a5, zero
++; RV32-ILP32D-NEXT:    addi a6, zero, 7
++; RV32-ILP32D-NEXT:    call callee_double_in_gpr_and_stack_almost_exhausted_gprs_fprs
++; RV32-ILP32D-NEXT:    lw ra, 28(sp)
++; RV32-ILP32D-NEXT:    addi sp, sp, 32
++; RV32-ILP32D-NEXT:    ret
++  %1 = call i32 @callee_double_in_gpr_and_stack_almost_exhausted_gprs_fprs(
++      i64 1, double 2.0, i64 3, double 4.0, i64 5, double 6.0, i32 7, double 8.0,
++      double 9.0, double 10.0, double 11.0, double 12.0, double 13.0)
++  ret i32 %1
++}
++
++
++; Must keep define on a single line due to an update_llc_test_checks.py limitation
++define i32 @callee_double_on_stack_exhausted_gprs_fprs(i64 %a, double %b, i64 %c, double %d, i64 %e, double %f, i64 %g, double %h, double %i, double %j, double %k, double %l, double %m) nounwind {
++; RV32-ILP32D-LABEL: callee_double_on_stack_exhausted_gprs_fprs:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    fld ft0, 0(sp)
++; RV32-ILP32D-NEXT:    fcvt.w.d a0, ft0, rtz
++; RV32-ILP32D-NEXT:    add a0, a6, a0
++; RV32-ILP32D-NEXT:    ret
++  %g_trunc = trunc i64 %g to i32
++  %m_fptosi = fptosi double %m to i32
++  %1 = add i32 %g_trunc, %m_fptosi
++  ret i32 %1
++}
++
++define i32 @caller_double_on_stack_exhausted_gprs_fprs() nounwind {
++; RV32-ILP32D-LABEL: caller_double_on_stack_exhausted_gprs_fprs:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    addi sp, sp, -16
++; RV32-ILP32D-NEXT:    sw ra, 12(sp)
++; RV32-ILP32D-NEXT:    lui a0, 262816
++; RV32-ILP32D-NEXT:    sw a0, 4(sp)
++; RV32-ILP32D-NEXT:    sw zero, 0(sp)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI9_0)
++; RV32-ILP32D-NEXT:    addi a6, a0, %lo(.LCPI9_0)
++; RV32-ILP32D-NEXT:    lui a1, %hi(.LCPI9_1)
++; RV32-ILP32D-NEXT:    addi a1, a1, %lo(.LCPI9_1)
++; RV32-ILP32D-NEXT:    lui a2, %hi(.LCPI9_2)
++; RV32-ILP32D-NEXT:    addi a2, a2, %lo(.LCPI9_2)
++; RV32-ILP32D-NEXT:    lui a3, %hi(.LCPI9_3)
++; RV32-ILP32D-NEXT:    addi a3, a3, %lo(.LCPI9_3)
++; RV32-ILP32D-NEXT:    lui a4, %hi(.LCPI9_4)
++; RV32-ILP32D-NEXT:    addi a4, a4, %lo(.LCPI9_4)
++; RV32-ILP32D-NEXT:    lui a5, %hi(.LCPI9_5)
++; RV32-ILP32D-NEXT:    addi a5, a5, %lo(.LCPI9_5)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI9_6)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI9_6)
++; RV32-ILP32D-NEXT:    fld fa0, 0(a0)
++; RV32-ILP32D-NEXT:    fld fa1, 0(a5)
++; RV32-ILP32D-NEXT:    fld fa2, 0(a4)
++; RV32-ILP32D-NEXT:    fld fa3, 0(a3)
++; RV32-ILP32D-NEXT:    fld fa4, 0(a2)
++; RV32-ILP32D-NEXT:    fld fa5, 0(a1)
++; RV32-ILP32D-NEXT:    fld fa6, 0(a6)
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI9_7)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI9_7)
++; RV32-ILP32D-NEXT:    fld fa7, 0(a0)
++; RV32-ILP32D-NEXT:    addi a0, zero, 1
++; RV32-ILP32D-NEXT:    mv a1, zero
++; RV32-ILP32D-NEXT:    addi a2, zero, 3
++; RV32-ILP32D-NEXT:    mv a3, zero
++; RV32-ILP32D-NEXT:    addi a4, zero, 5
++; RV32-ILP32D-NEXT:    mv a5, zero
++; RV32-ILP32D-NEXT:    addi a6, zero, 7
++; RV32-ILP32D-NEXT:    mv a7, zero
++; RV32-ILP32D-NEXT:    call callee_double_on_stack_exhausted_gprs_fprs
++; RV32-ILP32D-NEXT:    lw ra, 12(sp)
++; RV32-ILP32D-NEXT:    addi sp, sp, 16
++; RV32-ILP32D-NEXT:    ret
++  %1 = call i32 @callee_double_on_stack_exhausted_gprs_fprs(
++      i64 1, double 2.0, i64 3, double 4.0, i64 5, double 6.0, i64 7, double 8.0,
++      double 9.0, double 10.0, double 11.0, double 12.0, double 13.0)
++  ret i32 %1
++}
++
++define double @callee_double_ret() nounwind {
++; RV32-ILP32D-LABEL: callee_double_ret:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    lui a0, %hi(.LCPI10_0)
++; RV32-ILP32D-NEXT:    addi a0, a0, %lo(.LCPI10_0)
++; RV32-ILP32D-NEXT:    fld fa0, 0(a0)
++; RV32-ILP32D-NEXT:    ret
++  ret double 1.0
++}
++
++define i32 @caller_double_ret() nounwind {
++; RV32-ILP32D-LABEL: caller_double_ret:
++; RV32-ILP32D:       # %bb.0:
++; RV32-ILP32D-NEXT:    addi sp, sp, -16
++; RV32-ILP32D-NEXT:    sw ra, 12(sp)
++; RV32-ILP32D-NEXT:    call callee_double_ret
++; RV32-ILP32D-NEXT:    fsd fa0, 0(sp)
++; RV32-ILP32D-NEXT:    lw a0, 0(sp)
++; RV32-ILP32D-NEXT:    lw ra, 12(sp)
++; RV32-ILP32D-NEXT:    addi sp, sp, 16
++; RV32-ILP32D-NEXT:    ret
++  %1 = call double @callee_double_ret()
++  %2 = bitcast double %1 to i64
++  %3 = trunc i64 %2 to i32
++  ret i32 %3
++}
+Index: llvm/llvm/test/CodeGen/RISCV/calling-conv-ilp32f-ilp32d-common.ll
+===================================================================
+--- /dev/null
++++ llvm/llvm/test/CodeGen/RISCV/calling-conv-ilp32f-ilp32d-common.ll
+@@ -0,0 +1,221 @@
++; NOTE: Assertions have been autogenerated by utils/update_llc_test_checks.py
++; RUN: llc -mtriple=riscv32 -verify-machineinstrs -mattr=+f \
++; RUN:     -target-abi ilp32f < %s \
++; RUN:   | FileCheck -check-prefix=RV32-ILP32FD %s
++; RUN: llc -mtriple=riscv32 -verify-machineinstrs -mattr=+d \
++; RUN:     -target-abi ilp32d < %s \
++; RUN:   | FileCheck -check-prefix=RV32-ILP32FD %s
++
++; This file contains tests that should have identical output for the ilp32f
++; and ilp32d ABIs.
++
++define i32 @callee_float_in_fpr(i32 %a, float %b) nounwind {
++; RV32-ILP32FD-LABEL: callee_float_in_fpr:
++; RV32-ILP32FD:       # %bb.0:
++; RV32-ILP32FD-NEXT:    fcvt.w.s a1, fa0, rtz
++; RV32-ILP32FD-NEXT:    add a0, a0, a1
++; RV32-ILP32FD-NEXT:    ret
++  %b_fptosi = fptosi float %b to i32
++  %1 = add i32 %a, %b_fptosi
++  ret i32 %1
++}
++
++define i32 @caller_float_in_fpr() nounwind {
++; RV32-ILP32FD-LABEL: caller_float_in_fpr:
++; RV32-ILP32FD:       # %bb.0:
++; RV32-ILP32FD-NEXT:    addi sp, sp, -16
++; RV32-ILP32FD-NEXT:    sw ra, 12(sp)
++; RV32-ILP32FD-NEXT:    lui a0, %hi(.LCPI1_0)
++; RV32-ILP32FD-NEXT:    addi a0, a0, %lo(.LCPI1_0)
++; RV32-ILP32FD-NEXT:    flw fa0, 0(a0)
++; RV32-ILP32FD-NEXT:    addi a0, zero, 1
++; RV32-ILP32FD-NEXT:    call callee_float_in_fpr
++; RV32-ILP32FD-NEXT:    lw ra, 12(sp)
++; RV32-ILP32FD-NEXT:    addi sp, sp, 16
++; RV32-ILP32FD-NEXT:    ret
++  %1 = call i32 @callee_float_in_fpr(i32 1, float 2.0)
++  ret i32 %1
++}
++
++; Must keep define on a single line due to an update_llc_test_checks.py limitation
++define i32 @callee_float_in_fpr_exhausted_gprs(i64 %a, i64 %b, i64 %c, i64 %d, i32 %e, float %f) nounwind {
++; RV32-ILP32FD-LABEL: callee_float_in_fpr_exhausted_gprs:
++; RV32-ILP32FD:       # %bb.0:
++; RV32-ILP32FD-NEXT:    fcvt.w.s a0, fa0, rtz
++; RV32-ILP32FD-NEXT:    lw a1, 0(sp)
++; RV32-ILP32FD-NEXT:    add a0, a1, a0
++; RV32-ILP32FD-NEXT:    ret
++  %f_fptosi = fptosi float %f to i32
++  %1 = add i32 %e, %f_fptosi
++  ret i32 %1
++}
++
++define i32 @caller_float_in_fpr_exhausted_gprs() nounwind {
++; RV32-ILP32FD-LABEL: caller_float_in_fpr_exhausted_gprs:
++; RV32-ILP32FD:       # %bb.0:
++; RV32-ILP32FD-NEXT:    addi sp, sp, -16
++; RV32-ILP32FD-NEXT:    sw ra, 12(sp)
++; RV32-ILP32FD-NEXT:    addi a0, zero, 5
++; RV32-ILP32FD-NEXT:    sw a0, 0(sp)
++; RV32-ILP32FD-NEXT:    lui a0, %hi(.LCPI3_0)
++; RV32-ILP32FD-NEXT:    addi a0, a0, %lo(.LCPI3_0)
++; RV32-ILP32FD-NEXT:    flw fa0, 0(a0)
++; RV32-ILP32FD-NEXT:    addi a0, zero, 1
++; RV32-ILP32FD-NEXT:    mv a1, zero
++; RV32-ILP32FD-NEXT:    addi a2, zero, 2
++; RV32-ILP32FD-NEXT:    mv a3, zero
++; RV32-ILP32FD-NEXT:    addi a4, zero, 3
++; RV32-ILP32FD-NEXT:    mv a5, zero
++; RV32-ILP32FD-NEXT:    addi a6, zero, 4
++; RV32-ILP32FD-NEXT:    mv a7, zero
++; RV32-ILP32FD-NEXT:    call callee_float_in_fpr_exhausted_gprs
++; RV32-ILP32FD-NEXT:    lw ra, 12(sp)
++; RV32-ILP32FD-NEXT:    addi sp, sp, 16
++; RV32-ILP32FD-NEXT:    ret
++  %1 = call i32 @callee_float_in_fpr_exhausted_gprs(
++      i64 1, i64 2, i64 3, i64 4, i32 5, float 6.0)
++  ret i32 %1
++}
++
++; Must keep define on a single line due to an update_llc_test_checks.py limitation
++define i32 @callee_float_in_gpr_exhausted_fprs(float %a, float %b, float %c, float %d, float %e, float %f, float %g, float %h, float %i) nounwind {
++; RV32-ILP32FD-LABEL: callee_float_in_gpr_exhausted_fprs:
++; RV32-ILP32FD:       # %bb.0:
++; RV32-ILP32FD-NEXT:    fcvt.w.s a1, fa7, rtz
++; RV32-ILP32FD-NEXT:    fmv.w.x ft0, a0
++; RV32-ILP32FD-NEXT:    fcvt.w.s a0, ft0, rtz
++; RV32-ILP32FD-NEXT:    add a0, a1, a0
++; RV32-ILP32FD-NEXT:    ret
++  %h_fptosi = fptosi float %h to i32
++  %i_fptosi = fptosi float %i to i32
++  %1 = add i32 %h_fptosi, %i_fptosi
++  ret i32 %1
++}
++
++define i32 @caller_float_in_gpr_exhausted_fprs() nounwind {
++; RV32-ILP32FD-LABEL: caller_float_in_gpr_exhausted_fprs:
++; RV32-ILP32FD:       # %bb.0:
++; RV32-ILP32FD-NEXT:    addi sp, sp, -16
++; RV32-ILP32FD-NEXT:    sw ra, 12(sp)
++; RV32-ILP32FD-NEXT:    lui a0, %hi(.LCPI5_0)
++; RV32-ILP32FD-NEXT:    addi a0, a0, %lo(.LCPI5_0)
++; RV32-ILP32FD-NEXT:    lui a1, %hi(.LCPI5_1)
++; RV32-ILP32FD-NEXT:    addi a1, a1, %lo(.LCPI5_1)
++; RV32-ILP32FD-NEXT:    lui a2, %hi(.LCPI5_2)
++; RV32-ILP32FD-NEXT:    addi a2, a2, %lo(.LCPI5_2)
++; RV32-ILP32FD-NEXT:    lui a3, %hi(.LCPI5_3)
++; RV32-ILP32FD-NEXT:    addi a3, a3, %lo(.LCPI5_3)
++; RV32-ILP32FD-NEXT:    lui a4, %hi(.LCPI5_4)
++; RV32-ILP32FD-NEXT:    addi a4, a4, %lo(.LCPI5_4)
++; RV32-ILP32FD-NEXT:    lui a5, %hi(.LCPI5_5)
++; RV32-ILP32FD-NEXT:    addi a5, a5, %lo(.LCPI5_5)
++; RV32-ILP32FD-NEXT:    flw fa0, 0(a5)
++; RV32-ILP32FD-NEXT:    flw fa1, 0(a4)
++; RV32-ILP32FD-NEXT:    flw fa2, 0(a3)
++; RV32-ILP32FD-NEXT:    flw fa3, 0(a2)
++; RV32-ILP32FD-NEXT:    flw fa4, 0(a1)
++; RV32-ILP32FD-NEXT:    flw fa5, 0(a0)
++; RV32-ILP32FD-NEXT:    lui a0, %hi(.LCPI5_6)
++; RV32-ILP32FD-NEXT:    addi a0, a0, %lo(.LCPI5_6)
++; RV32-ILP32FD-NEXT:    flw fa6, 0(a0)
++; RV32-ILP32FD-NEXT:    lui a0, %hi(.LCPI5_7)
++; RV32-ILP32FD-NEXT:    addi a0, a0, %lo(.LCPI5_7)
++; RV32-ILP32FD-NEXT:    flw fa7, 0(a0)
++; RV32-ILP32FD-NEXT:    lui a0, 266496
++; RV32-ILP32FD-NEXT:    call callee_float_in_gpr_exhausted_fprs
++; RV32-ILP32FD-NEXT:    lw ra, 12(sp)
++; RV32-ILP32FD-NEXT:    addi sp, sp, 16
++; RV32-ILP32FD-NEXT:    ret
++  %1 = call i32 @callee_float_in_gpr_exhausted_fprs(
++      float 1.0, float 2.0, float 3.0, float 4.0, float 5.0, float 6.0,
++      float 7.0, float 8.0, float 9.0)
++  ret i32 %1
++}
++
++; Must keep define on a single line due to an update_llc_test_checks.py limitation
++define i32 @callee_float_on_stack_exhausted_gprs_fprs(i64 %a, float %b, i64 %c, float %d, i64 %e, float %f, i64 %g, float %h, float %i, float %j, float %k, float %l, float %m) nounwind {
++; RV32-ILP32FD-LABEL: callee_float_on_stack_exhausted_gprs_fprs:
++; RV32-ILP32FD:       # %bb.0:
++; RV32-ILP32FD-NEXT:    flw ft0, 0(sp)
++; RV32-ILP32FD-NEXT:    fcvt.w.s a0, ft0, rtz
++; RV32-ILP32FD-NEXT:    add a0, a6, a0
++; RV32-ILP32FD-NEXT:    ret
++  %g_trunc = trunc i64 %g to i32
++  %m_fptosi = fptosi float %m to i32
++  %1 = add i32 %g_trunc, %m_fptosi
++  ret i32 %1
++}
++
++define i32 @caller_float_on_stack_exhausted_gprs_fprs() nounwind {
++; RV32-ILP32FD-LABEL: caller_float_on_stack_exhausted_gprs_fprs:
++; RV32-ILP32FD:       # %bb.0:
++; RV32-ILP32FD-NEXT:    addi sp, sp, -16
++; RV32-ILP32FD-NEXT:    sw ra, 12(sp)
++; RV32-ILP32FD-NEXT:    lui a0, 267520
++; RV32-ILP32FD-NEXT:    sw a0, 0(sp)
++; RV32-ILP32FD-NEXT:    lui a0, %hi(.LCPI7_0)
++; RV32-ILP32FD-NEXT:    addi a6, a0, %lo(.LCPI7_0)
++; RV32-ILP32FD-NEXT:    lui a1, %hi(.LCPI7_1)
++; RV32-ILP32FD-NEXT:    addi a1, a1, %lo(.LCPI7_1)
++; RV32-ILP32FD-NEXT:    lui a2, %hi(.LCPI7_2)
++; RV32-ILP32FD-NEXT:    addi a2, a2, %lo(.LCPI7_2)
++; RV32-ILP32FD-NEXT:    lui a3, %hi(.LCPI7_3)
++; RV32-ILP32FD-NEXT:    addi a3, a3, %lo(.LCPI7_3)
++; RV32-ILP32FD-NEXT:    lui a4, %hi(.LCPI7_4)
++; RV32-ILP32FD-NEXT:    addi a4, a4, %lo(.LCPI7_4)
++; RV32-ILP32FD-NEXT:    lui a5, %hi(.LCPI7_5)
++; RV32-ILP32FD-NEXT:    addi a5, a5, %lo(.LCPI7_5)
++; RV32-ILP32FD-NEXT:    lui a0, %hi(.LCPI7_6)
++; RV32-ILP32FD-NEXT:    addi a0, a0, %lo(.LCPI7_6)
++; RV32-ILP32FD-NEXT:    flw fa0, 0(a0)
++; RV32-ILP32FD-NEXT:    flw fa1, 0(a5)
++; RV32-ILP32FD-NEXT:    flw fa2, 0(a4)
++; RV32-ILP32FD-NEXT:    flw fa3, 0(a3)
++; RV32-ILP32FD-NEXT:    flw fa4, 0(a2)
++; RV32-ILP32FD-NEXT:    flw fa5, 0(a1)
++; RV32-ILP32FD-NEXT:    flw fa6, 0(a6)
++; RV32-ILP32FD-NEXT:    lui a0, %hi(.LCPI7_7)
++; RV32-ILP32FD-NEXT:    addi a0, a0, %lo(.LCPI7_7)
++; RV32-ILP32FD-NEXT:    flw fa7, 0(a0)
++; RV32-ILP32FD-NEXT:    addi a0, zero, 1
++; RV32-ILP32FD-NEXT:    mv a1, zero
++; RV32-ILP32FD-NEXT:    addi a2, zero, 3
++; RV32-ILP32FD-NEXT:    mv a3, zero
++; RV32-ILP32FD-NEXT:    addi a4, zero, 5
++; RV32-ILP32FD-NEXT:    mv a5, zero
++; RV32-ILP32FD-NEXT:    addi a6, zero, 7
++; RV32-ILP32FD-NEXT:    mv a7, zero
++; RV32-ILP32FD-NEXT:    call callee_float_on_stack_exhausted_gprs_fprs
++; RV32-ILP32FD-NEXT:    lw ra, 12(sp)
++; RV32-ILP32FD-NEXT:    addi sp, sp, 16
++; RV32-ILP32FD-NEXT:    ret
++  %1 = call i32 @callee_float_on_stack_exhausted_gprs_fprs(
++      i64 1, float 2.0, i64 3, float 4.0, i64 5, float 6.0, i64 7, float 8.0,
++      float 9.0, float 10.0, float 11.0, float 12.0, float 13.0)
++  ret i32 %1
++}
++
++define float @callee_float_ret() nounwind {
++; RV32-ILP32FD-LABEL: callee_float_ret:
++; RV32-ILP32FD:       # %bb.0:
++; RV32-ILP32FD-NEXT:    lui a0, %hi(.LCPI8_0)
++; RV32-ILP32FD-NEXT:    addi a0, a0, %lo(.LCPI8_0)
++; RV32-ILP32FD-NEXT:    flw fa0, 0(a0)
++; RV32-ILP32FD-NEXT:    ret
++  ret float 1.0
++}
++
++define i32 @caller_float_ret() nounwind {
++; RV32-ILP32FD-LABEL: caller_float_ret:
++; RV32-ILP32FD:       # %bb.0:
++; RV32-ILP32FD-NEXT:    addi sp, sp, -16
++; RV32-ILP32FD-NEXT:    sw ra, 12(sp)
++; RV32-ILP32FD-NEXT:    call callee_float_ret
++; RV32-ILP32FD-NEXT:    fmv.x.w a0, fa0
++; RV32-ILP32FD-NEXT:    lw ra, 12(sp)
++; RV32-ILP32FD-NEXT:    addi sp, sp, 16
++; RV32-ILP32FD-NEXT:    ret
++  %1 = call float @callee_float_ret()
++  %2 = bitcast float %1 to i32
++  ret i32 %2
++}
+Index: llvm/llvm/test/CodeGen/RISCV/calling-conv-lp64-lp64f-common.ll
+===================================================================
+--- llvm/llvm/test/CodeGen/RISCV/calling-conv-lp64-lp64f-common.ll
++++ llvm/llvm/test/CodeGen/RISCV/calling-conv-lp64-lp64f-common.ll
+@@ -1,6 +1,9 @@
+ ; NOTE: Assertions have been autogenerated by utils/update_llc_test_checks.py
+ ; RUN: llc -mtriple=riscv64 -verify-machineinstrs < %s \
+ ; RUN:   | FileCheck -check-prefix=RV64I %s
++; RUN: llc -mtriple=riscv64 -mattr=+f -target-abi lp64f \
++; RUN:    -verify-machineinstrs < %s \
++; RUN:   | FileCheck -check-prefix=RV64I %s
+ 
+ ; This file contains tests that should have identical output for the lp64 and
+ ; lp64f ABIs. It doesn't check codegen when frame pointer elimination is
+Index: llvm/llvm/test/CodeGen/RISCV/calling-conv-lp64-lp64f-lp64d-common.ll
+===================================================================
+--- llvm/llvm/test/CodeGen/RISCV/calling-conv-lp64-lp64f-lp64d-common.ll
++++ llvm/llvm/test/CodeGen/RISCV/calling-conv-lp64-lp64f-lp64d-common.ll
+@@ -1,6 +1,12 @@
+ ; NOTE: Assertions have been autogenerated by utils/update_llc_test_checks.py
+ ; RUN: llc -mtriple=riscv64 -verify-machineinstrs < %s \
+ ; RUN:   | FileCheck -check-prefix=RV64I %s
++; RUN: llc -mtriple=riscv64 -mattr=+f -target-abi lp64f \
++; RUN:    -verify-machineinstrs < %s \
++; RUN:   | FileCheck -check-prefix=RV64I %s
++; RUN: llc -mtriple=riscv64 -mattr=+d -target-abi lp64d \
++; RUN:    -verify-machineinstrs < %s \
++; RUN:   | FileCheck -check-prefix=RV64I %s
+ 
+ ; This file contains tests that should have identical output for the lp64,
+ ; lp64f, and lp64d ABIs. i.e. where no arguments are passed according to
+Index: llvm/llvm/test/CodeGen/RISCV/target-abi-valid.ll
+===================================================================
+--- llvm/llvm/test/CodeGen/RISCV/target-abi-valid.ll
++++ llvm/llvm/test/CodeGen/RISCV/target-abi-valid.ll
+@@ -14,6 +14,18 @@
+ ; RUN:   | FileCheck -check-prefix=CHECK-IMP %s
+ ; RUN: llc -mtriple=riscv64 -mattr=+d -target-abi lp64 < %s \
+ ; RUN:   | FileCheck -check-prefix=CHECK-IMP %s
++; RUN: llc -mtriple=riscv32 -mattr=+f -target-abi ilp32f < %s 2>&1 \
++; RUN:   | FileCheck -check-prefix=CHECK-IMP %s
++; RUN: llc -mtriple=riscv32 -mattr=+d -target-abi ilp32f < %s 2>&1 \
++; RUN:   | FileCheck -check-prefix=CHECK-IMP %s
++; RUN: llc -mtriple=riscv32 -mattr=+d -target-abi ilp32d < %s 2>&1 \
++; RUN:   | FileCheck -check-prefix=CHECK-IMP %s
++; RUN: llc -mtriple=riscv64 -mattr=+f -target-abi lp64f < %s 2>&1 \
++; RUN:   | FileCheck -check-prefix=CHECK-IMP %s
++; RUN: llc -mtriple=riscv64 -mattr=+d -target-abi lp64f < %s 2>&1 \
++; RUN:   | FileCheck -check-prefix=CHECK-IMP %s
++; RUN: llc -mtriple=riscv64 -mattr=+d -target-abi lp64d < %s 2>&1 \
++; RUN:   | FileCheck -check-prefix=CHECK-IMP %s
+ 
+ define void @nothing() nounwind {
+ ; CHECK-IMP-LABEL: nothing:
+@@ -22,19 +34,7 @@
+   ret void
+ }
+ 
+-; RUN: not llc -mtriple=riscv32 -mattr=+f -target-abi ilp32f < %s 2>&1 \
+-; RUN:   | FileCheck -check-prefix=CHECK-UNIMP %s
+-; RUN: not llc -mtriple=riscv32 -mattr=+d -target-abi ilp32f < %s 2>&1 \
+-; RUN:   | FileCheck -check-prefix=CHECK-UNIMP %s
+-; RUN: not llc -mtriple=riscv32 -mattr=+d -target-abi ilp32d < %s 2>&1 \
+-; RUN:   | FileCheck -check-prefix=CHECK-UNIMP %s
+ ; RUN: not llc -mtriple=riscv32 -target-abi ilp32e < %s 2>&1 \
+ ; RUN:   | FileCheck -check-prefix=CHECK-UNIMP %s
+-; RUN: not llc -mtriple=riscv64 -mattr=+f -target-abi lp64f < %s 2>&1 \
+-; RUN:   | FileCheck -check-prefix=CHECK-UNIMP %s
+-; RUN: not llc -mtriple=riscv64 -mattr=+d -target-abi lp64f < %s 2>&1 \
+-; RUN:   | FileCheck -check-prefix=CHECK-UNIMP %s
+-; RUN: not llc -mtriple=riscv64 -mattr=+d -target-abi lp64d < %s 2>&1 \
+-; RUN:   | FileCheck -check-prefix=CHECK-UNIMP %s
+ 
+ ; CHECK-UNIMP: LLVM ERROR: Don't know how to lower this ABI

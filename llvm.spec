@@ -158,6 +158,9 @@ Patch51:	llvm-4.0.1-debug-posix_spawn.patch
 # llgo bits
 Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
+# RISC-V updates...
+# https://reviews.llvm.org/D59357
+Patch70:	D59357.diff
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
