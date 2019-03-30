@@ -75,7 +75,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	7.0.1
+Version:	8.0.0
 Release:	1
 License:	NCSA
 Group:		Development/Other
@@ -89,7 +89,7 @@ Source5:	http://llvm.org/releases/%{version}/libcxx-%{version}.src.tar.xz
 Source6:	http://llvm.org/releases/%{version}/libcxxabi-%{version}.src.tar.xz
 Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
 Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
-Source9:	http://llvm.org/releases/%{version}/llgo-%{version}.src.tar.xz
+#Source9:	http://llvm.org/releases/%{version}/llgo-%{version}.src.tar.xz
 Source10:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
 Source11:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
 Source1000:	llvm.rpmlintrc
@@ -164,6 +164,8 @@ BuildRequires:	chrpath
 BuildRequires:	groff
 BuildRequires:	libtool
 BuildRequires:	python-sphinx
+BuildRequires:	python-recommonmark
+BuildRequires:	python-sphinxcontrib-websupport
 BuildRequires:	python-setuptools
 BuildRequires:	python-requests
 %if %{with ocaml}
@@ -251,9 +253,11 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-cfi-verify
 %{_bindir}/llvm-cvtres
 %{_bindir}/llvm-cxxfilt
+%{_bindir}/llvm-cxxmap
 %{_bindir}/llvm-diff
 %{_bindir}/llvm-dis
 %{_bindir}/llvm-dwp
+%{_bindir}/llvm-elfabi
 %{_bindir}/llvm-exegesis
 %{_bindir}/llvm-extract
 %{_bindir}/llvm-lib
@@ -324,7 +328,7 @@ for effective implementation, proper tail calls or garbage collection.
 %define major %(echo %{version} |cut -d. -f1-2)  
 %define major1 %(echo %{version} |cut -d. -f1)
 
-%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiAsmPrinter LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols
+%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiAsmPrinter LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMOptRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyAsmPrinter LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo OptRemarks
 
 %define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangCrossTU clangDaemon clangDoc clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyAndroidModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingASTDiff clangToolingCore clangToolingRefactor clangIncludeFixer clangTidyAbseilModule clangTidyBoostModule clangTidyPlugin clangTidyPortabilityModule clangTidyZirconModule clangHandleLLVM clangToolingInclusions
 
@@ -446,7 +450,6 @@ This package contains the development files for LLVM.
 %{_bindir}/%{name}-config
 %{_includedir}/%{name}
 %{_includedir}/%{name}-c
-%{_libdir}/BugpointPasses.so
 %{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
 %if %{with openmp}
@@ -1069,13 +1072,6 @@ exec %{_bindir}/clang $fl ${1+"$@"}
 EOF
 chmod 0755 %{buildroot}%{_bindir}/c89 %{buildroot}%{_bindir}/c99
 %endif
-
-# Code sample -- binary not needed
-rm %{buildroot}%{_libdir}/LLVMHello.so %{buildroot}%{_libdir}/TestPlugin.so
-
-# Don't look for stuff we just deleted...
-sed -i -e 's,gtest gtest_main ,,;s, LLVMHello , ,;s, TestPlugin,,' -e '/LLVMHello/d' -e '/TestPlugin/d' -e '/gtest/d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports.cmake
-sed -i -e '/gtest/ { N;d }' -e '/LLVMHello/,+3d' -e '/TestPlugin/,+3d' %{buildroot}%{_libdir}/cmake/llvm/LLVMExports-release.cmake
 
 %if %{build_lto}
 # Put the LTO plugin where ld can see it...
