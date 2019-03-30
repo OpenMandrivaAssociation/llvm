@@ -6,8 +6,12 @@
 %define build_lto 1
 %define _disable_ld_no_undefined 0
 %define _disable_lto 1
+%ifarch %{aarch64}
+%global optflags %{optflags} -O3 -fPIC
+%else
 # (tpg) optimize it a bit
 %global optflags %{optflags} -O3
+%endif
 
 # clang header paths are hard-coded at compile time
 # and need adjustment whenever there's a new GCC version
