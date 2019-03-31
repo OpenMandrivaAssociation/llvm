@@ -59,7 +59,7 @@
 %bcond_with openmp
 %bcond_with unwind
 %else
-%bcond_without openmp
+%bcond_with openmp
 %bcond_without unwind
 %endif
 # FIXME Currently llgo fails to build on anything but x86_64,
@@ -153,6 +153,7 @@ Patch50:	llvm-4.0-default-compiler-rt.patch
 # Show more information when aborting because posix_spawn failed
 # (happens in qemu aarch64 chroots)
 Patch51:	llvm-4.0.1-debug-posix_spawn.patch
+Patch52:	llvm-8.0-x86_32-atomics.patch
 # llgo bits
 Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
@@ -896,13 +897,19 @@ fi
 %patch41 -p1 -b .bootstrap~
 %endif
 
+%if %{with openmp}
 %patch46 -p1 -b .soname~
+%endif
 
 %patch48 -p1 -b .mcount~
 %if %{with default_compilerrt}
 %patch50 -p1 -b .compilerrt~
 %endif
 %patch51 -p1 -b .posix_spawn~
+
+%ifarch %{ix86}
+%patch52 -p1 -b .x86_32atomics~
+%endif
 
 %if %{with llgo}
 %patch60 -p1 -b .llgoCompile~

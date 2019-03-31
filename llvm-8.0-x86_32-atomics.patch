@@ -1,0 +1,15 @@
+diff -up llvm-8.0.0.src/tools/clang/tools/extra/clangd/CMakeLists.txt.omv~ llvm-8.0.0.src/tools/clang/tools/extra/clangd/CMakeLists.txt
+--- llvm-8.0.0.src/tools/clang/tools/extra/clangd/CMakeLists.txt.omv~	2019-03-31 01:32:57.408983687 +0000
++++ llvm-8.0.0.src/tools/clang/tools/extra/clangd/CMakeLists.txt	2019-03-31 01:33:44.375234465 +0000
+@@ -16,9 +16,9 @@ if(CLANG_BUILT_STANDALONE)
+ endif()
+ 
+ set(CLANGD_ATOMIC_LIB "")
+-if(NOT HAVE_CXX_ATOMICS64_WITHOUT_LIB)
++#if(NOT HAVE_CXX_ATOMICS64_WITHOUT_LIB)
+   list(APPEND CLANGD_ATOMIC_LIB "atomic")
+-endif()
++#endif()
+ 
+ add_clang_library(clangDaemon
+   AST.cpp
