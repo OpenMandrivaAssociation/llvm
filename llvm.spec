@@ -221,13 +221,6 @@ Obsoletes: %{mklibname LLVMRISCVDesc 5} < %{EVRD}
 Obsoletes: %{mklibname LLVMRISCVInfo 5} < %{EVRD}
 Obsoletes: %{mklibname lldConfig 5} < %{EVRD}
 
-%ifarch %{ix86}
-%if ! %{with bootstrap_gcc}
-# Work around undefined reference to __atomic_load_8 when building clangd
-%global optflags %{optflags} --rtlib=compiler-rt
-%endif
-%endif
-
 %description
 LVM is a robust system, particularly well suited for developing new mid-level
 language-independent analyses and optimizations of all sorts, including those
