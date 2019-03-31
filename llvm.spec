@@ -59,7 +59,7 @@
 %bcond_with openmp
 %bcond_with unwind
 %else
-%bcond_with openmp
+%bcond_without openmp
 %bcond_without unwind
 %endif
 # FIXME Currently llgo fails to build on anything but x86_64,
