@@ -7,7 +7,7 @@ sources:
   libunwind-8.0.0.src.tar.xz: b34682d855c42ae77ada8e9b62af133386855412
   lld-8.0.0.src.tar.xz: b9062249ef61316e3450fc26e7238432673036bb
   lldb-8.0.0.src.tar.xz: ca188f74b4896cd243ed1c3797d27c3371185146
-  llgo-8.0.0.src.tar.xz: 416fbf24f11770fe0a818171077d7535bc9a92a0
+  llgo-8.0.0.src.tar.xz: ac73145f4636f78ec8c8f120b2a71ac1ee47adff
   llvm-8.0.0.src.tar.xz: 0689345d73911e24a07b24cc82dab4fb46b8c323
   openmp-8.0.0.src.tar.xz: 90462a0f720a9a40ecbda9636c24d627b5dc05db
   polly-8.0.0.src.tar.xz: ca34b2be7c362844db089f0114af11333c2ebfcb

@@ -1,0 +1,12 @@
+diff -up llvm-8.0.0.src/tools/polly/lib/CodeGen/IslNodeBuilder.cpp.omv~ llvm-8.0.0.src/tools/polly/lib/CodeGen/IslNodeBuilder.cpp
+--- llvm-8.0.0.src/tools/polly/lib/CodeGen/IslNodeBuilder.cpp.omv~	2019-04-09 13:00:59.633563349 +0200
++++ llvm-8.0.0.src/tools/polly/lib/CodeGen/IslNodeBuilder.cpp	2019-04-09 13:01:53.035869640 +0200
+@@ -108,7 +108,7 @@ static cl::opt<OpenMPBackend> PollyOmpBa
+     "polly-omp-backend", cl::desc("Choose the OpenMP library to use:"),
+     cl::values(clEnumValN(OpenMPBackend::GNU, "GNU", "GNU OpenMP"),
+                clEnumValN(OpenMPBackend::LLVM, "LLVM", "LLVM OpenMP")),
+-    cl::Hidden, cl::init(OpenMPBackend::GNU), cl::cat(PollyCategory));
++    cl::Hidden, cl::init(OpenMPBackend::LLVM), cl::cat(PollyCategory));
+ 
+ isl::ast_expr IslNodeBuilder::getUpperBound(isl::ast_node For,
+                                             ICmpInst::Predicate &Predicate) {

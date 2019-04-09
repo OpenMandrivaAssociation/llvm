@@ -62,9 +62,9 @@
 %bcond_without openmp
 %bcond_without unwind
 %endif
-# FIXME Currently llgo fails to build on anything but x86_64,
-# and triggers https://sourceware.org/bugzilla/show_bug.cgi?id=17729
-# on x86_64
+# As of 8.0.0, fails to build:
+# /tmp/gopath422263552/src/llvm.org/llgo/cmd/gllgo/gllgo.go:121:6: mpm.AddMemorySanitizerPass
+# undefined (type llvm.PassManager has no field or method AddMemorySanitizerPass)
 %bcond_with llgo
 %bcond_without lld
 
@@ -93,7 +93,7 @@ Source5:	http://llvm.org/releases/%{version}/libcxx-%{version}.src.tar.xz
 Source6:	http://llvm.org/releases/%{version}/libcxxabi-%{version}.src.tar.xz
 Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
 Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
-#Source9:	http://llvm.org/releases/%{version}/llgo-%{version}.src.tar.xz
+Source9:	http://llvm.org/releases/%{version}/llgo-%{version}.src.tar.xz
 Source10:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
 Source11:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
 Source1000:	llvm.rpmlintrc
@@ -151,9 +151,12 @@ Patch48:	llvm-3.8.0-mcount-name.patch
 Patch49:	llvm-4.0-lldb-static.patch
 Patch50:	llvm-4.0-default-compiler-rt.patch
 # Show more information when aborting because posix_spawn failed
-# (happens in qemu aarch64 chroots)
+# (happened in some qemu aarch64 chroots)
 Patch51:	llvm-4.0.1-debug-posix_spawn.patch
 Patch52:	llvm-8.0-x86_32-atomics.patch
+# Polly LLVM OpenMP backend
+Patch55:	https://github.com/llvm/llvm-project/commit/89251ed.patch
+Patch56:	polly-8.0-default-llvm-backend.patch
 # llgo bits
 Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
@@ -903,6 +906,11 @@ fi
 %ifarch %{ix86}
 %patch52 -p1 -b .x86_32atomics~
 %endif
+
+cd tools
+%patch55 -p1 -b .pollyllvmbackend~
+cd ..
+%patch56 -p1 -b .pollyllvmdefault~
 
 %if %{with llgo}
 %patch60 -p1 -b .llgoCompile~

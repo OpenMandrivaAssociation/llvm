@@ -1,0 +1,1792 @@
+From 89251edefcb46f0b5e0caf2bb47f38d115e12fa4 Mon Sep 17 00:00:00 2001
+From: Michael Kruse <llvm@meinersbur.de>
+Date: Tue, 19 Mar 2019 03:18:21 +0000
+Subject: [PATCH] [CodeGen] LLVM OpenMP Backend.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The ParallelLoopGenerator class is changed such that GNU OpenMP specific
+code was removed, allowing to use it as super class in a
+template-pattern. Therefore, the code has been reorganized and one may
+not use the ParallelLoopGenerator directly anymore, instead specific
+implementations have to be provided. These implementations contain the
+library-specific code. As such, the "GOMP" (code completely taken from
+the existing backend) and "KMP" variant were created.
+
+For "check-polly" all tests that involved "GOMP": equivalents were added
+that test the new functionalities, like static scheduling and different
+chunk sizes. "docs/UsingPollyWithClang.rst" shows how the alternative
+backend may be used.
+
+Patch by Michael Halkenhäuser <michaelhalk@web.de>
+
+Differential Revision: https://reviews.llvm.org/D59100
+
+llvm-svn: 356434
+---
+ polly/docs/UsingPollyWithClang.rst            |  32 ++
+ polly/include/polly/CodeGen/LoopGenerators.h  |  77 +--
+ .../polly/CodeGen/LoopGeneratorsGOMP.h        |  83 +++
+ .../include/polly/CodeGen/LoopGeneratorsKMP.h | 152 ++++++
+ polly/lib/CMakeLists.txt                      |   3 +-
+ polly/lib/CodeGen/IslNodeBuilder.cpp          |  29 +-
+ polly/lib/CodeGen/LoopGenerators.cpp          | 208 ++-----
+ polly/lib/CodeGen/LoopGeneratorsGOMP.cpp      | 228 ++++++++
+ polly/lib/CodeGen/LoopGeneratorsKMP.cpp       | 512 ++++++++++++++++++
+ ...ference-argument-from-non-affine-region.ll |  19 +-
+ polly/test/Isl/CodeGen/OpenMP/single_loop.ll  |  91 +++-
+ .../CodeGen/OpenMP/single_loop_with_param.ll  |  32 +-
+ .../test/Isl/CodeGen/openmp_limit_threads.ll  |  25 +-
+ 13 files changed, 1267 insertions(+), 224 deletions(-)
+ create mode 100644 polly/include/polly/CodeGen/LoopGeneratorsGOMP.h
+ create mode 100644 polly/include/polly/CodeGen/LoopGeneratorsKMP.h
+ create mode 100644 polly/lib/CodeGen/LoopGeneratorsGOMP.cpp
+ create mode 100644 polly/lib/CodeGen/LoopGeneratorsKMP.cpp
+
+diff --git a/polly/docs/UsingPollyWithClang.rst b/polly/docs/UsingPollyWithClang.rst
+index 3198a417caa..b6f370502f6 100644
+--- a/polly/docs/UsingPollyWithClang.rst
++++ b/polly/docs/UsingPollyWithClang.rst
+@@ -37,6 +37,38 @@ also need to add -mllvm -polly-parallel -lgomp to your CFLAGS.
+ 
+   clang -O3 -mllvm -polly -mllvm -polly-parallel -lgomp file.c
+ 
++Switching the OpenMP backend
++----------------------------
++
++The following CL switch allows to choose Polly's OpenMP-backend:
++
++       -polly-omp-backend[=BACKEND]
++              choose the OpenMP backend; BACKEND can be 'GNU' (the default) or 'LLVM';
++
++The OpenMP backends can be further influenced using the following CL switches:
++
++
++       -polly-num-threads[=NUM]
++              set the number of threads to use; NUM may be any positive integer (default: 0, which equals automatic/OMP runtime);
++
++       -polly-scheduling[=SCHED]
++              set the OpenMP scheduling type; SCHED can be 'static', 'dynamic', 'guided' or 'runtime' (the default);
++
++       -polly-scheduling-chunksize[=CHUNK]
++              set the chunksize (for the selected scheduling type); CHUNK may be any strictly positive integer (otherwise it will default to 1);
++
++Note that at the time of writing, the GNU backend may only use the
++`polly-num-threads` and `polly-scheduling` switches, where the latter also has
++to be set to "runtime".
++
++Example: Use alternative backend with dynamic scheduling, four threads and
++chunksize of one (additional switches).
++
++.. code-block:: console
++
++  -mllvm -polly-omp-backend=LLVM -mllvm -polly-num-threads=4
++  -mllvm -polly-scheduling=dynamic -mllvm -polly-scheduling-chunksize=1
++
+ Automatic Vector code generation
+ ================================
+ 
+diff --git a/polly/include/polly/CodeGen/LoopGenerators.h b/polly/include/polly/CodeGen/LoopGenerators.h
+index f41edc50619..39ff3a78e04 100644
+--- a/polly/include/polly/CodeGen/LoopGenerators.h
++++ b/polly/include/polly/CodeGen/LoopGenerators.h
+@@ -28,6 +28,21 @@ class BasicBlock;
+ namespace polly {
+ using namespace llvm;
+ 
++/// General scheduling types of parallel OpenMP for loops.
++/// Initialization values taken from OpenMP's enum in kmp.h: sched_type.
++/// Currently, only 'static' scheduling may change from chunked to non-chunked.
++enum class OMPGeneralSchedulingType {
++  StaticChunked = 33,
++  StaticNonChunked = 34,
++  Dynamic = 35,
++  Guided = 36,
++  Runtime = 37
++};
++
++extern int PollyNumThreads;
++extern OMPGeneralSchedulingType PollyScheduling;
++extern int PollyChunkSize;
++
+ /// Create a scalar do/for-style loop.
+ ///
+ /// @param LowerBound         The starting value of the induction variable.
+@@ -132,7 +147,7 @@ class ParallelLoopGenerator {
+                             SetVector<Value *> &Values, ValueMapT &VMap,
+                             BasicBlock::iterator *LoopBody);
+ 
+-private:
++protected:
+   /// The IR builder we use to create instructions.
+   PollyIRBuilder &Builder;
+ 
+@@ -149,38 +164,6 @@ class ParallelLoopGenerator {
+   Module *M;
+ 
+ public:
+-  /// The functions below can be used if one does not want to generate a
+-  /// specific OpenMP parallel loop, but generate individual parts of it
+-  /// (e.g., the subfunction definition).
+-
+-  /// Create a runtime library call to spawn the worker threads.
+-  ///
+-  /// @param SubFn      The subfunction which holds the loop body.
+-  /// @param SubFnParam The parameter for the subfunction (basically the struct
+-  ///                   filled with the outside values).
+-  /// @param LB         The lower bound for the loop we parallelize.
+-  /// @param UB         The upper bound for the loop we parallelize.
+-  /// @param Stride     The stride of the loop we parallelize.
+-  void createCallSpawnThreads(Value *SubFn, Value *SubFnParam, Value *LB,
+-                              Value *UB, Value *Stride);
+-
+-  /// Create a runtime library call to join the worker threads.
+-  void createCallJoinThreads();
+-
+-  /// Create a runtime library call to get the next work item.
+-  ///
+-  /// @param LBPtr A pointer value to store the work item begin in.
+-  /// @param UBPtr A pointer value to store the work item end in.
+-  ///
+-  /// @returns A true value if the work item is not empty.
+-  Value *createCallGetWorkItem(Value *LBPtr, Value *UBPtr);
+-
+-  /// Create a runtime library call to allow cleanup of the thread.
+-  ///
+-  /// @note This function is called right before the thread will exit the
+-  ///       subfunction and only if the runtime system depends on it.
+-  void createCallCleanupThread();
+-
+   /// Create a struct for all @p Values and store them in there.
+   ///
+   /// @param Values The values which should be stored in the struct.
+@@ -198,8 +181,30 @@ class ParallelLoopGenerator {
+                                Value *Struct, ValueMapT &VMap);
+ 
+   /// Create the definition of the parallel subfunction.
++  ///
++  /// @return A pointer to the subfunction.
+   Function *createSubFnDefinition();
+ 
++  /// Create the runtime library calls for spawn and join of the worker threads.
++  /// Additionally, places a call to the specified subfunction.
++  ///
++  /// @param SubFn      The subfunction which holds the loop body.
++  /// @param SubFnParam The parameter for the subfunction (basically the struct
++  ///                   filled with the outside values).
++  /// @param LB         The lower bound for the loop we parallelize.
++  /// @param UB         The upper bound for the loop we parallelize.
++  /// @param Stride     The stride of the loop we parallelize.
++  virtual void deployParallelExecution(Value *SubFn, Value *SubFnParam,
++                                       Value *LB, Value *UB, Value *Stride) = 0;
++
++  /// Prepare the definition of the parallel subfunction.
++  /// Creates the argument list and names them (as well as the subfunction).
++  ///
++  /// @param F A pointer to the (parallel) subfunction's parent function.
++  ///
++  /// @return The pointer to the (parallel) subfunction.
++  virtual Function *prepareSubFnDefinition(Function *F) const = 0;
++
+   /// Create the parallel subfunction.
+   ///
+   /// @param Stride The induction variable increment.
+@@ -211,9 +216,9 @@ class ParallelLoopGenerator {
+   /// @param SubFn  The newly created subfunction is returned here.
+   ///
+   /// @return The newly created induction variable.
+-  Value *createSubFn(Value *Stride, AllocaInst *Struct,
+-                     SetVector<Value *> UsedValues, ValueMapT &VMap,
+-                     Function **SubFn);
++  virtual std::tuple<Value *, Function *>
++  createSubFn(Value *Stride, AllocaInst *Struct, SetVector<Value *> UsedValues,
++              ValueMapT &VMap) = 0;
+ };
+ } // end namespace polly
+ #endif
+diff --git a/polly/include/polly/CodeGen/LoopGeneratorsGOMP.h b/polly/include/polly/CodeGen/LoopGeneratorsGOMP.h
+new file mode 100644
+index 00000000000..641d0dd0892
+--- /dev/null
++++ b/polly/include/polly/CodeGen/LoopGeneratorsGOMP.h
+@@ -0,0 +1,83 @@
++//===- LoopGeneratorsGOMP.h - IR helper to create loops ---------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains functions to create scalar and OpenMP parallel loops
++// as LLVM-IR.
++//
++//===----------------------------------------------------------------------===//
++#ifndef POLLY_LOOP_GENERATORS_GOMP_H
++#define POLLY_LOOP_GENERATORS_GOMP_H
++
++#include "polly/CodeGen/IRBuilder.h"
++#include "polly/CodeGen/LoopGenerators.h"
++#include "polly/Support/ScopHelper.h"
++
++#include "llvm/ADT/SetVector.h"
++#include "llvm/IR/ValueMap.h"
++
++namespace llvm {
++class Value;
++class Pass;
++class BasicBlock;
++} // namespace llvm
++
++namespace polly {
++using namespace llvm;
++
++/// This ParallelLoopGenerator subclass handles the generation of parallelized
++/// code, utilizing the GNU OpenMP library.
++class ParallelLoopGeneratorGOMP : public ParallelLoopGenerator {
++public:
++  /// Create a parallel loop generator for the current function.
++  ParallelLoopGeneratorGOMP(PollyIRBuilder &Builder, LoopInfo &LI,
++                            DominatorTree &DT, const DataLayout &DL)
++      : ParallelLoopGenerator(Builder, LI, DT, DL) {}
++
++  // The functions below may be used if one does not want to generate a
++  // specific OpenMP parallel loop, but generate individual parts of it
++  // (e.g. the subfunction definition).
++
++  /// Create a runtime library call to spawn the worker threads.
++  ///
++  /// @param SubFn      The subfunction which holds the loop body.
++  /// @param SubFnParam The parameter for the subfunction (basically the struct
++  ///                   filled with the outside values).
++  /// @param LB         The lower bound for the loop we parallelize.
++  /// @param UB         The upper bound for the loop we parallelize.
++  /// @param Stride     The stride of the loop we parallelize.
++  void createCallSpawnThreads(Value *SubFn, Value *SubFnParam, Value *LB,
++                              Value *UB, Value *Stride);
++
++  void deployParallelExecution(Value *SubFn, Value *SubFnParam, Value *LB,
++                               Value *UB, Value *Stride) override;
++
++  virtual Function *prepareSubFnDefinition(Function *F) const override;
++
++  std::tuple<Value *, Function *> createSubFn(Value *Stride, AllocaInst *Struct,
++                                              SetVector<Value *> UsedValues,
++                                              ValueMapT &VMap) override;
++
++  /// Create a runtime library call to join the worker threads.
++  void createCallJoinThreads();
++
++  /// Create a runtime library call to get the next work item.
++  ///
++  /// @param LBPtr A pointer value to store the work item begin in.
++  /// @param UBPtr A pointer value to store the work item end in.
++  ///
++  /// @returns A true value if the work item is not empty.
++  Value *createCallGetWorkItem(Value *LBPtr, Value *UBPtr);
++
++  /// Create a runtime library call to allow cleanup of the thread.
++  ///
++  /// @note This function is called right before the thread will exit the
++  ///       subfunction and only if the runtime system depends on it.
++  void createCallCleanupThread();
++};
++} // end namespace polly
++#endif
+diff --git a/polly/include/polly/CodeGen/LoopGeneratorsKMP.h b/polly/include/polly/CodeGen/LoopGeneratorsKMP.h
+new file mode 100644
+index 00000000000..9adcd56b159
+--- /dev/null
++++ b/polly/include/polly/CodeGen/LoopGeneratorsKMP.h
+@@ -0,0 +1,152 @@
++//===- LoopGeneratorsKMP.h - IR helper to create loops ----------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains functions to create scalar and OpenMP parallel loops
++// as LLVM-IR.
++//
++//===----------------------------------------------------------------------===//
++#ifndef POLLY_LOOP_GENERATORS_KMP_H
++#define POLLY_LOOP_GENERATORS_KMP_H
++
++#include "polly/CodeGen/IRBuilder.h"
++#include "polly/CodeGen/LoopGenerators.h"
++#include "polly/Support/ScopHelper.h"
++
++#include "llvm/ADT/SetVector.h"
++#include "llvm/IR/ValueMap.h"
++
++namespace llvm {
++class Value;
++class Pass;
++class BasicBlock;
++} // namespace llvm
++
++namespace polly {
++using namespace llvm;
++
++/// This ParallelLoopGenerator subclass handles the generation of parallelized
++/// code, utilizing the LLVM OpenMP library.
++class ParallelLoopGeneratorKMP : public ParallelLoopGenerator {
++public:
++  /// Create a parallel loop generator for the current function.
++  ParallelLoopGeneratorKMP(PollyIRBuilder &Builder, LoopInfo &LI,
++                           DominatorTree &DT, const DataLayout &DL)
++      : ParallelLoopGenerator(Builder, LI, DT, DL) {
++    SourceLocationInfo = createSourceLocation();
++  }
++
++protected:
++  /// The source location struct of this loop.
++  /// ident_t = type { i32, i32, i32, i32, i8* }
++  GlobalValue *SourceLocationInfo;
++
++  /// Convert the combination of given chunk size and scheduling type (which
++  /// might have been set via the command line) into the corresponding
++  /// scheduling type. This may result (e.g.) in a 'change' from
++  /// "static chunked" scheduling to "static non-chunked" (regarding the
++  /// provided and returned scheduling types).
++  ///
++  /// @param ChunkSize    The chunk size, set via command line or its default.
++  /// @param Scheduling   The scheduling, set via command line or its default.
++  ///
++  /// @return The corresponding OMPGeneralSchedulingType.
++  OMPGeneralSchedulingType
++  getSchedType(int ChunkSize, OMPGeneralSchedulingType Scheduling) const;
++
++  /// Returns True if 'LongType' is 64bit wide, otherwise: False.
++  bool is64BitArch();
++
++public:
++  // The functions below may be used if one does not want to generate a
++  // specific OpenMP parallel loop, but generate individual parts of it
++  // (e.g. the subfunction definition).
++
++  /// Create a runtime library call to spawn the worker threads.
++  ///
++  /// @param SubFn      The subfunction which holds the loop body.
++  /// @param SubFnParam The parameter for the subfunction (basically the struct
++  ///                   filled with the outside values).
++  /// @param LB         The lower bound for the loop we parallelize.
++  /// @param UB         The upper bound for the loop we parallelize.
++  /// @param Stride     The stride of the loop we parallelize.
++  void createCallSpawnThreads(Value *SubFn, Value *SubFnParam, Value *LB,
++                              Value *UB, Value *Stride);
++
++  void deployParallelExecution(Value *SubFn, Value *SubFnParam, Value *LB,
++                               Value *UB, Value *Stride) override;
++
++  virtual Function *prepareSubFnDefinition(Function *F) const override;
++
++  std::tuple<Value *, Function *> createSubFn(Value *Stride, AllocaInst *Struct,
++                                              SetVector<Value *> UsedValues,
++                                              ValueMapT &VMap) override;
++
++  /// Create a runtime library call to get the current global thread number.
++  ///
++  /// @return A Value ref which holds the current global thread number.
++  Value *createCallGlobalThreadNum();
++
++  /// Create a runtime library call to request a number of threads.
++  /// Which will be used in the next OpenMP section (by the next fork).
++  ///
++  /// @param GlobalThreadID   The global thread ID.
++  /// @param NumThreads       The number of threads to use.
++  void createCallPushNumThreads(Value *GlobalThreadID, Value *NumThreads);
++
++  /// Create a runtime library call to prepare the OpenMP runtime.
++  /// For dynamically scheduled loops, saving the loop arguments.
++  ///
++  /// @param GlobalThreadID   The global thread ID.
++  /// @param LB               The loop's lower bound.
++  /// @param UB               The loop's upper bound.
++  /// @param Inc              The loop increment.
++  /// @param ChunkSize        The chunk size of the parallel loop.
++  void createCallDispatchInit(Value *GlobalThreadID, Value *LB, Value *UB,
++                              Value *Inc, Value *ChunkSize);
++
++  /// Create a runtime library call to retrieve the next (dynamically)
++  /// allocated chunk of work for this thread.
++  ///
++  /// @param GlobalThreadID   The global thread ID.
++  /// @param IsLastPtr        Pointer to a flag, which is set to 1 if this is
++  ///                         the last chunk of work, or 0 otherwise.
++  /// @param LBPtr            Pointer to the lower bound for the next chunk.
++  /// @param UBPtr            Pointer to the upper bound for the next chunk.
++  /// @param StridePtr        Pointer to the stride for the next chunk.
++  ///
++  /// @return A Value which holds 1 if there is work to be done, 0 otherwise.
++  Value *createCallDispatchNext(Value *GlobalThreadID, Value *IsLastPtr,
++                                Value *LBPtr, Value *UBPtr, Value *StridePtr);
++
++  /// Create a runtime library call to prepare the OpenMP runtime.
++  /// For statically scheduled loops, saving the loop arguments.
++  ///
++  /// @param GlobalThreadID   The global thread ID.
++  /// @param IsLastPtr        Pointer to a flag, which is set to 1 if this is
++  ///                         the last chunk of work, or 0 otherwise.
++  /// @param LBPtr            Pointer to the lower bound for the next chunk.
++  /// @param UBPtr            Pointer to the upper bound for the next chunk.
++  /// @param StridePtr        Pointer to the stride for the next chunk.
++  /// @param ChunkSize        The chunk size of the parallel loop.
++  void createCallStaticInit(Value *GlobalThreadID, Value *IsLastPtr,
++                            Value *LBPtr, Value *UBPtr, Value *StridePtr,
++                            Value *ChunkSize);
++
++  /// Create a runtime library call to mark the end of
++  /// a statically scheduled loop.
++  ///
++  /// @param GlobalThreadID   The global thread ID.
++  void createCallStaticFini(Value *GlobalThreadID);
++
++  /// Create the current source location.
++  ///
++  /// TODO: Generates only(!) dummy values.
++  GlobalVariable *createSourceLocation();
++};
++} // end namespace polly
++#endif
+diff --git a/polly/lib/CMakeLists.txt b/polly/lib/CMakeLists.txt
+index 954654112c8..41f19087c97 100644
+--- a/polly/lib/CMakeLists.txt
++++ b/polly/lib/CMakeLists.txt
+@@ -36,6 +36,8 @@ add_library(PollyCore OBJECT
+   CodeGen/BlockGenerators.cpp
+   ${ISL_CODEGEN_FILES}
+   CodeGen/LoopGenerators.cpp
++  CodeGen/LoopGeneratorsGOMP.cpp
++  CodeGen/LoopGeneratorsKMP.cpp
+   CodeGen/IRBuilder.cpp
+   CodeGen/Utils.cpp
+   CodeGen/RuntimeDebugBuilder.cpp
+@@ -158,4 +160,3 @@ if (TARGET intrinsics_gen)
+   # Check if we are building as part of an LLVM build
+   add_dependencies(PollyCore intrinsics_gen)
+ endif()
+-
+diff --git a/polly/lib/CodeGen/IslNodeBuilder.cpp b/polly/lib/CodeGen/IslNodeBuilder.cpp
+index 080a09e814b..06a646fe87f 100644
+--- a/polly/lib/CodeGen/IslNodeBuilder.cpp
++++ b/polly/lib/CodeGen/IslNodeBuilder.cpp
+@@ -16,7 +16,8 @@
+ #include "polly/CodeGen/CodeGeneration.h"
+ #include "polly/CodeGen/IslAst.h"
+ #include "polly/CodeGen/IslExprBuilder.h"
+-#include "polly/CodeGen/LoopGenerators.h"
++#include "polly/CodeGen/LoopGeneratorsGOMP.h"
++#include "polly/CodeGen/LoopGeneratorsKMP.h"
+ #include "polly/CodeGen/RuntimeDebugBuilder.h"
+ #include "polly/Config/config.h"
+ #include "polly/Options.h"
+@@ -80,6 +81,9 @@ STATISTIC(ParallelLoops, "Number of generated parallel for-loops");
+ STATISTIC(VectorLoops, "Number of generated vector for-loops");
+ STATISTIC(IfConditions, "Number of generated if-conditions");
+ 
++/// OpenMP backend options
++enum class OpenMPBackend { GNU, LLVM };
++
+ static cl::opt<bool> PollyGenerateRTCPrint(
+     "polly-codegen-emit-rtc-print",
+     cl::desc("Emit code that prints the runtime check result dynamically."),
+@@ -99,6 +103,12 @@ static cl::opt<int> PollyTargetFirstLevelCacheLineSize(
+     cl::desc("The size of the first level cache line size specified in bytes."),
+     cl::Hidden, cl::init(64), cl::ZeroOrMore, cl::cat(PollyCategory));
+ 
++static cl::opt<OpenMPBackend> PollyOmpBackend(
++    "polly-omp-backend", cl::desc("Choose the OpenMP library to use:"),
++    cl::values(clEnumValN(OpenMPBackend::GNU, "GNU", "GNU OpenMP"),
++               clEnumValN(OpenMPBackend::LLVM, "LLVM", "LLVM OpenMP")),
++    cl::Hidden, cl::init(OpenMPBackend::GNU), cl::cat(PollyCategory));
++
+ isl::ast_expr IslNodeBuilder::getUpperBound(isl::ast_node For,
+                                             ICmpInst::Predicate &Predicate) {
+   isl::ast_expr Cond = For.for_get_cond();
+@@ -668,10 +678,21 @@ void IslNodeBuilder::createForParallel(__isl_take isl_ast_node *For) {
+   }
+ 
+   ValueMapT NewValues;
+-  ParallelLoopGenerator ParallelLoopGen(Builder, LI, DT, DL);
+ 
+-  IV = ParallelLoopGen.createParallelLoop(ValueLB, ValueUB, ValueInc,
+-                                          SubtreeValues, NewValues, &LoopBody);
++  std::unique_ptr<ParallelLoopGenerator> ParallelLoopGenPtr;
++
++  switch (PollyOmpBackend) {
++  case OpenMPBackend::GNU:
++    ParallelLoopGenPtr.reset(
++        new ParallelLoopGeneratorGOMP(Builder, LI, DT, DL));
++    break;
++  case OpenMPBackend::LLVM:
++    ParallelLoopGenPtr.reset(new ParallelLoopGeneratorKMP(Builder, LI, DT, DL));
++    break;
++  }
++
++  IV = ParallelLoopGenPtr->createParallelLoop(
++      ValueLB, ValueUB, ValueInc, SubtreeValues, NewValues, &LoopBody);
+   BasicBlock::iterator AfterLoop = Builder.GetInsertPoint();
+   Builder.SetInsertPoint(&*LoopBody);
+ 
+diff --git a/polly/lib/CodeGen/LoopGenerators.cpp b/polly/lib/CodeGen/LoopGenerators.cpp
+index 303cda7f527..4df1cef1607 100644
+--- a/polly/lib/CodeGen/LoopGenerators.cpp
++++ b/polly/lib/CodeGen/LoopGenerators.cpp
+@@ -6,11 +6,13 @@
+ //
+ //===----------------------------------------------------------------------===//
+ //
+-// This file contains functions to create scalar and parallel loops as LLVM-IR.
++// This file contains functions to create scalar loops and orchestrate the
++// creation of parallel loops as LLVM-IR.
+ //
+ //===----------------------------------------------------------------------===//
+ 
+ #include "polly/CodeGen/LoopGenerators.h"
++#include "polly/Options.h"
+ #include "polly/ScopDetection.h"
+ #include "llvm/Analysis/LoopInfo.h"
+ #include "llvm/IR/DataLayout.h"
+@@ -22,10 +24,36 @@
+ using namespace llvm;
+ using namespace polly;
+ 
+-static cl::opt<int>
+-    PollyNumThreads("polly-num-threads",
+-                    cl::desc("Number of threads to use (0 = auto)"), cl::Hidden,
+-                    cl::init(0));
++int polly::PollyNumThreads;
++OMPGeneralSchedulingType polly::PollyScheduling;
++int polly::PollyChunkSize;
++
++static cl::opt<int, true>
++    XPollyNumThreads("polly-num-threads",
++                     cl::desc("Number of threads to use (0 = auto)"),
++                     cl::Hidden, cl::location(polly::PollyNumThreads),
++                     cl::init(0), cl::cat(PollyCategory));
++
++static cl::opt<OMPGeneralSchedulingType, true> XPollyScheduling(
++    "polly-scheduling",
++    cl::desc("Scheduling type of parallel OpenMP for loops"),
++    cl::values(clEnumValN(OMPGeneralSchedulingType::StaticChunked, "static",
++                          "Static scheduling"),
++               clEnumValN(OMPGeneralSchedulingType::Dynamic, "dynamic",
++                          "Dynamic scheduling"),
++               clEnumValN(OMPGeneralSchedulingType::Guided, "guided",
++                          "Guided scheduling"),
++               clEnumValN(OMPGeneralSchedulingType::Runtime, "runtime",
++                          "Runtime determined (OMP_SCHEDULE)")),
++    cl::Hidden, cl::location(polly::PollyScheduling),
++    cl::init(OMPGeneralSchedulingType::Runtime), cl::Optional,
++    cl::cat(PollyCategory));
++
++static cl::opt<int, true>
++    XPollyChunkSize("polly-scheduling-chunksize",
++                    cl::desc("Chunksize to use by the OpenMP runtime calls"),
++                    cl::Hidden, cl::location(polly::PollyChunkSize),
++                    cl::init(0), cl::Optional, cl::cat(PollyCategory));
+ 
+ // We generate a loop of either of the following structures:
+ //
+@@ -147,11 +175,13 @@ Value *polly::createLoop(Value *LB, Value *UB, Value *Stride,
+ Value *ParallelLoopGenerator::createParallelLoop(
+     Value *LB, Value *UB, Value *Stride, SetVector<Value *> &UsedValues,
+     ValueMapT &Map, BasicBlock::iterator *LoopBody) {
+-  Function *SubFn;
+ 
+   AllocaInst *Struct = storeValuesIntoStruct(UsedValues);
+   BasicBlock::iterator BeforeLoop = Builder.GetInsertPoint();
+-  Value *IV = createSubFn(Stride, Struct, UsedValues, Map, &SubFn);
++
++  Value *IV;
++  Function *SubFn;
++  std::tie(IV, SubFn) = createSubFn(Stride, Struct, UsedValues, Map);
+   *LoopBody = Builder.GetInsertPoint();
+   Builder.SetInsertPoint(&*BeforeLoop);
+ 
+@@ -162,102 +192,15 @@ Value *ParallelLoopGenerator::createParallelLoop(
+   // whereas the codegenForSequential function creates a <= comparison.
+   UB = Builder.CreateAdd(UB, ConstantInt::get(LongType, 1));
+ 
+-  // Tell the runtime we start a parallel loop
+-  createCallSpawnThreads(SubFn, SubFnParam, LB, UB, Stride);
+-  Builder.CreateCall(SubFn, SubFnParam);
+-  createCallJoinThreads();
++  // Execute the prepared subfunction in parallel.
++  deployParallelExecution(SubFn, SubFnParam, LB, UB, Stride);
+ 
+   return IV;
+ }
+ 
+-void ParallelLoopGenerator::createCallSpawnThreads(Value *SubFn,
+-                                                   Value *SubFnParam, Value *LB,
+-                                                   Value *UB, Value *Stride) {
+-  const std::string Name = "GOMP_parallel_loop_runtime_start";
+-
+-  Function *F = M->getFunction(Name);
+-
+-  // If F is not available, declare it.
+-  if (!F) {
+-    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
+-
+-    Type *Params[] = {PointerType::getUnqual(FunctionType::get(
+-                          Builder.getVoidTy(), Builder.getInt8PtrTy(), false)),
+-                      Builder.getInt8PtrTy(),
+-                      Builder.getInt32Ty(),
+-                      LongType,
+-                      LongType,
+-                      LongType};
+-
+-    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), Params, false);
+-    F = Function::Create(Ty, Linkage, Name, M);
+-  }
+-
+-  Value *NumberOfThreads = Builder.getInt32(PollyNumThreads);
+-  Value *Args[] = {SubFn, SubFnParam, NumberOfThreads, LB, UB, Stride};
+-
+-  Builder.CreateCall(F, Args);
+-}
+-
+-Value *ParallelLoopGenerator::createCallGetWorkItem(Value *LBPtr,
+-                                                    Value *UBPtr) {
+-  const std::string Name = "GOMP_loop_runtime_next";
+-
+-  Function *F = M->getFunction(Name);
+-
+-  // If F is not available, declare it.
+-  if (!F) {
+-    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
+-    Type *Params[] = {LongType->getPointerTo(), LongType->getPointerTo()};
+-    FunctionType *Ty = FunctionType::get(Builder.getInt8Ty(), Params, false);
+-    F = Function::Create(Ty, Linkage, Name, M);
+-  }
+-
+-  Value *Args[] = {LBPtr, UBPtr};
+-  Value *Return = Builder.CreateCall(F, Args);
+-  Return = Builder.CreateICmpNE(
+-      Return, Builder.CreateZExt(Builder.getFalse(), Return->getType()));
+-  return Return;
+-}
+-
+-void ParallelLoopGenerator::createCallJoinThreads() {
+-  const std::string Name = "GOMP_parallel_end";
+-
+-  Function *F = M->getFunction(Name);
+-
+-  // If F is not available, declare it.
+-  if (!F) {
+-    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
+-
+-    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), false);
+-    F = Function::Create(Ty, Linkage, Name, M);
+-  }
+-
+-  Builder.CreateCall(F, {});
+-}
+-
+-void ParallelLoopGenerator::createCallCleanupThread() {
+-  const std::string Name = "GOMP_loop_end_nowait";
+-
+-  Function *F = M->getFunction(Name);
+-
+-  // If F is not available, declare it.
+-  if (!F) {
+-    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
+-
+-    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), false);
+-    F = Function::Create(Ty, Linkage, Name, M);
+-  }
+-
+-  Builder.CreateCall(F, {});
+-}
+-
+ Function *ParallelLoopGenerator::createSubFnDefinition() {
+   Function *F = Builder.GetInsertBlock()->getParent();
+-  std::vector<Type *> Arguments(1, Builder.getInt8PtrTy());
+-  FunctionType *FT = FunctionType::get(Builder.getVoidTy(), Arguments, false);
+-  Function *SubFn = Function::Create(FT, Function::InternalLinkage,
+-                                     F->getName() + "_polly_subfn", M);
++  Function *SubFn = prepareSubFnDefinition(F);
+ 
+   // Certain backends (e.g., NVPTX) do not support '.'s in function names.
+   // Hence, we ensure that all '.'s are replaced by '_'s.
+@@ -268,9 +211,6 @@ Function *ParallelLoopGenerator::createSubFnDefinition() {
+   // Do not run any polly pass on the new function.
+   SubFn->addFnAttr(PollySkipFnAttr);
+ 
+-  Function::arg_iterator AI = SubFn->arg_begin();
+-  AI->setName("polly.par.userContext");
+-
+   return SubFn;
+ }
+ 
+@@ -310,71 +250,3 @@ void ParallelLoopGenerator::extractValuesFromStruct(
+     Map[OldValues[i]] = NewValue;
+   }
+ }
+-
+-Value *ParallelLoopGenerator::createSubFn(Value *Stride, AllocaInst *StructData,
+-                                          SetVector<Value *> Data,
+-                                          ValueMapT &Map, Function **SubFnPtr) {
+-  BasicBlock *PrevBB, *HeaderBB, *ExitBB, *CheckNextBB, *PreHeaderBB, *AfterBB;
+-  Value *LBPtr, *UBPtr, *UserContext, *Ret1, *HasNextSchedule, *LB, *UB, *IV;
+-  Function *SubFn = createSubFnDefinition();
+-  LLVMContext &Context = SubFn->getContext();
+-
+-  // Store the previous basic block.
+-  PrevBB = Builder.GetInsertBlock();
+-
+-  // Create basic blocks.
+-  HeaderBB = BasicBlock::Create(Context, "polly.par.setup", SubFn);
+-  ExitBB = BasicBlock::Create(Context, "polly.par.exit", SubFn);
+-  CheckNextBB = BasicBlock::Create(Context, "polly.par.checkNext", SubFn);
+-  PreHeaderBB = BasicBlock::Create(Context, "polly.par.loadIVBounds", SubFn);
+-
+-  DT.addNewBlock(HeaderBB, PrevBB);
+-  DT.addNewBlock(ExitBB, HeaderBB);
+-  DT.addNewBlock(CheckNextBB, HeaderBB);
+-  DT.addNewBlock(PreHeaderBB, HeaderBB);
+-
+-  // Fill up basic block HeaderBB.
+-  Builder.SetInsertPoint(HeaderBB);
+-  LBPtr = Builder.CreateAlloca(LongType, nullptr, "polly.par.LBPtr");
+-  UBPtr = Builder.CreateAlloca(LongType, nullptr, "polly.par.UBPtr");
+-  UserContext = Builder.CreateBitCast(
+-      &*SubFn->arg_begin(), StructData->getType(), "polly.par.userContext");
+-
+-  extractValuesFromStruct(Data, StructData->getAllocatedType(), UserContext,
+-                          Map);
+-  Builder.CreateBr(CheckNextBB);
+-
+-  // Add code to check if another set of iterations will be executed.
+-  Builder.SetInsertPoint(CheckNextBB);
+-  Ret1 = createCallGetWorkItem(LBPtr, UBPtr);
+-  HasNextSchedule = Builder.CreateTrunc(Ret1, Builder.getInt1Ty(),
+-                                        "polly.par.hasNextScheduleBlock");
+-  Builder.CreateCondBr(HasNextSchedule, PreHeaderBB, ExitBB);
+-
+-  // Add code to load the iv bounds for this set of iterations.
+-  Builder.SetInsertPoint(PreHeaderBB);
+-  LB = Builder.CreateLoad(LBPtr, "polly.par.LB");
+-  UB = Builder.CreateLoad(UBPtr, "polly.par.UB");
+-
+-  // Subtract one as the upper bound provided by OpenMP is a < comparison
+-  // whereas the codegenForSequential function creates a <= comparison.
+-  UB = Builder.CreateSub(UB, ConstantInt::get(LongType, 1),
+-                         "polly.par.UBAdjusted");
+-
+-  Builder.CreateBr(CheckNextBB);
+-  Builder.SetInsertPoint(&*--Builder.GetInsertPoint());
+-  IV = createLoop(LB, UB, Stride, Builder, LI, DT, AfterBB, ICmpInst::ICMP_SLE,
+-                  nullptr, true, /* UseGuard */ false);
+-
+-  BasicBlock::iterator LoopBody = Builder.GetInsertPoint();
+-
+-  // Add code to terminate this subfunction.
+-  Builder.SetInsertPoint(ExitBB);
+-  createCallCleanupThread();
+-  Builder.CreateRetVoid();
+-
+-  Builder.SetInsertPoint(&*LoopBody);
+-  *SubFnPtr = SubFn;
+-
+-  return IV;
+-}
+diff --git a/polly/lib/CodeGen/LoopGeneratorsGOMP.cpp b/polly/lib/CodeGen/LoopGeneratorsGOMP.cpp
+new file mode 100644
+index 00000000000..0a16a87c84b
+--- /dev/null
++++ b/polly/lib/CodeGen/LoopGeneratorsGOMP.cpp
+@@ -0,0 +1,228 @@
++//===------ LoopGeneratorsGOMP.cpp - IR helper to create loops ------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains functions to create parallel loops as LLVM-IR.
++//
++//===----------------------------------------------------------------------===//
++
++#include "polly/CodeGen/LoopGeneratorsGOMP.h"
++#include "polly/ScopDetection.h"
++#include "llvm/Analysis/LoopInfo.h"
++#include "llvm/IR/DataLayout.h"
++#include "llvm/IR/Dominators.h"
++#include "llvm/IR/Module.h"
++#include "llvm/Support/CommandLine.h"
++#include "llvm/Transforms/Utils/BasicBlockUtils.h"
++
++using namespace llvm;
++using namespace polly;
++
++void ParallelLoopGeneratorGOMP::createCallSpawnThreads(Value *SubFn,
++                                                       Value *SubFnParam,
++                                                       Value *LB, Value *UB,
++                                                       Value *Stride) {
++  const std::string Name = "GOMP_parallel_loop_runtime_start";
++
++  Function *F = M->getFunction(Name);
++
++  // If F is not available, declare it.
++  if (!F) {
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++
++    Type *Params[] = {PointerType::getUnqual(FunctionType::get(
++                          Builder.getVoidTy(), Builder.getInt8PtrTy(), false)),
++                      Builder.getInt8PtrTy(),
++                      Builder.getInt32Ty(),
++                      LongType,
++                      LongType,
++                      LongType};
++
++    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), Params, false);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  Value *Args[] = {SubFn, SubFnParam, Builder.getInt32(PollyNumThreads),
++                   LB,    UB,         Stride};
++
++  Builder.CreateCall(F, Args);
++}
++
++void ParallelLoopGeneratorGOMP::deployParallelExecution(Value *SubFn,
++                                                        Value *SubFnParam,
++                                                        Value *LB, Value *UB,
++                                                        Value *Stride) {
++  // Tell the runtime we start a parallel loop
++  createCallSpawnThreads(SubFn, SubFnParam, LB, UB, Stride);
++  Builder.CreateCall(SubFn, SubFnParam);
++  createCallJoinThreads();
++}
++
++Function *ParallelLoopGeneratorGOMP::prepareSubFnDefinition(Function *F) const {
++  FunctionType *FT =
++      FunctionType::get(Builder.getVoidTy(), {Builder.getInt8PtrTy()}, false);
++  Function *SubFn = Function::Create(FT, Function::InternalLinkage,
++                                     F->getName() + "_polly_subfn", M);
++  // Name the function's arguments
++  SubFn->arg_begin()->setName("polly.par.userContext");
++  return SubFn;
++}
++
++// Create a subfunction of the following (preliminary) structure:
++//
++//    PrevBB
++//       |
++//       v
++//    HeaderBB
++//       |   _____
++//       v  v    |
++//   CheckNextBB  PreHeaderBB
++//       |\       |
++//       | \______/
++//       |
++//       v
++//     ExitBB
++//
++// HeaderBB will hold allocations and loading of variables.
++// CheckNextBB will check for more work.
++// If there is more work to do: go to PreHeaderBB, otherwise go to ExitBB.
++// PreHeaderBB loads the new boundaries (& will lead to the loop body later on).
++// ExitBB marks the end of the parallel execution.
++std::tuple<Value *, Function *>
++ParallelLoopGeneratorGOMP::createSubFn(Value *Stride, AllocaInst *StructData,
++                                       SetVector<Value *> Data,
++                                       ValueMapT &Map) {
++  if (PollyScheduling != OMPGeneralSchedulingType::Runtime) {
++    // User tried to influence the scheduling type (currently not supported)
++    errs() << "warning: Polly's GNU OpenMP backend solely "
++              "supports the scheduling type 'runtime'.\n";
++  }
++
++  if (PollyChunkSize != 0) {
++    // User tried to influence the chunk size (currently not supported)
++    errs() << "warning: Polly's GNU OpenMP backend solely "
++              "supports the default chunk size.\n";
++  }
++
++  Function *SubFn = createSubFnDefinition();
++  LLVMContext &Context = SubFn->getContext();
++
++  // Store the previous basic block.
++  BasicBlock *PrevBB = Builder.GetInsertBlock();
++
++  // Create basic blocks.
++  BasicBlock *HeaderBB = BasicBlock::Create(Context, "polly.par.setup", SubFn);
++  BasicBlock *ExitBB = BasicBlock::Create(Context, "polly.par.exit", SubFn);
++  BasicBlock *CheckNextBB =
++      BasicBlock::Create(Context, "polly.par.checkNext", SubFn);
++  BasicBlock *PreHeaderBB =
++      BasicBlock::Create(Context, "polly.par.loadIVBounds", SubFn);
++
++  DT.addNewBlock(HeaderBB, PrevBB);
++  DT.addNewBlock(ExitBB, HeaderBB);
++  DT.addNewBlock(CheckNextBB, HeaderBB);
++  DT.addNewBlock(PreHeaderBB, HeaderBB);
++
++  // Fill up basic block HeaderBB.
++  Builder.SetInsertPoint(HeaderBB);
++  Value *LBPtr = Builder.CreateAlloca(LongType, nullptr, "polly.par.LBPtr");
++  Value *UBPtr = Builder.CreateAlloca(LongType, nullptr, "polly.par.UBPtr");
++  Value *UserContext = Builder.CreateBitCast(
++      &*SubFn->arg_begin(), StructData->getType(), "polly.par.userContext");
++
++  extractValuesFromStruct(Data, StructData->getAllocatedType(), UserContext,
++                          Map);
++  Builder.CreateBr(CheckNextBB);
++
++  // Add code to check if another set of iterations will be executed.
++  Builder.SetInsertPoint(CheckNextBB);
++  Value *Next = createCallGetWorkItem(LBPtr, UBPtr);
++  Value *HasNextSchedule = Builder.CreateTrunc(
++      Next, Builder.getInt1Ty(), "polly.par.hasNextScheduleBlock");
++  Builder.CreateCondBr(HasNextSchedule, PreHeaderBB, ExitBB);
++
++  // Add code to load the iv bounds for this set of iterations.
++  Builder.SetInsertPoint(PreHeaderBB);
++  Value *LB = Builder.CreateLoad(LBPtr, "polly.par.LB");
++  Value *UB = Builder.CreateLoad(UBPtr, "polly.par.UB");
++
++  // Subtract one as the upper bound provided by OpenMP is a < comparison
++  // whereas the codegenForSequential function creates a <= comparison.
++  UB = Builder.CreateSub(UB, ConstantInt::get(LongType, 1),
++                         "polly.par.UBAdjusted");
++
++  Builder.CreateBr(CheckNextBB);
++  Builder.SetInsertPoint(&*--Builder.GetInsertPoint());
++  BasicBlock *AfterBB;
++  Value *IV =
++      createLoop(LB, UB, Stride, Builder, LI, DT, AfterBB, ICmpInst::ICMP_SLE,
++                 nullptr, true, /* UseGuard */ false);
++
++  BasicBlock::iterator LoopBody = Builder.GetInsertPoint();
++
++  // Add code to terminate this subfunction.
++  Builder.SetInsertPoint(ExitBB);
++  createCallCleanupThread();
++  Builder.CreateRetVoid();
++
++  Builder.SetInsertPoint(&*LoopBody);
++
++  return std::make_tuple(IV, SubFn);
++}
++
++Value *ParallelLoopGeneratorGOMP::createCallGetWorkItem(Value *LBPtr,
++                                                        Value *UBPtr) {
++  const std::string Name = "GOMP_loop_runtime_next";
++
++  Function *F = M->getFunction(Name);
++
++  // If F is not available, declare it.
++  if (!F) {
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++    Type *Params[] = {LongType->getPointerTo(), LongType->getPointerTo()};
++    FunctionType *Ty = FunctionType::get(Builder.getInt8Ty(), Params, false);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  Value *Args[] = {LBPtr, UBPtr};
++  Value *Return = Builder.CreateCall(F, Args);
++  Return = Builder.CreateICmpNE(
++      Return, Builder.CreateZExt(Builder.getFalse(), Return->getType()));
++  return Return;
++}
++
++void ParallelLoopGeneratorGOMP::createCallJoinThreads() {
++  const std::string Name = "GOMP_parallel_end";
++
++  Function *F = M->getFunction(Name);
++
++  // If F is not available, declare it.
++  if (!F) {
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++
++    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), false);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  Builder.CreateCall(F, {});
++}
++
++void ParallelLoopGeneratorGOMP::createCallCleanupThread() {
++  const std::string Name = "GOMP_loop_end_nowait";
++
++  Function *F = M->getFunction(Name);
++
++  // If F is not available, declare it.
++  if (!F) {
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++
++    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), false);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  Builder.CreateCall(F, {});
++}
+diff --git a/polly/lib/CodeGen/LoopGeneratorsKMP.cpp b/polly/lib/CodeGen/LoopGeneratorsKMP.cpp
+new file mode 100644
+index 00000000000..653b211fa62
+--- /dev/null
++++ b/polly/lib/CodeGen/LoopGeneratorsKMP.cpp
+@@ -0,0 +1,512 @@
++//===------ LoopGeneratorsKMP.cpp - IR helper to create loops -------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains functions to create parallel loops as LLVM-IR.
++//
++//===----------------------------------------------------------------------===//
++
++#include "polly/CodeGen/LoopGeneratorsKMP.h"
++#include "polly/Options.h"
++#include "polly/ScopDetection.h"
++#include "llvm/Analysis/LoopInfo.h"
++#include "llvm/IR/DataLayout.h"
++#include "llvm/IR/Dominators.h"
++#include "llvm/IR/Module.h"
++#include "llvm/Support/CommandLine.h"
++#include "llvm/Transforms/Utils/BasicBlockUtils.h"
++
++using namespace llvm;
++using namespace polly;
++
++void ParallelLoopGeneratorKMP::createCallSpawnThreads(Value *SubFn,
++                                                      Value *SubFnParam,
++                                                      Value *LB, Value *UB,
++                                                      Value *Stride) {
++  const std::string Name = "__kmpc_fork_call";
++  Function *F = M->getFunction(Name);
++  Type *KMPCMicroTy = M->getTypeByName("kmpc_micro");
++
++  if (!KMPCMicroTy) {
++    // void (*kmpc_micro)(kmp_int32 *global_tid, kmp_int32 *bound_tid, ...)
++    Type *MicroParams[] = {Builder.getInt32Ty()->getPointerTo(),
++                           Builder.getInt32Ty()->getPointerTo()};
++
++    KMPCMicroTy = FunctionType::get(Builder.getVoidTy(), MicroParams, true);
++  }
++
++  // If F is not available, declare it.
++  if (!F) {
++    StructType *IdentTy = M->getTypeByName("struct.ident_t");
++
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++    Type *Params[] = {IdentTy->getPointerTo(), Builder.getInt32Ty(),
++                      KMPCMicroTy->getPointerTo()};
++
++    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), Params, true);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  Value *Task = Builder.CreatePointerBitCastOrAddrSpaceCast(
++      SubFn, KMPCMicroTy->getPointerTo());
++
++  Value *Args[] = {SourceLocationInfo,
++                   Builder.getInt32(4) /* Number of arguments (w/o Task) */,
++                   Task,
++                   LB,
++                   UB,
++                   Stride,
++                   SubFnParam};
++
++  Builder.CreateCall(F, Args);
++}
++
++void ParallelLoopGeneratorKMP::deployParallelExecution(Value *SubFn,
++                                                       Value *SubFnParam,
++                                                       Value *LB, Value *UB,
++                                                       Value *Stride) {
++  // Inform OpenMP runtime about the number of threads if greater than zero
++  if (PollyNumThreads > 0) {
++    Value *GlobalThreadID = createCallGlobalThreadNum();
++    createCallPushNumThreads(GlobalThreadID, Builder.getInt32(PollyNumThreads));
++  }
++
++  // Tell the runtime we start a parallel loop
++  createCallSpawnThreads(SubFn, SubFnParam, LB, UB, Stride);
++}
++
++Function *ParallelLoopGeneratorKMP::prepareSubFnDefinition(Function *F) const {
++  std::vector<Type *> Arguments = {Builder.getInt32Ty()->getPointerTo(),
++                                   Builder.getInt32Ty()->getPointerTo(),
++                                   LongType,
++                                   LongType,
++                                   LongType,
++                                   Builder.getInt8PtrTy()};
++
++  FunctionType *FT = FunctionType::get(Builder.getVoidTy(), Arguments, false);
++  Function *SubFn = Function::Create(FT, Function::InternalLinkage,
++                                     F->getName() + "_polly_subfn", M);
++  // Name the function's arguments
++  Function::arg_iterator AI = SubFn->arg_begin();
++  AI->setName("polly.kmpc.global_tid");
++  std::advance(AI, 1);
++  AI->setName("polly.kmpc.bound_tid");
++  std::advance(AI, 1);
++  AI->setName("polly.kmpc.lb");
++  std::advance(AI, 1);
++  AI->setName("polly.kmpc.ub");
++  std::advance(AI, 1);
++  AI->setName("polly.kmpc.inc");
++  std::advance(AI, 1);
++  AI->setName("polly.kmpc.shared");
++
++  return SubFn;
++}
++
++// Create a subfunction of the following (preliminary) structure:
++//
++//    PrevBB
++//       |
++//       v
++//    HeaderBB
++//       |   _____
++//       v  v    |
++//   CheckNextBB  PreHeaderBB
++//       |\       |
++//       | \______/
++//       |
++//       v
++//     ExitBB
++//
++// HeaderBB will hold allocations, loading of variables and kmp-init calls.
++// CheckNextBB will check for more work (dynamic) or will be "empty" (static).
++// If there is more work to do: go to PreHeaderBB, otherwise go to ExitBB.
++// PreHeaderBB loads the new boundaries (& will lead to the loop body later on).
++// Just like CheckNextBB: PreHeaderBB is empty in the static scheduling case.
++// ExitBB marks the end of the parallel execution.
++// The possibly empty BasicBlocks will automatically be removed.
++std::tuple<Value *, Function *>
++ParallelLoopGeneratorKMP::createSubFn(Value *StrideNotUsed,
++                                      AllocaInst *StructData,
++                                      SetVector<Value *> Data, ValueMapT &Map) {
++  Function *SubFn = createSubFnDefinition();
++  LLVMContext &Context = SubFn->getContext();
++
++  // Store the previous basic block.
++  BasicBlock *PrevBB = Builder.GetInsertBlock();
++
++  // Create basic blocks.
++  BasicBlock *HeaderBB = BasicBlock::Create(Context, "polly.par.setup", SubFn);
++  BasicBlock *ExitBB = BasicBlock::Create(Context, "polly.par.exit", SubFn);
++  BasicBlock *CheckNextBB =
++      BasicBlock::Create(Context, "polly.par.checkNext", SubFn);
++  BasicBlock *PreHeaderBB =
++      BasicBlock::Create(Context, "polly.par.loadIVBounds", SubFn);
++
++  DT.addNewBlock(HeaderBB, PrevBB);
++  DT.addNewBlock(ExitBB, HeaderBB);
++  DT.addNewBlock(CheckNextBB, HeaderBB);
++  DT.addNewBlock(PreHeaderBB, HeaderBB);
++
++  // Fill up basic block HeaderBB.
++  Builder.SetInsertPoint(HeaderBB);
++  Value *LBPtr = Builder.CreateAlloca(LongType, nullptr, "polly.par.LBPtr");
++  Value *UBPtr = Builder.CreateAlloca(LongType, nullptr, "polly.par.UBPtr");
++  Value *IsLastPtr = Builder.CreateAlloca(Builder.getInt32Ty(), nullptr,
++                                          "polly.par.lastIterPtr");
++  Value *StridePtr =
++      Builder.CreateAlloca(LongType, nullptr, "polly.par.StridePtr");
++
++  // Get iterator for retrieving the previously defined parameters.
++  Function::arg_iterator AI = SubFn->arg_begin();
++  // First argument holds "global thread ID".
++  Value *IDPtr = &*AI;
++  // Skip "bound thread ID" since it is not used (but had to be defined).
++  std::advance(AI, 2);
++  // Move iterator to: LB, UB, Stride, Shared variable struct.
++  Value *LB = &*AI;
++  std::advance(AI, 1);
++  Value *UB = &*AI;
++  std::advance(AI, 1);
++  Value *Stride = &*AI;
++  std::advance(AI, 1);
++  Value *Shared = &*AI;
++
++  Value *UserContext = Builder.CreateBitCast(Shared, StructData->getType(),
++                                             "polly.par.userContext");
++
++  extractValuesFromStruct(Data, StructData->getAllocatedType(), UserContext,
++                          Map);
++
++  const int Alignment = (is64BitArch()) ? 8 : 4;
++  Value *ID =
++      Builder.CreateAlignedLoad(IDPtr, Alignment, "polly.par.global_tid");
++
++  Builder.CreateAlignedStore(LB, LBPtr, Alignment);
++  Builder.CreateAlignedStore(UB, UBPtr, Alignment);
++  Builder.CreateAlignedStore(Builder.getInt32(0), IsLastPtr, Alignment);
++  Builder.CreateAlignedStore(Stride, StridePtr, Alignment);
++
++  // Subtract one as the upper bound provided by openmp is a < comparison
++  // whereas the codegenForSequential function creates a <= comparison.
++  Value *AdjustedUB = Builder.CreateAdd(UB, ConstantInt::get(LongType, -1),
++                                        "polly.indvar.UBAdjusted");
++
++  Value *ChunkSize =
++      ConstantInt::get(LongType, std::max<int>(PollyChunkSize, 1));
++
++  switch (PollyScheduling) {
++  case OMPGeneralSchedulingType::Dynamic:
++  case OMPGeneralSchedulingType::Guided:
++  case OMPGeneralSchedulingType::Runtime:
++    // "DYNAMIC" scheduling types are handled below (including 'runtime')
++    {
++      UB = AdjustedUB;
++      createCallDispatchInit(ID, LB, UB, Stride, ChunkSize);
++      Value *HasWork =
++          createCallDispatchNext(ID, IsLastPtr, LBPtr, UBPtr, StridePtr);
++      Value *HasIteration =
++          Builder.CreateICmp(llvm::CmpInst::Predicate::ICMP_EQ, HasWork,
++                             Builder.getInt32(1), "polly.hasIteration");
++      Builder.CreateCondBr(HasIteration, PreHeaderBB, ExitBB);
++
++      Builder.SetInsertPoint(CheckNextBB);
++      HasWork = createCallDispatchNext(ID, IsLastPtr, LBPtr, UBPtr, StridePtr);
++      HasIteration =
++          Builder.CreateICmp(llvm::CmpInst::Predicate::ICMP_EQ, HasWork,
++                             Builder.getInt32(1), "polly.hasWork");
++      Builder.CreateCondBr(HasIteration, PreHeaderBB, ExitBB);
++
++      Builder.SetInsertPoint(PreHeaderBB);
++      LB = Builder.CreateAlignedLoad(LBPtr, Alignment, "polly.indvar.LB");
++      UB = Builder.CreateAlignedLoad(UBPtr, Alignment, "polly.indvar.UB");
++    }
++    break;
++  case OMPGeneralSchedulingType::StaticChunked:
++  case OMPGeneralSchedulingType::StaticNonChunked:
++    // "STATIC" scheduling types are handled below
++    {
++      createCallStaticInit(ID, IsLastPtr, LBPtr, UBPtr, StridePtr, ChunkSize);
++
++      LB = Builder.CreateAlignedLoad(LBPtr, Alignment, "polly.indvar.LB");
++      UB = Builder.CreateAlignedLoad(UBPtr, Alignment, "polly.indvar.UB");
++
++      Value *AdjUBOutOfBounds =
++          Builder.CreateICmp(llvm::CmpInst::Predicate::ICMP_SLT, UB, AdjustedUB,
++                             "polly.adjustedUBOutOfBounds");
++
++      UB = Builder.CreateSelect(AdjUBOutOfBounds, UB, AdjustedUB);
++      Builder.CreateAlignedStore(UB, UBPtr, Alignment);
++
++      Value *HasIteration = Builder.CreateICmp(
++          llvm::CmpInst::Predicate::ICMP_SLE, LB, UB, "polly.hasIteration");
++      Builder.CreateCondBr(HasIteration, PreHeaderBB, ExitBB);
++
++      Builder.SetInsertPoint(CheckNextBB);
++      Builder.CreateBr(ExitBB);
++
++      Builder.SetInsertPoint(PreHeaderBB);
++    }
++    break;
++  }
++
++  Builder.CreateBr(CheckNextBB);
++  Builder.SetInsertPoint(&*--Builder.GetInsertPoint());
++  BasicBlock *AfterBB;
++  Value *IV = createLoop(LB, UB, Stride, Builder, LI, DT, AfterBB,
++                         ICmpInst::ICMP_SLE, nullptr, true,
++                         /* UseGuard */ false);
++
++  BasicBlock::iterator LoopBody = Builder.GetInsertPoint();
++
++  // Add code to terminate this subfunction.
++  Builder.SetInsertPoint(ExitBB);
++  // Static (i.e. non-dynamic) scheduling types, are terminated with a fini-call
++  if (PollyScheduling == OMPGeneralSchedulingType::StaticChunked) {
++    createCallStaticFini(ID);
++  }
++  Builder.CreateRetVoid();
++  Builder.SetInsertPoint(&*LoopBody);
++
++  return std::make_tuple(IV, SubFn);
++}
++
++Value *ParallelLoopGeneratorKMP::createCallGlobalThreadNum() {
++  const std::string Name = "__kmpc_global_thread_num";
++  Function *F = M->getFunction(Name);
++
++  // If F is not available, declare it.
++  if (!F) {
++    StructType *IdentTy = M->getTypeByName("struct.ident_t");
++
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++    Type *Params[] = {IdentTy->getPointerTo()};
++
++    FunctionType *Ty = FunctionType::get(Builder.getInt32Ty(), Params, false);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  return Builder.CreateCall(F, {SourceLocationInfo});
++}
++
++void ParallelLoopGeneratorKMP::createCallPushNumThreads(Value *GlobalThreadID,
++                                                        Value *NumThreads) {
++  const std::string Name = "__kmpc_push_num_threads";
++  Function *F = M->getFunction(Name);
++
++  // If F is not available, declare it.
++  if (!F) {
++    StructType *IdentTy = M->getTypeByName("struct.ident_t");
++
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++    Type *Params[] = {IdentTy->getPointerTo(), Builder.getInt32Ty(),
++                      Builder.getInt32Ty()};
++
++    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), Params, false);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  Value *Args[] = {SourceLocationInfo, GlobalThreadID, NumThreads};
++
++  Builder.CreateCall(F, Args);
++}
++
++void ParallelLoopGeneratorKMP::createCallStaticInit(Value *GlobalThreadID,
++                                                    Value *IsLastPtr,
++                                                    Value *LBPtr, Value *UBPtr,
++                                                    Value *StridePtr,
++                                                    Value *ChunkSize) {
++  const std::string Name =
++      is64BitArch() ? "__kmpc_for_static_init_8" : "__kmpc_for_static_init_4";
++  Function *F = M->getFunction(Name);
++  StructType *IdentTy = M->getTypeByName("struct.ident_t");
++
++  // If F is not available, declare it.
++  if (!F) {
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++
++    Type *Params[] = {IdentTy->getPointerTo(),
++                      Builder.getInt32Ty(),
++                      Builder.getInt32Ty(),
++                      Builder.getInt32Ty()->getPointerTo(),
++                      LongType->getPointerTo(),
++                      LongType->getPointerTo(),
++                      LongType->getPointerTo(),
++                      LongType,
++                      LongType};
++
++    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), Params, false);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  // The parameter 'ChunkSize' will hold strictly positive integer values,
++  // regardless of PollyChunkSize's value
++  Value *Args[] = {
++      SourceLocationInfo,
++      GlobalThreadID,
++      Builder.getInt32(int(getSchedType(PollyChunkSize, PollyScheduling))),
++      IsLastPtr,
++      LBPtr,
++      UBPtr,
++      StridePtr,
++      ConstantInt::get(LongType, 1),
++      ChunkSize};
++
++  Builder.CreateCall(F, Args);
++}
++
++void ParallelLoopGeneratorKMP::createCallStaticFini(Value *GlobalThreadID) {
++  const std::string Name = "__kmpc_for_static_fini";
++  Function *F = M->getFunction(Name);
++  StructType *IdentTy = M->getTypeByName("struct.ident_t");
++
++  // If F is not available, declare it.
++  if (!F) {
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++    Type *Params[] = {IdentTy->getPointerTo(), Builder.getInt32Ty()};
++    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), Params, false);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  Value *Args[] = {SourceLocationInfo, GlobalThreadID};
++
++  Builder.CreateCall(F, Args);
++}
++
++void ParallelLoopGeneratorKMP::createCallDispatchInit(Value *GlobalThreadID,
++                                                      Value *LB, Value *UB,
++                                                      Value *Inc,
++                                                      Value *ChunkSize) {
++  const std::string Name =
++      is64BitArch() ? "__kmpc_dispatch_init_8" : "__kmpc_dispatch_init_4";
++  Function *F = M->getFunction(Name);
++  StructType *IdentTy = M->getTypeByName("struct.ident_t");
++
++  // If F is not available, declare it.
++  if (!F) {
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++
++    Type *Params[] = {IdentTy->getPointerTo(),
++                      Builder.getInt32Ty(),
++                      Builder.getInt32Ty(),
++                      LongType,
++                      LongType,
++                      LongType,
++                      LongType};
++
++    FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), Params, false);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  // The parameter 'ChunkSize' will hold strictly positive integer values,
++  // regardless of PollyChunkSize's value
++  Value *Args[] = {
++      SourceLocationInfo,
++      GlobalThreadID,
++      Builder.getInt32(int(getSchedType(PollyChunkSize, PollyScheduling))),
++      LB,
++      UB,
++      Inc,
++      ChunkSize};
++
++  Builder.CreateCall(F, Args);
++}
++
++Value *ParallelLoopGeneratorKMP::createCallDispatchNext(Value *GlobalThreadID,
++                                                        Value *IsLastPtr,
++                                                        Value *LBPtr,
++                                                        Value *UBPtr,
++                                                        Value *StridePtr) {
++  const std::string Name =
++      is64BitArch() ? "__kmpc_dispatch_next_8" : "__kmpc_dispatch_next_4";
++  Function *F = M->getFunction(Name);
++  StructType *IdentTy = M->getTypeByName("struct.ident_t");
++
++  // If F is not available, declare it.
++  if (!F) {
++    GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
++
++    Type *Params[] = {IdentTy->getPointerTo(),
++                      Builder.getInt32Ty(),
++                      Builder.getInt32Ty()->getPointerTo(),
++                      LongType->getPointerTo(),
++                      LongType->getPointerTo(),
++                      LongType->getPointerTo()};
++
++    FunctionType *Ty = FunctionType::get(Builder.getInt32Ty(), Params, false);
++    F = Function::Create(Ty, Linkage, Name, M);
++  }
++
++  Value *Args[] = {SourceLocationInfo, GlobalThreadID, IsLastPtr, LBPtr, UBPtr,
++                   StridePtr};
++
++  return Builder.CreateCall(F, Args);
++}
++
++// TODO: This function currently creates a source location dummy. It might be
++// necessary to (actually) provide information, in the future.
++GlobalVariable *ParallelLoopGeneratorKMP::createSourceLocation() {
++  const std::string LocName = ".loc.dummy";
++  GlobalVariable *SourceLocDummy = M->getGlobalVariable(LocName);
++
++  if (SourceLocDummy == nullptr) {
++    const std::string StructName = "struct.ident_t";
++    StructType *IdentTy = M->getTypeByName(StructName);
++
++    // If the ident_t StructType is not available, declare it.
++    // in LLVM-IR: ident_t = type { i32, i32, i32, i32, i8* }
++    if (!IdentTy) {
++      Type *LocMembers[] = {Builder.getInt32Ty(), Builder.getInt32Ty(),
++                            Builder.getInt32Ty(), Builder.getInt32Ty(),
++                            Builder.getInt8PtrTy()};
++
++      IdentTy =
++          StructType::create(M->getContext(), LocMembers, StructName, false);
++    }
++
++    const auto ArrayType =
++        llvm::ArrayType::get(Builder.getInt8Ty(), /* Length */ 23);
++
++    // Global Variable Definitions
++    GlobalVariable *StrVar = new GlobalVariable(
++        *M, ArrayType, true, GlobalValue::PrivateLinkage, 0, ".str.ident");
++    StrVar->setAlignment(1);
++
++    SourceLocDummy = new GlobalVariable(
++        *M, IdentTy, true, GlobalValue::PrivateLinkage, nullptr, LocName);
++    SourceLocDummy->setAlignment(8);
++
++    // Constant Definitions
++    Constant *InitStr = ConstantDataArray::getString(
++        M->getContext(), "Source location dummy.", true);
++
++    Constant *StrPtr = static_cast<Constant *>(Builder.CreateInBoundsGEP(
++        ArrayType, StrVar, {Builder.getInt32(0), Builder.getInt32(0)}));
++
++    Constant *LocInitStruct = ConstantStruct::get(
++        IdentTy, {Builder.getInt32(0), Builder.getInt32(0), Builder.getInt32(0),
++                  Builder.getInt32(0), StrPtr});
++
++    // Initialize variables
++    StrVar->setInitializer(InitStr);
++    SourceLocDummy->setInitializer(LocInitStruct);
++  }
++
++  return SourceLocDummy;
++}
++
++bool ParallelLoopGeneratorKMP::is64BitArch() {
++  return (LongType->getIntegerBitWidth() == 64);
++}
++
++OMPGeneralSchedulingType ParallelLoopGeneratorKMP::getSchedType(
++    int ChunkSize, OMPGeneralSchedulingType Scheduling) const {
++  if (ChunkSize == 0 && Scheduling == OMPGeneralSchedulingType::StaticChunked)
++    return OMPGeneralSchedulingType::StaticNonChunked;
++
++  return Scheduling;
++}
+diff --git a/polly/test/Isl/CodeGen/OpenMP/reference-argument-from-non-affine-region.ll b/polly/test/Isl/CodeGen/OpenMP/reference-argument-from-non-affine-region.ll
+index ce30395330b..28461efdfec 100644
+--- a/polly/test/Isl/CodeGen/OpenMP/reference-argument-from-non-affine-region.ll
++++ b/polly/test/Isl/CodeGen/OpenMP/reference-argument-from-non-affine-region.ll
+@@ -1,10 +1,25 @@
+ ; RUN: opt %loadPolly -polly-parallel \
+-; RUN: -polly-parallel-force -polly-codegen -S -verify-dom-info < %s \
++; RUN: -polly-parallel-force -polly-codegen \
++; RUN: -S -verify-dom-info < %s \
+ ; RUN: | FileCheck %s -check-prefix=IR
+-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
++
++; RUN: opt %loadPolly -polly-parallel \
++; RUN: -polly-parallel-force -polly-codegen -polly-scheduling=runtime \
++; RUN: -S -verify-dom-info < %s \
++; RUN: | FileCheck %s -check-prefix=IR
++
++; RUN: opt %loadPolly -polly-parallel \
++; RUN: -polly-parallel-force -polly-codegen -polly-omp-backend=LLVM \
++; RUN: -S -verify-dom-info < %s \
++; RUN: | FileCheck %s -check-prefix=LIBOMP-IR
+ 
+ ; IR: @GOMP_parallel_loop_runtime_start
+ 
++; LIBOMP-IR: call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call
++; LIBOMP-IR: call void @__kmpc_dispatch_init_{{[4|8]}}
++
++target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
++
+ @longLimit = external global [9 x [23 x i32]], align 16
+ @shortLimit = external global [9 x [14 x i32]], align 16
+ 
+diff --git a/polly/test/Isl/CodeGen/OpenMP/single_loop.ll b/polly/test/Isl/CodeGen/OpenMP/single_loop.ll
+index 6aeda25d1e3..6de65bd8ad9 100644
+--- a/polly/test/Isl/CodeGen/OpenMP/single_loop.ll
++++ b/polly/test/Isl/CodeGen/OpenMP/single_loop.ll
+@@ -4,9 +4,14 @@
+ ; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-import-jscop -polly-ast -analyze < %s | FileCheck %s -check-prefix=AST-STRIDE4
+ ; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-import-jscop -polly-codegen -S < %s | FileCheck %s -check-prefix=IR-STRIDE4
+ 
++; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-codegen -polly-omp-backend=LLVM -polly-scheduling=static -polly-scheduling-chunksize=43 -S -verify-dom-info < %s | FileCheck %s -check-prefix=LIBOMP-IR
++; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-codegen -polly-omp-backend=LLVM -polly-scheduling=dynamic -S -verify-dom-info < %s | FileCheck %s -check-prefix=LIBOMP-IR-DYNAMIC
++; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-codegen -polly-omp-backend=LLVM -polly-scheduling=dynamic -polly-scheduling-chunksize=4 -S -verify-dom-info < %s | FileCheck %s -check-prefix=LIBOMP-IR-DYNAMIC-FOUR
++; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-import-jscop -polly-codegen -polly-omp-backend=LLVM -S < %s | FileCheck %s -check-prefix=LIBOMP-IR-STRIDE4
++
+ ; This extensive test case tests the creation of the full set of OpenMP calls
+ ; as well as the subfunction creation using a trivial loop as example.
+-
++;
+ ; #define N 1024
+ ; float A[N];
+ ;
+@@ -83,6 +88,90 @@
+ ; IR-STRIDE4:  %polly.indvar_next = add nsw i64 %polly.indvar, 4
+ ; IR-STRIDE4   %polly.adjust_ub = sub i64 %polly.par.UBAdjusted, 4
+ 
++; LIBOMP-IR: %struct.ident_t = type { i32, i32, i32, i32, i8* }
++
++; LIBOMP-IR-LABEL: single_parallel_loop()
++; LIBOMP-IR-NEXT: entry
++; LIBOMP-IR-NEXT:   %polly.par.userContext = alloca
++
++; LIBOMP-IR-LABEL: polly.parallel.for:
++; LIBOMP-IR-NEXT:   %polly.par.userContext1 = bitcast {}* %polly.par.userContext to i8*
++; LIBOMP-IR-NEXT:   call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(%struct.ident_t* @.loc.dummy, i32 4, void (i32*, i32*, ...)* bitcast (void (i32*, i32*, i64, i64, i64, i8*)* @single_parallel_loop_polly_subfn to void (i32*, i32*, ...)*), i64 0, i64 1024, i64 1, i8* %polly.par.userContext1)
++; LIBOMP-IR-NEXT:   br label %polly.exiting
++
++; LIBOMP-IR: define internal void @single_parallel_loop_polly_subfn(i32* %polly.kmpc.global_tid, i32* %polly.kmpc.bound_tid, i64 %polly.kmpc.lb, i64 %polly.kmpc.ub, i64 %polly.kmpc.inc, i8* %polly.kmpc.shared)
++; LIBOMP-IR-LABEL: polly.par.setup:
++; LIBOMP-IR-NEXT:   %polly.par.LBPtr = alloca i64
++; LIBOMP-IR-NEXT:   %polly.par.UBPtr = alloca i64
++; LIBOMP-IR-NEXT:   %polly.par.lastIterPtr = alloca i32
++; LIBOMP-IR-NEXT:   %polly.par.StridePtr = alloca i64
++; LIBOMP-IR-NEXT:   %polly.par.userContext = bitcast i8* %polly.kmpc.shared
++; LIBOMP-IR-NEXT:   %polly.par.global_tid = load i32, i32* %polly.kmpc.global_tid
++; LIBOMP-IR-NEXT:   store i64 %polly.kmpc.lb, i64* %polly.par.LBPtr
++; LIBOMP-IR-NEXT:   store i64 %polly.kmpc.ub, i64* %polly.par.UBPtr
++; LIBOMP-IR-NEXT:   store i32 0, i32* %polly.par.lastIterPtr
++; LIBOMP-IR-NEXT:   store i64 %polly.kmpc.inc, i64* %polly.par.StridePtr
++; LIBOMP-IR-NEXT:   %polly.indvar.UBAdjusted = add i64 %polly.kmpc.ub, -1
++; LIBOMP-IR-NEXT:   call void @__kmpc_for_static_init_{{[4|8]}}(%struct.ident_t* @.loc.dummy{{[.0-9]*}}, i32 %polly.par.global_tid, i32 33, i32* %polly.par.lastIterPtr, i64* %polly.par.LBPtr, i64* %polly.par.UBPtr, i64* %polly.par.StridePtr, i64 1, i64 43)
++; LIBOMP-IR-NEXT:   %polly.indvar.LB = load i64, i64* %polly.par.LBPtr
++; LIBOMP-IR-NEXT:   %polly.indvar.UB = load i64, i64* %polly.par.UBPtr
++; LIBOMP-IR-NEXT:   %polly.adjustedUBOutOfBounds = icmp slt i64 %polly.indvar.UB, %polly.indvar.UBAdjusted
++; LIBOMP-IR-NEXT:   %{{[0-9]+}} = select i1 %polly.adjustedUBOutOfBounds, i64 %polly.indvar.UB, i64 %polly.indvar.UBAdjusted
++; LIBOMP-IR-NEXT:   store i64 %{{[0-9]+}}, i64* %polly.par.UBPtr
++; LIBOMP-IR-NEXT:   %polly.hasIteration = icmp sle i64 %polly.indvar.LB, %{{[0-9]+}}
++; LIBOMP-IR:   br i1 %polly.hasIteration, label %polly.par.loadIVBounds, label %polly.par.exit
++
++; LIBOMP-IR-LABEL: polly.par.exit:
++; LIBOMP-IR-NEXT:   call void @__kmpc_for_static_fini(%struct.ident_t* @.loc.dummy, i32 %polly.par.global_tid)
++; LIBOMP-IR-NEXT:   ret void
++
++; LIBOMP-IR-LABEL: polly.par.checkNext:
++; LIBOMP-IR-NEXT:   br label %polly.par.exit
++
++; LIBOMP-IR-LABEL: polly.par.loadIVBounds:
++; LIBOMP-IR-NEXT:   br label %polly.loop_preheader
++
++; LIBOMP-IR-LABEL: polly.loop_exit:
++; LIBOMP-IR-NEXT:   br label %polly.par.checkNext
++
++; LIBOMP-IR-LABEL: polly.loop_header:
++; LIBOMP-IR-NEXT:   %polly.indvar = phi i64 [ %polly.indvar.LB, %polly.loop_preheader ], [ %polly.indvar_next, %polly.stmt.S ]
++; LIBOMP-IR-NEXT:   br label %polly.stmt.S
++
++; LIBOMP-IR-LABEL: polly.stmt.S:
++; LIBOMP-IR-NEXT:   %[[gep:[._a-zA-Z0-9]*]] = getelementptr [1024 x float], [1024 x float]* {{.*}}, i64 0, i64 %polly.indvar
++; LIBOMP-IR-NEXT:   store float 1.000000e+00, float* %[[gep]]
++; LIBOMP-IR-NEXT:   %polly.indvar_next = add nsw i64 %polly.indvar, %polly.kmpc.inc
++; LIBOMP-IR-NEXT:   %polly.loop_cond = icmp sle i64 %polly.indvar_next, %{{[0-9]+}}
++; LIBOMP-IR-NEXT:   br i1 %polly.loop_cond, label %polly.loop_header, label %polly.loop_exit
++
++; LIBOMP-IR-LABEL: polly.loop_preheader:
++; LIBOMP-IR-NEXT:   br label %polly.loop_header
++
++; LIBOMP-IR: attributes #1 = { "polly.skip.fn" }
++
++; LIBOMP-IR-DYNAMIC:   call void @__kmpc_dispatch_init_{{[4|8]}}(%struct.ident_t* @.loc.dummy, i32 %polly.par.global_tid, i32 35, i64 %polly.kmpc.lb, i64 %polly.indvar.UBAdjusted, i64 %polly.kmpc.inc, i64 1)
++; LIBOMP-IR-DYNAMIC-NEXT:   %{{[0-9]+}} = call i32 @__kmpc_dispatch_next_{{[4|8]}}(%struct.ident_t* @.loc.dummy, i32 %polly.par.global_tid, i32* %polly.par.lastIterPtr, i64* %polly.par.LBPtr, i64* %polly.par.UBPtr, i64* %polly.par.StridePtr)
++; LIBOMP-IR-DYNAMIC-NEXT:   %polly.hasIteration = icmp eq i32 %{{[0-9]+}}, 1
++; LIBOMP-IR-DYNAMIC-NEXT:   br i1 %polly.hasIteration, label %polly.par.loadIVBounds, label %polly.par.exit
++
++; LIBOMP-IR-DYNAMIC-LABEL: polly.par.exit:
++; LIBOMP-IR-DYNAMIC-NEXT:   ret void
++
++; LIBOMP-IR-DYNAMIC-LABEL: polly.par.checkNext:
++; LIBOMP-IR-DYNAMIC-NEXT:   %{{[0-9]+}} = call i32 @__kmpc_dispatch_next_{{[4|8]}}(%struct.ident_t* @.loc.dummy, i32 %polly.par.global_tid, i32* %polly.par.lastIterPtr, i64* %polly.par.LBPtr, i64* %polly.par.UBPtr, i64* %polly.par.StridePtr)
++; LIBOMP-IR-DYNAMIC-NEXT:   %polly.hasWork = icmp eq i32 %{{[0-9]+}}, 1
++; LIBOMP-IR-DYNAMIC-NEXT:   br i1 %polly.hasWork, label %polly.par.loadIVBounds, label %polly.par.exit
++
++; LIBOMP-IR-DYNAMIC-LABEL: polly.par.loadIVBounds:
++; LIBOMP-IR-DYNAMIC-NEXT:   %polly.indvar.LB = load i64, i64* %polly.par.LBPtr
++; LIBOMP-IR-DYNAMIC-NEXT:   %polly.indvar.UB = load i64, i64* %polly.par.UBPtr
++; LIBOMP-IR-DYNAMIC-NEXT:   br label %polly.loop_preheader
++
++; LIBOMP-IR-DYNAMIC-FOUR:   call void @__kmpc_dispatch_init_{{[4|8]}}(%struct.ident_t* @.loc.dummy, i32 %polly.par.global_tid, i32 35, i64 %polly.kmpc.lb, i64 %polly.indvar.UBAdjusted, i64 %polly.kmpc.inc, i64 4)
++
++; LIBOMP-IR-STRIDE4:     call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(%struct.ident_t* @.loc.dummy, i32 4, void (i32*, i32*, ...)* bitcast (void (i32*, i32*, i64, i64, i64, i8*)* @single_parallel_loop_polly_subfn to void (i32*, i32*, ...)*), i64 0, i64 1024, i64 4, i8* %polly.par.userContext1)
++
+ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
+ 
+ @A = common global [1024 x float] zeroinitializer, align 16
+diff --git a/polly/test/Isl/CodeGen/OpenMP/single_loop_with_param.ll b/polly/test/Isl/CodeGen/OpenMP/single_loop_with_param.ll
+index f518319d7d9..4c3bc0ff1ed 100644
+--- a/polly/test/Isl/CodeGen/OpenMP/single_loop_with_param.ll
++++ b/polly/test/Isl/CodeGen/OpenMP/single_loop_with_param.ll
+@@ -1,7 +1,21 @@
+ ; RUN: opt %loadPolly -polly-parallel \
+-; RUN: -polly-parallel-force -polly-codegen -S -verify-dom-info < %s \
++; RUN: -polly-parallel-force -polly-codegen \
++; RUN: -S -verify-dom-info < %s \
+ ; RUN: | FileCheck %s -check-prefix=IR
+ 
++; RUN: opt %loadPolly -polly-parallel \
++; RUN: -polly-parallel-force -polly-codegen -polly-omp-backend=LLVM \
++; RUN: -S -verify-dom-info < %s \
++; RUN: | FileCheck %s -check-prefix=LIBOMP-IR
++
++; RUN: opt %loadPolly -polly-parallel \
++; RUN: -polly-parallel-force -polly-codegen -polly-omp-backend=LLVM \
++; RUN: -polly-scheduling=static \
++; RUN: -S -verify-dom-info < %s \
++; RUN: | FileCheck %s -check-prefix=LIBOMP-STATIC-IR
++
++; Ensure the scalars are initialized before the OpenMP code is launched.
++;
+ ; #define N 1024
+ ; float A[N];
+ ;
+@@ -9,16 +23,24 @@
+ ;   for (long i = 0; i < N; i++)
+ ;     A[i] = alpha;
+ ; }
+-
+-target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
+-
+-; Ensure the scalars are initialized before the OpenMP code is launched.
++;
+ 
+ ; IR-LABEL: polly.start:
+ ; IR-NEXT:    store float %alpha, float* %alpha.s2a
+ 
+ ; IR: GOMP_parallel_loop_runtime_start
+ 
++; LIBOMP-IR-LABEL: polly.start:
++; LIBOMP-IR-NEXT:    store float %alpha, float* %alpha.s2a
++
++; LIBOMP-IR: call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call
++; LIBOMP-IR: call void @__kmpc_dispatch_init_{{[4|8]}}
++
++; LIBOMP-STATIC-IR: call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call
++; LIBOMP-STATIC-IR: call void @__kmpc_for_static_init_{{[4|8]}}
++
++target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
++
+ @A = common global [1024 x float] zeroinitializer, align 16
+ 
+ define void @single_parallel_loop(float %alpha) nounwind {
+diff --git a/polly/test/Isl/CodeGen/openmp_limit_threads.ll b/polly/test/Isl/CodeGen/openmp_limit_threads.ll
+index 82b9f8da95e..b3c2f3f73d1 100644
+--- a/polly/test/Isl/CodeGen/openmp_limit_threads.ll
++++ b/polly/test/Isl/CodeGen/openmp_limit_threads.ll
+@@ -1,20 +1,31 @@
+ ; RUN: opt %loadPolly -polly-codegen -polly-parallel -S < %s | FileCheck %s --check-prefix=AUTO
+ ; RUN: opt %loadPolly -polly-codegen -polly-parallel -polly-num-threads=1 -S < %s | FileCheck %s --check-prefix=ONE
+ ; RUN: opt %loadPolly -polly-codegen -polly-parallel -polly-num-threads=4 -S < %s | FileCheck %s --check-prefix=FOUR
++
++; RUN: opt %loadPolly -polly-codegen -polly-parallel -polly-omp-backend=LLVM -S < %s | FileCheck %s --check-prefix=LIBOMP-AUTO
++; RUN: opt %loadPolly -polly-codegen -polly-parallel -polly-omp-backend=LLVM -polly-num-threads=1 -S < %s | FileCheck %s --check-prefix=LIBOMP-ONE
++; RUN: opt %loadPolly -polly-codegen -polly-parallel -polly-omp-backend=LLVM -polly-num-threads=4 -S < %s | FileCheck %s --check-prefix=LIBOMP-FOUR
++
++; Ensure that the provided thread numbers are forwarded to the OpenMP calls.
+ ;
+-; AUTO: call void @GOMP_parallel_loop_runtime_start(void (i8*)* @jd_polly_subfn, i8* %polly.par.userContext{{[0-9]*}}, i32 0, i64 0, i64 1024, i64 1)
+-; ONE: call void @GOMP_parallel_loop_runtime_start(void (i8*)* @jd_polly_subfn, i8* %polly.par.userContext{{[0-9]*}}, i32 1, i64 0, i64 1024, i64 1)
+-; FOUR: call void @GOMP_parallel_loop_runtime_start(void (i8*)* @jd_polly_subfn, i8* %polly.par.userContext{{[0-9]*}}, i32 4, i64 0, i64 1024, i64 1)
+-;
+-;    void jd(int *A) {
++;    void storePosition(int *A) {
+ ;      for (int i = 0; i < 1024; i++)
+ ;        for (int j = 0; j < 1024; j++)
+ ;          A[i + j * 1024] = 0;
+ ;    }
+-;
++
++; AUTO: call void @GOMP_parallel_loop_runtime_start(void (i8*)* @storePosition_polly_subfn, i8* %polly.par.userContext{{[0-9]*}}, i32 0, i64 0, i64 1024, i64 1)
++; ONE: call void @GOMP_parallel_loop_runtime_start(void (i8*)* @storePosition_polly_subfn, i8* %polly.par.userContext{{[0-9]*}}, i32 1, i64 0, i64 1024, i64 1)
++; FOUR: call void @GOMP_parallel_loop_runtime_start(void (i8*)* @storePosition_polly_subfn, i8* %polly.par.userContext{{[0-9]*}}, i32 4, i64 0, i64 1024, i64 1)
++
++; In automatic mode, no threads are pushed explicitly.
++; LIBOMP-AUTO-NOT: call void @__kmpc_push_num_threads
++; LIBOMP-ONE: call void @__kmpc_push_num_threads(%struct.ident_t* @.loc.dummy{{[.0-9]*}}, i32 %{{[0-9]+}}, i32 1)
++; LIBOMP-FOUR: call void @__kmpc_push_num_threads(%struct.ident_t* @.loc.dummy{{[.0-9]*}}, i32 %{{[0-9]+}}, i32 4)
++
+ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+ 
+-define void @jd(i32* %A) {
++define void @storePosition(i32* %A) {
+ entry:
+   br label %for.cond
+ 
