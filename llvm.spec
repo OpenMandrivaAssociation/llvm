@@ -80,7 +80,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	8.0.1
-Release:	0.359209.1
+Release:	0.359956.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -203,7 +203,6 @@ BuildRequires:	doxygen
 %if %{with llgo}
 BuildRequires:	go
 %endif
-Requires:	libstdc++-devel
 Obsoletes:	llvm-ocaml
 # For lldb
 BuildRequires:	swig
