@@ -80,7 +80,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	8.0.1
-Release:	0.359956.1
+Release:	0.359956.2
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -294,7 +294,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-dlltool
 %{_bindir}/llvm-mt
 %{_bindir}/llvm-readelf
-%endif	
+%endif
 %{_bindir}/modularize
 %{_bindir}/sancov
 %{_bindir}/sanstats
@@ -304,13 +304,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/yaml2obj
 %{_bindir}/yaml-bench
 %{_bindir}/not
-# clang static analyzer -- maybe should be a separate package
-%{_bindir}/scan-build
-%{_bindir}/scan-view
-%{_libexecdir}/ccc-analyzer
-%{_libexecdir}/c++-analyzer
-%{_datadir}/scan-build
-%{_datadir}/scan-view
+
 %{_mandir}/man1/FileCheck.1*
 %{_mandir}/man1/bugpoint.1*
 %{_mandir}/man1/diagtool.1*
@@ -320,7 +314,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_mandir}/man1/lli.1*
 %{_mandir}/man1/llvm-*.1*
 %{_mandir}/man1/opt.1*
-%{_mandir}/man1/scan-build.1*
+
 %{_mandir}/man1/tblgen.1*
 
 #-----------------------------------------------------------
@@ -644,6 +638,7 @@ Requires:	clang = %{EVRD}
 Provides:	clang-devel = %{EVRD}
 Conflicts:	llvm-devel < 3.1
 Obsoletes:	clang-devel < 3.1
+Conflicts:	llvm < 8.0.1-0.359209.2
 
 %description -n %{devclang}
 This package contains header files and libraries needed for using
@@ -672,6 +667,14 @@ intended to run in tandem with a build of a project or code base.
 
 %files -n clang-analyzer
 %{_datadir}/opt-viewer
+# clang static analyzer -- maybe should be a separate package
+%{_bindir}/scan-build
+%{_bindir}/scan-view
+%{_libexecdir}/ccc-analyzer
+%{_libexecdir}/c++-analyzer
+%{_datadir}/scan-build
+%{_datadir}/scan-view
+%{_mandir}/man1/scan-build.1*
 
 %package -n clang-doc
 Summary:	Documentation for Clang
@@ -1023,8 +1026,8 @@ done
 	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/projects/libcxxabi/include \
 	-DLIBCXXABI_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
 	-DLIBCXX_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
-	-DCMAKE_SHARED_LINKER_FLAGS="-L`pwd`/%{_lib}" \
-	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,`pwd`/%{_lib}" \
+	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/%{_lib}" \
+	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/%{_lib}" \
 %if %{with apidox}
 	-DLLVM_ENABLE_DOXYGEN:BOOL=ON \
 %endif
@@ -1062,7 +1065,7 @@ fl="-std=c89"
 for opt; do
 	case "$opt" in
 		-ansi|-std=c89|-std=iso9899:1990) fl="";;
-		-std=*) echo "`basename $0` called with non ANSI/ISO C option $opt" >&2
+		-std=*) echo "$(basename $0) called with non ANSI/ISO C option $opt" >&2
 			exit 1;;
 	esac
 done
@@ -1075,7 +1078,7 @@ fl="-std=c99"
 for opt; do
 	case "$opt" in
 		-std=c99|-std=iso9899:1999) fl="";;
-		-std=*) echo "`basename $0` called with non ISO C99 option $opt" >&2
+		-std=*) echo "$(basename $0) called with non ISO C99 option $opt" >&2
 			exit 1;;
 	esac
 done
