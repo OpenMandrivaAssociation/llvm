@@ -1,6 +1,6 @@
 diff -up llvm-7.0.0.src/projects/libcxx/include/__config.libcxxmusl~ llvm-7.0.0.src/projects/libcxx/include/__config
---- llvm-7.0.0.src/projects/libcxx/include/__config.libcxxmusl~	2018-09-01 13:58:24.242053399 +0200
-+++ llvm-7.0.0.src/projects/libcxx/include/__config	2018-09-01 14:01:29.387536977 +0200
+--- llvm-7.0.0.src/libcxx/include/__config.libcxxmusl~	2018-09-01 13:58:24.242053399 +0200
++++ llvm-7.0.0.src/libcxx/include/__config	2018-09-01 14:01:29.387536977 +0200
 @@ -11,6 +11,13 @@
  #ifndef _LIBCPP_CONFIG
  #define _LIBCPP_CONFIG

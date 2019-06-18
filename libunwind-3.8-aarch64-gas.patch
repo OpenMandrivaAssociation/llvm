@@ -1,6 +1,7 @@
---- llvm-3.8.0.src/projects/libunwind/src/UnwindRegistersRestore.S.omv~	2016-01-31 15:39:15.465748773 +0100
-+++ llvm-3.8.0.src/projects/libunwind/src/UnwindRegistersRestore.S	2016-01-31 15:40:47.713180399 +0100
-@@ -260,6 +260,10 @@ Lnovec:
+diff -up llvm-9.0.0-20190618/libunwind/src/UnwindRegistersRestore.S.13~ llvm-9.0.0-20190618/libunwind/src/UnwindRegistersRestore.S
+--- llvm-9.0.0-20190618/libunwind/src/UnwindRegistersRestore.S.13~	2019-06-18 20:22:30.000000000 +0200
++++ llvm-9.0.0-20190618/libunwind/src/UnwindRegistersRestore.S	2019-06-18 20:58:37.918780439 +0200
+@@ -559,6 +559,10 @@ Lnovec:
  
  #elif defined(__arm64__) || defined(__aarch64__)
  
@@ -11,9 +12,10 @@
  //
  // void libunwind::Registers_arm64::jumpto()
  //
---- llvm-3.8.0.src/projects/libunwind/src/UnwindRegistersSave.S.omv~	2016-01-31 15:41:55.269777229 +0100
-+++ llvm-3.8.0.src/projects/libunwind/src/UnwindRegistersSave.S	2016-01-31 15:42:17.472646868 +0100
-@@ -241,6 +241,10 @@ DEFINE_LIBUNWIND_FUNCTION(unw_getcontext
+diff -up llvm-9.0.0-20190618/libunwind/src/UnwindRegistersSave.S.13~ llvm-9.0.0-20190618/libunwind/src/UnwindRegistersSave.S
+--- llvm-9.0.0-20190618/libunwind/src/UnwindRegistersSave.S.13~	2019-06-18 20:58:37.918780439 +0200
++++ llvm-9.0.0-20190618/libunwind/src/UnwindRegistersSave.S	2019-06-18 20:59:45.981405783 +0200
+@@ -699,6 +699,10 @@ DEFINE_LIBUNWIND_FUNCTION(__unw_getconte
  
  #elif defined(__arm64__) || defined(__aarch64__)
  
@@ -22,5 +24,5 @@
 +#define lr x30
 +
  //
- // extern int unw_getcontext(unw_context_t* thread_state)
+ // extern int __unw_getcontext(unw_context_t* thread_state)
  //

@@ -1,0 +1,13 @@
+diff -up llvm-9.0.0-20190618/lld/ELF/InputFiles.cpp.42~ llvm-9.0.0-20190618/lld/ELF/InputFiles.cpp
+--- llvm-9.0.0-20190618/lld/ELF/InputFiles.cpp.42~	2019-06-18 23:01:29.738580442 +0200
++++ llvm-9.0.0-20190618/lld/ELF/InputFiles.cpp	2019-06-18 23:02:25.262137651 +0200
+@@ -1402,6 +1402,9 @@ static uint8_t getBitcodeMachineKind(Str
+   case Triple::ppc64:
+   case Triple::ppc64le:
+     return EM_PPC64;
++  case Triple::riscv32:
++  case Triple::riscv64:
++    return EM_RISCV;
+   case Triple::x86:
+     return T.isOSIAMCU() ? EM_IAMCU : EM_386;
+   case Triple::x86_64:

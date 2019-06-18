@@ -1,13 +1,2 @@
 sources:
-  cfe-8.0.1.src.tar.xz: a1f1619e6998a981b0a004b3cd67542e440702d5
-  clang-tools-extra-8.0.1.src.tar.xz: fe6e83865b6ab2325d65015fb2614a4c33cb868d
-  compiler-rt-8.0.1.src.tar.xz: 1e4b3b451d7091e6b81014f4403ab27fb0f7ece0
-  libcxx-8.0.1.src.tar.xz: f152a884860bc2a3035d5624057e326a05e6010d
-  libcxxabi-8.0.1.src.tar.xz: 4e9cfe526bb8435621488f222c40cd8f77a8b5e3
-  libunwind-8.0.1.src.tar.xz: f4afcac465d194acc70fcbe65f94c0a84d069955
-  lld-8.0.1.src.tar.xz: 0a7b26faea4583b570fad1404dda0cde71f63dee
-  lldb-8.0.1.src.tar.xz: faef1dcab66843f4524a8a38e5f3969cca42e7ca
-  llgo-8.0.1.src.tar.xz: 3458d6f2e273931c6b4a9c4813ee35ad629c27b6
-  llvm-8.0.1.src.tar.xz: 0b5210349ac0aa6b86f126d5e603672d2eb87130
-  openmp-8.0.1.src.tar.xz: 3341e9a23e5efe581d8bda5dddd5e34eb395ece3
-  polly-8.0.1.src.tar.xz: 91c2fe4b5239a6fd90ede06b02c92623abf6f126
+  llvm-9.0.0-20190618.tar.xz: 820684f8abbbc0c0cff260ab0feea365f58e154d

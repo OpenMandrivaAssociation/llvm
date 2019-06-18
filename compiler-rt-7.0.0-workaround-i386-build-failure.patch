@@ -1,49 +1,9 @@
-diff -up llvm-8.0.0.src/projects/compiler-rt/lib/builtins/int_math.h.crti386Workaround~ llvm-8.0.0.src/projects/compiler-rt/lib/builtins/int_math.h
---- llvm-8.0.0.src/projects/compiler-rt/lib/builtins/int_math.h.crti386Workaround~	2019-03-29 18:00:21.366624600 +0100
-+++ llvm-8.0.0.src/projects/compiler-rt/lib/builtins/int_math.h	2019-03-29 18:02:52.083160833 +0100
-@@ -31,17 +31,8 @@
- #include <ymath.h>
- #endif
- 
--#if defined(_MSC_VER) && !defined(__clang__)
--#define CRT_INFINITY INFINITY
--#else
- #define CRT_INFINITY __builtin_huge_valf()
--#endif
- 
--#if defined(_MSC_VER) && !defined(__clang__)
--#define crt_isfinite(x) _finite((x))
--#define crt_isinf(x) !_finite((x))
--#define crt_isnan(x) _isnan((x))
--#else
- /* Define crt_isfinite in terms of the builtin if available, otherwise provide
-  * an alternate version in terms of our other functions. This supports some
-  * versions of GCC which didn't have __builtin_isfinite.
-@@ -59,52 +50,23 @@
- #endif /* __has_builtin(__builtin_isfinite) */
- #define crt_isinf(x) __builtin_isinf((x))
- #define crt_isnan(x) __builtin_isnan((x))
--#endif /* _MSC_VER */
- 
--#if defined(_MSC_VER) && !defined(__clang__)
--#define crt_copysign(x, y) copysign((x), (y))
--#define crt_copysignf(x, y) copysignf((x), (y))
--#define crt_copysignl(x, y) copysignl((x), (y))
--#else
- #define crt_copysign(x, y) __builtin_copysign((x), (y))
- #define crt_copysignf(x, y) __builtin_copysignf((x), (y))
- #define crt_copysignl(x, y) __builtin_copysignl((x), (y))
--#endif
- 
--#if defined(_MSC_VER) && !defined(__clang__)
--#define crt_fabs(x) fabs((x))
--#define crt_fabsf(x) fabsf((x))
--#define crt_fabsl(x) fabs((x))
--#else
- #define crt_fabs(x) __builtin_fabs((x))
- #define crt_fabsf(x) __builtin_fabsf((x))
+diff -up llvm-9.0.0-20190618/compiler-rt/lib/builtins/int_math.h.20~ llvm-9.0.0-20190618/compiler-rt/lib/builtins/int_math.h
+--- llvm-9.0.0-20190618/compiler-rt/lib/builtins/int_math.h.20~	2019-06-18 21:33:08.506921115 +0200
++++ llvm-9.0.0-20190618/compiler-rt/lib/builtins/int_math.h	2019-06-18 21:33:59.944699910 +0200
+@@ -77,30 +77,14 @@
  #define crt_fabsl(x) __builtin_fabsl((x))
--#endif
+ #endif
  
 -#if defined(_MSC_VER) && !defined(__clang__)
 -#define crt_fmax(x, y) __max((x), (y))
@@ -71,4 +31,4 @@ diff -up llvm-8.0.0.src/projects/compiler-rt/lib/builtins/int_math.h.crti386Work
  #define crt_scalbnl(x, y) __builtin_scalbnl((x), (y))
 -#endif
  
- #endif /* INT_MATH_H */
+ #endif // INT_MATH_H

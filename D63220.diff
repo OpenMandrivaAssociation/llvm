@@ -1,0 +1,522 @@
+Index: ELF/Arch/RISCV.cpp
+===================================================================
+--- llvm/lld/ELF/Arch/RISCV.cpp
++++ llvm/lld/ELF/Arch/RISCV.cpp
+@@ -36,6 +36,8 @@
+ 
+ } // end anonymous namespace
+ 
++static uint64_t DTPOffset = 0x800;
++
+ enum Op {
+   ADDI = 0x13,
+   AUIPC = 0x17,
+@@ -72,7 +74,17 @@
+   NoneRel = R_RISCV_NONE;
+   PltRel = R_RISCV_JUMP_SLOT;
+   RelativeRel = R_RISCV_RELATIVE;
+-  SymbolicRel = Config->Is64 ? R_RISCV_64 : R_RISCV_32;
++  if (Config->Is64) {
++    SymbolicRel = R_RISCV_64;
++    TlsModuleIndexRel = R_RISCV_TLS_DTPMOD64;
++    TlsOffsetRel = R_RISCV_TLS_DTPREL64;
++    TlsGotRel = R_RISCV_TLS_TPREL64;
++  } else {
++    SymbolicRel = R_RISCV_32;
++    TlsModuleIndexRel = R_RISCV_TLS_DTPMOD32;
++    TlsOffsetRel = R_RISCV_TLS_DTPREL32;
++    TlsGotRel = R_RISCV_TLS_TPREL32;
++  }
+   GotRel = SymbolicRel;
+ 
+   // .got[0] = _DYNAMIC
+@@ -199,8 +211,18 @@
+   case R_RISCV_PCREL_LO12_I:
+   case R_RISCV_PCREL_LO12_S:
+     return R_RISCV_PC_INDIRECT;
++  case R_RISCV_TLS_GD_HI20:
++    return R_TLSGD_PC;
++  case R_RISCV_TLS_GOT_HI20:
++    Config->HasStaticTlsModel = true;
++    return R_GOT_PC;
++  case R_RISCV_TPREL_HI20:
++  case R_RISCV_TPREL_LO12_I:
++  case R_RISCV_TPREL_LO12_S:
++    return R_TLS;
+   case R_RISCV_RELAX:
+   case R_RISCV_ALIGN:
++  case R_RISCV_TPREL_ADD:
+     return R_HINT;
+   default:
+     return R_ABS;
+@@ -314,23 +336,28 @@
+ 
+   case R_RISCV_GOT_HI20:
+   case R_RISCV_PCREL_HI20:
+-  case R_RISCV_HI20: {
++  case R_RISCV_HI20:
++  case R_RISCV_TLS_GD_HI20:
++  case R_RISCV_TLS_GOT_HI20:
++  case R_RISCV_TPREL_HI20: {
+     uint64_t Hi = Val + 0x800;
+     checkInt(Loc, SignExtend64(Hi, Bits) >> 12, 20, Type);
+     write32le(Loc, (read32le(Loc) & 0xFFF) | (Hi & 0xFFFFF000));
+     return;
+   }
+ 
++  case R_RISCV_LO12_I:
+   case R_RISCV_PCREL_LO12_I:
+-  case R_RISCV_LO12_I: {
++  case R_RISCV_TPREL_LO12_I: {
+     uint64_t Hi = (Val + 0x800) >> 12;
+     uint64_t Lo = Val - (Hi << 12);
+     write32le(Loc, (read32le(Loc) & 0xFFFFF) | ((Lo & 0xFFF) << 20));
+     return;
+   }
+ 
++  case R_RISCV_LO12_S:
+   case R_RISCV_PCREL_LO12_S:
+-  case R_RISCV_LO12_S: {
++  case R_RISCV_TPREL_LO12_S: {
+     uint64_t Hi = (Val + 0x800) >> 12;
+     uint64_t Lo = Val - (Hi << 12);
+     uint32_t Imm11_5 = extractBits(Lo, 11, 5) << 25;
+@@ -380,6 +407,13 @@
+     write32le(Loc, Val);
+     return;
+ 
++  case R_RISCV_TLS_DTPREL32:
++    write32le(Loc, Val - DTPOffset);
++    break;
++  case R_RISCV_TLS_DTPREL64:
++    write64le(Loc, Val - DTPOffset);
++    break;
++
+   case R_RISCV_ALIGN:
+   case R_RISCV_RELAX:
+     return; // Ignored (for now)
+Index: ELF/InputSection.cpp
+===================================================================
+--- llvm/lld/ELF/InputSection.cpp
++++ llvm/lld/ELF/InputSection.cpp
+@@ -587,7 +587,8 @@
+                        });
+ 
+   for (auto It = Range.first; It != Range.second; ++It)
+-    if (It->Type == R_RISCV_PCREL_HI20 || It->Type == R_RISCV_GOT_HI20)
++    if (It->Type == R_RISCV_PCREL_HI20 || It->Type == R_RISCV_GOT_HI20 ||
++        It->Type == R_RISCV_TLS_GD_HI20 || It->Type == R_RISCV_TLS_GOT_HI20)
+       return &*It;
+ 
+   error("R_RISCV_PCREL_LO12 relocation points to " + IS->getObjMsg(D->Value) +
+@@ -620,6 +621,8 @@
+     // offset to reach 0x1000 of TCB/thread-library data and 0xf000 of the
+     // program's TLS segment.
+     return S.getVA(0) - 0x7000;
++  case EM_RISCV:
++    return S.getVA(0);
+   default:
+     llvm_unreachable("unhandled Config->EMachine");
+   }
+Index: ELF/Relocations.cpp
+===================================================================
+--- llvm/lld/ELF/Relocations.cpp
++++ llvm/lld/ELF/Relocations.cpp
+@@ -217,6 +217,12 @@
+   if (Config->EMachine == EM_MIPS)
+     return handleMipsTlsRelocation(Type, Sym, C, Offset, Addend, Expr);
+ 
++  // RISC-V psABI doesn't specify TLS relaxation.
++  bool Relax = Config->EMachine != EM_RISCV;
++
++  // If the TLS model can be relaxed to Local-Exec, DTPMOD is constant one.
++  bool IsLocalExec = !Config->Shared && !Sym.IsPreemptible;
++
+   if (oneof<R_AARCH64_TLSDESC_PAGE, R_TLSDESC, R_TLSDESC_CALL, R_TLSDESC_PC>(
+           Expr) &&
+       Config->Shared) {
+@@ -271,10 +277,16 @@
+ 
+   if (oneof<R_AARCH64_TLSDESC_PAGE, R_TLSDESC, R_TLSDESC_CALL, R_TLSDESC_PC,
+             R_TLSGD_GOT, R_TLSGD_GOTPLT, R_TLSGD_PC>(Expr)) {
+-    if (Config->Shared) {
++    if (!Relax || Config->Shared) {
+       if (In.Got->addDynTlsEntry(Sym)) {
+         uint64_t Off = In.Got->getGlobalDynOffset(Sym);
+-        Main->RelaDyn->addReloc(Target->TlsModuleIndexRel, In.Got, Off, &Sym);
++
++        if (IsLocalExec)
++          // Write one to the GOT slot. This branch only applies to RISC-V.
++          In.Got->Relocations.push_back(
++              {R_ADDEND, Target->SymbolicRel, Off, 1, &Sym});
++        else
++          Main->RelaDyn->addReloc(Target->TlsModuleIndexRel, In.Got, Off, &Sym);
+ 
+         // If the symbol is preemptible we need the dynamic linker to write
+         // the offset too.
+@@ -313,7 +325,7 @@
+   // defined.
+   if (oneof<R_GOT, R_GOTPLT, R_GOT_PC, R_AARCH64_GOT_PAGE_PC, R_GOT_OFF,
+             R_TLSIE_HINT>(Expr) &&
+-      !Config->Shared && !Sym.IsPreemptible) {
++      Relax && IsLocalExec) {
+     C.Relocations.push_back({R_RELAX_TLS_IE_TO_LE, Type, Offset, Addend, &Sym});
+     return 1;
+   }
+Index: test/ELF/riscv-tls-gd.s
+===================================================================
+--- llvm/lld//dev/null
++++ llvm/lld/test/ELF/riscv-tls-gd.s
+@@ -0,0 +1,124 @@
++# REQUIRES: riscv
++# RUN: echo '.tbss; .globl b, c; b: .zero 4; c:' > %t.s
++# RUN: echo '.globl __tls_get_addr; __tls_get_addr:' > %tga.s
++
++## RISC-V psABI doesn't specify TLS relaxation. Though the code sequences are not
++## relaxed, dynamic relocations can be omitted for GD->LE relaxation.
++
++# RUN: llvm-mc -filetype=obj -triple=riscv32 %s -o %t.32.o
++# RUN: llvm-mc -filetype=obj -triple=riscv32 %t.s -o %t1.32.o
++# RUN: ld.lld -shared -soname=t1.so %t1.32.o -o %t1.32.so
++# RUN: llvm-mc -filetype=obj -triple=riscv32 %tga.s -o %tga.32.o
++## rv32 GD
++# RUN: ld.lld -shared %t.32.o %t1.32.o -o %t.32.so
++# RUN: llvm-readobj -r %t.32.so | FileCheck --check-prefix=GD32-REL %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.32.so | FileCheck --check-prefix=GD32 %s
++## rv32 GD -> LE
++# RUN: ld.lld %t.32.o %t1.32.o %tga.32.o -o %t.32
++# RUN: llvm-readelf -r %t.32 | FileCheck --check-prefix=NOREL %s
++# RUN: llvm-readelf -x .got %t.32 | FileCheck --check-prefix=LE32-GOT %s
++# RUN: ld.lld -pie %t.32.o %t1.32.o %tga.32.o -o %t.32
++# RUN: llvm-readelf -r %t.32 | FileCheck --check-prefix=NOREL %s
++# RUN: llvm-readelf -x .got %t.32 | FileCheck --check-prefix=LE32-GOT %s
++## rv32 GD -> IE
++# RUN: ld.lld %t.32.o %t1.32.so %tga.32.o -o %t.32
++# RUN: llvm-readobj -r %t.32 | FileCheck --check-prefix=IE32-REL %s
++# RUN: llvm-readelf -x .got %t.32 | FileCheck --check-prefix=IE32-GOT %s
++
++# RUN: llvm-mc -filetype=obj -triple=riscv64 %s -o %t.64.o
++# RUN: llvm-mc -filetype=obj -triple=riscv64 %t.s -o %t1.64.o
++# RUN: ld.lld -shared -soname=t1.so %t1.64.o -o %t1.64.so
++# RUN: llvm-mc -filetype=obj -triple=riscv64 %tga.s -o %tga.64.o
++## rv64 GD
++# RUN: ld.lld -shared %t.64.o %t1.64.o -o %t.64.so
++# RUN: llvm-readobj -r %t.64.so | FileCheck --check-prefix=GD64-REL %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.64.so | FileCheck --check-prefix=GD64 %s
++## rv64 GD -> LE
++# RUN: ld.lld %t.64.o %t1.64.o %tga.64.o -o %t.64
++# RUN: llvm-readelf -r %t.64 | FileCheck --check-prefix=NOREL %s
++# RUN: llvm-readelf -x .got %t.64 | FileCheck --check-prefix=LE64-GOT %s
++# RUN: ld.lld -pie %t.64.o %t1.64.o %tga.64.o -o %t.64
++# RUN: llvm-readelf -r %t.64 | FileCheck --check-prefix=NOREL %s
++# RUN: llvm-readelf -x .got %t.64 | FileCheck --check-prefix=LE64-GOT %s
++## rv64 GD -> IE
++# RUN: ld.lld %t.64.o %t1.64.so %tga.64.o -o %t.64
++# RUN: llvm-readobj -r %t.64 | FileCheck --check-prefix=IE64-REL %s
++# RUN: llvm-readelf -x .got %t.64 | FileCheck --check-prefix=IE64-GOT %s
++
++# GD32-REL:      .rela.dyn {
++# GD32-REL-NEXT:   0x2070 R_RISCV_TLS_DTPMOD32 a 0x0
++# GD32-REL-NEXT:   0x2074 R_RISCV_TLS_DTPREL32 a 0x0
++# GD32-REL-NEXT:   0x2078 R_RISCV_TLS_DTPMOD32 b 0x0
++# GD32-REL-NEXT:   0x207C R_RISCV_TLS_DTPREL32 b 0x0
++# GD32-REL-NEXT: }
++
++## &DTPMOD(a) - . = 0x2070 - 0x1000 = 4096*1+112
++# GD32:      1000: auipc a0, 1
++# GD32-NEXT:       addi a0, a0, 112
++# GD32-NEXT:       auipc ra, 0
++# GD32-NEXT:       jalr ra, ra, 56
++
++## &DTPMOD(b) - . = 0x2078 - 0x1010 = 4096*1+104
++# GD32:      1010: auipc a0, 1
++# GD32-NEXT:       addi a0, a0, 104
++# GD32-NEXT:       auipc ra, 0
++# GD32-NEXT:       jalr ra, ra, 40
++
++# GD64-REL:      .rela.dyn {
++# GD64-REL-NEXT:   0x20E0 R_RISCV_TLS_DTPMOD64 a 0x0
++# GD64-REL-NEXT:   0x20E8 R_RISCV_TLS_DTPREL64 a 0x0
++# GD64-REL-NEXT:   0x20F0 R_RISCV_TLS_DTPMOD64 b 0x0
++# GD64-REL-NEXT:   0x20F8 R_RISCV_TLS_DTPREL64 b 0x0
++# GD64-REL-NEXT: }
++
++## &DTPMOD(a) - . = 0x20e0 - 0x1000 = 4096*1+224
++# GD64:      1000: auipc a0, 1
++# GD64-NEXT:       addi a0, a0, 224
++# GD64-NEXT:       auipc ra, 0
++# GD64-NEXT:       jalr ra, ra, 56
++
++## &DTPMOD(b) - . = 0x20f0 - 0x1010 = 4096*1+224
++# GD64:      1010: auipc a0, 1
++# GD64-NEXT:       addi a0, a0, 224
++# GD64-NEXT:       auipc ra, 0
++# GD64-NEXT:       jalr ra, ra, 40
++
++# NOREL: no relocations
++
++## .got contains pre-populated values: [a@dtpmod, a@dtprel, b@dtpmod, b@dtprel]
++## a@dtprel = st_value(a)-0x800 = 0xfffff808
++## b@dtprel = st_value(b)-0x800 = 0xfffff80c
++# LE32-GOT: section '.got':
++# LE32-GOT-NEXT: 0x{{[0-9a-f]+}} 01000000 08f8ffff 01000000 0cf8ffff
++# LE64-GOT: section '.got':
++# LE64-GOT-NEXT: 0x{{[0-9a-f]+}} 01000000 00000000 08f8ffff ffffffff
++# LE64-GOT-NEXT: 0x{{[0-9a-f]+}} 01000000 00000000 0cf8ffff ffffffff
++
++## a is local - relaxed to LE - its DTPMOD/DTPREL slots are link-time constants.
++## b is external - DTPMOD/DTPREL dynamic relocations are required.
++# IE32-REL:      .rela.dyn {
++# IE32-REL-NEXT:   0x12068 R_RISCV_TLS_DTPMOD32 b 0x0
++# IE32-REL-NEXT:   0x1206C R_RISCV_TLS_DTPREL32 b 0x0
++# IE32-REL-NEXT: }
++# IE32-GOT:      section '.got':
++# IE32-GOT-NEXT: 0x00012060 01000000 08f8ffff 00000000 00000000
++
++# IE64-REL:      .rela.dyn {
++# IE64-REL-NEXT:   0x120D0 R_RISCV_TLS_DTPMOD64 b 0x0
++# IE64-REL-NEXT:   0x120D8 R_RISCV_TLS_DTPREL64 b 0x0
++# IE64-REL-NEXT: }
++# IE64-GOT:      section '.got':
++# IE64-GOT-NEXT: 0x000120c0 01000000 00000000 08f8ffff ffffffff
++# IE64-GOT-NEXT: 0x000120d0 00000000 00000000 00000000 00000000
++
++la.tls.gd a0,a
++call __tls_get_addr@plt
++
++la.tls.gd a0,b
++call __tls_get_addr@plt
++
++.section .tbss
++.globl a
++.zero 8
++a:
++.zero 4
+Index: test/ELF/riscv-tls-ie.s
+===================================================================
+--- llvm/lld//dev/null
++++ llvm/lld/test/ELF/riscv-tls-ie.s
+@@ -0,0 +1,82 @@
++# REQUIRES: riscv
++
++# RUN: llvm-mc -filetype=obj -triple=riscv32 %s -o %t.32.o
++## rv32 IE
++# RUN: ld.lld -shared %t.32.o -o %t.32.so
++# RUN: llvm-readobj -r -d %t.32.so | FileCheck --check-prefix=IE32-REL %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.32.so | FileCheck --check-prefixes=IE,IE32 %s
++## rv32 IE -> LE
++# RUN: ld.lld %t.32.o -o %t.32
++# RUN: llvm-readelf -r %t.32 | FileCheck --check-prefix=NOREL %s
++# RUN: llvm-readelf -x .got %t.32 | FileCheck --check-prefix=LE32-GOT %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.32 | FileCheck --check-prefixes=LE,LE32 %s
++
++# RUN: llvm-mc -filetype=obj -triple=riscv64 %s -o %t.64.o
++## rv64 IE
++# RUN: ld.lld -shared %t.64.o -o %t.64.so
++# RUN: llvm-readobj -r -d %t.64.so | FileCheck --check-prefix=IE64-REL %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.64.so | FileCheck --check-prefixes=IE,IE64 %s
++## rv64 IE -> LE
++# RUN: ld.lld %t.64.o -o %t.64
++# RUN: llvm-readelf -r %t.64 | FileCheck --check-prefix=NOREL %s
++# RUN: llvm-readelf -x .got %t.64 | FileCheck --check-prefix=LE64-GOT %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.64 | FileCheck --check-prefixes=LE,LE64 %s
++
++# IE32-REL:      .rela.dyn {
++# IE32-REL-NEXT:   0x205C R_RISCV_TLS_TPREL32 - 0xC
++# IE32-REL-NEXT:   0x2058 R_RISCV_TLS_TPREL32 a 0x0
++# IE32-REL-NEXT: }
++# IE32-REL:      FLAGS STATIC_TLS
++
++# IE64-REL:      .rela.dyn {
++# IE64-REL-NEXT:   0x20B8 R_RISCV_TLS_TPREL64 - 0xC
++# IE64-REL-NEXT:   0x20B0 R_RISCV_TLS_TPREL64 a 0x0
++# IE64-REL-NEXT: }
++# IE64-REL:      FLAGS STATIC_TLS
++
++## rv32: &.got[1] - . = 0x2058 - . = 4096*1+88
++## rv64: &.got[1] - . = 0x20B0 - . = 4096*1+176
++# IE:        1000: auipc a4, 1
++# IE32-NEXT:       lw a4, 88(a4)
++# IE64-NEXT:       ld a4, 176(a4)
++# IE-NEXT:         add a4, a4, tp
++## rv32: &.got[0] - . = 0x205C - . = 4096*1+80
++## rv64: &.got[0] - . = 0x20B8 - . = 4096*1+172
++# IE:        100c: auipc a5, 1
++# IE32-NEXT:       lw a5, 80(a5)
++# IE64-NEXT:       ld a5, 172(a5)
++# IE-NEXT:         add a5, a5, tp
++
++# NOREL: no relocations
++
++# a@tprel = st_value(a) = 0x8
++# b@tprel = st_value(a) = 0xc
++# LE32-GOT: section '.got':
++# LE32-GOT-NEXT: 0x00012000 08000000 0c000000
++# LE64-GOT: section '.got':
++# LE64-GOT-NEXT: 0x00012000 08000000 00000000 0c000000 00000000
++
++## rv32: &.got[0] - . = 0x12000 - 0x11000 = 4096*1+0
++## rv64: &.got[0] - . = 0x12000 - 0x11000 = 4096*1+0
++# LE:        11000: auipc a4, 1
++# LE32-NEXT:        lw a4, 0(a4)
++# LE64-NEXT:        ld a4, 0(a4)
++# LE-NEXT:          add a4, a4, tp
++## rv32: &.got[1] - . = 0x12004 - 0x1100c = 4096*1-8
++## rv64: &.got[1] - . = 0x12008 - 0x1100c = 4096*1-4
++# LE:        1100c: auipc a5, 1
++# LE32-NEXT:        lw a5, -8(a5)
++# LE64-NEXT:        ld a5, -4(a5)
++# LE-NEXT:          add a5, a5, tp
++
++la.tls.ie a4,a
++add a4,a4,tp
++la.tls.ie a5,b
++add a5,a5,tp
++
++.section .tbss
++.globl a
++.zero 8
++a:
++.zero 4
++b:
+Index: test/ELF/riscv-tls-ld.s
+===================================================================
+--- llvm/lld//dev/null
++++ llvm/lld/test/ELF/riscv-tls-ld.s
+@@ -0,0 +1,90 @@
++# REQUIRES: riscv
++# RUN: echo '.tbss; .globl b, c; b: .zero 4; c:' > %t.s
++# RUN: echo '.globl __tls_get_addr; __tls_get_addr:' > %tga.s
++
++## RISC-V psABI doesn't specify TLS relaxation. Though the code sequences are not
++## relaxed, dynamic relocations can be omitted for LD->LE relaxation.
++## LD uses the same relocation as GD: R_RISCV_GD_HI20, the difference is that it
++## references a local symbol (.LANCHOR0).
++
++# RUN: llvm-mc -filetype=obj -triple=riscv32 -position-independent %s -o %t.32.o
++# RUN: llvm-mc -filetype=obj -triple=riscv32 %tga.s -o %tga.o
++## rv32 LD
++# RUN: ld.lld -shared %t.32.o -o %t.32.so
++# RUN: llvm-readobj -r %t.32.so | FileCheck --check-prefix=LD32-REL %s
++# RUN: llvm-readelf -x .got %t.32.so | FileCheck --check-prefix=LD32-GOT %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.32.so | FileCheck --check-prefixes=LD,LD32 %s
++## rv32 LD -> LE
++# RUN: ld.lld %t.32.o %tga.o -o %t.32
++# RUN: llvm-readelf -r %t.32 | FileCheck --check-prefix=NOREL %s
++# RUN: llvm-readelf -x .got %t.32 | FileCheck --check-prefix=LE32-GOT %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.32 | FileCheck --check-prefixes=LE,LE32 %s
++
++# RUN: llvm-mc -filetype=obj -triple=riscv64 -position-independent %s -o %t.64.o
++# RUN: llvm-mc -filetype=obj -triple=riscv64 %tga.s -o %tga.o
++## rv64 LD
++# RUN: ld.lld -shared %t.64.o -o %t.64.so
++# RUN: llvm-readobj -r %t.64.so | FileCheck --check-prefix=LD64-REL %s
++# RUN: llvm-readelf -x .got %t.64.so | FileCheck --check-prefix=LD64-GOT %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.64.so | FileCheck --check-prefixes=LD,LD64 %s
++## rv64 LD -> LE
++# RUN: ld.lld %t.64.o %tga.o -o %t.64
++# RUN: llvm-readelf -r %t.64 | FileCheck --check-prefix=NOREL %s
++# RUN: llvm-readelf -x .got %t.64 | FileCheck --check-prefix=LE64-GOT %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.64 | FileCheck --check-prefixes=LE,LE64 %s
++
++## a@dtprel = st_value(a)-0x800 = 0xfffff808 is a link-time constant.
++# LD32-REL:      .rela.dyn {
++# LD32-REL-NEXT:   0x2084
++# LD32-REL-NEXT:   0x207C R_RISCV_TLS_DTPMOD32 - 0x0
++# LD32-REL-NEXT: }
++# LD32-GOT:      section '.got':
++# LD32-GOT-NEXT: 0x00002078 00200000 00000000 00f8ffff 00000000
++
++# LD64-REL:      .rela.dyn {
++# LD64-REL-NEXT:   0x2108
++# LD64-REL-NEXT:   0x20F8 R_RISCV_TLS_DTPMOD64 - 0x0
++# LD64-REL-NEXT: }
++# LD64-GOT:      section '.got':
++# LD64-GOT-NEXT: 0x000020f0 00200000 00000000 00000000 00000000
++# LD64-GOT-NEXT: 0x00002100 00f8ffff ffffffff 00000000 00000000
++
++## rv32: &DTPMOD(a) - . = 0x207c - 0x1000 = 4096*1+124
++## rv64: &DTPMOD(a) - . = 0x20e0 - 0x1000 = 4096*1+248
++# LD:        1000: auipc a0, 1
++# LD32-NEXT:       addi a0, a0, 124
++# LD64-NEXT:       addi a0, a0, 248
++# LD-NEXT:         auipc ra, 0
++# LD-NEXT:         jalr ra, ra, 56
++
++# NOREL: no relocations
++
++## a is local - its DTPMOD/DTPREL slots are link-time constants.
++## a@dtpmod = 1 (main module)
++# LE32-GOT: section '.got':
++# LE32-GOT-NEXT: 0x00012000 00000000 01000000 00f8ffff 00200100
++
++# LE64-GOT: section '.got':
++# LE64-GOT-NEXT: 0x00012000 00000000 00000000 01000000 00000000
++# LE64-GOT-NEXT: 0x00012010 00f8ffff ffffffff 00200100 00000000
++
++## rv32: DTPMOD(.LANCHOR0) - . = 0x12004 - 0x11000 = 4096*1+4
++## rv64: DTPMOD(.LANCHOR0) - . = 0x12008 - 0x11000 = 4096*1+8
++# LE:        11000: auipc a0, 1
++# LE32-NEXT:        addi a0, a0, 4
++# LE64-NEXT:        addi a0, a0, 8
++# LE-NEXT:          auipc ra, 0
++# LE-NEXT:          jalr ra, ra, 24
++
++la.tls.gd a0, .LANCHOR0
++call __tls_get_addr@plt
++lw a4, 0(a0)
++lh a0, 4(a0)
++
++## This is irrelevant to TLS. We use it to take 2 GOT slots to check DTPREL
++## offsets are correct.
++la a5, _GLOBAL_OFFSET_TABLE_
++
++.section .tbss,"awT",@nobits
++.set .LANCHOR0, . + 0
++.zero 8
+Index: test/ELF/riscv-tls-le.s
+===================================================================
+--- llvm/lld//dev/null
++++ llvm/lld/test/ELF/riscv-tls-le.s
+@@ -0,0 +1,41 @@
++# REQUIRES: riscv
++
++# RUN: llvm-mc -filetype=obj -triple=riscv32 %s -o %t.32.o
++# RUN: ld.lld %t.32.o -o %t.32
++# RUN: llvm-nm -p %t.32 | FileCheck --check-prefixes=NM %s
++# RUN: llvm-objdump -d --no-show-raw-insn %t.32 | FileCheck --check-prefixes=LE %s
++# RUN: ld.lld -pie %t.32.o -o %t.32
++# RUN: llvm-objdump -d --no-show-raw-insn %t.32 | FileCheck --check-prefixes=LE %s
++
++# RUN: llvm-mc -filetype=obj -triple=riscv64 %s -o %t.64.o
++# RUN: ld.lld %t.64.o -o %t.64
++# RUN: llvm-objdump -d --no-show-raw-insn %t.64 | FileCheck --check-prefixes=LE %s
++# RUN: ld.lld -pie %t.64.o -o %t.64
++# RUN: llvm-objdump -d --no-show-raw-insn %t.64 | FileCheck --check-prefixes=LE %s
++
++# NM: {{0*}}00000008 b .LANCHOR0
++# NM: {{0*}}0000000c B a
++
++## .LANCHOR0@tprel = 8
++## a@tprel = 12
++# LE:      lui a5, 0
++# LE-NEXT: add a5, a5, tp
++# LE-NEXT: addi a5, a5, 8
++# LE-NEXT: lui a5, 0
++# LE-NEXT: add a5, a5, tp
++# LE-NEXT: sw a0, 12(a5)
++
++lui a5, %tprel_hi(.LANCHOR0)
++add a5, a5, tp, %tprel_add(.LANCHOR0)
++addi a5, a5, %tprel_lo(.LANCHOR0)
++
++lui a5, %tprel_hi(a)
++add a5, a5, tp, %tprel_add(a)
++sw a0, %tprel_lo(a)(a5)
++
++.section .tbss
++.space 8
++.LANCHOR0:
++.zero 4
++.globl a
++a:

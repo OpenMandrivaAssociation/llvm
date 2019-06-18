@@ -1,0 +1,1423 @@
+Index: llvm/clang/lib/Basic/Targets/RISCV.h
+===================================================================
+--- llvm/clang/lib/Basic/Targets/RISCV.h
++++ llvm/clang/lib/Basic/Targets/RISCV.h
+@@ -81,8 +81,7 @@
+   }
+ 
+   bool setABI(const std::string &Name) override {
+-    // TODO: support ilp32f and ilp32d ABIs.
+-    if (Name == "ilp32") {
++    if (Name == "ilp32" || Name == "ilp32f" || Name == "ilp32d") {
+       ABI = Name;
+       return true;
+     }
+@@ -99,8 +98,7 @@
+   }
+ 
+   bool setABI(const std::string &Name) override {
+-    // TODO: support lp64f and lp64d ABIs.
+-    if (Name == "lp64") {
++    if (Name == "lp64" || Name == "lp64f" || Name == "lp64d") {
+       ABI = Name;
+       return true;
+     }
+Index: llvm/clang/lib/Basic/Targets/RISCV.cpp
+===================================================================
+--- llvm/clang/lib/Basic/Targets/RISCV.cpp
++++ llvm/clang/lib/Basic/Targets/RISCV.cpp
+@@ -45,9 +45,18 @@
+   Builder.defineMacro("__riscv");
+   bool Is64Bit = getTriple().getArch() == llvm::Triple::riscv64;
+   Builder.defineMacro("__riscv_xlen", Is64Bit ? "64" : "32");
+-  // TODO: modify when more code models and ABIs are supported.
++  // TODO: modify when more code models are supported.
+   Builder.defineMacro("__riscv_cmodel_medlow");
+-  Builder.defineMacro("__riscv_float_abi_soft");
++
++  StringRef ABIName = getABI();
++  if (ABIName == "ilp32f" || ABIName == "lp64f")
++    Builder.defineMacro("__riscv_float_abi_single");
++  else if (ABIName == "ilp32d" || ABIName == "lp64d")
++    Builder.defineMacro("__riscv_float_abi_double");
++  else if (ABIName == "ilp32e")
++    Builder.defineMacro("__riscv_abi_rve");
++  else
++    Builder.defineMacro("__riscv_float_abi_soft");
+ 
+   if (HasM) {
+     Builder.defineMacro("__riscv_mul");
+Index: llvm/clang/lib/CodeGen/TargetInfo.cpp
+===================================================================
+--- llvm/clang/lib/CodeGen/TargetInfo.cpp
++++ llvm/clang/lib/CodeGen/TargetInfo.cpp
+@@ -9147,25 +9147,42 @@
+ namespace {
+ class RISCVABIInfo : public DefaultABIInfo {
+ private:
+-  unsigned XLen; // Size of the integer ('x') registers in bits.
++  // Size of the integer ('x') registers in bits.
++  unsigned XLen;
++  // Size of the floating point ('f') registers in bits. Note that the target
++  // ISA might have a wider FLen than the selected ABI (e.g. an RV32IF target
++  // with soft float ABI has FLen==0).
++  unsigned FLen;
+   static const int NumArgGPRs = 8;
++  static const int NumArgFPRs = 8;
++  bool detectFPCCEligibleStructHelper(QualType Ty, CharUnits CurOff,
++                                      llvm::Type *&Field1Ty,
++                                      llvm::Type *&Field2Ty,
++                                      CharUnits &Field2Off) const;
+ 
+ public:
+-  RISCVABIInfo(CodeGen::CodeGenTypes &CGT, unsigned XLen)
+-      : DefaultABIInfo(CGT), XLen(XLen) {}
++  RISCVABIInfo(CodeGen::CodeGenTypes &CGT, unsigned XLen, unsigned FLen)
++      : DefaultABIInfo(CGT), XLen(XLen), FLen(FLen) {}
+ 
+   // DefaultABIInfo's classifyReturnType and classifyArgumentType are
+   // non-virtual, but computeInfo is virtual, so we overload it.
+   void computeInfo(CGFunctionInfo &FI) const override;
+ 
+-  ABIArgInfo classifyArgumentType(QualType Ty, bool IsFixed,
+-                                  int &ArgGPRsLeft) const;
++  ABIArgInfo classifyArgumentType(QualType Ty, bool IsFixed, int &ArgGPRsLeft,
++                                  int &ArgFPRsLeft) const;
+   ABIArgInfo classifyReturnType(QualType RetTy) const;
+ 
+   Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
+                     QualType Ty) const override;
+ 
+   ABIArgInfo extendType(QualType Ty) const;
++
++  bool detectFPCCEligibleStruct(QualType Ty, llvm::Type *&Field1Ty,
++                                llvm::Type *&Field2Ty, CharUnits &Field2Off,
++                                int &NeededArgGPRs, int &NeededArgFPRs) const;
++  ABIArgInfo coerceAndExpandFPCCEligibleStruct(llvm::Type *Field1Ty,
++                                               llvm::Type *Field2Ty,
++                                               CharUnits Field2Off) const;
+ };
+ } // end anonymous namespace
+ 
+@@ -9187,18 +9204,180 @@
+   // different for variadic arguments, we must also track whether we are
+   // examining a vararg or not.
+   int ArgGPRsLeft = IsRetIndirect ? NumArgGPRs - 1 : NumArgGPRs;
++  int ArgFPRsLeft = FLen ? NumArgFPRs : 0;
+   int NumFixedArgs = FI.getNumRequiredArgs();
+ 
+   int ArgNum = 0;
+   for (auto &ArgInfo : FI.arguments()) {
+     bool IsFixed = ArgNum < NumFixedArgs;
+-    ArgInfo.info = classifyArgumentType(ArgInfo.type, IsFixed, ArgGPRsLeft);
++    ArgInfo.info =
++        classifyArgumentType(ArgInfo.type, IsFixed, ArgGPRsLeft, ArgFPRsLeft);
+     ArgNum++;
+   }
+ }
+ 
++bool RISCVABIInfo::detectFPCCEligibleStructHelper(QualType Ty, CharUnits CurOff,
++                                                  llvm::Type *&Field1Ty,
++                                                  llvm::Type *&Field2Ty,
++                                                  CharUnits &Field2Off) const {
++
++  bool IsInt = Ty->isIntegralOrEnumerationType();
++  bool IsFloat = Ty->isRealFloatingType();
++
++  if (IsInt || IsFloat) {
++    uint64_t Size = getContext().getTypeSize(Ty);
++    if (IsInt && Size > XLen)
++      return false;
++    if (IsFloat && Size > FLen)
++      return false;
++    // Can't be eligible if an integer type was already found (only fp+int or
++    // int+fp pairs are eligible).
++    if (IsInt && Field1Ty && Field1Ty->isIntegerTy())
++      return false;
++    if (!Field1Ty) {
++      Field1Ty = CGT.ConvertType(Ty);
++      assert(CurOff.isZero() && "Unexpected offset for first field");
++      return true;
++    }
++    if (!Field2Ty) {
++      Field2Ty = CGT.ConvertType(Ty);
++      Field2Off = CurOff;
++      return true;
++    }
++    return false;
++  }
++
++  if (auto CTy = Ty->getAs<ComplexType>()) {
++    if (Field1Ty)
++      return false;
++    QualType EltTy = CTy->getElementType();
++    if (getContext().getTypeSize(EltTy) > FLen)
++      return false;
++    Field1Ty = CGT.ConvertType(EltTy);
++    assert(CurOff.isZero() && "Unexpected offset for first field");
++    Field2Ty = CGT.ConvertType(EltTy);
++    Field2Off = getContext().getTypeSizeInChars(EltTy);
++    return true;
++  }
++
++  if (const ConstantArrayType *ATy = getContext().getAsConstantArrayType(Ty)) {
++    uint64_t ArraySize = ATy->getSize().getZExtValue();
++    QualType EltTy = ATy->getElementType();
++    CharUnits EltSize = getContext().getTypeSizeInChars(EltTy);
++    for (uint64_t i = 0; i < ArraySize; ++i) {
++      bool Ret = detectFPCCEligibleStructHelper(EltTy, CurOff, Field1Ty,
++                                                Field2Ty, Field2Off);
++      if (!Ret)
++        return false;
++      CurOff += EltSize;
++    }
++    return true;
++  }
++
++  if (const auto *RTy = Ty->getAs<RecordType>()) {
++    // Structures with either a non-trivial destructor or a non-trivial
++    // copy constructor are not eligible for the FP calling convention.
++    if (CGCXXABI::RecordArgABI RAA = getRecordArgABI(Ty, CGT.getCXXABI()))
++      return false;
++    if (isEmptyRecord(getContext(), Ty, true))
++      return true;
++    const RecordDecl *RD = RTy->getDecl();
++    // Unions aren't eligible unless they're empty (which is caught above).
++    if (RD->isUnion())
++      return false;
++    for (const FieldDecl *FD : RD->fields()) {
++      const ASTRecordLayout &Layout = getContext().getASTRecordLayout(RD);
++      uint64_t FieldOffInBits = Layout.getFieldOffset(FD->getFieldIndex());
++      bool Ret = detectFPCCEligibleStructHelper(
++          FD->getType(),
++          CurOff + getContext().toCharUnitsFromBits(FieldOffInBits), Field1Ty,
++          Field2Ty, Field2Off);
++      if (!Ret)
++        return false;
++    }
++    return true;
++  }
++
++  return false;
++}
++
++// Determine if a struct is eligible for passing according to the floating
++// point calling convention (i.e., when flattened it contains a single fp
++// value, fp+fp, or int+fp of appropriate size). If so, NeededArgFPRs and
++// NeededArgGPRs are incremented appropriately.
++bool RISCVABIInfo::detectFPCCEligibleStruct(QualType Ty, llvm::Type *&Field1Ty,
++                                            llvm::Type *&Field2Ty,
++                                            CharUnits &Field2Off,
++                                            int &NeededArgGPRs,
++                                            int &NeededArgFPRs) const {
++  Field1Ty = nullptr;
++  Field2Ty = nullptr;
++  NeededArgGPRs = 0;
++  NeededArgFPRs = 0;
++  bool IsCandidate = detectFPCCEligibleStructHelper(
++      Ty, CharUnits::Zero(), Field1Ty, Field2Ty, Field2Off);
++  // Not really a candidate if we have a single int but no float.
++  if (Field1Ty && !Field2Ty && !Field1Ty->isFloatingPointTy())
++    return false;
++  if (Field1Ty && Field1Ty->isFloatingPointTy())
++    NeededArgFPRs++;
++  else if (Field1Ty)
++    NeededArgGPRs++;
++  if (Field2Ty && Field2Ty->isFloatingPointTy())
++    NeededArgFPRs++;
++  else if (Field2Ty)
++    NeededArgGPRs++;
++  return IsCandidate;
++}
++
++// Call getCoerceAndExpand fo the two-element flattened struct descripted by
++// Field1Ty, Filed2Ty, Filed2Off. This method will create an appropriate
++// coerceToType and unpaddedCoerceToType.
++ABIArgInfo RISCVABIInfo::coerceAndExpandFPCCEligibleStruct(
++    llvm::Type *Field1Ty, llvm::Type *Field2Ty, CharUnits Field2Off) const {
++  SmallVector<llvm::Type *, 3> CoerceElts;
++  SmallVector<llvm::Type *, 2> UnpaddedCoerceElts;
++  CoerceElts.push_back(Field1Ty);
++  UnpaddedCoerceElts.push_back(Field1Ty);
++
++  if (!Field2Ty) {
++    return ABIArgInfo::getCoerceAndExpand(
++        llvm::StructType::get(getVMContext(), CoerceElts, false),
++        UnpaddedCoerceElts[0]);
++  }
++
++  CharUnits Field2Align =
++      CharUnits::fromQuantity(getDataLayout().getABITypeAlignment(Field2Ty));
++  CharUnits Field1Size =
++      CharUnits::fromQuantity(getDataLayout().getTypeStoreSize(Field1Ty));
++  CharUnits Field2OffNoPadNoPack = Field1Size.alignTo(Field2Align);
++
++  CharUnits Padding = CharUnits::Zero();
++  if (Field2Off > Field2OffNoPadNoPack)
++    Padding = Field2Off - Field2OffNoPadNoPack;
++  else if (Field2Off != Field2Align && Field2Off > Field1Size)
++    Padding = Field2Off - Field1Size;
++
++  bool IsPacked = !Field2Off.isMultipleOf(Field2Align);
++
++  if (!Padding.isZero())
++    CoerceElts.push_back(llvm::ArrayType::get(
++        llvm::Type::getInt8Ty(getVMContext()), Padding.getQuantity()));
++
++  CoerceElts.push_back(Field2Ty);
++  UnpaddedCoerceElts.push_back(Field2Ty);
++
++  auto CoerceToType =
++      llvm::StructType::get(getVMContext(), CoerceElts, IsPacked);
++  auto UnpaddedCoerceToType =
++      llvm::StructType::get(getVMContext(), UnpaddedCoerceElts, IsPacked);
++
++  return ABIArgInfo::getCoerceAndExpand(CoerceToType, UnpaddedCoerceToType);
++}
++
+ ABIArgInfo RISCVABIInfo::classifyArgumentType(QualType Ty, bool IsFixed,
+-                                              int &ArgGPRsLeft) const {
++                                              int &ArgGPRsLeft,
++                                              int &ArgFPRsLeft) const {
+   assert(ArgGPRsLeft <= NumArgGPRs && "Arg GPR tracking underflow");
+   Ty = useFirstFieldIfTransparentUnion(Ty);
+ 
+@@ -9216,6 +9395,39 @@
+     return ABIArgInfo::getIgnore();
+ 
+   uint64_t Size = getContext().getTypeSize(Ty);
++
++  // Pass floating point values via FPRs if possible.
++  if (IsFixed && Ty->isFloatingType() && FLen >= Size && ArgFPRsLeft) {
++    ArgFPRsLeft--;
++    return ABIArgInfo::getDirect();
++  }
++
++  // Complex types for the hard float ABI must be passed direct rather than
++  // using CoerceAndExpand.
++  if (IsFixed && Ty->isComplexType() && FLen && ArgFPRsLeft >= 2) {
++    QualType EltTy = Ty->getAs<ComplexType>()->getElementType();
++    if (getContext().getTypeSize(EltTy) <= FLen) {
++      ArgFPRsLeft -= 2;
++      return ABIArgInfo::getDirect();
++    }
++  }
++
++  if (IsFixed && FLen && Ty->isStructureOrClassType()) {
++    llvm::Type *Field1Ty = nullptr;
++    llvm::Type *Field2Ty = nullptr;
++    CharUnits Field2Off = CharUnits::Zero();
++    int NeededArgGPRs;
++    int NeededArgFPRs;
++    bool IsCandidate = detectFPCCEligibleStruct(
++        Ty, Field1Ty, Field2Ty, Field2Off, NeededArgGPRs, NeededArgFPRs);
++    if (IsCandidate && NeededArgGPRs <= ArgGPRsLeft &&
++        NeededArgFPRs <= ArgFPRsLeft) {
++      ArgGPRsLeft -= NeededArgGPRs;
++      ArgFPRsLeft -= NeededArgFPRs;
++      return coerceAndExpandFPCCEligibleStruct(Field1Ty, Field2Ty, Field2Off);
++    }
++  }
++
+   uint64_t NeededAlign = getContext().getTypeAlign(Ty);
+   bool MustUseStack = false;
+   // Determine the number of GPRs needed to pass the current argument
+@@ -9274,10 +9486,12 @@
+     return ABIArgInfo::getIgnore();
+ 
+   int ArgGPRsLeft = 2;
++  int ArgFPRsLeft = FLen ? 2 : 0;
+ 
+   // The rules for return and argument types are the same, so defer to
+   // classifyArgumentType.
+-  return classifyArgumentType(RetTy, /*IsFixed=*/true, ArgGPRsLeft);
++  return classifyArgumentType(RetTy, /*IsFixed=*/true, ArgGPRsLeft,
++                              ArgFPRsLeft);
+ }
+ 
+ Address RISCVABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
+@@ -9312,8 +9526,9 @@
+ namespace {
+ class RISCVTargetCodeGenInfo : public TargetCodeGenInfo {
+ public:
+-  RISCVTargetCodeGenInfo(CodeGen::CodeGenTypes &CGT, unsigned XLen)
+-      : TargetCodeGenInfo(new RISCVABIInfo(CGT, XLen)) {}
++  RISCVTargetCodeGenInfo(CodeGen::CodeGenTypes &CGT, unsigned XLen,
++                         unsigned FLen)
++      : TargetCodeGenInfo(new RISCVABIInfo(CGT, XLen, FLen)) {}
+ 
+   void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
+                            CodeGen::CodeGenModule &CGM) const override {
+@@ -9452,9 +9667,16 @@
+     return SetCGInfo(new MSP430TargetCodeGenInfo(Types));
+ 
+   case llvm::Triple::riscv32:
+-    return SetCGInfo(new RISCVTargetCodeGenInfo(Types, 32));
+-  case llvm::Triple::riscv64:
+-    return SetCGInfo(new RISCVTargetCodeGenInfo(Types, 64));
++  case llvm::Triple::riscv64: {
++    StringRef ABIStr = getTarget().getABI();
++    unsigned XLen = getTarget().getPointerWidth(0);
++    unsigned ABIFLen = 0;
++    if (ABIStr.endswith("f"))
++      ABIFLen = 32;
++    else if (ABIStr.endswith("d"))
++      ABIFLen = 64;
++    return SetCGInfo(new RISCVTargetCodeGenInfo(Types, XLen, ABIFLen));
++  }
+ 
+   case llvm::Triple::systemz: {
+     bool HasVector = getTarget().getABI() == "vector";
+Index: llvm/clang/test/CodeGen/riscv32-ilp32-ilp32f-abi.c
+===================================================================
+--- llvm/clang/test/CodeGen/riscv32-ilp32-ilp32f-abi.c
++++ llvm/clang/test/CodeGen/riscv32-ilp32-ilp32f-abi.c
+@@ -1,4 +1,6 @@
+ // RUN: %clang_cc1 -triple riscv32 -emit-llvm %s -o - | FileCheck %s
++// RUN: %clang_cc1 -triple riscv32 -target-feature +f -target-abi ilp32f -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
+ 
+ // This file contains test cases that will have the same output for the ilp32
+ // and ilp32f ABIs.
+@@ -35,8 +37,8 @@
+ // the presence of large return values that consume a register due to the need
+ // to pass a pointer.
+ 
+-// CHECK-LABEL: define void @f_scalar_stack_2(%struct.large* noalias sret %agg.result, i32 %a, i64 %b, i64 %c, fp128 %d, i8 zeroext %e, i8 %f, i8 %g)
+-struct large f_scalar_stack_2(int32_t a, int64_t b, int64_t c, long double d,
++// CHECK-LABEL: define void @f_scalar_stack_2(%struct.large* noalias sret %agg.result, i32 %a, i64 %b, double %c, fp128 %d, i8 zeroext %e, i8 %f, i8 %g)
++struct large f_scalar_stack_2(int32_t a, int64_t b, double c, long double d,
+                               uint8_t e, int8_t f, uint8_t g) {
+   return (struct large){a, e, f, g};
+ }
+Index: llvm/clang/test/CodeGen/riscv32-ilp32-ilp32f-ilp32d-abi.c
+===================================================================
+--- llvm/clang/test/CodeGen/riscv32-ilp32-ilp32f-ilp32d-abi.c
++++ llvm/clang/test/CodeGen/riscv32-ilp32-ilp32f-ilp32d-abi.c
+@@ -1,6 +1,10 @@
+ // RUN: %clang_cc1 -triple riscv32 -emit-llvm %s -o - | FileCheck %s
+ // RUN: %clang_cc1 -triple riscv32 -emit-llvm -fforce-enable-int128 %s -o - \
+ // RUN:   | FileCheck %s -check-prefixes=CHECK,CHECK-FORCEINT128
++// RUN: %clang_cc1 -triple riscv32 -target-feature +f -target-abi ilp32f -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
++// RUN: %clang_cc1 -triple riscv32 -target-feature +d -target-abi ilp32d -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
+ 
+ // This file contains test cases that will have the same output for the ilp32,
+ // ilp32f, and ilp32d ABIs.
+Index: llvm/clang/test/CodeGen/riscv32-ilp32d-abi.c
+===================================================================
+--- /dev/null
++++ llvm/clang/test/CodeGen/riscv32-ilp32d-abi.c
+@@ -0,0 +1,239 @@
++// RUN: %clang_cc1 -triple riscv32 -target-feature +d -target-abi ilp32d -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
++
++#include <stdint.h>
++
++// Verify that the tracking of used GPRs and FPRs works correctly by checking
++// that small integers are sign/zero extended when passed in registers.
++
++// Doubles are passed in FPRs, so argument 'i' will be passed zero-extended
++// because it will be passed in a GPR.
++
++// CHECK: define void @f_fpr_tracking(double %a, double %b, double %c, double %d, double %e, double %f, double %g, double %h, i8 zeroext %i)
++void f_fpr_tracking(double a, double b, double c, double d, double e, double f,
++                    double g, double h, uint8_t i) {}
++
++// Check that fp, fp+fp, and int+fp structs are lowered correctly. These will
++// be passed in FPR, FPR+FPR, or GPR+FPR regs if sufficient registers are
++// available the widths are <= XLEN and FLEN, and should be expanded to
++// separate arguments in IR. They are passed by the same rules for returns,
++// but will be lowered to simple two-element structs if necessary (as LLVM IR
++// functions cannot return multiple values).
++
++// A struct containing just one floating-point real is passed as though it
++// were a standalone floating-point real.
++
++struct double_s { double f; };
++
++// CHECK: define void @f_double_s_arg(double)
++void f_double_s_arg(struct double_s a) {}
++
++// CHECK: define double @f_ret_double_s()
++struct double_s f_ret_double_s() {
++  return (struct double_s){1.0};
++}
++
++// Check that structs containing two floating point values (FLEN <= width) are
++// expanded provided sufficient FPRs are available.
++
++struct double_double_s { double f; double g; };
++struct double_float_s { double f; float g; };
++
++// CHECK: define void @f_double_double_s_arg(double, double)
++void f_double_double_s_arg(struct double_double_s a) {}
++
++// CHECK: define { double, double } @f_ret_double_double_s()
++struct double_double_s f_ret_double_double_s() {
++  return (struct double_double_s){1.0, 2.0};
++}
++
++// CHECK: define void @f_double_float_s_arg(double, float)
++void f_double_float_s_arg(struct double_float_s a) {}
++
++// CHECK: define { double, float } @f_ret_double_float_s()
++struct double_float_s f_ret_double_float_s() {
++  return (struct double_float_s){1.0, 2.0};
++}
++
++// CHECK: define void @f_double_double_s_arg_insufficient_fprs(float %a, double %b, double %c, double %d, double %e, double %f, double %g, %struct.double_double_s* %h)
++void f_double_double_s_arg_insufficient_fprs(float a, double b, double c, double d,
++    double e, double f, double g, struct double_double_s h) {}
++
++// Check that structs containing int+double values are expanded, provided
++// sufficient FPRs and GPRs are available. The integer components are neither
++// sign or zero-extended.
++
++struct double_int8_s { double f; int8_t i; };
++struct double_uint8_s { double f; uint8_t i; };
++struct double_int32_s { double f; int32_t i; };
++struct double_int64_s { double f; int64_t i; };
++
++// CHECK: define void @f_double_int8_s_arg(double, i8)
++void f_double_int8_s_arg(struct double_int8_s a) {}
++
++// CHECK: define { double, i8 } @f_ret_double_int8_s()
++struct double_int8_s f_ret_double_int8_s() {
++  return (struct double_int8_s){1.0, 2};
++}
++
++// CHECK: define void @f_double_uint8_s_arg(double, i8)
++void f_double_uint8_s_arg(struct double_uint8_s a) {}
++
++// CHECK: define { double, i8 } @f_ret_double_uint8_s()
++struct double_uint8_s f_ret_double_uint8_s() {
++  return (struct double_uint8_s){1.0, 2};
++}
++
++// CHECK: define void @f_double_int32_s_arg(double, i32)
++void f_double_int32_s_arg(struct double_int32_s a) {}
++
++// CHECK: define { double, i32 } @f_ret_double_int32_s()
++struct double_int32_s f_ret_double_int32_s() {
++  return (struct double_int32_s){1.0, 2};
++}
++
++// CHECK: define void @f_double_int64_s_arg(%struct.double_int64_s* %a)
++void f_double_int64_s_arg(struct double_int64_s a) {}
++
++// CHECK: define void @f_ret_double_int64_s(%struct.double_int64_s* noalias sret %agg.result)
++struct double_int64_s f_ret_double_int64_s() {
++  return (struct double_int64_s){1.0, 2};
++}
++
++// CHECK: define void @f_double_int8_s_arg_insufficient_gprs(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f, i32 %g, i32 %h, %struct.double_int8_s* %i)
++void f_double_int8_s_arg_insufficient_gprs(int a, int b, int c, int d, int e,
++                                          int f, int g, int h, struct double_int8_s i) {}
++
++// CHECK: define void @f_struct_double_int8_insufficient_fprs(float %a, double %b, double %c, double %d, double %e, double %f, double %g, double %h, %struct.double_int8_s* %i)
++void f_struct_double_int8_insufficient_fprs(float a, double b, double c, double d,
++                                           double e, double f, double g, double h, struct double_int8_s i) {}
++
++// Complex floating-point values or structs containing a single complex
++// floating-point value should be passed as if it were an fp+fp struct.
++
++// CHECK: define void @f_doublecomplex(double %a.coerce0, double %a.coerce1)
++void f_doublecomplex(double __complex__ a) {}
++
++// CHECK: define { double, double } @f_ret_doublecomplex()
++double __complex__ f_ret_doublecomplex() {
++  return 1.0;
++}
++
++struct doublecomplex_s { double __complex__ c; };
++
++// CHECK: define void @f_doublecomplex_s_arg(double, double)
++void f_doublecomplex_s_arg(struct doublecomplex_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublecomplex_s()
++struct doublecomplex_s f_ret_doublecomplex_s() {
++  return (struct doublecomplex_s){1.0};
++}
++
++// Test single or two-element structs that need flattening. e.g. those
++// containing nested structs, doubles in small arrays, zero-length structs etc.
++
++struct doublearr1_s { double a[1]; };
++
++// CHECK: define void @f_doublearr1_s_arg(double)
++void f_doublearr1_s_arg(struct doublearr1_s a) {}
++
++// CHECK: define double @f_ret_doublearr1_s()
++struct doublearr1_s f_ret_doublearr1_s() {
++  return (struct doublearr1_s){{1.0}};
++}
++
++struct doublearr2_s { double a[2]; };
++
++// CHECK: define void @f_doublearr2_s_arg(double, double)
++void f_doublearr2_s_arg(struct doublearr2_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublearr2_s()
++struct doublearr2_s f_ret_doublearr2_s() {
++  return (struct doublearr2_s){{1.0, 2.0}};
++}
++
++struct doublearr2_tricky1_s { struct { double f[1]; } g[2]; };
++
++// CHECK: define void @f_doublearr2_tricky1_s_arg(double, double)
++void f_doublearr2_tricky1_s_arg(struct doublearr2_tricky1_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublearr2_tricky1_s()
++struct doublearr2_tricky1_s f_ret_doublearr2_tricky1_s() {
++  return (struct doublearr2_tricky1_s){{{{1.0}}, {{2.0}}}};
++}
++
++struct doublearr2_tricky2_s { struct {}; struct { double f[1]; } g[2]; };
++
++// CHECK: define void @f_doublearr2_tricky2_s_arg(double, double)
++void f_doublearr2_tricky2_s_arg(struct doublearr2_tricky2_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublearr2_tricky2_s()
++struct doublearr2_tricky2_s f_ret_doublearr2_tricky2_s() {
++  return (struct doublearr2_tricky2_s){{}, {{{1.0}}, {{2.0}}}};
++}
++
++struct doublearr2_tricky3_s { union {}; struct { double f[1]; } g[2]; };
++
++// CHECK: define void @f_doublearr2_tricky3_s_arg(double, double)
++void f_doublearr2_tricky3_s_arg(struct doublearr2_tricky3_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublearr2_tricky3_s()
++struct doublearr2_tricky3_s f_ret_doublearr2_tricky3_s() {
++  return (struct doublearr2_tricky3_s){{}, {{{1.0}}, {{2.0}}}};
++}
++
++struct doublearr2_tricky4_s { union {}; struct { struct {}; double f[1]; } g[2]; };
++
++// CHECK: define void @f_doublearr2_tricky4_s_arg(double, double)
++void f_doublearr2_tricky4_s_arg(struct doublearr2_tricky4_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublearr2_tricky4_s()
++struct doublearr2_tricky4_s f_ret_doublearr2_tricky4_s() {
++  return (struct doublearr2_tricky4_s){{}, {{{}, {1.0}}, {{}, {2.0}}}};
++}
++
++// Test structs that should be passed according to the normal integer calling
++// convention.
++
++struct int_double_int_s { int a; double b; int c; };
++
++// CHECK: define void @f_int_double_int_s_arg(%struct.int_double_int_s* %a)
++void f_int_double_int_s_arg(struct int_double_int_s a) {}
++
++// CHECK: define void @f_ret_int_double_int_s(%struct.int_double_int_s* noalias sret %agg.result)
++struct int_double_int_s f_ret_int_double_int_s() {
++  return (struct int_double_int_s){1, 2.0, 3};
++}
++
++struct int64_double_s { int64_t a; double b; };
++
++// CHECK: define void @f_int64_double_s_arg(%struct.int64_double_s* %a)
++void f_int64_double_s_arg(struct int64_double_s a) {}
++
++// CHECK: define void @f_ret_int64_double_s(%struct.int64_double_s* noalias sret %agg.result)
++struct int64_double_s f_ret_int64_double_s() {
++  return (struct int64_double_s){1, 2.0};
++}
++
++struct char_char_double_s { char a; char b; double c; };
++
++// CHECK-LABEL: define void @f_char_char_double_s_arg(%struct.char_char_double_s* %a)
++void f_char_char_double_s_arg(struct char_char_double_s a) {}
++
++// CHECK: define void @f_ret_char_char_double_s(%struct.char_char_double_s* noalias sret %agg.result)
++struct char_char_double_s f_ret_char_char_double_s() {
++  return (struct char_char_double_s){1, 2, 3.0};
++}
++
++// Unions are always passed according to the integer calling convention, even
++// if they can only contain a double.
++
++union double_u { double a; };
++
++// CHECK: define void @f_double_u_arg(i64 %a.coerce)
++void f_double_u_arg(union double_u a) {}
++
++// CHECK: define i64 @f_ret_double_u()
++union double_u f_ret_double_u() {
++  return (union double_u){1.0};
++}
+Index: llvm/clang/test/CodeGen/riscv32-ilp32f-abi.c
+===================================================================
+--- /dev/null
++++ llvm/clang/test/CodeGen/riscv32-ilp32f-abi.c
+@@ -0,0 +1,45 @@
++// RUN: %clang_cc1 -triple riscv32 -target-feature +f -target-abi ilp32f -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
++
++#include <stdint.h>
++
++// Doubles are still passed in GPRs, so the 'e' argument will be anyext as
++// GPRs are exhausted.
++
++// CHECK: define void @f_fpr_tracking(double %a, double %b, double %c, double %d, i8 %e)
++void f_fpr_tracking(double a, double b, double c, double d, int8_t e) {}
++
++// Lowering for doubles is unnmodified, as 64 > FLEN.
++
++struct double_s { double d; };
++
++// CHECK: define void @f_double_s_arg(i64 %a.coerce)
++void f_double_s_arg(struct double_s a) {}
++
++// CHECK: define i64 @f_ret_double_s()
++struct double_s f_ret_double_s() {
++  return (struct double_s){1.0};
++}
++
++struct double_double_s { double d; double e; };
++
++// CHECK: define void @f_double_double_s_arg(%struct.double_double_s* %a)
++void f_double_double_s_arg(struct double_double_s a) {}
++
++// CHECK: define void @f_ret_double_double_s(%struct.double_double_s* noalias sret %agg.result)
++struct double_double_s f_ret_double_double_s() {
++  return (struct double_double_s){1.0, 2.0};
++}
++
++struct double_int8_s { double d; int64_t i; };
++
++struct int_double_s { int a; double b; };
++
++// CHECK: define void @f_int_double_s_arg(%struct.int_double_s* %a)
++void f_int_double_s_arg(struct int_double_s a) {}
++
++// CHECK: define void @f_ret_int_double_s(%struct.int_double_s* noalias sret %agg.result)
++struct int_double_s f_ret_int_double_s() {
++  return (struct int_double_s){1, 2.0};
++}
++
+Index: llvm/clang/test/CodeGen/riscv32-ilp32f-ilp32d-abi.c
+===================================================================
+--- /dev/null
++++ llvm/clang/test/CodeGen/riscv32-ilp32f-ilp32d-abi.c
+@@ -0,0 +1,232 @@
++// RUN: %clang_cc1 -triple riscv32 -target-feature +f -target-abi ilp32f -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
++// RUN: %clang_cc1 -triple riscv32 -target-feature +d -target-abi ilp32d -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
++
++#include <stdint.h>
++
++// Verify that the tracking of used GPRs and FPRs works correctly by checking
++// that small integers are sign/zero extended when passed in registers.
++
++// Floats are passed in FPRs, so argument 'i' will be passed zero-extended 
++// because it will be passed in a GPR.
++
++// CHECK: define void @f_fpr_tracking(float %a, float %b, float %c, float %d, float %e, float %f, float %g, float %h, i8 zeroext %i)
++void f_fpr_tracking(float a, float b, float c, float d, float e, float f,
++                    float g, float h, uint8_t i) {}
++
++// Check that fp, fp+fp, and int+fp structs are lowered correctly. These will 
++// be passed in FPR, FPR+FPR, or GPR+FPR regs if sufficient registers are 
++// available the widths are <= XLEN and FLEN, and should be expanded to
++// separate arguments in IR. They are passed by the same rules for returns,
++// but will be lowered to simple two-element structs if necessary (as LLVM IR
++// functions cannot return multiple values).
++
++// A struct containing just one floating-point real is passed as though it 
++// were a standalone floating-point real.
++
++struct float_s { float f; };
++
++// CHECK: define void @f_float_s_arg(float)
++void f_float_s_arg(struct float_s a) {}
++
++// CHECK: define float @f_ret_float_s()
++struct float_s f_ret_float_s() {
++  return (struct float_s){1.0};
++}
++
++// Check that structs containing two float values (FLEN <= width) are expanded
++// provided sufficient FPRs are available.
++
++struct float_float_s { float f; float g; };
++
++// CHECK: define void @f_float_float_s_arg(float, float)
++void f_float_float_s_arg(struct float_float_s a) {}
++
++// CHECK: define { float, float } @f_ret_float_float_s()
++struct float_float_s f_ret_float_float_s() {
++  return (struct float_float_s){1.0, 2.0};
++}
++
++// CHECK: define void @f_float_float_s_arg_insufficient_fprs(float %a, float %b, float %c, float %d, float %e, float %f, float %g, [2 x i32] %h.coerce)
++void f_float_float_s_arg_insufficient_fprs(float a, float b, float c, float d, 
++    float e, float f, float g, struct float_float_s h) {}
++
++// Check that structs containing int+float values are expanded, provided
++// sufficient FPRs and GPRs are available. The integer components are neither
++// sign or zero-extended.
++
++struct float_int8_s { float f; int8_t i; };
++struct float_uint8_s { float f; uint8_t i; };
++struct float_int32_s { float f; int32_t i; };
++struct float_int64_s { float f; int64_t i; };
++
++// CHECK: define void @f_float_int8_s_arg(float, i8)
++void f_float_int8_s_arg(struct float_int8_s a) {}
++
++// CHECK: define { float, i8 } @f_ret_float_int8_s()
++struct float_int8_s f_ret_float_int8_s() {
++  return (struct float_int8_s){1.0, 2};
++}
++
++// CHECK: define void @f_float_uint8_s_arg(float, i8)
++void f_float_uint8_s_arg(struct float_uint8_s a) {}
++
++// CHECK: define { float, i8 } @f_ret_float_uint8_s()
++struct float_uint8_s f_ret_float_uint8_s() {
++  return (struct float_uint8_s){1.0, 2};
++}
++
++// CHECK: define void @f_float_int32_s_arg(float, i32)
++void f_float_int32_s_arg(struct float_int32_s a) {}
++
++// CHECK: define { float, i32 } @f_ret_float_int32_s()
++struct float_int32_s f_ret_float_int32_s() {
++  return (struct float_int32_s){1.0, 2};
++}
++
++// CHECK: define void @f_float_int64_s_arg(%struct.float_int64_s* %a)
++void f_float_int64_s_arg(struct float_int64_s a) {}
++
++// CHECK: define void @f_ret_float_int64_s(%struct.float_int64_s* noalias sret %agg.result)
++struct float_int64_s f_ret_float_int64_s() {
++  return (struct float_int64_s){1.0, 2};
++}
++
++// CHECK: define void @f_float_int8_s_arg_insufficient_gprs(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f, i32 %g, i32 %h, [2 x i32] %i.coerce)
++void f_float_int8_s_arg_insufficient_gprs(int a, int b, int c, int d, int e,
++                                          int f, int g, int h, struct float_int8_s i) {}
++
++// CHECK: define void @f_struct_float_int8_insufficient_fprs(float %a, float %b, float %c, float %d, float %e, float %f, float %g, float %h, [2 x i32] %i.coerce)
++void f_struct_float_int8_insufficient_fprs(float a, float b, float c, float d,
++                                           float e, float f, float g, float h, struct float_int8_s i) {}
++
++// Complex floating-point values or structs containing a single complex 
++// floating-point value should be passed as if it were an fp+fp struct.
++
++// CHECK: define void @f_floatcomplex(float %a.coerce0, float %a.coerce1)
++void f_floatcomplex(float __complex__ a) {}
++
++// CHECK: define { float, float } @f_ret_floatcomplex()
++float __complex__ f_ret_floatcomplex() {
++  return 1.0;
++}
++
++struct floatcomplex_s { float __complex__ c; };
++
++// CHECK: define void @f_floatcomplex_s_arg(float, float)
++void f_floatcomplex_s_arg(struct floatcomplex_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatcomplex_s()
++struct floatcomplex_s f_ret_floatcomplex_s() {
++  return (struct floatcomplex_s){1.0};
++}
++
++// Test single or two-element structs that need flattening. e.g. those 
++// containing nested structs, floats in small arrays, zero-length structs etc.
++
++struct floatarr1_s { float a[1]; };
++
++// CHECK: define void @f_floatarr1_s_arg(float)
++void f_floatarr1_s_arg(struct floatarr1_s a) {}
++
++// CHECK: define float @f_ret_floatarr1_s()
++struct floatarr1_s f_ret_floatarr1_s() {
++  return (struct floatarr1_s){{1.0}};
++}
++
++struct floatarr2_s { float a[2]; };
++
++// CHECK: define void @f_floatarr2_s_arg(float, float)
++void f_floatarr2_s_arg(struct floatarr2_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatarr2_s()
++struct floatarr2_s f_ret_floatarr2_s() {
++  return (struct floatarr2_s){{1.0, 2.0}};
++}
++
++struct floatarr2_tricky1_s { struct { float f[1]; } g[2]; };
++
++// CHECK: define void @f_floatarr2_tricky1_s_arg(float, float)
++void f_floatarr2_tricky1_s_arg(struct floatarr2_tricky1_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatarr2_tricky1_s()
++struct floatarr2_tricky1_s f_ret_floatarr2_tricky1_s() {
++  return (struct floatarr2_tricky1_s){{{{1.0}}, {{2.0}}}};
++}
++
++struct floatarr2_tricky2_s { struct {}; struct { float f[1]; } g[2]; };
++
++// CHECK: define void @f_floatarr2_tricky2_s_arg(float, float)
++void f_floatarr2_tricky2_s_arg(struct floatarr2_tricky2_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatarr2_tricky2_s()
++struct floatarr2_tricky2_s f_ret_floatarr2_tricky2_s() {
++  return (struct floatarr2_tricky2_s){{}, {{{1.0}}, {{2.0}}}};
++}
++
++struct floatarr2_tricky3_s { union {}; struct { float f[1]; } g[2]; };
++
++// CHECK: define void @f_floatarr2_tricky3_s_arg(float, float)
++void f_floatarr2_tricky3_s_arg(struct floatarr2_tricky3_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatarr2_tricky3_s()
++struct floatarr2_tricky3_s f_ret_floatarr2_tricky3_s() {
++  return (struct floatarr2_tricky3_s){{}, {{{1.0}}, {{2.0}}}};
++}
++
++struct floatarr2_tricky4_s { union {}; struct { struct {}; float f[1]; } g[2]; };
++
++// CHECK: define void @f_floatarr2_tricky4_s_arg(float, float)
++void f_floatarr2_tricky4_s_arg(struct floatarr2_tricky4_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatarr2_tricky4_s()
++struct floatarr2_tricky4_s f_ret_floatarr2_tricky4_s() {
++  return (struct floatarr2_tricky4_s){{}, {{{}, {1.0}}, {{}, {2.0}}}};
++}
++
++// Test structs that should be passed according to the normal integer calling
++// convention.
++
++struct int_float_int_s { int a; float b; int c; };
++
++// CHECK: define void @f_int_float_int_s_arg(%struct.int_float_int_s* %a)
++void f_int_float_int_s_arg(struct int_float_int_s a) {}
++
++// CHECK: define void @f_ret_int_float_int_s(%struct.int_float_int_s* noalias sret %agg.result)
++struct int_float_int_s f_ret_int_float_int_s() {
++  return (struct int_float_int_s){1, 2.0, 3};
++}
++
++struct int64_float_s { int64_t a; float b; };
++
++// CHECK: define void @f_int64_float_s_arg(%struct.int64_float_s* %a)
++void f_int64_float_s_arg(struct int64_float_s a) {}
++
++// CHECK: define void @f_ret_int64_float_s(%struct.int64_float_s* noalias sret %agg.result)
++struct int64_float_s f_ret_int64_float_s() {
++  return (struct int64_float_s){1, 2.0};
++}
++
++struct char_char_float_s { char a; char b; float c; };
++
++// CHECK-LABEL: define void @f_char_char_float_s_arg([2 x i32] %a.coerce)
++void f_char_char_float_s_arg(struct char_char_float_s a) {}
++
++// CHECK: define [2 x i32] @f_ret_char_char_float_s()
++struct char_char_float_s f_ret_char_char_float_s() {
++  return (struct char_char_float_s){1, 2, 3.0};
++}
++
++// Unions are always passed according to the integer calling convention, even 
++// if they can only contain a float.
++
++union float_u { float a; };
++
++// CHECK: define void @f_float_u_arg(i32 %a.coerce)
++void f_float_u_arg(union float_u a) {}
++
++// CHECK: define i32 @f_ret_float_u()
++union float_u f_ret_float_u() {
++  return (union float_u){1.0};
++}
+Index: llvm/clang/test/CodeGen/riscv64-lp64-lp64f-abi.c
+===================================================================
+--- llvm/clang/test/CodeGen/riscv64-lp64-lp64f-abi.c
++++ llvm/clang/test/CodeGen/riscv64-lp64-lp64f-abi.c
+@@ -1,4 +1,6 @@
+ // RUN: %clang_cc1 -triple riscv64 -emit-llvm %s -o - | FileCheck %s
++// RUN: %clang_cc1 -triple riscv64 -target-feature +f -target-abi lp64f -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
+ 
+ // This file contains test cases that will have the same output for the lp64
+ // and lp64f ABIs.
+Index: llvm/clang/test/CodeGen/riscv64-lp64-lp64f-lp64d-abi.c
+===================================================================
+--- llvm/clang/test/CodeGen/riscv64-lp64-lp64f-lp64d-abi.c
++++ llvm/clang/test/CodeGen/riscv64-lp64-lp64f-lp64d-abi.c
+@@ -1,4 +1,8 @@
+ // RUN: %clang_cc1 -triple riscv64 -emit-llvm %s -o - | FileCheck %s
++// RUN: %clang_cc1 -triple riscv64 -target-feature +f -target-abi lp64f -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
++// RUN: %clang_cc1 -triple riscv64 -target-feature +d -target-abi lp64d -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
+ 
+ // This file contains test cases that will have the same output for the lp64,
+ // lp64f, and lp64d ABIs.
+Index: llvm/clang/test/CodeGen/riscv64-lp64d-abi.c
+===================================================================
+--- /dev/null
++++ llvm/clang/test/CodeGen/riscv64-lp64d-abi.c
+@@ -0,0 +1,229 @@
++// RUN: %clang_cc1 -triple riscv64 -target-feature +d -target-abi lp64d -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
++
++#include <stdint.h>
++
++// Verify that the tracking of used GPRs and FPRs works correctly by checking
++// that small integers are sign/zero extended when passed in registers.
++
++// Doubles are passed in FPRs, so argument 'i' will be passed zero-extended
++// because it will be passed in a GPR.
++
++// CHECK: define void @f_fpr_tracking(double %a, double %b, double %c, double %d, double %e, double %f, double %g, double %h, i8 zeroext %i)
++void f_fpr_tracking(double a, double b, double c, double d, double e, double f,
++                    double g, double h, uint8_t i) {}
++
++// Check that fp, fp+fp, and int+fp structs are lowered correctly. These will
++// be passed in FPR, FPR+FPR, or GPR+FPR regs if sufficient registers are
++// available the widths are <= XLEN and FLEN, and should be expanded to
++// separate arguments in IR. They are passed by the same rules for returns,
++// but will be lowered to simple two-element structs if necessary (as LLVM IR
++// functions cannot return multiple values).
++
++// A struct containing just one floating-point real is passed as though it
++// were a standalone floating-point real.
++
++struct double_s { double f; };
++
++// CHECK: define void @f_double_s_arg(double)
++void f_double_s_arg(struct double_s a) {}
++
++// CHECK: define double @f_ret_double_s()
++struct double_s f_ret_double_s() {
++  return (struct double_s){1.0};
++}
++
++// Check that structs containing two floating point values (FLEN <= width) are
++// expanded provided sufficient FPRs are available.
++
++struct double_double_s { double f; double g; };
++struct double_float_s { double f; float g; };
++
++// CHECK: define void @f_double_double_s_arg(double, double)
++void f_double_double_s_arg(struct double_double_s a) {}
++
++// CHECK: define { double, double } @f_ret_double_double_s()
++struct double_double_s f_ret_double_double_s() {
++  return (struct double_double_s){1.0, 2.0};
++}
++
++// CHECK: define void @f_double_float_s_arg(double, float)
++void f_double_float_s_arg(struct double_float_s a) {}
++
++// CHECK: define { double, float } @f_ret_double_float_s()
++struct double_float_s f_ret_double_float_s() {
++  return (struct double_float_s){1.0, 2.0};
++}
++
++// CHECK: define void @f_double_double_s_arg_insufficient_fprs(float %a, double %b, double %c, double %d, double %e, double %f, double %g, [2 x i64] %h.coerce)
++void f_double_double_s_arg_insufficient_fprs(float a, double b, double c, double d,
++    double e, double f, double g, struct double_double_s h) {}
++
++// Check that structs containing int+double values are expanded, provided
++// sufficient FPRs and GPRs are available. The integer components are neither
++// sign or zero-extended.
++
++struct double_int8_s { double f; int8_t i; };
++struct double_uint8_s { double f; uint8_t i; };
++struct double_int32_s { double f; int32_t i; };
++struct double_int64_s { double f; int64_t i; };
++
++// CHECK: define void @f_double_int8_s_arg(double, i8)
++void f_double_int8_s_arg(struct double_int8_s a) {}
++
++// CHECK: define { double, i8 } @f_ret_double_int8_s()
++struct double_int8_s f_ret_double_int8_s() {
++  return (struct double_int8_s){1.0, 2};
++}
++
++// CHECK: define void @f_double_uint8_s_arg(double, i8)
++void f_double_uint8_s_arg(struct double_uint8_s a) {}
++
++// CHECK: define { double, i8 } @f_ret_double_uint8_s()
++struct double_uint8_s f_ret_double_uint8_s() {
++  return (struct double_uint8_s){1.0, 2};
++}
++
++// CHECK: define void @f_double_int32_s_arg(double, i32)
++void f_double_int32_s_arg(struct double_int32_s a) {}
++
++// CHECK: define { double, i32 } @f_ret_double_int32_s()
++struct double_int32_s f_ret_double_int32_s() {
++  return (struct double_int32_s){1.0, 2};
++}
++
++// CHECK: define void @f_double_int64_s_arg(double, i64)
++void f_double_int64_s_arg(struct double_int64_s a) {}
++
++// CHECK: define { double, i64 } @f_ret_double_int64_s()
++struct double_int64_s f_ret_double_int64_s() {
++  return (struct double_int64_s){1.0, 2};
++}
++
++// CHECK: define void @f_double_int8_s_arg_insufficient_gprs(i32 signext %a, i32 signext %b, i32 signext %c, i32 signext %d, i32 signext %e, i32 signext %f, i32 signext %g, i32 signext %h, [2 x i64] %i.coerce)
++void f_double_int8_s_arg_insufficient_gprs(int a, int b, int c, int d, int e,
++                                          int f, int g, int h, struct double_int8_s i) {}
++
++// CHECK: define void @f_struct_double_int8_insufficient_fprs(float %a, double %b, double %c, double %d, double %e, double %f, double %g, double %h, [2 x i64] %i.coerce)
++void f_struct_double_int8_insufficient_fprs(float a, double b, double c, double d,
++                                           double e, double f, double g, double h, struct double_int8_s i) {}
++
++// Complex floating-point values or structs containing a single complex
++// floating-point value should be passed as if it were an fp+fp struct.
++
++// CHECK: define void @f_doublecomplex(double %a.coerce0, double %a.coerce1)
++void f_doublecomplex(double __complex__ a) {}
++
++// CHECK: define { double, double } @f_ret_doublecomplex()
++double __complex__ f_ret_doublecomplex() {
++  return 1.0;
++}
++
++struct doublecomplex_s { double __complex__ c; };
++
++// CHECK: define void @f_doublecomplex_s_arg(double, double)
++void f_doublecomplex_s_arg(struct doublecomplex_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublecomplex_s()
++struct doublecomplex_s f_ret_doublecomplex_s() {
++  return (struct doublecomplex_s){1.0};
++}
++
++// Test single or two-element structs that need flattening. e.g. those
++// containing nested structs, doubles in small arrays, zero-length structs etc.
++
++struct doublearr1_s { double a[1]; };
++
++// CHECK: define void @f_doublearr1_s_arg(double)
++void f_doublearr1_s_arg(struct doublearr1_s a) {}
++
++// CHECK: define double @f_ret_doublearr1_s()
++struct doublearr1_s f_ret_doublearr1_s() {
++  return (struct doublearr1_s){{1.0}};
++}
++
++struct doublearr2_s { double a[2]; };
++
++// CHECK: define void @f_doublearr2_s_arg(double, double)
++void f_doublearr2_s_arg(struct doublearr2_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublearr2_s()
++struct doublearr2_s f_ret_doublearr2_s() {
++  return (struct doublearr2_s){{1.0, 2.0}};
++}
++
++struct doublearr2_tricky1_s { struct { double f[1]; } g[2]; };
++
++// CHECK: define void @f_doublearr2_tricky1_s_arg(double, double)
++void f_doublearr2_tricky1_s_arg(struct doublearr2_tricky1_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublearr2_tricky1_s()
++struct doublearr2_tricky1_s f_ret_doublearr2_tricky1_s() {
++  return (struct doublearr2_tricky1_s){{{{1.0}}, {{2.0}}}};
++}
++
++struct doublearr2_tricky2_s { struct {}; struct { double f[1]; } g[2]; };
++
++// CHECK: define void @f_doublearr2_tricky2_s_arg(double, double)
++void f_doublearr2_tricky2_s_arg(struct doublearr2_tricky2_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublearr2_tricky2_s()
++struct doublearr2_tricky2_s f_ret_doublearr2_tricky2_s() {
++  return (struct doublearr2_tricky2_s){{}, {{{1.0}}, {{2.0}}}};
++}
++
++struct doublearr2_tricky3_s { union {}; struct { double f[1]; } g[2]; };
++
++// CHECK: define void @f_doublearr2_tricky3_s_arg(double, double)
++void f_doublearr2_tricky3_s_arg(struct doublearr2_tricky3_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublearr2_tricky3_s()
++struct doublearr2_tricky3_s f_ret_doublearr2_tricky3_s() {
++  return (struct doublearr2_tricky3_s){{}, {{{1.0}}, {{2.0}}}};
++}
++
++struct doublearr2_tricky4_s { union {}; struct { struct {}; double f[1]; } g[2]; };
++
++// CHECK: define void @f_doublearr2_tricky4_s_arg(double, double)
++void f_doublearr2_tricky4_s_arg(struct doublearr2_tricky4_s a) {}
++
++// CHECK: define { double, double } @f_ret_doublearr2_tricky4_s()
++struct doublearr2_tricky4_s f_ret_doublearr2_tricky4_s() {
++  return (struct doublearr2_tricky4_s){{}, {{{}, {1.0}}, {{}, {2.0}}}};
++}
++
++// Test structs that should be passed according to the normal integer calling
++// convention.
++
++struct int_double_int_s { int a; double b; int c; };
++
++// CHECK: define void @f_int_double_int_s_arg(%struct.int_double_int_s* %a)
++void f_int_double_int_s_arg(struct int_double_int_s a) {}
++
++// CHECK: define void @f_ret_int_double_int_s(%struct.int_double_int_s* noalias sret %agg.result)
++struct int_double_int_s f_ret_int_double_int_s() {
++  return (struct int_double_int_s){1, 2.0, 3};
++}
++
++struct char_char_double_s { char a; char b; double c; };
++
++// CHECK-LABEL: define void @f_char_char_double_s_arg([2 x i64] %a.coerce)
++void f_char_char_double_s_arg(struct char_char_double_s a) {}
++
++// CHECK: define [2 x i64] @f_ret_char_char_double_s()
++struct char_char_double_s f_ret_char_char_double_s() {
++  return (struct char_char_double_s){1, 2, 3.0};
++}
++
++// Unions are always passed according to the integer calling convention, even
++// if they can only contain a double.
++
++union double_u { double a; };
++
++// CHECK: define void @f_double_u_arg(i64 %a.coerce)
++void f_double_u_arg(union double_u a) {}
++
++// CHECK: define i64 @f_ret_double_u()
++union double_u f_ret_double_u() {
++  return (union double_u){1.0};
++}
+Index: llvm/clang/test/CodeGen/riscv64-lp64f-lp64d-abi.c
+===================================================================
+--- /dev/null
++++ llvm/clang/test/CodeGen/riscv64-lp64f-lp64d-abi.c
+@@ -0,0 +1,222 @@
++// RUN: %clang_cc1 -triple riscv64 -target-feature +f -target-abi lp64f -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
++// RUN: %clang_cc1 -triple riscv64 -target-feature +d -target-abi lp64d -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
++
++#include <stdint.h>
++
++// Verify that the tracking of used GPRs and FPRs works correctly by checking
++// that small integers are sign/zero extended when passed in registers.
++
++// Floats are passed in FPRs, so argument 'i' will be passed zero-extended
++// because it will be passed in a GPR.
++
++// CHECK: define void @f_fpr_tracking(float %a, float %b, float %c, float %d, float %e, float %f, float %g, float %h, i8 zeroext %i)
++void f_fpr_tracking(float a, float b, float c, float d, float e, float f,
++                    float g, float h, uint8_t i) {}
++
++// Check that fp, fp+fp, and int+fp structs are lowered correctly. These will
++// be passed in FPR, FPR+FPR, or GPR+FPR regs if sufficient registers are
++// available the widths are <= XLEN and FLEN, and should be expanded to
++// separate arguments in IR. They are passed by the same rules for returns,
++// but will be lowered to simple two-element structs if necessary (as LLVM IR
++// functions cannot return multiple values).
++
++// A struct containing just one floating-point real is passed as though it
++// were a standalone floating-point real.
++
++struct float_s { float f; };
++
++// CHECK: define void @f_float_s_arg(float)
++void f_float_s_arg(struct float_s a) {}
++
++// CHECK: define float @f_ret_float_s()
++struct float_s f_ret_float_s() {
++  return (struct float_s){1.0};
++}
++
++// Check that structs containing two float values (FLEN <= width) are expanded
++// provided sufficient FPRs are available.
++
++struct float_float_s { float f; float g; };
++
++// CHECK: define void @f_float_float_s_arg(float, float)
++void f_float_float_s_arg(struct float_float_s a) {}
++
++// CHECK: define { float, float } @f_ret_float_float_s()
++struct float_float_s f_ret_float_float_s() {
++  return (struct float_float_s){1.0, 2.0};
++}
++
++// CHECK: define void @f_float_float_s_arg_insufficient_fprs(float %a, float %b, float %c, float %d, float %e, float %f, float %g, i64 %h.coerce)
++void f_float_float_s_arg_insufficient_fprs(float a, float b, float c, float d,
++    float e, float f, float g, struct float_float_s h) {}
++
++// Check that structs containing int+float values are expanded, provided
++// sufficient FPRs and GPRs are available. The integer components are neither
++// sign or zero-extended.
++
++struct float_int8_s { float f; int8_t i; };
++struct float_uint8_s { float f; uint8_t i; };
++struct float_int32_s { float f; int32_t i; };
++struct float_int64_s { float f; int64_t i; };
++
++// CHECK: define void @f_float_int8_s_arg(float, i8)
++void f_float_int8_s_arg(struct float_int8_s a) {}
++
++// CHECK: define { float, i8 } @f_ret_float_int8_s()
++struct float_int8_s f_ret_float_int8_s() {
++  return (struct float_int8_s){1.0, 2};
++}
++
++// CHECK: define void @f_float_uint8_s_arg(float, i8)
++void f_float_uint8_s_arg(struct float_uint8_s a) {}
++
++// CHECK: define { float, i8 } @f_ret_float_uint8_s()
++struct float_uint8_s f_ret_float_uint8_s() {
++  return (struct float_uint8_s){1.0, 2};
++}
++
++// CHECK: define void @f_float_int32_s_arg(float, i32)
++void f_float_int32_s_arg(struct float_int32_s a) {}
++
++// CHECK: define { float, i32 } @f_ret_float_int32_s()
++struct float_int32_s f_ret_float_int32_s() {
++  return (struct float_int32_s){1.0, 2};
++}
++
++// CHECK: define void @f_float_int64_s_arg(float, i64)
++void f_float_int64_s_arg(struct float_int64_s a) {}
++
++// CHECK: define { float, i64 } @f_ret_float_int64_s()
++struct float_int64_s f_ret_float_int64_s() {
++  return (struct float_int64_s){1.0, 2};
++}
++
++// CHECK: define void @f_float_int8_s_arg_insufficient_gprs(i32 signext %a, i32 signext %b, i32 signext %c, i32 signext %d, i32 signext %e, i32 signext %f, i32 signext %g, i32 signext %h, i64 %i.coerce)
++void f_float_int8_s_arg_insufficient_gprs(int a, int b, int c, int d, int e,
++                                          int f, int g, int h, struct float_int8_s i) {}
++
++// CHECK: define void @f_struct_float_int8_insufficient_fprs(float %a, float %b, float %c, float %d, float %e, float %f, float %g, float %h, i64 %i.coerce)
++void f_struct_float_int8_insufficient_fprs(float a, float b, float c, float d,
++                                           float e, float f, float g, float h, struct float_int8_s i) {}
++
++// Complex floating-point values or structs containing a single complex
++// floating-point value should be passed as if it were an fp+fp struct.
++
++// CHECK: define void @f_floatcomplex(float %a.coerce0, float %a.coerce1)
++void f_floatcomplex(float __complex__ a) {}
++
++// CHECK: define { float, float } @f_ret_floatcomplex()
++float __complex__ f_ret_floatcomplex() {
++  return 1.0;
++}
++
++struct floatcomplex_s { float __complex__ c; };
++
++// CHECK: define void @f_floatcomplex_s_arg(float, float)
++void f_floatcomplex_s_arg(struct floatcomplex_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatcomplex_s()
++struct floatcomplex_s f_ret_floatcomplex_s() {
++  return (struct floatcomplex_s){1.0};
++}
++
++// Test single or two-element structs that need flattening. e.g. those
++// containing nested structs, floats in small arrays, zero-length structs etc.
++
++struct floatarr1_s { float a[1]; };
++
++// CHECK: define void @f_floatarr1_s_arg(float)
++void f_floatarr1_s_arg(struct floatarr1_s a) {}
++
++// CHECK: define float @f_ret_floatarr1_s()
++struct floatarr1_s f_ret_floatarr1_s() {
++  return (struct floatarr1_s){{1.0}};
++}
++
++struct floatarr2_s { float a[2]; };
++
++// CHECK: define void @f_floatarr2_s_arg(float, float)
++void f_floatarr2_s_arg(struct floatarr2_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatarr2_s()
++struct floatarr2_s f_ret_floatarr2_s() {
++  return (struct floatarr2_s){{1.0, 2.0}};
++}
++
++struct floatarr2_tricky1_s { struct { float f[1]; } g[2]; };
++
++// CHECK: define void @f_floatarr2_tricky1_s_arg(float, float)
++void f_floatarr2_tricky1_s_arg(struct floatarr2_tricky1_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatarr2_tricky1_s()
++struct floatarr2_tricky1_s f_ret_floatarr2_tricky1_s() {
++  return (struct floatarr2_tricky1_s){{{{1.0}}, {{2.0}}}};
++}
++
++struct floatarr2_tricky2_s { struct {}; struct { float f[1]; } g[2]; };
++
++// CHECK: define void @f_floatarr2_tricky2_s_arg(float, float)
++void f_floatarr2_tricky2_s_arg(struct floatarr2_tricky2_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatarr2_tricky2_s()
++struct floatarr2_tricky2_s f_ret_floatarr2_tricky2_s() {
++  return (struct floatarr2_tricky2_s){{}, {{{1.0}}, {{2.0}}}};
++}
++
++struct floatarr2_tricky3_s { union {}; struct { float f[1]; } g[2]; };
++
++// CHECK: define void @f_floatarr2_tricky3_s_arg(float, float)
++void f_floatarr2_tricky3_s_arg(struct floatarr2_tricky3_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatarr2_tricky3_s()
++struct floatarr2_tricky3_s f_ret_floatarr2_tricky3_s() {
++  return (struct floatarr2_tricky3_s){{}, {{{1.0}}, {{2.0}}}};
++}
++
++struct floatarr2_tricky4_s { union {}; struct { struct {}; float f[1]; } g[2]; };
++
++// CHECK: define void @f_floatarr2_tricky4_s_arg(float, float)
++void f_floatarr2_tricky4_s_arg(struct floatarr2_tricky4_s a) {}
++
++// CHECK: define { float, float } @f_ret_floatarr2_tricky4_s()
++struct floatarr2_tricky4_s f_ret_floatarr2_tricky4_s() {
++  return (struct floatarr2_tricky4_s){{}, {{{}, {1.0}}, {{}, {2.0}}}};
++}
++
++// Test structs that should be passed according to the normal integer calling
++// convention.
++
++struct int_float_int_s { int a; float b; int c; };
++
++// CHECK: define void @f_int_float_int_s_arg([2 x i64] %a.coerce)
++void f_int_float_int_s_arg(struct int_float_int_s a) {}
++
++// CHECK: define [2 x i64] @f_ret_int_float_int_s()
++struct int_float_int_s f_ret_int_float_int_s() {
++  return (struct int_float_int_s){1, 2.0, 3};
++}
++
++struct char_char_float_s { char a; char b; float c; };
++
++// CHECK-LABEL: define void @f_char_char_float_s_arg(i64 %a.coerce)
++void f_char_char_float_s_arg(struct char_char_float_s a) {}
++
++// CHECK: define i64 @f_ret_char_char_float_s()
++struct char_char_float_s f_ret_char_char_float_s() {
++  return (struct char_char_float_s){1, 2, 3.0};
++}
++
++// Unions are always passed according to the integer calling convention, even
++// if they can only contain a float.
++
++union float_u { float a; };
++
++// CHECK: define void @f_float_u_arg(i64 %a.coerce)
++void f_float_u_arg(union float_u a) {}
++
++// CHECK: define i64 @f_ret_float_u()
++union float_u f_ret_float_u() {
++  return (union float_u){1.0};
++}

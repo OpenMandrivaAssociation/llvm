@@ -1,0 +1,46 @@
+diff --git a/clang/lib/Basic/Targets/RISCV.h b/clang/lib/Basic/Targets/RISCV.h
+--- a/clang/lib/Basic/Targets/RISCV.h
++++ b/clang/lib/Basic/Targets/RISCV.h
+@@ -61,9 +61,7 @@
+   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override;
+ 
+   bool validateAsmConstraint(const char *&Name,
+-                             TargetInfo::ConstraintInfo &Info) const override {
+-    return false;
+-  }
++                             TargetInfo::ConstraintInfo &Info) const override;
+ 
+   bool hasFeature(StringRef Feature) const override;
+ 
+diff --git a/clang/lib/Basic/Targets/RISCV.cpp b/clang/lib/Basic/Targets/RISCV.cpp
+--- a/clang/lib/Basic/Targets/RISCV.cpp
++++ b/clang/lib/Basic/Targets/RISCV.cpp
+@@ -39,6 +39,27 @@
+   return llvm::makeArrayRef(GCCRegAliases);
+ }
+ 
++bool RISCVTargetInfo::validateAsmConstraint(
++    const char *&Name, TargetInfo::ConstraintInfo &Info) const {
++  switch (*Name) {
++  default:
++    return false;
++  case 'f': // floating-point register.
++  case 'A': // address held in a general purpose register.
++    Info.setAllowsRegister();
++    return true;
++  case 'I': // I-type 12-bit signed immediate.
++    Info.setRequiresImmediate(-2048, 2047);
++    return true;
++  case 'J': // integer zero.
++    Info.setRequiresImmediate(0);
++    return true;
++  case 'K': // 5-bit unsigned immediate for accessing CSRs.
++    Info.setRequiresImmediate(0, 31);
++    return true;
++  }
++}
++
+ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
+                                        MacroBuilder &Builder) const {
+   Builder.defineMacro("__ELF__");
+

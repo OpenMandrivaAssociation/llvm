@@ -1,5 +1,5 @@
---- llvm-6.0.0.src/tools/clang/lib/Basic/Targets/OSTargets.h.mcount~	2017-12-08 22:52:34.047384938 +0100
-+++ llvm-6.0.0.src/tools/clang/lib/Basic/Targets/OSTargets.h	2017-12-08 22:53:18.877428588 +0100
+--- llvm-6.0.0.src/clang/lib/Basic/Targets/OSTargets.h.mcount~	2017-12-08 22:52:34.047384938 +0100
++++ llvm-6.0.0.src/clang/lib/Basic/Targets/OSTargets.h	2017-12-08 22:53:18.877428588 +0100
 @@ -209,10 +209,13 @@ public:
      case llvm::Triple::ppc:
      case llvm::Triple::ppc64:

@@ -1,5 +1,5 @@
---- llvm-3.7.0.src/lib/CodeGen/GlobalMerge.cpp.EnableGlobalMerge~	2015-05-20 19:24:56.517833996 +0200
-+++ llvm-3.7.0.src/lib/CodeGen/GlobalMerge.cpp	2015-05-20 19:25:28.593679217 +0200
+--- llvm-3.7.0.src/llvm/lib/CodeGen/GlobalMerge.cpp.EnableGlobalMerge~	2015-05-20 19:24:56.517833996 +0200
++++ llvm-3.7.0.src/llvm/lib/CodeGen/GlobalMerge.cpp	2015-05-20 19:25:28.593679217 +0200
 @@ -87,7 +87,7 @@ using namespace llvm;
  #define DEBUG_TYPE "global-merge"
  

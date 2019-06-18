@@ -1,0 +1,424 @@
+diff -up llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVExpandPseudoInsts.cpp.46~ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVExpandPseudoInsts.cpp
+--- llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVExpandPseudoInsts.cpp.46~	2019-06-18 20:22:30.000000000 +0200
++++ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVExpandPseudoInsts.cpp	2019-06-18 23:30:09.614897553 +0200
+@@ -64,6 +64,12 @@ private:
+   bool expandLoadAddress(MachineBasicBlock &MBB,
+                          MachineBasicBlock::iterator MBBI,
+                          MachineBasicBlock::iterator &NextMBBI);
++  bool expandLoadTLSIEAddress(MachineBasicBlock &MBB,
++                              MachineBasicBlock::iterator MBBI,
++                              MachineBasicBlock::iterator &NextMBBI);
++  bool expandLoadTLSGDAddress(MachineBasicBlock &MBB,
++                              MachineBasicBlock::iterator MBBI,
++                              MachineBasicBlock::iterator &NextMBBI);
+ };
+ 
+ char RISCVExpandPseudo::ID = 0;
+@@ -131,6 +137,10 @@ bool RISCVExpandPseudo::expandMI(Machine
+     return expandLoadLocalAddress(MBB, MBBI, NextMBBI);
+   case RISCV::PseudoLA:
+     return expandLoadAddress(MBB, MBBI, NextMBBI);
++  case RISCV::PseudoLA_TLS_IE:
++    return expandLoadTLSIEAddress(MBB, MBBI, NextMBBI);
++  case RISCV::PseudoLA_TLS_GD:
++    return expandLoadTLSGDAddress(MBB, MBBI, NextMBBI);
+   }
+ 
+   return false;
+@@ -677,6 +687,24 @@ bool RISCVExpandPseudo::expandLoadAddres
+   return expandAuipcInstPair(MBB, MBBI, NextMBBI, FlagsHi, SecondOpcode);
+ }
+ 
++bool RISCVExpandPseudo::expandLoadTLSIEAddress(
++    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
++    MachineBasicBlock::iterator &NextMBBI) {
++  MachineFunction *MF = MBB.getParent();
++
++  const auto &STI = MF->getSubtarget<RISCVSubtarget>();
++  unsigned SecondOpcode = STI.is64Bit() ? RISCV::LD : RISCV::LW;
++  return expandAuipcInstPair(MBB, MBBI, NextMBBI, RISCVII::MO_TLS_GOT_HI,
++                             SecondOpcode);
++}
++
++bool RISCVExpandPseudo::expandLoadTLSGDAddress(
++    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
++    MachineBasicBlock::iterator &NextMBBI) {
++  return expandAuipcInstPair(MBB, MBBI, NextMBBI, RISCVII::MO_TLS_GD_HI,
++                             RISCV::ADDI);
++}
++
+ } // end of anonymous namespace
+ 
+ INITIALIZE_PASS(RISCVExpandPseudo, "riscv-expand-pseudo",
+diff -up llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVInstrInfo.cpp.46~ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVInstrInfo.cpp
+--- llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVInstrInfo.cpp.46~	2019-06-18 23:30:09.602897436 +0200
++++ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVInstrInfo.cpp	2019-06-18 23:30:09.615897563 +0200
+@@ -441,6 +441,8 @@ unsigned RISCVInstrInfo::getInstSizeInBy
+   case RISCV::PseudoTAIL:
+   case RISCV::PseudoLLA:
+   case RISCV::PseudoLA:
++  case RISCV::PseudoLA_TLS_IE:
++  case RISCV::PseudoLA_TLS_GD:
+     return 8;
+   case TargetOpcode::INLINEASM:
+   case TargetOpcode::INLINEASM_BR: {
+diff -up llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVISelLowering.cpp.46~ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
+--- llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVISelLowering.cpp.46~	2019-06-18 23:30:09.565897074 +0200
++++ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVISelLowering.cpp	2019-06-18 23:30:09.615897563 +0200
+@@ -177,6 +177,8 @@ RISCVTargetLowering::RISCVTargetLowering
+   setOperationAction(ISD::BlockAddress, XLenVT, Custom);
+   setOperationAction(ISD::ConstantPool, XLenVT, Custom);
+ 
++  setOperationAction(ISD::GlobalTLSAddress, XLenVT, Custom);
++
+   if (Subtarget.hasStdExtA()) {
+     setMaxAtomicSizeInBitsSupported(Subtarget.getXLen());
+     setMinCmpXchgSizeInBits(32);
+@@ -357,6 +359,8 @@ SDValue RISCVTargetLowering::LowerOperat
+     return lowerBlockAddress(Op, DAG);
+   case ISD::ConstantPool:
+     return lowerConstantPool(Op, DAG);
++  case ISD::GlobalTLSAddress:
++    return lowerGlobalTLSAddress(Op, DAG);
+   case ISD::SELECT:
+     return lowerSELECT(Op, DAG);
+   case ISD::VASTART:
+@@ -479,6 +483,119 @@ SDValue RISCVTargetLowering::lowerConsta
+   return getAddr(N, DAG);
+ }
+ 
++SDValue RISCVTargetLowering::getStaticTLSAddr(GlobalAddressSDNode *N,
++                                              SelectionDAG &DAG,
++                                              bool UseGOT) const {
++  SDLoc DL(N);
++  EVT Ty = getPointerTy(DAG.getDataLayout());
++  const GlobalValue *GV = N->getGlobal();
++  MVT XLenVT = Subtarget.getXLenVT();
++
++  if (UseGOT) {
++    // Use PC-relative addressing to access the GOT for this TLS symbol, then
++    // load the address from the GOT and add the thread pointer. This generates
++    // the pattern (PseudoLA_TLS_IE sym), which expands to
++    // (ld (auipc %tls_ie_pcrel_hi(sym)) %pcrel_lo(auipc)).
++    SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, Ty, 0, 0);
++    SDValue Load = SDValue(DAG.getMachineNode(RISCV::PseudoLA_TLS_IE, DL, Ty, Addr), 0);
++
++    // Add the thread pointer.
++    SDValue TPReg = DAG.getRegister(RISCV::X4, XLenVT);
++    return DAG.getNode(ISD::ADD, DL, Ty, Load, TPReg);
++  }
++
++  // Generate a sequence for accessing the address relative to the thread
++  // pointer, with the appropriate adjustment for the thread pointer offset.
++  // This generates the pattern
++  // (add (add_tprel (lui %tprel_hi(sym)) tp %tprel_add(sym)) %tprel_lo(sym))
++  SDValue AddrHi =
++      DAG.getTargetGlobalAddress(GV, DL, Ty, 0, RISCVII::MO_TPREL_HI);
++  SDValue AddrAdd =
++      DAG.getTargetGlobalAddress(GV, DL, Ty, 0, RISCVII::MO_TPREL_ADD);
++  SDValue AddrLo =
++      DAG.getTargetGlobalAddress(GV, DL, Ty, 0, RISCVII::MO_TPREL_LO);
++
++  SDValue MNHi = SDValue(DAG.getMachineNode(RISCV::LUI, DL, Ty, AddrHi), 0);
++  SDValue TPReg = DAG.getRegister(RISCV::X4, XLenVT);
++  SDValue MNAdd = SDValue(
++      DAG.getMachineNode(RISCV::PseudoAddTPRel, DL, Ty, MNHi, TPReg, AddrAdd),
++      0);
++  return SDValue(DAG.getMachineNode(RISCV::ADDI, DL, Ty, MNAdd, AddrLo), 0);
++}
++
++SDValue RISCVTargetLowering::getDynamicTLSAddr(GlobalAddressSDNode *N,
++                                               SelectionDAG &DAG,
++                                               bool UseGOT) const {
++  SDLoc DL(N);
++  EVT Ty = getPointerTy(DAG.getDataLayout());
++  IntegerType *CallTy = Type::getIntNTy(*DAG.getContext(), Ty.getSizeInBits());
++  const GlobalValue *GV = N->getGlobal();
++
++  // Use a PC-relative addressing mode to access the global dynamic GOT address.
++  // This generates the pattern (PseudoLA_TLS_GD sym), which expands to
++  // (addi (auipc %tls_gd_pcrel_hi(sym)) %pcrel_lo(auipc)).
++  SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, Ty, 0, 0);
++  SDValue Load = SDValue(DAG.getMachineNode(RISCV::PseudoLA_TLS_GD, DL, Ty, Addr), 0);
++
++  // Prepare argument list to generate call.
++  ArgListTy Args;
++  ArgListEntry Entry;
++  Entry.Node = Load;
++  Entry.Ty = CallTy;
++  Args.push_back(Entry);
++
++  // Setup call to __tls_get_addr.
++  TargetLowering::CallLoweringInfo CLI(DAG);
++  CLI.setDebugLoc(DL)
++      .setChain(DAG.getEntryNode())
++      .setLibCallee(CallingConv::C, CallTy,
++                    DAG.getExternalSymbol("__tls_get_addr", Ty),
++                    std::move(Args));
++
++  return LowerCallTo(CLI).first;
++}
++
++SDValue RISCVTargetLowering::lowerGlobalTLSAddress(SDValue Op,
++                                                   SelectionDAG &DAG) const {
++  SDLoc DL(Op);
++  EVT Ty = Op.getValueType();
++  GlobalAddressSDNode *N = cast<GlobalAddressSDNode>(Op);
++  int64_t Offset = N->getOffset();
++  MVT XLenVT = Subtarget.getXLenVT();
++
++  // Non-PIC TLS lowering should always use the LocalExec model.
++  TLSModel::Model Model = isPositionIndependent()
++                              ? getTargetMachine().getTLSModel(N->getGlobal())
++                              : TLSModel::LocalExec;
++
++  SDValue Addr;
++  switch (Model) {
++  default:
++    report_fatal_error("Unsupported TLS model");
++  case TLSModel::LocalExec:
++    Addr = getStaticTLSAddr(N, DAG, /*UseGOT=*/false);
++    break;
++  case TLSModel::InitialExec:
++    Addr = getStaticTLSAddr(N, DAG, /*UseGOT=*/true);
++    break;
++  case TLSModel::LocalDynamic:
++    Addr = getDynamicTLSAddr(N, DAG, /*UseGOT=*/false);
++    break;
++  case TLSModel::GeneralDynamic:
++    Addr = getDynamicTLSAddr(N, DAG, /*UseGOT=*/true);
++    break;
++  }
++
++  // In order to maximise the opportunity for common subexpression elimination,
++  // emit a separate ADD node for the global address offset instead of folding
++  // it in the global address node. Later peephole optimisations may choose to
++  // fold it back in when profitable.
++  if (Offset != 0)
++    return DAG.getNode(ISD::ADD, DL, Ty, Addr,
++                       DAG.getConstant(Offset, DL, XLenVT));
++  return Addr;
++}
++
+ SDValue RISCVTargetLowering::lowerSELECT(SDValue Op, SelectionDAG &DAG) const {
+   SDValue CondV = Op.getOperand(0);
+   SDValue TrueV = Op.getOperand(1);
+diff -up llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVISelLowering.h.46~ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVISelLowering.h
+--- llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVISelLowering.h.46~	2019-06-18 23:30:09.614897553 +0200
++++ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVISelLowering.h	2019-06-18 23:31:48.396865332 +0200
+@@ -163,9 +163,16 @@ private:
+   SDValue getAddr(NodeTy *N, SelectionDAG &DAG, bool IsLocal = true) const;
+ 
+   bool shouldConsiderGEPOffsetSplit() const override { return true; }
++
++  SDValue getStaticTLSAddr(GlobalAddressSDNode *N, SelectionDAG &DAG,
++                           bool UseGOT) const;
++  SDValue getDynamicTLSAddr(GlobalAddressSDNode *N, SelectionDAG &DAG,
++                            bool UseGOT) const;
++
+   SDValue lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+   SDValue lowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
+   SDValue lowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
++  SDValue lowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
+   SDValue lowerSELECT(SDValue Op, SelectionDAG &DAG) const;
+   SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) const;
+   SDValue lowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
+diff -up llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVMCInstLower.cpp.46~ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVMCInstLower.cpp
+--- llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVMCInstLower.cpp.46~	2019-06-18 20:22:30.000000000 +0200
++++ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/RISCVMCInstLower.cpp	2019-06-18 23:30:09.615897563 +0200
+@@ -57,6 +57,21 @@ static MCOperand lowerSymbolOperand(cons
+   case RISCVII::MO_GOT_HI:
+     Kind = RISCVMCExpr::VK_RISCV_GOT_HI;
+     break;
++  case RISCVII::MO_TPREL_LO:
++    Kind = RISCVMCExpr::VK_RISCV_TPREL_LO;
++    break;
++  case RISCVII::MO_TPREL_HI:
++    Kind = RISCVMCExpr::VK_RISCV_TPREL_HI;
++    break;
++  case RISCVII::MO_TPREL_ADD:
++    Kind = RISCVMCExpr::VK_RISCV_TPREL_ADD;
++    break;
++  case RISCVII::MO_TLS_GOT_HI:
++    Kind = RISCVMCExpr::VK_RISCV_TLS_GOT_HI;
++    break;
++  case RISCVII::MO_TLS_GD_HI:
++    Kind = RISCVMCExpr::VK_RISCV_TLS_GD_HI;
++    break;
+   }
+ 
+   const MCExpr *ME =
+diff -up llvm-9.0.0-20190618/llvm/lib/Target/RISCV/Utils/RISCVBaseInfo.h.46~ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/Utils/RISCVBaseInfo.h
+--- llvm-9.0.0-20190618/llvm/lib/Target/RISCV/Utils/RISCVBaseInfo.h.46~	2019-06-18 20:22:30.000000000 +0200
++++ llvm-9.0.0-20190618/llvm/lib/Target/RISCV/Utils/RISCVBaseInfo.h	2019-06-18 23:30:09.615897563 +0200
+@@ -55,6 +55,11 @@ enum {
+   MO_PCREL_LO,
+   MO_PCREL_HI,
+   MO_GOT_HI,
++  MO_TPREL_LO,
++  MO_TPREL_HI,
++  MO_TPREL_ADD,
++  MO_TLS_GOT_HI,
++  MO_TLS_GD_HI,
+ };
+ } // namespace RISCVII
+ 
+diff -up llvm-9.0.0-20190618/llvm/test/CodeGen/RISCV/tls-models.ll.46~ llvm-9.0.0-20190618/llvm/test/CodeGen/RISCV/tls-models.ll
+--- llvm-9.0.0-20190618/llvm/test/CodeGen/RISCV/tls-models.ll.46~	2019-06-18 23:30:09.615897563 +0200
++++ llvm-9.0.0-20190618/llvm/test/CodeGen/RISCV/tls-models.ll	2019-06-18 23:30:09.615897563 +0200
+@@ -0,0 +1,155 @@
++; NOTE: Assertions have been autogenerated by utils/update_llc_test_checks.py
++; RUN: llc -mtriple=riscv32 -relocation-model=pic < %s \
++; RUN:     | FileCheck -check-prefix=RV32-PIC %s
++; RUN: llc -mtriple=riscv64 -relocation-model=pic < %s \
++; RUN:     | FileCheck -check-prefix=RV64-PIC %s
++; RUN: llc -mtriple=riscv32 < %s | FileCheck -check-prefix=NOPIC %s
++; RUN: llc -mtriple=riscv64 < %s | FileCheck -check-prefix=NOPIC %s
++
++; Check that TLS symbols are lowered correctly based on the specified
++; model.
++
++@unspecified = thread_local global i32 42
++@ld = thread_local(localdynamic) global i32 42
++@ie = thread_local(initialexec) global i32 42
++@le = thread_local(localexec) global i32 42
++
++
++; No model specified
++
++define i32* @f1() nounwind {
++; RV32-PIC-LABEL: f1:
++; RV32-PIC:       # %bb.0: # %entry
++; RV32-PIC-NEXT:    addi sp, sp, -16
++; RV32-PIC-NEXT:    sw ra, 12(sp)
++; RV32-PIC-NEXT:  .LBB0_1: # %entry
++; RV32-PIC-NEXT:    # Label of block must be emitted
++; RV32-PIC-NEXT:    auipc a0, %tls_gd_pcrel_hi(unspecified)
++; RV32-PIC-NEXT:    addi a0, a0, %pcrel_lo(.LBB0_1)
++; RV32-PIC-NEXT:    call __tls_get_addr@plt
++; RV32-PIC-NEXT:    lw ra, 12(sp)
++; RV32-PIC-NEXT:    addi sp, sp, 16
++; RV32-PIC-NEXT:    ret
++;
++; RV64-PIC-LABEL: f1:
++; RV64-PIC:       # %bb.0: # %entry
++; RV64-PIC-NEXT:    addi sp, sp, -16
++; RV64-PIC-NEXT:    sd ra, 8(sp)
++; RV64-PIC-NEXT:  .LBB0_1: # %entry
++; RV64-PIC-NEXT:    # Label of block must be emitted
++; RV64-PIC-NEXT:    auipc a0, %tls_gd_pcrel_hi(unspecified)
++; RV64-PIC-NEXT:    addi a0, a0, %pcrel_lo(.LBB0_1)
++; RV64-PIC-NEXT:    call __tls_get_addr@plt
++; RV64-PIC-NEXT:    ld ra, 8(sp)
++; RV64-PIC-NEXT:    addi sp, sp, 16
++; RV64-PIC-NEXT:    ret
++;
++; NOPIC-LABEL: f1:
++; NOPIC:       # %bb.0: # %entry
++; NOPIC-NEXT:    lui a0, %tprel_hi(unspecified)
++; NOPIC-NEXT:    add a0, a0, tp, %tprel_add(unspecified)
++; NOPIC-NEXT:    addi a0, a0, %tprel_lo(unspecified)
++; NOPIC-NEXT:    ret
++entry:
++  ret i32* @unspecified
++}
++
++
++; localdynamic specified
++
++define i32* @f2() nounwind {
++; RV32-PIC-LABEL: f2:
++; RV32-PIC:       # %bb.0: # %entry
++; RV32-PIC-NEXT:    addi sp, sp, -16
++; RV32-PIC-NEXT:    sw ra, 12(sp)
++; RV32-PIC-NEXT:  .LBB1_1: # %entry
++; RV32-PIC-NEXT:    # Label of block must be emitted
++; RV32-PIC-NEXT:    auipc a0, %tls_gd_pcrel_hi(ld)
++; RV32-PIC-NEXT:    addi a0, a0, %pcrel_lo(.LBB1_1)
++; RV32-PIC-NEXT:    call __tls_get_addr@plt
++; RV32-PIC-NEXT:    lw ra, 12(sp)
++; RV32-PIC-NEXT:    addi sp, sp, 16
++; RV32-PIC-NEXT:    ret
++;
++; RV64-PIC-LABEL: f2:
++; RV64-PIC:       # %bb.0: # %entry
++; RV64-PIC-NEXT:    addi sp, sp, -16
++; RV64-PIC-NEXT:    sd ra, 8(sp)
++; RV64-PIC-NEXT:  .LBB1_1: # %entry
++; RV64-PIC-NEXT:    # Label of block must be emitted
++; RV64-PIC-NEXT:    auipc a0, %tls_gd_pcrel_hi(ld)
++; RV64-PIC-NEXT:    addi a0, a0, %pcrel_lo(.LBB1_1)
++; RV64-PIC-NEXT:    call __tls_get_addr@plt
++; RV64-PIC-NEXT:    ld ra, 8(sp)
++; RV64-PIC-NEXT:    addi sp, sp, 16
++; RV64-PIC-NEXT:    ret
++;
++; NOPIC-LABEL: f2:
++; NOPIC:       # %bb.0: # %entry
++; NOPIC-NEXT:    lui a0, %tprel_hi(ld)
++; NOPIC-NEXT:    add a0, a0, tp, %tprel_add(ld)
++; NOPIC-NEXT:    addi a0, a0, %tprel_lo(ld)
++; NOPIC-NEXT:    ret
++entry:
++  ret i32* @ld
++}
++
++
++; initialexec specified
++
++define i32* @f3() nounwind {
++; RV32-PIC-LABEL: f3:
++; RV32-PIC:       # %bb.0: # %entry
++; RV32-PIC-NEXT:  .LBB2_1: # %entry
++; RV32-PIC-NEXT:    # Label of block must be emitted
++; RV32-PIC-NEXT:    auipc a0, %tls_ie_pcrel_hi(ie)
++; RV32-PIC-NEXT:    lw a0, %pcrel_lo(.LBB2_1)(a0)
++; RV32-PIC-NEXT:    add a0, a0, tp
++; RV32-PIC-NEXT:    ret
++;
++; RV64-PIC-LABEL: f3:
++; RV64-PIC:       # %bb.0: # %entry
++; RV64-PIC-NEXT:  .LBB2_1: # %entry
++; RV64-PIC-NEXT:    # Label of block must be emitted
++; RV64-PIC-NEXT:    auipc a0, %tls_ie_pcrel_hi(ie)
++; RV64-PIC-NEXT:    ld a0, %pcrel_lo(.LBB2_1)(a0)
++; RV64-PIC-NEXT:    add a0, a0, tp
++; RV64-PIC-NEXT:    ret
++;
++; NOPIC-LABEL: f3:
++; NOPIC:       # %bb.0: # %entry
++; NOPIC-NEXT:    lui a0, %tprel_hi(ie)
++; NOPIC-NEXT:    add a0, a0, tp, %tprel_add(ie)
++; NOPIC-NEXT:    addi a0, a0, %tprel_lo(ie)
++; NOPIC-NEXT:    ret
++entry:
++  ret i32* @ie
++}
++
++
++; localexec specified
++
++define i32* @f4() nounwind {
++; RV32-PIC-LABEL: f4:
++; RV32-PIC:       # %bb.0: # %entry
++; RV32-PIC-NEXT:    lui a0, %tprel_hi(le)
++; RV32-PIC-NEXT:    add a0, a0, tp, %tprel_add(le)
++; RV32-PIC-NEXT:    addi a0, a0, %tprel_lo(le)
++; RV32-PIC-NEXT:    ret
++;
++; RV64-PIC-LABEL: f4:
++; RV64-PIC:       # %bb.0: # %entry
++; RV64-PIC-NEXT:    lui a0, %tprel_hi(le)
++; RV64-PIC-NEXT:    add a0, a0, tp, %tprel_add(le)
++; RV64-PIC-NEXT:    addi a0, a0, %tprel_lo(le)
++; RV64-PIC-NEXT:    ret
++;
++; NOPIC-LABEL: f4:
++; NOPIC:       # %bb.0: # %entry
++; NOPIC-NEXT:    lui a0, %tprel_hi(le)
++; NOPIC-NEXT:    add a0, a0, tp, %tprel_add(le)
++; NOPIC-NEXT:    addi a0, a0, %tprel_lo(le)
++; NOPIC-NEXT:    ret
++entry:
++  ret i32* @le
++}

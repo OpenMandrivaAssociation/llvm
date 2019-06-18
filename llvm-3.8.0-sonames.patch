@@ -1,5 +1,5 @@
---- llvm-3.8.0.src/cmake/modules/AddLLVM.cmake.soname~	2016-01-12 08:44:58.000000000 +0100
-+++ llvm-3.8.0.src/cmake/modules/AddLLVM.cmake	2016-01-27 09:47:44.503600516 +0100
+--- llvm-3.8.0.src/llvm/cmake/modules/AddLLVM.cmake.soname~	2016-01-12 08:44:58.000000000 +0100
++++ llvm-3.8.0.src/llvm/cmake/modules/AddLLVM.cmake	2016-01-27 09:47:44.503600516 +0100
 @@ -465,6 +465,12 @@ function(llvm_add_library name)
        llvm_install_library_symlink(${output_name} ${library_name} SHARED
          COMPONENT ${name}

@@ -1,6 +1,8 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
+%define date 20190618
+
 %define debug_package %{nil}
 %define debugcflags %{nil}
 %define build_lto 1
@@ -45,14 +47,12 @@
 %else
 %bcond_without build_libcxx
 %endif
-%ifarch %{ix86} aarch64
-# lldb uses some atomics that haven't been ported to x86_32 yet
-# lldb also fails on aarch64 as of 3.7.0
+%ifarch %{riscv}
+# Disabled until we get a RISC-V implementation of NativeRegisterContext
+# lldb/source/Plugins/Process/Linux/NativeRegisterContext*
 %bcond_with lldb
 %else
-# Currently (2016/06/18) fails because of missing
-# llvm_regcomp llvm_regfree llvm_regexec
-%bcond_with lldb
+%bcond_without lldb
 %endif
 %ifarch %{riscv} riscv64
 # OpenMP and libunwind aren't working on RISC-V yet
@@ -79,11 +79,16 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	8.0.1
-Release:	0.359956.2
+Version:	9.0.0
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
+%if "%{date}" != ""
+# git archive-d from https://github.com/llvm/llvm-project
+Source0:	llvm-%{version}-%{date}.tar.xz
+Release:	0.%{date}.1
+%else
+Release:	1
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
 Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.xz
@@ -96,6 +101,7 @@ Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
 Source9:	http://llvm.org/releases/%{version}/llgo-%{version}.src.tar.xz
 Source10:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
 Source11:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
+%endif
 Source1000:	llvm.rpmlintrc
 # Adjust search paths to match the OS
 Patch1:		0000-clang-mandriva.patch
@@ -104,19 +110,20 @@ Patch1:		0000-clang-mandriva.patch
 # and https://bugzilla.redhat.com/show_bug.cgi?id=803433
 Patch2:		clang-hardfloat-hack.patch
 Patch3:		llvm-3.7.0-PATH_MAX-compile.patch
-# https://reviews.llvm.org/D26893
-Patch4:		https://reviews.llvm.org/file/data/xict532f6ykwoei2obz3/PHID-FILE-yztwplfdu7fncle5sjk2/D26893.diff
+# There's so many limits.h and inttypes.h headers in llvm these days that
+# a #include_next isn't sufficient to get the definitions we need.
+# This patch is ugly but effective.
+Patch4:		clang-9.0.0-bogus-headers.patch
 # Patches from AOSP
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
-Patch6:		llvm-4.0.0-libcxx-libcxxabi-dep.patch
 # Claim compatibility with gcc 7.1.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
 Patch8:		clang-fuse-ld.patch
 Patch9:		ddsan-compile.patch
-Patch10:	lldb-3.8.0-compile.patch
+Patch10:	lldb-9.0.0-swig-compile.patch
 Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
@@ -148,18 +155,50 @@ Patch46:	llvm-4.0.1-libomp-versioning.patch
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
-Patch49:	llvm-4.0-lldb-static.patch
-Patch50:	llvm-4.0-default-compiler-rt.patch
+Patch49:	llvm-9.0-riscv.patch
 # Show more information when aborting because posix_spawn failed
 # (happened in some qemu aarch64 chroots)
 Patch51:	llvm-4.0.1-debug-posix_spawn.patch
-Patch52:	llvm-8.0-x86_32-atomics.patch
 # Polly LLVM OpenMP backend
-Patch55:	https://github.com/llvm/llvm-project/commit/89251ed.patch
 Patch56:	polly-8.0-default-llvm-backend.patch
 # llgo bits
 Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
+# RISC-V support
+# Still open on reviews, but apparently committed:
+# 61098 39323 rG5665ef3dccf6 rL363055 rC363055 rG28a5cadb3ae0 rL363054 rG081da0d428d3 rG8587eacb049b
+# rC360104 rL360104 rG96bbb1dc2b39 rL359568 rGc0e8231cdd90 rL357989 rC357989 rG0a9c9a8daa09 rL351823
+# rG919f5fb8ca5f rL349023 rGc8ec7a9e1ebf rLLD342887 rL342887 rGed08d3739a00 rC340595 rL340595
+
+# D62686 may need porting to current code
+
+# https://reviews.llvm.org/D63498
+Patch70:	https://reviews.llvm.org/file/data/ydxfehqcokx4zgfz6dg2/PHID-FILE-3oan5hkdw7n2oz5thbcx/D63498.diff
+# https://reviews.llvm.org/D54296
+Patch71:	https://reviews.llvm.org/file/data/y43hmoovxnoce6xmto3b/PHID-FILE-okeqm52vfsnveawopyml/D54296.diff
+# https://reviews.llvm.org/D54295
+Patch72:	https://reviews.llvm.org/file/data/cyh3udfpelwy7ne4id7a/PHID-FILE-oippufp5jth5fd2dpsrb/D54295.diff
+# https://reviews.llvm.org/D62732
+Patch73:	https://reviews.llvm.org/file/data/sljjhbeswtsiaw2ieeuy/PHID-FILE-7cogwyqs2lubton454oj/D62732.diff
+# https://reviews.llvm.org/D62062
+Patch74:	https://reviews.llvm.org/file/data/gebll4u5mpn33veojsjr/PHID-FILE-qjom7r2wrujx3xorslyz/D62062.diff
+# https://reviews.llvm.org/D62190
+Patch75:	https://reviews.llvm.org/file/data/toz2qke6s4fp6ikvyjy2/PHID-FILE-q4wwlkq76u547jgdc55m/D62190.diff
+Patch76:	https://reviews.llvm.org/file/data/4ocrla5nt5huqtp2a5qp/PHID-FILE-y6acb2o3mkaaje75wt7y/D54215.diff
+Patch77:	https://reviews.llvm.org/file/data/xs526uhzy4chs4qjl3ir/PHID-FILE-k44sj52v4kunlkamjubm/D51144.diff
+Patch78:	https://reviews.llvm.org/file/data/2rmx5jwrjobqpdy5ezy3/PHID-FILE-rupmclhkxcdzuxomxxsm/D51710.diff
+Patch79:	https://reviews.llvm.org/file/data/awawdmd2hov22nkdfxfd/PHID-FILE-ug62wx5mkhqr73jvqcvo/D52165.diff
+Patch80:	https://reviews.llvm.org/file/data/zigjtq2mvw5ttjd6t6er/PHID-FILE-z33bufjykosyktziygnn/D62685.diff
+Patch81:	https://reviews.llvm.org/file/data/4nw4lzkbg5opg6eplsho/PHID-FILE-s2rlke74t6jk4bit7z3r/D63333.diff
+Patch82:	https://reviews.llvm.org/file/data/nb4cb323c3da7czaqpom/PHID-FILE-yixejg3zyo7mf7gmbw5g/D58335.diff
+Patch83:	https://reviews.llvm.org/file/data/xaei73bbl3agacjhn34k/PHID-FILE-oubsaiq7owaxneb5o2gd/D55305.diff
+Patch84:	https://reviews.llvm.org/file/data/jfz4h7kjhyh5ic5yfdiy/PHID-FILE-5ijxm6gdmlgdyvg5htgk/D63433.diff
+Patch85:	https://reviews.llvm.org/file/data/vhv7mozh2r2qkmsn5573/PHID-FILE-snu2tohe2w3eivc6tac2/D63076.diff
+Patch86:	https://reviews.llvm.org/file/data/oy6i2gssagtwlxej3eqv/PHID-FILE-sardnw45pey6pcplz4te/D61584.diff
+# A variant of D63220 seems to be applied on master
+Patch87:	https://reviews.llvm.org/file/data/pkgv4wuqtg3hzd2rak5k/PHID-FILE-b5hdtxaxqassz4a2edn5/D59880.diff
+# https://reviews.llvm.org/D60456
+Patch88:	https://reviews.llvm.org/file/data/vpvwxdpnbh57dryfmnvn/PHID-FILE-zrxyub2wp2mr4esxyuxt/D60456.diff
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -172,6 +211,7 @@ BuildRequires:	chrpath
 BuildRequires:	groff
 BuildRequires:	libtool
 BuildRequires:	python-sphinx
+# For sphinx plugins
 BuildRequires:	python-recommonmark
 BuildRequires:	python-sphinxcontrib-websupport
 BuildRequires:	python-setuptools
@@ -322,9 +362,9 @@ for effective implementation, proper tail calls or garbage collection.
 %define major %(echo %{version} |cut -d. -f1-2)  
 %define major1 %(echo %{version} |cut -d. -f1)
 
-%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiAsmPrinter LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMOptRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyAsmPrinter LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo OptRemarks
+%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiAsmPrinter LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyAsmPrinter LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo Remarks LLVMRISCVAsmParser LLVMRISCVAsmPrinter LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVDisassembler LLVMRISCVInfo LLVMRISCVUtils
 
-%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangCrossTU clangDaemon clangDoc clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyAndroidModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingASTDiff clangToolingCore clangToolingRefactor clangIncludeFixer clangTidyAbseilModule clangTidyBoostModule clangTidyPlugin clangTidyPortabilityModule clangTidyZirconModule clangHandleLLVM clangToolingInclusions
+%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangCrossTU clangDaemon clangDoc clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyAndroidModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingASTDiff clangToolingCore clangToolingRefactor clangIncludeFixer clangTidyAbseilModule clangTidyBoostModule clangTidyPlugin clangTidyPortabilityModule clangTidyZirconModule clangHandleLLVM clangToolingInclusions clangDaemonTweaks
 
 %if %{with lld}
 %define LLDLibs lldCOFF lldCommon lldCore lldDriver lldELF lldMachO lldMinGW lldReaderWriter lldWasm lldYAML
@@ -332,7 +372,13 @@ for effective implementation, proper tail calls or garbage collection.
 %define LLDLibs %{nil}
 %endif
 
-%{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs}; do echo %%libpackage $i %{major1}; done)}
+%if %{with lldb}
+%define LLDBLibs lldb lldbIntelFeatures
+%else
+%define LLDBLibs %{nil}
+%endif
+
+%{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs} %{LLDBLibs}; do echo %%libpackage $i %{major1}; done)}
 
 %if %{with unwind}
 %define libunwind_major 1.0
@@ -519,9 +565,9 @@ Obsoletes:	llvm-doc-devel < 6.0.0
 Documentation for the LLVM compiler infrastructure.
 
 %files doc
-%doc README.txt
-%doc docs/tutorial
-%doc examples
+%doc llvm/README.txt
+%doc llvm/docs/tutorial
+%doc llvm/examples
 %doc %{_docdir}/llvm
 %if %{with apidox}
 %doc docs/doxygen
@@ -705,23 +751,20 @@ Objective-CAML bindings for LLVM.
 #-----------------------------------------------------------
 
 %if %{with lldb}
-%define oldlib %mklibname lldb %{major}
-
 %package -n lldb
 Summary:	Debugger from the LLVM toolchain
 Group:		Development/Other
-Obsoletes:	%{oldlib} < %{EVRD}
+%{expand:%(for i in %{LLDBLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 
 %description -n lldb
 Debugger from the LLVM toolchain.
 
 %files -n lldb
 %{_bindir}/lldb*
-# FIXME weird place for a plugin...
-%{_bindir}/liblldb-intel-mpxtable.so
 %{_libdir}/python*/site-packages/lldb
 %{_libdir}/python*/site-packages/readline.so
 %{_libdir}/python*/site-packages/six.py
+%doc %{_docdir}/lldb
 
 %define lldbdev %mklibname -d lldb
 
@@ -821,123 +864,50 @@ Python bindings to parts of the Clang library
 #-----------------------------------------------------------
 
 %prep
+%if "%{date}" != ""
+%autosetup -p1 -n %{name}-%{version}-%{date}
+%else
 %setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} %{?with_unwind:-a7} %{?with_lldb:-a8} %{?with_llgo:-a9} %{?with_lld:-a10} %{?with_openmp:-a11} -n %{name}-%{version}.src
-rm -rf tools/clang
-%if %{with clang}
-mv cfe-%{version}%{?prerel}.src tools/clang
-mv polly-%{version}%{?prerel}.src tools/polly
-mv clang-tools-extra-%{version}%{?prerel}.src tools/clang/tools/extra
-mv compiler-rt-%{version}%{?prerel}.src projects/compiler-rt
-%if %{with unwind}
-mv libunwind-%{version}%{?prerel}.src projects/libunwind
-%endif
-%if %{with lldb}
-mv lldb-%{version}%{?prerel}.src tools/lldb
-%endif
-%if %{with llgo}
-mv llgo-%{version}%{?prerel}.src tools/llgo
-%endif
-%if %{with lld}
-mv lld-%{version}%{?prerel}.src tools/lld
-%endif
-%if %{with openmp}
-mv openmp-%{version}%{?prerel}.src projects/openmp
-%endif
-cd tools/clang
-%patch1 -p1 -b .mandriva~
-#patch4 -p3 -b .templateFix~
-%patch8 -p1 -b .fuseLd~
-cd -
-%patch2 -p1 -b .armhf~
-%patch3 -p1 -b .compile~
-%patch5 -p1 -b .EnableGlobalMerge~
-%endif
-if [ -d libcxx-%{version}%{?prerel}.src ]; then
-	mv libcxx-%{version}%{?prerel}.src projects/libcxx
-	cd projects/libcxx
-%patch40 -p3 -b .libcxxmusl~
-	cd ../..
-%patch6 -p1 -b .libcxxabi~
-fi
-[ -d libcxxabi-%{version}%{?prerel}.src ] && mv libcxxabi-%{version}%{?prerel}.src projects/libcxxabi
-%patch7 -p1 -b .gcc71~
-%patch9 -p1 -b .ddsan~
-%if %{with lldb}
-%patch10 -p1 -b .lldb~
-%endif
-%patch12 -p1 -b .soname~
-%patch13 -p1 -b .fixOptlevel~
-%if %{with unwind}
-%patch14 -p1 -b .unwindlibstdc~
-%patch15 -p1 -b .unwindaarch64~
-%endif
-%patch16 -p1 -b .clangRenameLink~
-%if %{with lldb}
-# LLVM bug 30887
-%patch49 -p1 -b .lldbstatic~
-%endif
-%if %{with lld}
-%patch17 -p1 -b .lldcompile~
-%endif
-
-%patch20 -p1 -b .musl1~
-%patch21 -p1 -b .musl2~
-
-%patch29 -p1 -b .musl10~
-%patch31 -p1 -b .musl12~
-
-%patch25 -p1 -b .crt~
-%patch26 -p1 -b .crtBuildfix~
-%patch27 -p1 -b .crti386Workaround~
-
-%if %{cross_compiling}
-# This is only needed when crosscompiling glibc to musl or the likes
-%patch41 -p1 -b .bootstrap~
-%endif
-
-%if %{with openmp}
-%patch46 -p1 -b .soname~
-%endif
-
-%patch48 -p1 -b .mcount~
-%if %{with default_compilerrt}
-%patch50 -p1 -b .compilerrt~
-%endif
-%patch51 -p1 -b .posix_spawn~
-
-%ifarch %{ix86}
-%patch52 -p1 -b .x86_32atomics~
-%endif
-
-cd tools
-%patch55 -p1 -b .pollyllvmbackend~
-cd ..
-%patch56 -p1 -b .pollyllvmdefault~
-
-%if %{with llgo}
-%patch60 -p1 -b .llgoCompile~
-%patch61 -p1 -b .llgoCompilerFlags~
 %endif
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
 
+# LLVM doesn't use autoconf, but it uses autoconf's config.guess
+# to find target arch and friends (hidden away in cmake/).
+# Let's make sure we replace its outdated copy (which doesn't
+# know what riscv64 is) with a current version.
 %config_update
 
 %build
+COMPONENTS="llvm"
+%if %{with clang}
+COMPONENTS="$COMPONENTS;clang;clang-tools-extra;polly;compiler-rt"
+%endif
+%if %{with unwind}
+COMPONENTS="$COMPONENTS;libunwind"
+%endif
+%if %{with lldb}
+COMPONENTS="$COMPONENTS;lldb"
+%endif
+%if %{with llgo}
+COMPONENTS="$COMPONENTS;llgo"
+%endif
+%if %{with lld}
+COMPONENTS="$COMPONENTS;lld"
+%endif
+%if %{with openmp}
+COMPONENTS="$COMPONENTS;openmp"
+%endif
+%if %{with build_libcxx}
+COMPONENTS="$COMPONENTS;libcxx;libcxxabi"
+%endif
+
 %if %{with bootstrap_gcc}
 export CC=gcc
 export CXX=g++
 %endif
 TOP=$(pwd)
-
-# Workaround for previous build having a problem with debug info
-# generation
-#export CFLAGS="%{optflags} -g0"
-#export CXXFLAGS="%{optflags} -g0"
-
-# Currently broken, but potentially interesting:
-#	-DLLVM_ENABLE_MODULES:BOOL=ON
 
 # compiler-rt assumes off_t is 64 bits -- make sure this is true even on 32 bit
 # OSes
@@ -962,12 +932,12 @@ export LDFLAGS="$LDFLAGS -fuse-ld=bfd"
 %endif
 
 if echo %{_target_platform} | grep -q musl; then
-	sed -i -e 's,set(COMPILER_RT_HAS_SANITIZER_COMMON TRUE),set(COMPILER_RT_HAS_SANITIZER_COMMON FALSE),' projects/compiler-rt/cmake/config-ix.cmake
+	sed -i -e 's,set(COMPILER_RT_HAS_SANITIZER_COMMON TRUE),set(COMPILER_RT_HAS_SANITIZER_COMMON FALSE),' compiler-rt/cmake/config-ix.cmake
 fi
 
 %ifarch %ix86
 # Fix noexecstack
-for i in projects/compiler-rt/lib/builtins/i386/*.S; do
+for i in compiler-rt/lib/builtins/i386/*.S; do
 	cat >>$i <<'EOF'
 #if defined(__linux__) && defined(__ELF__)
 .section .note.GNU-stack,"",%progbits
@@ -982,6 +952,7 @@ done
 # final libclang.so.3.8 at the moment.
 # We strip out the rpath in %%install though - so we aren't really being evil.
 %cmake \
+	-DLLVM_ENABLE_PROJECTS="$COMPONENTS" \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 %if %{with ffi}
 	-DLLVM_ENABLE_FFI:BOOL=ON \
@@ -1022,8 +993,8 @@ done
 	-DLIBCXXABI_ENABLE_STATIC:BOOL=ON \
 	-DLIBCXX_ENABLE_SHARED:BOOL=ON \
 	-DLIBCXX_ENABLE_STATIC:BOOL=ON \
-	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/projects/libcxx/include \
-	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/projects/libcxxabi/include \
+	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/libcxx/include \
+	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/libcxxabi/include \
 	-DLIBCXXABI_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
 	-DLIBCXX_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
 	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/%{_lib}" \
@@ -1037,10 +1008,11 @@ done
 	-DCLANG_TABLEGEN=%{_bindir}/clang-tblgen \
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
 %endif
-%ifnarch armv7hl
+%if %{with unwind}
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
 %endif
-	-G Ninja
+	-G Ninja \
+	../llvm
 
 %ninja_build
 
@@ -1053,7 +1025,7 @@ done
 
 # Install the clang python bits
 mkdir -p %{buildroot}%{python_sitelib}
-cp -a tools/clang/bindings/python/clang %{buildroot}%{python_sitelib}/
+cp -a clang/bindings/python/clang %{buildroot}%{python_sitelib}/
 
 %if %{with default_compiler}
 ln -s clang %{buildroot}%{_bindir}/cc

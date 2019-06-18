@@ -1,6 +1,7 @@
---- llvm-5.0.0.src/tools/clang/lib/Driver/ToolChains/Arch/ARM.cpp.omv~	2017-06-15 23:31:39.205260569 +0200
-+++ llvm-5.0.0.src/tools/clang/lib/Driver/ToolChains/Arch/ARM.cpp	2017-06-15 23:32:23.670202148 +0200
-@@ -145,7 +145,7 @@ arm::FloatABI arm::getARMFloatABI(const
+diff -up llvm-9.0.0.src/clang/lib/Driver/ToolChains/Arch/ARM.cpp.armhf~ llvm-9.0.0.src/clang/lib/Driver/ToolChains/Arch/ARM.cpp
+--- llvm-9.0.0.src/clang/lib/Driver/ToolChains/Arch/ARM.cpp.armhf~	2019-02-21 22:13:03.000000000 +0100
++++ llvm-9.0.0.src/clang/lib/Driver/ToolChains/Arch/ARM.cpp	2019-03-12 20:19:28.163463438 +0100
+@@ -172,7 +172,7 @@ arm::FloatABI arm::getARMFloatABI(const
                  .Default(FloatABI::Invalid);
        if (ABI == FloatABI::Invalid && !StringRef(A->getValue()).empty()) {
          D.Diag(diag::err_drv_invalid_mfloat_abi) << A->getAsString(Args);
@@ -9,8 +10,8 @@
        }
      }
  
-@@ -212,16 +212,12 @@ arm::FloatABI arm::getARMFloatABI(const
-         ABI = (SubArch == 7) ? FloatABI::SoftFP : FloatABI::Soft;
+@@ -251,16 +251,12 @@ arm::FloatABI arm::getARMFloatABI(const
+         ABI = (SubArch >= 7) ? FloatABI::SoftFP : FloatABI::Soft;
          break;
        default:
 -        // Assume "soft", but warn the user we are guessing.

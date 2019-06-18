@@ -1,0 +1,640 @@
+Index: include/llvm/DebugInfo/DWARF/DWARFDebugFrame.h
+===================================================================
+--- llvm/llvm/include/llvm/DebugInfo/DWARF/DWARFDebugFrame.h
++++ llvm/llvm/include/llvm/DebugInfo/DWARF/DWARFDebugFrame.h
+@@ -69,7 +69,7 @@
+   /// starting at *Offset and ending at EndOffset. *Offset is updated
+   /// to EndOffset upon successful parsing, or indicates the offset
+   /// where a problem occurred in case an error is returned.
+-  Error parse(DataExtractor Data, uint32_t *Offset, uint32_t EndOffset);
++  Error parse(DWARFDataExtractor Data, uint32_t *Offset, uint32_t EndOffset);
+ 
+   void dump(raw_ostream &OS, const MCRegisterInfo *MRI, bool IsEH,
+             unsigned IndentLevel = 1) const;
+Index: include/llvm/DebugInfo/DWARF/DWARFObject.h
+===================================================================
+--- llvm/llvm/include/llvm/DebugInfo/DWARF/DWARFObject.h
++++ llvm/llvm/include/llvm/DebugInfo/DWARF/DWARFObject.h
+@@ -40,8 +40,8 @@
+   virtual const DWARFSection &getLocSection() const { return Dummy; }
+   virtual const DWARFSection &getLoclistsSection() const { return Dummy; }
+   virtual StringRef getARangeSection() const { return ""; }
+-  virtual StringRef getDebugFrameSection() const { return ""; }
+-  virtual StringRef getEHFrameSection() const { return ""; }
++  virtual const DWARFSection &getDebugFrameSection() const { return Dummy; }
++  virtual const DWARFSection &getEHFrameSection() const { return Dummy; }
+   virtual const DWARFSection &getLineSection() const { return Dummy; }
+   virtual StringRef getLineStringSection() const { return ""; }
+   virtual StringRef getStringSection() const { return ""; }
+Index: include/llvm/MC/MCDwarf.h
+===================================================================
+--- llvm/llvm/include/llvm/MC/MCDwarf.h
++++ llvm/llvm/include/llvm/MC/MCDwarf.h
+@@ -626,7 +626,8 @@
+   static void Emit(MCObjectStreamer &streamer, MCAsmBackend *MAB, bool isEH);
+   static void EmitAdvanceLoc(MCObjectStreamer &Streamer, uint64_t AddrDelta);
+   static void EncodeAdvanceLoc(MCContext &Context, uint64_t AddrDelta,
+-                               raw_ostream &OS);
++                               raw_ostream &OS, uint32_t *Offset = nullptr,
++                               uint32_t *Size = nullptr);
+ };
+ 
+ } // end namespace llvm
+Index: include/llvm/MC/MCFixup.h
+===================================================================
+--- llvm/llvm/include/llvm/MC/MCFixup.h
++++ llvm/llvm/include/llvm/MC/MCFixup.h
+@@ -20,35 +20,38 @@
+ 
+ /// Extensible enumeration to represent the type of a fixup.
+ enum MCFixupKind {
+-  FK_NONE = 0,   ///< A no-op fixup.
+-  FK_Data_1,     ///< A one-byte fixup.
+-  FK_Data_2,     ///< A two-byte fixup.
+-  FK_Data_4,     ///< A four-byte fixup.
+-  FK_Data_8,     ///< A eight-byte fixup.
+-  FK_PCRel_1,    ///< A one-byte pc relative fixup.
+-  FK_PCRel_2,    ///< A two-byte pc relative fixup.
+-  FK_PCRel_4,    ///< A four-byte pc relative fixup.
+-  FK_PCRel_8,    ///< A eight-byte pc relative fixup.
+-  FK_GPRel_1,    ///< A one-byte gp relative fixup.
+-  FK_GPRel_2,    ///< A two-byte gp relative fixup.
+-  FK_GPRel_4,    ///< A four-byte gp relative fixup.
+-  FK_GPRel_8,    ///< A eight-byte gp relative fixup.
+-  FK_DTPRel_4,   ///< A four-byte dtp relative fixup.
+-  FK_DTPRel_8,   ///< A eight-byte dtp relative fixup.
+-  FK_TPRel_4,    ///< A four-byte tp relative fixup.
+-  FK_TPRel_8,    ///< A eight-byte tp relative fixup.
+-  FK_SecRel_1,   ///< A one-byte section relative fixup.
+-  FK_SecRel_2,   ///< A two-byte section relative fixup.
+-  FK_SecRel_4,   ///< A four-byte section relative fixup.
+-  FK_SecRel_8,   ///< A eight-byte section relative fixup.
+-  FK_Data_Add_1, ///< A one-byte add fixup.
+-  FK_Data_Add_2, ///< A two-byte add fixup.
+-  FK_Data_Add_4, ///< A four-byte add fixup.
+-  FK_Data_Add_8, ///< A eight-byte add fixup.
+-  FK_Data_Sub_1, ///< A one-byte sub fixup.
+-  FK_Data_Sub_2, ///< A two-byte sub fixup.
+-  FK_Data_Sub_4, ///< A four-byte sub fixup.
+-  FK_Data_Sub_8, ///< A eight-byte sub fixup.
++  FK_NONE = 0,    ///< A no-op fixup.
++  FK_Data_1,      ///< A one-byte fixup.
++  FK_Data_2,      ///< A two-byte fixup.
++  FK_Data_4,      ///< A four-byte fixup.
++  FK_Data_8,      ///< A eight-byte fixup.
++  FK_Data_6b,     ///< A six-bits fixup.
++  FK_PCRel_1,     ///< A one-byte pc relative fixup.
++  FK_PCRel_2,     ///< A two-byte pc relative fixup.
++  FK_PCRel_4,     ///< A four-byte pc relative fixup.
++  FK_PCRel_8,     ///< A eight-byte pc relative fixup.
++  FK_GPRel_1,     ///< A one-byte gp relative fixup.
++  FK_GPRel_2,     ///< A two-byte gp relative fixup.
++  FK_GPRel_4,     ///< A four-byte gp relative fixup.
++  FK_GPRel_8,     ///< A eight-byte gp relative fixup.
++  FK_DTPRel_4,    ///< A four-byte dtp relative fixup.
++  FK_DTPRel_8,    ///< A eight-byte dtp relative fixup.
++  FK_TPRel_4,     ///< A four-byte tp relative fixup.
++  FK_TPRel_8,     ///< A eight-byte tp relative fixup.
++  FK_SecRel_1,    ///< A one-byte section relative fixup.
++  FK_SecRel_2,    ///< A two-byte section relative fixup.
++  FK_SecRel_4,    ///< A four-byte section relative fixup.
++  FK_SecRel_8,    ///< A eight-byte section relative fixup.
++  FK_Data_Add_1,  ///< A one-byte add fixup.
++  FK_Data_Add_2,  ///< A two-byte add fixup.
++  FK_Data_Add_4,  ///< A four-byte add fixup.
++  FK_Data_Add_8,  ///< A eight-byte add fixup.
++  FK_Data_Add_6b, ///< A six-bits add fixup.
++  FK_Data_Sub_1,  ///< A one-byte sub fixup.
++  FK_Data_Sub_2,  ///< A two-byte sub fixup.
++  FK_Data_Sub_4,  ///< A four-byte sub fixup.
++  FK_Data_Sub_8,  ///< A eight-byte sub fixup.
++  FK_Data_Sub_6b, ///< A six-bits sub fixup.
+ 
+   FirstTargetFixupKind = 128,
+ 
+@@ -139,6 +142,28 @@
+     }
+   }
+ 
++  /// Return the generic fixup kind for a value with the given size in bits.
++  /// It is an error to pass an unsupported size.
++  static MCFixupKind getKindForSizeInBits(unsigned Size, bool isPCRel) {
++    switch (Size) {
++    default:
++      llvm_unreachable("Invalid generic fixup size!");
++    case 6:
++      if (isPCRel)
++        llvm_unreachable("Invalid pc-relative fixup size!");
++      else
++        return FK_Data_6b;
++    case 8:
++      return isPCRel ? FK_PCRel_1 : FK_Data_1;
++    case 16:
++      return isPCRel ? FK_PCRel_2 : FK_Data_2;
++    case 32:
++      return isPCRel ? FK_PCRel_4 : FK_Data_4;
++    case 64:
++      return isPCRel ? FK_PCRel_8 : FK_Data_8;
++    }
++  }
++
+   /// Return the generic fixup kind for an addition with a given size. It
+   /// is an error to pass an unsupported size.
+   static MCFixupKind getAddKindForKind(unsigned Kind) {
+@@ -148,6 +173,7 @@
+     case FK_Data_2: return FK_Data_Add_2;
+     case FK_Data_4: return FK_Data_Add_4;
+     case FK_Data_8: return FK_Data_Add_8;
++    case FK_Data_6b: return FK_Data_Add_6b;
+     }
+   }
+ 
+@@ -160,6 +186,7 @@
+     case FK_Data_2: return FK_Data_Sub_2;
+     case FK_Data_4: return FK_Data_Sub_4;
+     case FK_Data_8: return FK_Data_Sub_8;
++    case FK_Data_6b: return FK_Data_Sub_6b;
+     }
+   }
+ 
+Index: include/llvm/MC/MCFragment.h
+===================================================================
+--- llvm/llvm/include/llvm/MC/MCFragment.h
++++ llvm/llvm/include/llvm/MC/MCFragment.h
+@@ -149,6 +149,7 @@
+     case MCFragment::FT_CompactEncodedInst:
+     case MCFragment::FT_Data:
+     case MCFragment::FT_Dwarf:
++    case MCFragment::FT_DwarfFrame:
+       return true;
+     }
+   }
+@@ -232,7 +233,8 @@
+   static bool classof(const MCFragment *F) {
+     MCFragment::FragmentType Kind = F->getKind();
+     return Kind == MCFragment::FT_Relaxable || Kind == MCFragment::FT_Data ||
+-           Kind == MCFragment::FT_CVDefRange || Kind == MCFragment::FT_Dwarf;;
++           Kind == MCFragment::FT_CVDefRange || Kind == MCFragment::FT_Dwarf ||
++           Kind == MCFragment::FT_DwarfFrame;
+   }
+ };
+ 
+@@ -543,27 +545,21 @@
+   }
+ };
+ 
+-class MCDwarfCallFrameFragment : public MCFragment {
++class MCDwarfCallFrameFragment : public MCEncodedFragmentWithFixups<8, 1> {
+   /// AddrDelta - The expression for the difference of the two symbols that
+   /// make up the address delta between two .cfi_* dwarf directives.
+   const MCExpr *AddrDelta;
+ 
+-  SmallString<8> Contents;
+-
+ public:
+   MCDwarfCallFrameFragment(const MCExpr &AddrDelta, MCSection *Sec = nullptr)
+-      : MCFragment(FT_DwarfFrame, false, Sec), AddrDelta(&AddrDelta) {
+-    Contents.push_back(0);
+-  }
++      : MCEncodedFragmentWithFixups<8, 1>(FT_DwarfFrame, false, Sec),
++        AddrDelta(&AddrDelta) {}
+ 
+   /// \name Accessors
+   /// @{
+ 
+   const MCExpr &getAddrDelta() const { return *AddrDelta; }
+ 
+-  SmallString<8> &getContents() { return Contents; }
+-  const SmallString<8> &getContents() const { return Contents; }
+-
+   /// @}
+ 
+   static bool classof(const MCFragment *F) {
+Index: lib/DebugInfo/DWARF/DWARFContext.cpp
+===================================================================
+--- llvm/llvm/lib/DebugInfo/DWARF/DWARFContext.cpp
++++ llvm/llvm/lib/DebugInfo/DWARF/DWARFContext.cpp
+@@ -400,11 +400,11 @@
+   }
+ 
+   if (const auto *Off = shouldDump(Explicit, ".debug_frame", DIDT_ID_DebugFrame,
+-                                   DObj->getDebugFrameSection()))
++                                   DObj->getDebugFrameSection().Data))
+     getDebugFrame()->dump(OS, getRegisterInfo(), *Off);
+ 
+   if (const auto *Off = shouldDump(Explicit, ".eh_frame", DIDT_ID_DebugFrame,
+-                                   DObj->getEHFrameSection()))
++                                   DObj->getEHFrameSection().Data))
+     getEHFrame()->dump(OS, getRegisterInfo(), *Off);
+ 
+   if (DumpType & DIDT_DebugMacro) {
+@@ -764,7 +764,7 @@
+   // provides this information). This problem is fixed in DWARFv4
+   // See this dwarf-discuss discussion for more details:
+   // http://lists.dwarfstd.org/htdig.cgi/dwarf-discuss-dwarfstd.org/2011-December/001173.html
+-  DWARFDataExtractor debugFrameData(DObj->getDebugFrameSection(),
++  DWARFDataExtractor debugFrameData(*DObj, DObj->getDebugFrameSection(),
+                                     isLittleEndian(), DObj->getAddressSize());
+   DebugFrame.reset(new DWARFDebugFrame(getArch(), false /* IsEH */));
+   DebugFrame->parse(debugFrameData);
+@@ -775,8 +775,8 @@
+   if (EHFrame)
+     return EHFrame.get();
+ 
+-  DWARFDataExtractor debugFrameData(DObj->getEHFrameSection(), isLittleEndian(),
+-                                    DObj->getAddressSize());
++  DWARFDataExtractor debugFrameData(*DObj, DObj->getEHFrameSection(),
++                                    isLittleEndian(), DObj->getAddressSize());
+   DebugFrame.reset(new DWARFDebugFrame(getArch(), true /* IsEH */));
+   DebugFrame->parse(debugFrameData);
+   return DebugFrame.get();
+@@ -1265,6 +1265,8 @@
+   DWARFSectionMap RnglistsSection;
+   DWARFSectionMap StringOffsetSection;
+   DWARFSectionMap LineDWOSection;
++  DWARFSectionMap DebugFrameSection;
++  DWARFSectionMap EHFrameSection;
+   DWARFSectionMap LocDWOSection;
+   DWARFSectionMap StringOffsetDWOSection;
+   DWARFSectionMap RangeDWOSection;
+@@ -1285,6 +1287,8 @@
+         .Case("debug_loc", &LocSection)
+         .Case("debug_loclists", &LocListsSection)
+         .Case("debug_line", &LineSection)
++        .Case("debug_frame", &DebugFrameSection)
++        .Case("eh_frame", &EHFrameSection)
+         .Case("debug_str_offsets", &StringOffsetSection)
+         .Case("debug_ranges", &RangeSection)
+         .Case("debug_rnglists", &RnglistsSection)
+@@ -1308,8 +1312,6 @@
+ 
+   StringRef AbbrevSection;
+   StringRef ARangeSection;
+-  StringRef DebugFrameSection;
+-  StringRef EHFrameSection;
+   StringRef StringSection;
+   StringRef MacinfoSection;
+   StringRef AbbrevDWOSection;
+@@ -1329,8 +1331,6 @@
+     return StringSwitch<StringRef *>(Name)
+         .Case("debug_abbrev", &AbbrevSection)
+         .Case("debug_aranges", &ARangeSection)
+-        .Case("debug_frame", &DebugFrameSection)
+-        .Case("eh_frame", &EHFrameSection)
+         .Case("debug_str", &StringSection)
+         .Case("debug_macinfo", &MacinfoSection)
+         .Case("debug_abbrev.dwo", &AbbrevDWOSection)
+@@ -1611,8 +1611,12 @@
+   const DWARFSection &getLocSection() const override { return LocSection; }
+   const DWARFSection &getLoclistsSection() const override { return LocListsSection; }
+   StringRef getARangeSection() const override { return ARangeSection; }
+-  StringRef getDebugFrameSection() const override { return DebugFrameSection; }
+-  StringRef getEHFrameSection() const override { return EHFrameSection; }
++  const DWARFSection &getDebugFrameSection() const override {
++    return DebugFrameSection;
++  }
++  const DWARFSection &getEHFrameSection() const override {
++    return EHFrameSection;
++  }
+   const DWARFSection &getLineSection() const override { return LineSection; }
+   StringRef getStringSection() const override { return StringSection; }
+   const DWARFSection &getRangeSection() const override { return RangeSection; }
+Index: lib/DebugInfo/DWARF/DWARFDebugFrame.cpp
+===================================================================
+--- llvm/llvm/lib/DebugInfo/DWARF/DWARFDebugFrame.cpp
++++ llvm/llvm/lib/DebugInfo/DWARF/DWARFDebugFrame.cpp
+@@ -34,10 +34,10 @@
+ const uint8_t DWARF_CFI_PRIMARY_OPCODE_MASK = 0xc0;
+ const uint8_t DWARF_CFI_PRIMARY_OPERAND_MASK = 0x3f;
+ 
+-Error CFIProgram::parse(DataExtractor Data, uint32_t *Offset,
++Error CFIProgram::parse(DWARFDataExtractor Data, uint32_t *Offset,
+                         uint32_t EndOffset) {
+   while (*Offset < EndOffset) {
+-    uint8_t Opcode = Data.getU8(Offset);
++    uint8_t Opcode = Data.getRelocatedValue(1, Offset);
+     // Some instructions have a primary opcode encoded in the top bits.
+     uint8_t Primary = Opcode & DWARF_CFI_PRIMARY_OPCODE_MASK;
+ 
+@@ -74,19 +74,19 @@
+         break;
+       case DW_CFA_set_loc:
+         // Operands: Address
+-        addInstruction(Opcode, Data.getAddress(Offset));
++        addInstruction(Opcode, Data.getRelocatedAddress(Offset));
+         break;
+       case DW_CFA_advance_loc1:
+         // Operands: 1-byte delta
+-        addInstruction(Opcode, Data.getU8(Offset));
++        addInstruction(Opcode, Data.getRelocatedValue(1, Offset));
+         break;
+       case DW_CFA_advance_loc2:
+         // Operands: 2-byte delta
+-        addInstruction(Opcode, Data.getU16(Offset));
++        addInstruction(Opcode, Data.getRelocatedValue(2, Offset));
+         break;
+       case DW_CFA_advance_loc4:
+         // Operands: 4-byte delta
+-        addInstruction(Opcode, Data.getU32(Offset));
++        addInstruction(Opcode, Data.getRelocatedValue(4, Offset));
+         break;
+       case DW_CFA_restore_extended:
+       case DW_CFA_undefined:
+@@ -361,7 +361,7 @@
+     uint32_t StartOffset = Offset;
+ 
+     bool IsDWARF64 = false;
+-    uint64_t Length = Data.getU32(&Offset);
++    uint64_t Length = Data.getRelocatedValue(4, &Offset);
+     uint64_t Id;
+ 
+     if (Length == UINT32_MAX) {
+@@ -369,7 +369,7 @@
+       // field being 0xffffffff. Then, the next 64 bits are the actual entry
+       // length.
+       IsDWARF64 = true;
+-      Length = Data.getU64(&Offset);
++      Length = Data.getRelocatedValue(8, &Offset);
+     }
+ 
+     // At this point, Offset points to the next field after Length.
+@@ -512,8 +512,8 @@
+             ReportError(StartOffset, "Parsing augmentation data at %lx failed");
+         }
+       } else {
+-        InitialLocation = Data.getAddress(&Offset);
+-        AddressRange = Data.getAddress(&Offset);
++        InitialLocation = Data.getRelocatedAddress(&Offset);
++        AddressRange = Data.getRelocatedAddress(&Offset);
+       }
+ 
+       Entries.emplace_back(new FDE(StartOffset, Length, CIEPointer,
+Index: lib/MC/MCAsmBackend.cpp
+===================================================================
+--- llvm/llvm/lib/MC/MCAsmBackend.cpp
++++ llvm/llvm/lib/MC/MCAsmBackend.cpp
+@@ -69,6 +69,7 @@
+       {"FK_Data_2", 0, 16, 0},
+       {"FK_Data_4", 0, 32, 0},
+       {"FK_Data_8", 0, 64, 0},
++      {"FK_Data_6b", 0, 6, 0},
+       {"FK_PCRel_1", 0, 8, MCFixupKindInfo::FKF_IsPCRel},
+       {"FK_PCRel_2", 0, 16, MCFixupKindInfo::FKF_IsPCRel},
+       {"FK_PCRel_4", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
+@@ -89,10 +90,12 @@
+       {"FK_Data_Add_2", 0, 16, 0},
+       {"FK_Data_Add_4", 0, 32, 0},
+       {"FK_Data_Add_8", 0, 64, 0},
++      {"FK_Data_Add_6b", 0, 6, 0},
+       {"FK_Data_Sub_1", 0, 8, 0},
+       {"FK_Data_Sub_2", 0, 16, 0},
+       {"FK_Data_Sub_4", 0, 32, 0},
+-      {"FK_Data_Sub_8", 0, 64, 0}};
++      {"FK_Data_Sub_8", 0, 64, 0},
++      {"FK_Data_Sub_6b", 0, 6, 0}};
+ 
+   assert((size_t)Kind <= array_lengthof(Builtins) && "Unknown fixup kind");
+   return Builtins[Kind];
+Index: lib/MC/MCAssembler.cpp
+===================================================================
+--- llvm/llvm/lib/MC/MCAssembler.cpp
++++ llvm/llvm/lib/MC/MCAssembler.cpp
+@@ -840,6 +840,10 @@
+           getBackend().shouldInsertFixupForCodeAlign(*this, Layout, *AF);
+         }
+         continue;
++      } else if (auto *FragWithFixups =
++                     dyn_cast<MCDwarfCallFrameFragment>(&Frag)) {
++        Fixups = FragWithFixups->getFixups();
++        Contents = FragWithFixups->getContents();
+       } else
+         llvm_unreachable("Unknown fragment with fixups!");
+       for (const MCFixup &Fixup : Fixups) {
+@@ -969,13 +973,9 @@
+   MCContext &Context = Layout.getAssembler().getContext();
+   uint64_t OldSize = DF.getContents().size();
+   int64_t AddrDelta;
+-  bool Abs;
+-  if (getBackend().requiresDiffExpressionRelocations())
+-    Abs = DF.getAddrDelta().evaluateAsAbsolute(AddrDelta, Layout);
+-  else {
+-    Abs = DF.getAddrDelta().evaluateKnownAbsolute(AddrDelta, Layout);
+-    assert(Abs && "We created a line delta with an invalid expression");
+-  }
++  bool Abs = DF.getAddrDelta().evaluateKnownAbsolute(AddrDelta, Layout);
++  assert(Abs && "We created a line delta with an invalid expression");
++  (void)Abs;
+   int64_t LineDelta;
+   LineDelta = DF.getLineDelta();
+   SmallVectorImpl<char> &Data = DF.getContents();
+@@ -983,7 +983,7 @@
+   raw_svector_ostream OSE(Data);
+   DF.getFixups().clear();
+ 
+-  if (Abs) {
++  if (!getBackend().requiresDiffExpressionRelocations()) {
+     MCDwarfLineAddr::Encode(Context, getDWARFLinetableParams(), LineDelta,
+                             AddrDelta, OSE);
+   } else {
+@@ -1017,10 +1017,21 @@
+   bool Abs = DF.getAddrDelta().evaluateKnownAbsolute(AddrDelta, Layout);
+   assert(Abs && "We created call frame with an invalid expression");
+   (void) Abs;
+-  SmallString<8> &Data = DF.getContents();
++  SmallVectorImpl<char> &Data = DF.getContents();
+   Data.clear();
+   raw_svector_ostream OSE(Data);
+-  MCDwarfFrameEmitter::EncodeAdvanceLoc(Context, AddrDelta, OSE);
++  DF.getFixups().clear();
++
++  uint32_t Offset;
++  uint32_t Size;
++  MCDwarfFrameEmitter::EncodeAdvanceLoc(Context, AddrDelta, OSE, &Offset,
++                                        &Size);
++  if (Size && getBackend().requiresDiffExpressionRelocations()) {
++    DF.getFixups().push_back(MCFixup::create(
++        Offset, &DF.getAddrDelta(),
++        MCFixup::getKindForSizeInBits(Size /*In bits.*/, false /*isPCRel*/)));
++  }
++
+   return OldSize != Data.size();
+ }
+ 
+Index: lib/MC/MCDwarf.cpp
+===================================================================
+--- llvm/llvm/lib/MC/MCDwarf.cpp
++++ llvm/llvm/lib/MC/MCDwarf.cpp
+@@ -1897,26 +1897,54 @@
+ }
+ 
+ void MCDwarfFrameEmitter::EncodeAdvanceLoc(MCContext &Context,
+-                                           uint64_t AddrDelta,
+-                                           raw_ostream &OS) {
++                                           uint64_t AddrDelta, raw_ostream &OS,
++                                           uint32_t *Offset, uint32_t *Size) {
+   // Scale the address delta by the minimum instruction length.
+   AddrDelta = ScaleAddrDelta(Context, AddrDelta);
+ 
++  bool WithFixups = false;
++  if (Offset != nullptr && Size != nullptr)
++    WithFixups = true;
++
+   support::endianness E =
+       Context.getAsmInfo()->isLittleEndian() ? support::little : support::big;
+   if (AddrDelta == 0) {
++    if (WithFixups) {
++      *Offset = 0;
++      *Size = 0;
++    }
+   } else if (isUIntN(6, AddrDelta)) {
+     uint8_t Opcode = dwarf::DW_CFA_advance_loc | AddrDelta;
+-    OS << Opcode;
++    if (WithFixups) {
++      *Offset = OS.tell();
++      *Size = 6;
++      OS << uint8_t(dwarf::DW_CFA_advance_loc);
++    } else
++      OS << Opcode;
+   } else if (isUInt<8>(AddrDelta)) {
+     OS << uint8_t(dwarf::DW_CFA_advance_loc1);
+-    OS << uint8_t(AddrDelta);
++    if (WithFixups) {
++      *Offset = OS.tell();
++      *Size = 8;
++      OS.write_zeros(1);
++    } else
++      OS << uint8_t(AddrDelta);
+   } else if (isUInt<16>(AddrDelta)) {
+     OS << uint8_t(dwarf::DW_CFA_advance_loc2);
+-    support::endian::write<uint16_t>(OS, AddrDelta, E);
++    if (WithFixups) {
++      *Offset = OS.tell();
++      *Size = 16;
++      OS.write_zeros(2);
++    } else
++      support::endian::write<uint16_t>(OS, AddrDelta, E);
+   } else {
+     assert(isUInt<32>(AddrDelta));
+     OS << uint8_t(dwarf::DW_CFA_advance_loc4);
+-    support::endian::write<uint32_t>(OS, AddrDelta, E);
++    if (WithFixups) {
++      *Offset = OS.tell();
++      *Size = 32;
++      OS.write_zeros(4);
++    } else
++      support::endian::write<uint32_t>(OS, AddrDelta, E);
+   }
+ }
+Index: lib/Target/RISCV/MCTargetDesc/RISCVAsmBackend.cpp
+===================================================================
+--- llvm/llvm/lib/Target/RISCV/MCTargetDesc/RISCVAsmBackend.cpp
++++ llvm/llvm/lib/Target/RISCV/MCTargetDesc/RISCVAsmBackend.cpp
+@@ -190,6 +190,7 @@
+   case FK_Data_2:
+   case FK_Data_4:
+   case FK_Data_8:
++  case FK_Data_6b:
+     return Value;
+   case RISCV::fixup_riscv_lo12_i:
+   case RISCV::fixup_riscv_pcrel_lo12_i:
+Index: lib/Target/RISCV/MCTargetDesc/RISCVELFObjectWriter.cpp
+===================================================================
+--- llvm/llvm/lib/Target/RISCV/MCTargetDesc/RISCVELFObjectWriter.cpp
++++ llvm/llvm/lib/Target/RISCV/MCTargetDesc/RISCVELFObjectWriter.cpp
+@@ -63,6 +63,8 @@
+     return ELF::R_RISCV_ADD32;
+   case FK_Data_Add_8:
+     return ELF::R_RISCV_ADD64;
++  case FK_Data_Add_6b:
++    return ELF::R_RISCV_SET6;
+   case FK_Data_Sub_1:
+     return ELF::R_RISCV_SUB8;
+   case FK_Data_Sub_2:
+@@ -71,6 +73,8 @@
+     return ELF::R_RISCV_SUB32;
+   case FK_Data_Sub_8:
+     return ELF::R_RISCV_SUB64;
++  case FK_Data_Sub_6b:
++    return ELF::R_RISCV_SUB6;
+   case RISCV::fixup_riscv_hi20:
+     return ELF::R_RISCV_HI20;
+   case RISCV::fixup_riscv_lo12_i:
+Index: test/CodeGen/RISCV/fixups-relax-diff.ll
+===================================================================
+--- llvm/llvm/test/CodeGen/RISCV/fixups-relax-diff.ll
++++ llvm/llvm/test/CodeGen/RISCV/fixups-relax-diff.ll
+@@ -14,7 +14,7 @@
+   store i32 0, i32* %retval, align 4
+   ; RELAX: R_RISCV_ADD64 b
+   ; RELAX: R_RISCV_SUB64 a
+-  ; NORELAX-NOT: R_RISCV
++  ; NORELAX-NOT: R_RISCV_ADD
+   call void asm sideeffect "a:\0Ab:\0A.dword b-a", ""()
+   ret i32 0
+ }
+Index: test/DebugInfo/RISCV/relax-debug-frame.ll
+===================================================================
+--- llvm/llvm//dev/null
++++ llvm/llvm/test/DebugInfo/RISCV/relax-debug-frame.ll
+@@ -0,0 +1,48 @@
++; RUN: llc -filetype=obj -mtriple=riscv32 -mattr=+relax %s -o - \
++; RUN:     | llvm-readobj -r | FileCheck -check-prefix=RELAX %s
++;
++; RELAX: .rela.{{eh|debug}}_frame {
++; RELAX: R_RISCV_ADD32
++; RELAX: R_RISCV_SUB32
++; RELAX: R_RISCV_SET6
++; RELAX: R_RISCV_SUB6
++source_filename = "frame.c"
++
++; Function Attrs: noinline nounwind optnone
++define i32 @init() {
++entry:
++  ret i32 0
++}
++
++; Function Attrs: noinline nounwind optnone
++define i32 @foo(i32 signext %value) {
++entry:
++  %value.addr = alloca i32, align 4
++  store i32 %value, i32* %value.addr, align 4
++  %0 = load i32, i32* %value.addr, align 4
++  ret i32 %0
++}
++
++; Function Attrs: noinline nounwind optnone
++define i32 @bar() {
++entry:
++  %result = alloca i32, align 4
++  %v = alloca i32, align 4
++  %call = call i32 @init()
++  store i32 %call, i32* %v, align 4
++  %0 = load i32, i32* %v, align 4
++  %call1 = call i32 @foo(i32 signext %0)
++  store i32 %call1, i32* %result, align 4
++  %1 = load i32, i32* %result, align 4
++  ret i32 %1
++}
++
++!llvm.dbg.cu = !{!0}
++!llvm.module.flags = !{!3, !4, !5}
++
++!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2)
++!1 = !DIFile(filename: "line.c", directory: "./")
++!2 = !{}
++!3 = !{i32 2, !"Dwarf Version", i32 4}
++!4 = !{i32 2, !"Debug Info Version", i32 3}
++!5 = !{i32 1, !"wchar_size", i32 4}
+Index: tools/dsymutil/DwarfLinker.cpp
+===================================================================
+--- llvm/llvm/tools/dsymutil/DwarfLinker.cpp
++++ llvm/llvm/tools/dsymutil/DwarfLinker.cpp
+@@ -2005,7 +2005,7 @@
+                                           RangesTy &Ranges,
+                                           DWARFContext &OrigDwarf,
+                                           unsigned AddrSize) {
+-  StringRef FrameData = OrigDwarf.getDWARFObj().getDebugFrameSection();
++  StringRef FrameData = OrigDwarf.getDWARFObj().getDebugFrameSection().Data;
+   if (FrameData.empty())
+     return;
+ 

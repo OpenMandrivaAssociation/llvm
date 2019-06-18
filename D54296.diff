@@ -1,0 +1,154 @@
+Index: llvm/llvm/include/llvm/IR/InlineAsm.h
+===================================================================
+--- llvm/llvm/include/llvm/IR/InlineAsm.h
++++ llvm/llvm/include/llvm/IR/InlineAsm.h
+@@ -244,6 +244,7 @@
+     Constraint_m,
+     Constraint_o,
+     Constraint_v,
++    Constraint_A,
+     Constraint_Q,
+     Constraint_R,
+     Constraint_S,
+Index: llvm/llvm/lib/Target/RISCV/RISCVAsmPrinter.cpp
+===================================================================
+--- llvm/llvm/lib/Target/RISCV/RISCVAsmPrinter.cpp
++++ llvm/llvm/lib/Target/RISCV/RISCVAsmPrinter.cpp
+@@ -115,7 +115,7 @@
+     if (!MO.isReg())
+       return true;
+ 
+-    OS << "0(" << RISCVInstPrinter::getRegisterName(MO.getReg()) << ")";
++    OS << "(" << RISCVInstPrinter::getRegisterName(MO.getReg()) << ")";
+     return false;
+   }
+ 
+Index: llvm/llvm/lib/Target/RISCV/RISCVISelDAGToDAG.cpp
+===================================================================
+--- llvm/llvm/lib/Target/RISCV/RISCVISelDAGToDAG.cpp
++++ llvm/llvm/lib/Target/RISCV/RISCVISelDAGToDAG.cpp
+@@ -172,6 +172,9 @@
+     // operand and need no special handling.
+     OutOps.push_back(Op);
+     return false;
++  case InlineAsm::Constraint_A:
++    OutOps.push_back(Op);
++    return false;
+   default:
+     break;
+   }
+Index: llvm/llvm/lib/Target/RISCV/RISCVISelLowering.h
+===================================================================
+--- llvm/llvm/lib/Target/RISCV/RISCVISelLowering.h
++++ llvm/llvm/lib/Target/RISCV/RISCVISelLowering.h
+@@ -89,6 +89,11 @@
+   // This method returns the name of a target specific DAG node.
+   const char *getTargetNodeName(unsigned Opcode) const override;
+ 
++  // Get the type of an inline asm constraint.
++  ConstraintType getConstraintType(StringRef Constraint) const override;
++
++  unsigned getInlineAsmMemConstraint(StringRef ConstraintCode) const override;
++
+   std::pair<unsigned, const TargetRegisterClass *>
+   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                                StringRef Constraint, MVT VT) const override;
+Index: llvm/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
+===================================================================
+--- llvm/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
++++ llvm/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
+@@ -2141,6 +2141,21 @@
+   return nullptr;
+ }
+ 
++RISCVTargetLowering::ConstraintType
++RISCVTargetLowering::getConstraintType(StringRef Constraint) const {
++  // Currently only support length 1 constraints.
++  if (Constraint.size() == 1) {
++    switch (Constraint[0]) {
++    case 'A':
++      return C_Memory;
++    default:
++      break;
++    }
++  }
++
++  return TargetLowering::getConstraintType(Constraint);
++}
++
+ std::pair<unsigned, const TargetRegisterClass *>
+ RISCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                                                   StringRef Constraint,
+@@ -2159,6 +2174,21 @@
+   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+ }
+ 
++unsigned
++RISCVTargetLowering::getInlineAsmMemConstraint(StringRef ConstraintCode) const {
++  // Currently only support length 1 constraints.
++  if (ConstraintCode.size() == 1) {
++    switch (ConstraintCode[0]) {
++    case 'A':
++      return InlineAsm::Constraint_A;
++    default:
++      break;
++    }
++  }
++
++  return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
++}
++
+ void RISCVTargetLowering::LowerAsmOperandForConstraint(
+     SDValue Op, std::string &Constraint, std::vector<SDValue> &Ops,
+     SelectionDAG &DAG) const {
+Index: llvm/llvm/test/CodeGen/RISCV/inline-asm.ll
+===================================================================
+--- llvm/llvm/test/CodeGen/RISCV/inline-asm.ll
++++ llvm/llvm/test/CodeGen/RISCV/inline-asm.ll
+@@ -68,14 +68,14 @@
+ ; RV32I-LABEL: constraint_m2:
+ ; RV32I:       # %bb.0:
+ ; RV32I-NEXT:    #APP
+-; RV32I-NEXT:    lw a0, 0(a0)
++; RV32I-NEXT:    lw a0, (a0)
+ ; RV32I-NEXT:    #NO_APP
+ ; RV32I-NEXT:    ret
+ ;
+ ; RV64I-LABEL: constraint_m2:
+ ; RV64I:       # %bb.0:
+ ; RV64I-NEXT:    #APP
+-; RV64I-NEXT:    lw a0, 0(a0)
++; RV64I-NEXT:    lw a0, (a0)
+ ; RV64I-NEXT:    #NO_APP
+ ; RV64I-NEXT:    ret
+   %1 = tail call i32 asm "lw $0, $1", "=r,*m"(i32* %a) nounwind
+@@ -150,4 +150,29 @@
+   ret void
+ }
+ 
++define void @constraint_A(i8* %a) nounwind {
++; RV32I-LABEL: constraint_A:
++; RV32I:       # %bb.0:
++; RV32I-NEXT:    #APP
++; RV32I-NEXT:    sb s0, (a0)
++; RV32I-NEXT:    #NO_APP
++; RV32I-NEXT:    #APP
++; RV32I-NEXT:    lb s1, (a0)
++; RV32I-NEXT:    #NO_APP
++; RV32I-NEXT:    ret
++;
++; RV64I-LABEL: constraint_A:
++; RV64I:       # %bb.0:
++; RV64I-NEXT:    #APP
++; RV64I-NEXT:    sb s0, (a0)
++; RV64I-NEXT:    #NO_APP
++; RV64I-NEXT:    #APP
++; RV64I-NEXT:    lb s1, (a0)
++; RV64I-NEXT:    #NO_APP
++; RV64I-NEXT:    ret
++  tail call void asm sideeffect "sb s0, $0", "*A"(i8* %a)
++  tail call void asm sideeffect "lb s1, $0", "*A"(i8* %a)
++  ret void
++}
++
+ ; TODO: expend tests for more complex constraints, out of range immediates etc

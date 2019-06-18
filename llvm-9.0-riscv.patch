@@ -1,0 +1,82 @@
+diff -up llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp.28~ llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp.28~	2019-06-18 21:34:48.028409946 +0200
++++ llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp	2019-06-18 21:35:57.381406646 +0200
+@@ -2070,7 +2070,10 @@ void Generic_GCC::GCCInstallationDetecto
+   static const char *const RISCV64LibDirs[] = {"/lib64", "/lib"};
+   static const char *const RISCV64Triples[] = {"riscv64-unknown-linux-gnu",
+                                                "riscv64-linux-gnu",
+-                                               "riscv64-unknown-elf"};
++                                               "riscv64-unknown-elf",
++                                               "riscv64-openmandriva-linux-gnu",
++                                               "riscv64-openmandriva-linux-musl",
++  };
+ 
+   static const char *const SPARCv8LibDirs[] = {"/lib32", "/lib"};
+   static const char *const SPARCv8Triples[] = {"sparc-linux-gnu",
+diff -up llvm-9.0.0-20190618/clang/lib/Headers/stddef.h.28~ llvm-9.0.0-20190618/clang/lib/Headers/stddef.h
+--- llvm-9.0.0-20190618/clang/lib/Headers/stddef.h.28~	2019-06-18 20:22:30.000000000 +0200
++++ llvm-9.0.0-20190618/clang/lib/Headers/stddef.h	2019-06-18 21:34:48.026409917 +0200
+@@ -11,6 +11,10 @@
+     defined(__need_size_t) || defined(__need_wchar_t) ||                       \
+     defined(__need_NULL) || defined(__need_wint_t)
+ 
++#if !defined(__clang__) && __GNUC__ < 9
++#define __has_feature(x) 0
++#endif
++
+ #if !defined(__need_ptrdiff_t) && !defined(__need_size_t) &&                   \
+     !defined(__need_wchar_t) && !defined(__need_NULL) &&                       \
+     !defined(__need_wint_t)
+diff -up llvm-9.0.0-20190618/clang-tools-extra/clangd/CMakeLists.txt.28~ llvm-9.0.0-20190618/clang-tools-extra/clangd/CMakeLists.txt
+--- llvm-9.0.0-20190618/clang-tools-extra/clangd/CMakeLists.txt.28~	2019-06-18 20:22:30.000000000 +0200
++++ llvm-9.0.0-20190618/clang-tools-extra/clangd/CMakeLists.txt	2019-06-18 21:34:48.027409932 +0200
+@@ -29,9 +29,7 @@ if(CLANG_BUILT_STANDALONE)
+ endif()
+ 
+ set(CLANGD_ATOMIC_LIB "")
+-if(NOT HAVE_CXX_ATOMICS64_WITHOUT_LIB)
+-  list(APPEND CLANGD_ATOMIC_LIB "atomic")
+-endif()
++list(APPEND CLANGD_ATOMIC_LIB "atomic")
+ 
+ add_clang_library(clangDaemon
+   AST.cpp
+diff -up llvm-9.0.0-20190618/llvm/CMakeLists.txt.28~ llvm-9.0.0-20190618/llvm/CMakeLists.txt
+--- llvm-9.0.0-20190618/llvm/CMakeLists.txt.28~	2019-06-18 20:22:30.000000000 +0200
++++ llvm-9.0.0-20190618/llvm/CMakeLists.txt	2019-06-18 21:34:48.029409961 +0200
+@@ -279,6 +279,7 @@ set(LLVM_ALL_TARGETS
+   MSP430
+   NVPTX
+   PowerPC
++  RISCV
+   Sparc
+   SystemZ
+   WebAssembly
+diff -up llvm-9.0.0-20190618/llvm/tools/dsymutil/CMakeLists.txt.28~ llvm-9.0.0-20190618/llvm/tools/dsymutil/CMakeLists.txt
+--- llvm-9.0.0-20190618/llvm/tools/dsymutil/CMakeLists.txt.28~	2019-06-18 20:22:30.000000000 +0200
++++ llvm-9.0.0-20190618/llvm/tools/dsymutil/CMakeLists.txt	2019-06-18 21:34:48.027409932 +0200
+@@ -31,4 +31,6 @@ add_llvm_tool(dsymutil
+ 
+ if(APPLE)
+   target_link_libraries(dsymutil PRIVATE "-framework CoreFoundation")
++else(APPLE)
++  target_link_libraries(dsymutil PRIVATE "-latomic")
+ endif(APPLE)
+diff -up llvm-9.0.0-20190618/llvm/utils/benchmark/src/cycleclock.h.28~ llvm-9.0.0-20190618/llvm/utils/benchmark/src/cycleclock.h
+--- llvm-9.0.0-20190618/llvm/utils/benchmark/src/cycleclock.h.28~	2019-06-18 20:22:30.000000000 +0200
++++ llvm-9.0.0-20190618/llvm/utils/benchmark/src/cycleclock.h	2019-06-18 21:34:48.027409932 +0200
+@@ -165,10 +165,10 @@ inline BENCHMARK_ALWAYS_INLINE int64_t N
+   asm("stck %0" : "=Q" (tsc) : : "cc");
+   return tsc;
+ #else
+-// The soft failover to a generic implementation is automatic only for ARM.
+-// For other platforms the developer is expected to make an attempt to create
+-// a fast implementation and use generic version if nothing better is available.
+-#error You need to define CycleTimer for your OS and CPU
++  // Generic implementation to make ports to new arches (Hello RISC-V!!!) happy
++  struct timespec ts = { 0, 0 };
++  clock_gettime(CLOCK_MONOTONIC, &ts);
++  return static_cast<int64_t>(ts.tv_sec) * 1000000000 + ts.tv_nsec;
+ #endif
+ }
+ }  // end namespace cycleclock

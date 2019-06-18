@@ -1,0 +1,603 @@
+Index: llvm/openmp/README.rst
+===================================================================
+--- llvm/openmp/README.rst
++++ llvm/openmp/README.rst
+@@ -133,7 +133,7 @@
+ Options for ``libomp``
+ ----------------------
+ 
+-**LIBOMP_ARCH** = ``aarch64|arm|i386|mic|mips|mips64|ppc64|ppc64le|x86_64``
++**LIBOMP_ARCH** = ``aarch64|arm|i386|mic|mips|mips64|ppc64|ppc64le|x86_64|riscv64``
+   The default value for this option is chosen based on probing the compiler for
+   architecture macros (e.g., is ``__x86_64__`` predefined by compiler?).
+ 
+@@ -192,9 +192,9 @@
+   multi-node systems where a small ``CACHE_LINE`` setting leads to false sharing.
+ 
+ **LIBOMP_OMPT_SUPPORT** = ``ON|OFF``
+-  Include support for the OpenMP Tools Interface (OMPT). 
+-  This option is supported and ``ON`` by default for x86, x86_64, AArch64, and 
+-  PPC64 on Linux* and macOS*.
++  Include support for the OpenMP Tools Interface (OMPT).
++  This option is supported and ``ON`` by default for x86, x86_64, AArch64,
++  PPC64 and RISCV64 on Linux* and macOS*.
+   This option is ``OFF`` if this feature is not supported for the platform.
+ 
+ **LIBOMP_OMPT_OPTIONAL** = ``ON|OFF``
+Index: llvm/openmp/runtime/CMakeLists.txt
+===================================================================
+--- llvm/openmp/runtime/CMakeLists.txt
++++ llvm/openmp/runtime/CMakeLists.txt
+@@ -30,7 +30,7 @@
+   # If adding a new architecture, take a look at cmake/LibompGetArchitecture.cmake
+   libomp_get_architecture(LIBOMP_DETECTED_ARCH)
+   set(LIBOMP_ARCH ${LIBOMP_DETECTED_ARCH} CACHE STRING
+-    "The architecture to build for (x86_64/i386/arm/ppc64/ppc64le/aarch64/mic/mips/mips64).")
++    "The architecture to build for (x86_64/i386/arm/ppc64/ppc64le/aarch64/mic/mips/mips64/riscv64).")
+   # Should assertions be enabled?  They are on by default.
+   set(LIBOMP_ENABLE_ASSERTIONS TRUE CACHE BOOL
+     "enable assertions?")
+@@ -58,13 +58,15 @@
+     set(LIBOMP_ARCH aarch64)
+   elseif(LIBOMP_NATIVE_ARCH MATCHES "arm")
+     set(LIBOMP_ARCH arm)
++  elseif(LIBOMP_NATIVE_ARCH MATCHES "riscv64")
++    set(LIBOMP_ARCH riscv64)
+   else()
+     # last ditch effort
+     libomp_get_architecture(LIBOMP_ARCH)
+   endif ()
+   set(LIBOMP_ENABLE_ASSERTIONS ${LLVM_ENABLE_ASSERTIONS})
+ endif()
+-libomp_check_variable(LIBOMP_ARCH 32e x86_64 32 i386 arm ppc64 ppc64le aarch64 mic mips mips64)
++libomp_check_variable(LIBOMP_ARCH 32e x86_64 32 i386 arm ppc64 ppc64le aarch64 mic mips mips64 riscv64)
+ 
+ set(LIBOMP_LIB_TYPE normal CACHE STRING
+   "Performance,Profiling,Stubs library (normal/profile/stubs)")
+@@ -155,6 +157,7 @@
+ set(MIC FALSE)
+ set(MIPS64 FALSE)
+ set(MIPS FALSE)
++set(RISCV64 FALSE)
+ if("${LIBOMP_ARCH}" STREQUAL "i386" OR "${LIBOMP_ARCH}" STREQUAL "32")    # IA-32 architecture
+   set(IA32 TRUE)
+ elseif("${LIBOMP_ARCH}" STREQUAL "x86_64" OR "${LIBOMP_ARCH}" STREQUAL "32e") # Intel(R) 64 architecture
+@@ -175,6 +178,8 @@
+     set(MIPS TRUE)
+ elseif("${LIBOMP_ARCH}" STREQUAL "mips64") # MIPS64 architecture
+     set(MIPS64 TRUE)
++  elseif("${LIBOMP_ARCH}" STREQUAL "riscv64") # RISCV64 architecture
++    set(RISCV64 TRUE)
+ endif()
+ 
+ # Set some flags based on build_type
+Index: llvm/openmp/runtime/README.txt
+===================================================================
+--- llvm/openmp/runtime/README.txt
++++ llvm/openmp/runtime/README.txt
+@@ -53,6 +53,7 @@
+ * IBM(R) Power architecture (big endian)
+ * IBM(R) Power architecture (little endian)
+ * MIPS and MIPS64 architecture
++* RISCV64 architecture
+ 
+ Supported RTL Build Configurations
+ ==================================
+Index: llvm/openmp/runtime/cmake/LibompGetArchitecture.cmake
+===================================================================
+--- llvm/openmp/runtime/cmake/LibompGetArchitecture.cmake
++++ llvm/openmp/runtime/cmake/LibompGetArchitecture.cmake
+@@ -45,6 +45,8 @@
+       #error ARCHITECTURE=mips64
+     #elif defined(__mips__) && !defined(__mips64)
+       #error ARCHITECTURE=mips
++    #elif defined(__riscv) && __riscv_xlen == 64
++      #error ARCHITECTURE=riscv64
+     #else
+       #error ARCHITECTURE=UnknownArchitecture
+     #endif
+Index: llvm/openmp/runtime/cmake/LibompMicroTests.cmake
+===================================================================
+--- llvm/openmp/runtime/cmake/LibompMicroTests.cmake
++++ llvm/openmp/runtime/cmake/LibompMicroTests.cmake
+@@ -211,6 +211,9 @@
+     elseif(${MIPS} OR ${MIPS64})
+       libomp_append(libomp_expected_library_deps libc.so.6)
+       libomp_append(libomp_expected_library_deps ld.so.1)
++    elseif(${RISCV64})
++      libomp_append(libomp_expected_library_deps libc.so.6)
++      libomp_append(libomp_expected_library_deps ld.so.1)
+     endif()
+     libomp_append(libomp_expected_library_deps libpthread.so.0 IF_FALSE STUBS_LIBRARY)
+     libomp_append(libomp_expected_library_deps libhwloc.so.5 LIBOMP_USE_HWLOC)
+Index: llvm/openmp/runtime/cmake/LibompUtils.cmake
+===================================================================
+--- llvm/openmp/runtime/cmake/LibompUtils.cmake
++++ llvm/openmp/runtime/cmake/LibompUtils.cmake
+@@ -105,6 +105,8 @@
+     set(${return_arch_string} "MIPS" PARENT_SCOPE)
+   elseif(${MIPS64})
+     set(${return_arch_string} "MIPS64" PARENT_SCOPE)
++  elseif(${RISCV64})
++    set(${return_arch_string} "RISCV64" PARENT_SCOPE)
+   else()
+     set(${return_arch_string} "${LIBOMP_ARCH}" PARENT_SCOPE)
+     libomp_warning_say("libomp_get_legal_arch(): Warning: Unknown architecture: Using ${LIBOMP_ARCH}")
+Index: llvm/openmp/runtime/cmake/config-ix.cmake
+===================================================================
+--- llvm/openmp/runtime/cmake/config-ix.cmake
++++ llvm/openmp/runtime/cmake/config-ix.cmake
+@@ -246,7 +246,8 @@
+ #      (LIBOMP_ARCH STREQUAL arm) OR
+       (LIBOMP_ARCH STREQUAL aarch64) OR
+       (LIBOMP_ARCH STREQUAL ppc64le) OR
+-      (LIBOMP_ARCH STREQUAL ppc64))
++      (LIBOMP_ARCH STREQUAL ppc64) OR
++      (LIBOMP_ARCH STREQUAL riscv64))
+      AND # OS supported?
+      ((WIN32 AND LIBOMP_HAVE_PSAPI) OR APPLE OR (NOT WIN32 AND LIBOMP_HAVE_WEAK_ATTRIBUTE)))
+     set(LIBOMP_HAVE_OMPT_SUPPORT TRUE)
+Index: llvm/openmp/runtime/src/kmp_csupport.cpp
+===================================================================
+--- llvm/openmp/runtime/src/kmp_csupport.cpp
++++ llvm/openmp/runtime/src/kmp_csupport.cpp
+@@ -670,7 +670,8 @@
+ #endif // KMP_COMPILER_ICC
+   }
+ #endif // KMP_MIC
+-#elif (KMP_ARCH_ARM || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS || KMP_ARCH_MIPS64)
++#elif (KMP_ARCH_ARM || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS || KMP_ARCH_MIPS64 || \
++       KMP_ARCH_RISCV64)
+ // Nothing to see here move along
+ #elif KMP_ARCH_PPC64
+ // Nothing needed here (we have a real MB above).
+Index: llvm/openmp/runtime/src/kmp_os.h
+===================================================================
+--- llvm/openmp/runtime/src/kmp_os.h
++++ llvm/openmp/runtime/src/kmp_os.h
+@@ -165,7 +165,8 @@
+ 
+ #if KMP_ARCH_X86 || KMP_ARCH_ARM || KMP_ARCH_MIPS
+ #define KMP_SIZE_T_SPEC KMP_UINT32_SPEC
+-#elif KMP_ARCH_X86_64 || KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS64
++#elif KMP_ARCH_X86_64 || KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 ||                 \
++    KMP_ARCH_MIPS64 || KMP_ARCH_RISCV64
+ #define KMP_SIZE_T_SPEC KMP_UINT64_SPEC
+ #else
+ #error "Can't determine size_t printf format specifier."
+@@ -840,7 +841,7 @@
+ #endif /* KMP_OS_WINDOWS */
+ 
+ #if KMP_ARCH_PPC64 || KMP_ARCH_ARM || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS ||     \
+-    KMP_ARCH_MIPS64
++    KMP_ARCH_MIPS64 || KMP_ARCH_RISCV64
+ #define KMP_MB() __sync_synchronize()
+ #endif
+ 
+Index: llvm/openmp/runtime/src/kmp_platform.h
+===================================================================
+--- llvm/openmp/runtime/src/kmp_platform.h
++++ llvm/openmp/runtime/src/kmp_platform.h
+@@ -98,6 +98,7 @@
+ #define KMP_ARCH_PPC64 (KMP_ARCH_PPC64_LE || KMP_ARCH_PPC64_BE)
+ #define KMP_ARCH_MIPS 0
+ #define KMP_ARCH_MIPS64 0
++#define KMP_ARCH_RISCV64 0
+ 
+ #if KMP_OS_WINDOWS
+ #if defined(_M_AMD64) || defined(__x86_64)
+@@ -135,6 +136,9 @@
+ #undef KMP_ARCH_MIPS
+ #define KMP_ARCH_MIPS 1
+ #endif
++#elif defined __riscv && __riscv_xlen == 64
++#undef KMP_ARCH_RISCV64
++#define KMP_ARCH_RISCV64 1
+ #endif
+ #endif
+ 
+@@ -199,7 +203,7 @@
+ // TODO: Fixme - This is clever, but really fugly
+ #if (1 !=                                                                      \
+      KMP_ARCH_X86 + KMP_ARCH_X86_64 + KMP_ARCH_ARM + KMP_ARCH_PPC64 +          \
+-         KMP_ARCH_AARCH64 + KMP_ARCH_MIPS + KMP_ARCH_MIPS64)
++     KMP_ARCH_AARCH64 + KMP_ARCH_MIPS + KMP_ARCH_MIPS64 + KMP_ARCH_RISCV64)
+ #error Unknown or unsupported architecture
+ #endif
+ 
+Index: llvm/openmp/runtime/src/kmp_runtime.cpp
+===================================================================
+--- llvm/openmp/runtime/src/kmp_runtime.cpp
++++ llvm/openmp/runtime/src/kmp_runtime.cpp
+@@ -8155,7 +8155,8 @@
+ 
+     int atomic_available = FAST_REDUCTION_ATOMIC_METHOD_GENERATED;
+ 
+-#if KMP_ARCH_X86_64 || KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS64
++#if KMP_ARCH_X86_64 || KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 ||                   \
++    KMP_ARCH_MIPS64 || KMP_ARCH_RISCV64
+ 
+ #if KMP_OS_LINUX || KMP_OS_DRAGONFLY || KMP_OS_FREEBSD || KMP_OS_NETBSD ||     \
+     KMP_OS_OPENBSD || KMP_OS_WINDOWS || KMP_OS_DARWIN || KMP_OS_HURD
+Index: llvm/openmp/runtime/src/thirdparty/ittnotify/ittnotify_config.h
+===================================================================
+--- llvm/openmp/runtime/src/thirdparty/ittnotify/ittnotify_config.h
++++ llvm/openmp/runtime/src/thirdparty/ittnotify/ittnotify_config.h
+@@ -161,6 +161,10 @@
+ #  define ITT_ARCH_MIPS64  6
+ #endif /* ITT_ARCH_MIPS64 */
+ 
++#ifndef ITT_ARCH_RISCV64
++#  define ITT_ARCH_RISCV64  7
++#endif /* ITT_ARCH_RISCV64 */
++
+ #ifndef ITT_ARCH
+ #  if defined _M_IX86 || defined __i386__
+ #    define ITT_ARCH ITT_ARCH_IA32
+@@ -178,6 +182,8 @@
+ #    define ITT_ARCH ITT_ARCH_MIPS
+ #  elif defined __mips__ && defined __mips64
+ #    define ITT_ARCH ITT_ARCH_MIPS64
++#  elif defined __riscv && __riscv_xlen == 64
++#    define ITT_ARCH ITT_ARCH_RISCV64
+ #  endif
+ #endif
+ 
+@@ -330,7 +336,9 @@
+                           : "memory");
+     return result;
+ }
+-#elif ITT_ARCH==ITT_ARCH_ARM || ITT_ARCH==ITT_ARCH_PPC64 || ITT_ARCH==ITT_ARCH_AARCH64 || ITT_ARCH==ITT_ARCH_MIPS ||  ITT_ARCH==ITT_ARCH_MIPS64
++#elif ITT_ARCH == ITT_ARCH_ARM || ITT_ARCH == ITT_ARCH_PPC64 ||                \
++    ITT_ARCH == ITT_ARCH_AARCH64 || ITT_ARCH == ITT_ARCH_MIPS ||               \
++    ITT_ARCH == ITT_ARCH_MIPS64 || ITT_ARCH == ITT_ARCH_RISCV64
+ #define __TBB_machine_fetchadd4(addr, val) __sync_fetch_and_add(addr, val)
+ #endif /* ITT_ARCH==ITT_ARCH_IA64 */
+ #ifndef ITT_SIMPLE_INIT
+Index: llvm/openmp/runtime/src/z_Linux_asm.S
+===================================================================
+--- llvm/openmp/runtime/src/z_Linux_asm.S
++++ llvm/openmp/runtime/src/z_Linux_asm.S
+@@ -1698,6 +1698,202 @@
+ 
+ #endif /* KMP_ARCH_PPC64 */
+ 
++#if KMP_ARCH_RISCV64
++
++//------------------------------------------------------------------------
++//
++// typedef void (*microtask_t)(int *gtid, int *tid, ...);
++//
++// int __kmp_invoke_microtask(microtask_t pkfn, int gtid, int tid, int argc,
++//                            void *p_argv[]
++// #if OMPT_SUPPORT
++//                            ,
++//                            void **exit_frame_ptr
++// #endif
++//                            ) {
++// #if OMPT_SUPPORT
++//   *exit_frame_ptr = OMPT_GET_FRAME_ADDRESS(0);
++// #endif
++//
++//   (*pkfn)(&gtid, &tid, argv[0], ...);
++//
++// #if OMPT_SUPPORT
++//   *exit_frame_ptr = 0;
++// #endif
++//
++//   return 1;
++// }
++//
++// Parameters:
++//   a0: pkfn
++//   a1: gtid
++//   a2: tid
++//   a3: argc
++//   a4: p_argv
++//   a5: exit_frame_ptr
++//
++// Locals:
++//   __exit_frame: exit_frame_ptr param pushed on stack so it can be restored
++//                 after the call to pkfn
++//   __gtid: gtid param pushed on stack so can pass &gtid to pkfn
++//   __tid: tid param pushed on stack so can pass &tid to pkfn
++//
++// Temp. registers:
++//
++//  t0: used to calculate the dynamic stack size / used to hold pkfn address
++//  t1: used as temporary for stack placement calculation
++//  t2: used as temporary for stack arguments
++//  t3: used as temporary for number of remaining pkfn parms
++//  t4: used to traverse p_argv array
++//
++// return: a0 (always 1/TRUE)
++//
++
++// When OMPT is to be used we need to reserve 8 extra bytes on the stack to
++// save a5, so the offsets from the fp defined here are shifted 8 bytes
++#if OMPT_SUPPORT
++__exit_frame = 24
++__gtid = 28
++__tid = 32
++#else
++__gtid = 20
++__tid = 24
++#endif
++
++// -- Begin __kmp_invoke_microtask
++// mark_begin;
++	.text
++	.globl	__kmp_invoke_microtask
++	.p2align	1
++	.type	__kmp_invoke_microtask,@function
++__kmp_invoke_microtask:
++	.cfi_startproc
++
++	// First, save ra and fp
++	addi	sp, sp, -16
++	sd	ra, 8(sp)
++	sd	fp, 0(sp)
++	addi	fp, sp, 16
++	.cfi_def_cfa	fp, 0
++	.cfi_offset	ra, -8
++	.cfi_offset	fp, -16
++
++	// Compute the dynamic stack size:
++	//
++	// - We need 8 bytes for storing 'gtid' and 'tid', so we can pass them by
++	//   reference
++	// - We need 8 bytes for each argument that cannot be passed to the 'pkfn'
++	//   function by register. Given that we have 8 of such registers (a[0-7])
++	//   and two + 'argc' arguments (consider &gtid and &tid), we need to
++	//   reserve max(0, argc - 6)*8 extra bytes
++	// - If OMPT is enabled we need 8 extra bytes for saving a5 register
++	// (caller-saved) before the function call
++	//
++	// The total number of bytes is then max(0, argc - 6)*8 + 8 + OMPT? 8:0
++
++	// Compute max(0, argc - 6) using the following bithack:
++	// max(0, x) = x - (x & (x >> 31)), where x := argc - 6
++	// Source: http://graphics.stanford.edu/~seander/bithacks.html#IntegerMinOrMax
++	addi	t0, a3, -6
++	srai	t1, t0, 31
++	and	t1, t0, t1
++	sub	t0, t0, t1
++
++#if OMPT_SUPPORT
++	// Reserve 8 extra bytes for saving a5 register when OMPT is enabled
++	addi	t0, t0, 2
++#else
++	addi	t0, t0, 1
++#endif
++
++	slli	t0, t0, 3
++	sub	sp, sp, t0
++
++	// Align the stack to 16 bytes
++	andi	sp, sp, -16
++
++	mv	t0, a0
++	mv	t3, a3
++	mv	t4, a4
++
++#if OMPT_SUPPORT
++	// Save frame pointer into exit_frame
++	sd	fp, 0(a5)
++	// Save exit_frame address in the stack
++	sd	a5, -__exit_frame(fp)
++#endif
++
++	// Prepare arguments for the pkfn function (first 8 using a0-a7 registers)
++
++	sw	a1, -__gtid(fp)
++	sw	a2, -__tid(fp)
++
++	addi	a0, fp, -__gtid
++	addi	a1, fp, -__tid
++
++	beqz	t3, .L_kmp_3
++	ld	a2, 0(t4)
++
++	addi	t3, t3, -1
++	beqz	t3, .L_kmp_3
++	ld	a3, 8(t4)
++
++	addi	t3, t3, -1
++	beqz	t3, .L_kmp_3
++	ld	a4, 16(t4)
++
++	addi	t3, t3, -1
++	beqz	t3, .L_kmp_3
++	ld	a5, 24(t4)
++
++	addi	t3, t3, -1
++	beqz	t3, .L_kmp_3
++	ld	a6, 32(t4)
++
++	addi	t3, t3, -1
++	beqz	t3, .L_kmp_3
++	ld	a7, 40(t4)
++
++	// Prepare any additional argument passed through the stack
++	addi	t4, t4, 48
++	mv	t1, sp
++	j .L_kmp_2
++.L_kmp_1:
++	ld	t2, 0(t4)
++	sd	t2, 0(t1)
++	addi	t4, t4, 8
++	addi	t1, t1, 8
++.L_kmp_2:
++	addi	t3, t3, -1
++	bnez	t3, .L_kmp_1
++
++.L_kmp_3:
++	// Call pkfn function
++	jalr	t0
++
++#if OMPT_SUPPORT
++	// Restore exit_frame address and clear exit_frame
++	ld	t0, -__exit_frame(fp)
++	sd	zero, 0(t0)
++#endif
++
++	// Restore stack and return
++
++	addi	a0, zero, 1
++
++	addi	sp, fp, -16
++	ld	fp, 0(sp)
++	ld	ra, 8(sp)
++	addi	sp, sp, 16
++	ret
++.Lfunc_end0:
++	.size	__kmp_invoke_microtask, .Lfunc_end0-__kmp_invoke_microtask
++	.cfi_endproc
++
++// -- End  __kmp_invoke_microtask
++
++#endif /* KMP_ARCH_RISCV64 */
++
+ #if KMP_ARCH_ARM || KMP_ARCH_MIPS
+     .data
+     .comm .gomp_critical_user_,32,8
+@@ -1709,7 +1905,7 @@
+     .size __kmp_unnamed_critical_addr,4
+ #endif /* KMP_ARCH_ARM */
+ 
+-#if KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS64
++#if KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS64 || KMP_ARCH_RISCV64
+     .data
+     .comm .gomp_critical_user_,32,8
+     .data
+@@ -1718,7 +1914,8 @@
+ __kmp_unnamed_critical_addr:
+     .8byte .gomp_critical_user_
+     .size __kmp_unnamed_critical_addr,8
+-#endif /* KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 */
++#endif /* KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS64 ||
++          KMP_ARCH_RISCV64 */
+ 
+ #if KMP_OS_LINUX
+ # if KMP_ARCH_ARM
+Index: llvm/openmp/runtime/src/z_Linux_util.cpp
+===================================================================
+--- llvm/openmp/runtime/src/z_Linux_util.cpp
++++ llvm/openmp/runtime/src/z_Linux_util.cpp
+@@ -2312,7 +2312,8 @@
+ #endif // USE_LOAD_BALANCE
+ 
+ #if !(KMP_ARCH_X86 || KMP_ARCH_X86_64 || KMP_MIC ||                            \
+-      ((KMP_OS_LINUX || KMP_OS_DARWIN) && KMP_ARCH_AARCH64) || KMP_ARCH_PPC64)
++      ((KMP_OS_LINUX || KMP_OS_DARWIN) && KMP_ARCH_AARCH64) ||                 \
++      KMP_ARCH_PPC64 || KMP_ARCH_RISCV64)
+ 
+ // we really only need the case with 1 argument, because CLANG always build
+ // a struct of pointers to shared variables referenced in the outlined function
+Index: llvm/openmp/runtime/test/ompt/callback.h
+===================================================================
+--- llvm/openmp/runtime/test/ompt/callback.h
++++ llvm/openmp/runtime/test/ompt/callback.h
+@@ -166,6 +166,26 @@
+ #define print_possible_return_addresses(addr) \
+   printf("%" PRIu64 ": current_address=%p or %p\n", ompt_get_thread_data()->value, \
+          ((char *)addr) - 4, ((char *)addr) - 8)
++#elif KMP_ARCH_RISCV64
++#if __riscv_compressed
++// On RV64GC the C.NOP instruction is 2 byte long. In addition, the compiler
++// inserts a data-movement instruction for non-void runtime functions which
++// accounts for another 2 or 4 bytes. Finally, a C.J instruction may appear
++// (adding 2 more bytes).
++#define print_possible_return_addresses(addr) \
++  printf("%" PRIu64 ": current_address=%p or %p or %p or %p\n", \
++         ompt_get_thread_data()->value, ((char *)addr) - 2, ((char *)addr) - 4, \
++         ((char *)addr) - 6, ((char *)addr) - 8)
++#else
++// On RV64G the NOP instruction is 4 byte long. In addition, the compiler
++// inserts a data-movement instruction for non-void runtime functions which
++// accounts for another 4 bytes. Finally, a J instruction may appear (adding 4
++// more bytes).
++#define print_possible_return_addresses(addr) \
++  printf("%" PRIu64 ": current_address=%p or %p or %p\n", \
++         ompt_get_thread_data()->value, ((char *)addr) - 4, ((char *)addr) - 8, \
++         ((char *)addr) - 12)
++#endif
+ #else
+ #error Unsupported target architecture, cannot determine address offset!
+ #endif
+Index: llvm/openmp/runtime/tools/lib/Platform.pm
+===================================================================
+--- llvm/openmp/runtime/tools/lib/Platform.pm
++++ llvm/openmp/runtime/tools/lib/Platform.pm
+@@ -61,6 +61,8 @@
+             $arch = "mips64";
+         } elsif ( $arch =~ m{\Amips} ) {
+             $arch = "mips";
++        } elsif ( $arch =~ m{\Ariscv64} ) {
++            $arch = "riscv64";
+         } else {
+             $arch = undef;
+         }; # if
+@@ -94,6 +96,7 @@
+         "mic" => "Intel(R) Many Integrated Core Architecture",
+         "mips" => "MIPS",
+         "mips64" => "MIPS64",
++        "riscv64" => "RISC-V (64-bit)",
+     );
+ 
+     sub legal_arch($) {
+@@ -220,6 +223,8 @@
+         $_host_arch = "mips64";
+     } elsif ( $hardware_platform eq "mips" ) {
+         $_host_arch = "mips";
++    } elsif ( $hardware_platform eq "riscv64" ) {
++        $_host_arch = "riscv64";
+     } else {
+         die "Unsupported host hardware platform: \"$hardware_platform\"; stopped";
+     }; # if
+@@ -409,7 +414,7 @@
+ 
+ Input string is an architecture name to canonize. The function recognizes many variants, for example:
+ C<32e>, C<Intel64>, C<Intel(R) 64>, etc. Returned string is a canononized architecture name,
+-one of: C<32>, C<32e>, C<64>, C<arm>, C<ppc64le>, C<ppc64>, C<mic>, C<mips>, C<mips64>, or C<undef> is input string is not recognized.
++one of: C<32>, C<32e>, C<64>, C<arm>, C<ppc64le>, C<ppc64>, C<mic>, C<mips>, C<mips64>, C<riscv64> or C<undef> is input string is not recognized.
+ 
+ =item B<legal_arch( $arch )>
+ 
+Index: llvm/openmp/runtime/tools/lib/Uname.pm
+===================================================================
+--- llvm/openmp/runtime/tools/lib/Uname.pm
++++ llvm/openmp/runtime/tools/lib/Uname.pm
+@@ -156,6 +156,8 @@
+         $values{ hardware_platform } = "mips64";
+     } elsif ( $values{ machine } =~ m{\Amips\z} ) {
+         $values{ hardware_platform } = "mips";
++    } elsif ( $values{ machine } =~ m{\Ariscv64\z} ) {
++        $values{ hardware_platform } = "riscv64";
+     } else {
+         die "Unsupported machine (\"$values{ machine }\") returned by POSIX::uname(); stopped";
+     }; # if
+Index: llvm/openmp/www/README.txt
+===================================================================
+--- llvm/openmp/www/README.txt
++++ llvm/openmp/www/README.txt
+@@ -53,6 +53,7 @@
+ * IBM(R) Power architecture (big endian)
+ * IBM(R) Power architecture (little endian)
+ * MIPS and MIPS64 architectures
++* RISC-V 64 bit architecture
+ 
+ Supported RTL Build Configurations
+ ==================================
+Index: llvm/openmp/www/index.html
+===================================================================
+--- llvm/openmp/www/index.html
++++ llvm/openmp/www/index.html
+@@ -134,6 +134,7 @@
+         the Intel compiler.
+       </li>
+       <li>MIPS and MIPS64</li>
++      <li>RISC-V 64-bit</li>
+     </ul>
+     Ports to other architectures and operating systems are welcome.
+   </p>
