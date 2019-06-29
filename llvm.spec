@@ -184,6 +184,7 @@ BuildRequires:	graphviz
 BuildRequires:	chrpath
 BuildRequires:	groff
 BuildRequires:	libtool
+Requires:	pkgconfig(ncursesw)
 BuildRequires:	python-sphinx
 # For sphinx plugins
 BuildRequires:	python-recommonmark
