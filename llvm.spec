@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%define date 20190618
+%define date 20190629
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -12,7 +12,7 @@
 %global optflags %{optflags} -O3 -fPIC
 %else
 # (tpg) optimize it a bit
-%global optflags %{optflags} -O3
+%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3
 %endif
 
 # clang header paths are hard-coded at compile time
@@ -45,7 +45,7 @@
 # libcxx fails to bootstrap with gcc
 %bcond_with build_libcxx
 %else
-%bcond_without build_libcxx
+%bcond_with build_libcxx
 %endif
 %ifarch %{riscv}
 # Disabled until we get a RISC-V implementation of NativeRegisterContext
@@ -117,6 +117,8 @@ Patch4:		clang-9.0.0-bogus-headers.patch
 # Patches from AOSP
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
+# Allow building with an older version of clang while bootstrapping
+Patch6:		llvm-9.0.0-bootstrap.patch
 # Claim compatibility with gcc 7.1.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
@@ -124,6 +126,8 @@ Patch7:		clang-gcc-compat.patch
 Patch8:		clang-fuse-ld.patch
 Patch9:		ddsan-compile.patch
 Patch10:	lldb-9.0.0-swig-compile.patch
+# https://bugs.llvm.org/show_bug.cgi?id=41789
+Patch11:	llvm-doc-buildfix-bug-41789.patch
 Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
@@ -133,6 +137,8 @@ Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
 Patch15:	libunwind-3.8-aarch64-gas.patch
 Patch16:	clang-rename-fix-linkage.patch
 Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
+# https://bugs.llvm.org/show_bug.cgi?id=42445
+Patch18:	clang-Os-Oz-bug42445.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
 Patch21:	llvm-5.0-MuslX32.patch
@@ -165,40 +171,8 @@ Patch56:	polly-8.0-default-llvm-backend.patch
 Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
 # RISC-V support
-# Still open on reviews, but apparently committed:
-# 61098 39323 rG5665ef3dccf6 rL363055 rC363055 rG28a5cadb3ae0 rL363054 rG081da0d428d3 rG8587eacb049b
-# rC360104 rL360104 rG96bbb1dc2b39 rL359568 rGc0e8231cdd90 rL357989 rC357989 rG0a9c9a8daa09 rL351823
-# rG919f5fb8ca5f rL349023 rGc8ec7a9e1ebf rLLD342887 rL342887 rGed08d3739a00 rC340595 rL340595
-
-# D62686 may need porting to current code
-
-# https://reviews.llvm.org/D63498
-Patch70:	https://reviews.llvm.org/file/data/ydxfehqcokx4zgfz6dg2/PHID-FILE-3oan5hkdw7n2oz5thbcx/D63498.diff
-# https://reviews.llvm.org/D54296
-Patch71:	https://reviews.llvm.org/file/data/y43hmoovxnoce6xmto3b/PHID-FILE-okeqm52vfsnveawopyml/D54296.diff
-# https://reviews.llvm.org/D54295
-Patch72:	https://reviews.llvm.org/file/data/cyh3udfpelwy7ne4id7a/PHID-FILE-oippufp5jth5fd2dpsrb/D54295.diff
-# https://reviews.llvm.org/D62732
-Patch73:	https://reviews.llvm.org/file/data/sljjhbeswtsiaw2ieeuy/PHID-FILE-7cogwyqs2lubton454oj/D62732.diff
-# https://reviews.llvm.org/D62062
-Patch74:	https://reviews.llvm.org/file/data/gebll4u5mpn33veojsjr/PHID-FILE-qjom7r2wrujx3xorslyz/D62062.diff
-# https://reviews.llvm.org/D62190
-Patch75:	https://reviews.llvm.org/file/data/toz2qke6s4fp6ikvyjy2/PHID-FILE-q4wwlkq76u547jgdc55m/D62190.diff
-Patch76:	https://reviews.llvm.org/file/data/4ocrla5nt5huqtp2a5qp/PHID-FILE-y6acb2o3mkaaje75wt7y/D54215.diff
-Patch77:	https://reviews.llvm.org/file/data/xs526uhzy4chs4qjl3ir/PHID-FILE-k44sj52v4kunlkamjubm/D51144.diff
-Patch78:	https://reviews.llvm.org/file/data/2rmx5jwrjobqpdy5ezy3/PHID-FILE-rupmclhkxcdzuxomxxsm/D51710.diff
-Patch79:	https://reviews.llvm.org/file/data/awawdmd2hov22nkdfxfd/PHID-FILE-ug62wx5mkhqr73jvqcvo/D52165.diff
-Patch80:	https://reviews.llvm.org/file/data/zigjtq2mvw5ttjd6t6er/PHID-FILE-z33bufjykosyktziygnn/D62685.diff
-Patch81:	https://reviews.llvm.org/file/data/4nw4lzkbg5opg6eplsho/PHID-FILE-s2rlke74t6jk4bit7z3r/D63333.diff
-Patch82:	https://reviews.llvm.org/file/data/nb4cb323c3da7czaqpom/PHID-FILE-yixejg3zyo7mf7gmbw5g/D58335.diff
-Patch83:	https://reviews.llvm.org/file/data/xaei73bbl3agacjhn34k/PHID-FILE-oubsaiq7owaxneb5o2gd/D55305.diff
-Patch84:	https://reviews.llvm.org/file/data/jfz4h7kjhyh5ic5yfdiy/PHID-FILE-5ijxm6gdmlgdyvg5htgk/D63433.diff
-Patch85:	https://reviews.llvm.org/file/data/vhv7mozh2r2qkmsn5573/PHID-FILE-snu2tohe2w3eivc6tac2/D63076.diff
-Patch86:	https://reviews.llvm.org/file/data/oy6i2gssagtwlxej3eqv/PHID-FILE-sardnw45pey6pcplz4te/D61584.diff
-# A variant of D63220 seems to be applied on master
-Patch87:	https://reviews.llvm.org/file/data/pkgv4wuqtg3hzd2rak5k/PHID-FILE-b5hdtxaxqassz4a2edn5/D59880.diff
 # https://reviews.llvm.org/D60456
-Patch88:	https://reviews.llvm.org/file/data/vpvwxdpnbh57dryfmnvn/PHID-FILE-zrxyub2wp2mr4esxyuxt/D60456.diff
+Patch70:	https://reviews.llvm.org/file/data/vpvwxdpnbh57dryfmnvn/PHID-FILE-zrxyub2wp2mr4esxyuxt/D60456.diff
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -281,10 +255,12 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/find-all-symbols
 %{_bindir}/git-clang-format
 %{_bindir}/hmaptool
+%{_bindir}/lit-cpuid
 %{_bindir}/llc
 %{_bindir}/lli
 %{_bindir}/lli-child-target
 %{_bindir}/opt
+%{_bindir}/llvm-addr2line
 %{_bindir}/llvm-ar
 %{_bindir}/llvm-as
 %{_bindir}/llvm-bcanalyzer
@@ -300,8 +276,10 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-elfabi
 %{_bindir}/llvm-exegesis
 %{_bindir}/llvm-extract
+%{_bindir}/llvm-jitlink
 %{_bindir}/llvm-lib
 %{_bindir}/llvm-link
+%{_bindir}/llvm-lipo
 %{_bindir}/llvm-lto
 %{_bindir}/llvm-lto2
 %{_bindir}/llvm-mc
@@ -362,9 +340,9 @@ for effective implementation, proper tail calls or garbage collection.
 %define major %(echo %{version} |cut -d. -f1-2)  
 %define major1 %(echo %{version} |cut -d. -f1)
 
-%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64AsmPrinter LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMAsmPrinter LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitWriter LLVMBPFAsmPrinter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiAsmPrinter LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430AsmPrinter LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsAsmPrinter LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXAsmPrinter LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCAsmPrinter LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUAsmPrinter LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcAsmPrinter LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZAsmPrinter LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86AsmPrinter LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreAsmPrinter LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyAsmPrinter LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo Remarks LLVMRISCVAsmParser LLVMRISCVAsmPrinter LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVDisassembler LLVMRISCVInfo LLVMRISCVUtils
+%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitWriter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo Remarks LLVMRISCVAsmParser LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVDisassembler LLVMRISCVInfo LLVMRISCVUtils LLVMDebugInfoGSYM LLVMJITLink
 
-%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangCrossTU clangDaemon clangDoc clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyAndroidModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingASTDiff clangToolingCore clangToolingRefactor clangIncludeFixer clangTidyAbseilModule clangTidyBoostModule clangTidyPlugin clangTidyPortabilityModule clangTidyZirconModule clangHandleLLVM clangToolingInclusions clangDaemonTweaks
+%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangCrossTU clangDaemon clangDoc clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyAndroidModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingASTDiff clangToolingCore clangIncludeFixer clangTidyAbseilModule clangTidyBoostModule clangTidyPlugin clangTidyPortabilityModule clangTidyZirconModule clangHandleLLVM clangToolingInclusions clangDaemonTweaks clangDependencyScanning clangTidyOpenMPModule clangToolingRefactoring clangToolingSyntax clang_shared
 
 %if %{with lld}
 %define LLDLibs lldCOFF lldCommon lldCore lldDriver lldELF lldMachO lldMinGW lldReaderWriter lldWasm lldYAML
@@ -448,6 +426,20 @@ Obsoletes:	%{mklibname %{name} 3.6.0}
 %{expand:%(for i in %{LLVMLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 Obsoletes:	%{mklibname LLVMCppBackendCodeGen 3} < %{EVRD}
 Obsoletes:	%{mklibname LLVMCppBackendInfo 3} < %{EVRD}
+Obsoletes:	%{mklibname LLVMAArch64AsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMARMAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMLanaiAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMMSP430AsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMMipsAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMNVPTXAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMPowerPCAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMAMDGPUAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMSparcAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMSystemZAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMX86AsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMXCoreAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMWebAssemblyAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMRISCVAsmPrinter 9} < %{EVRD}
 
 %description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
@@ -721,6 +713,9 @@ intended to run in tandem with a build of a project or code base.
 %{_datadir}/scan-build
 %{_datadir}/scan-view
 %{_mandir}/man1/scan-build.1*
+%{_libdir}/CheckerDependencyHandlingAnalyzerPlugin.so
+%{_libdir}/CheckerOptionHandlingAnalyzerPlugin.so
+%{_libdir}/SampleAnalyzerPlugin.so
 
 %package -n clang-doc
 Summary:	Documentation for Clang
@@ -762,7 +757,6 @@ Debugger from the LLVM toolchain.
 %files -n lldb
 %{_bindir}/lldb*
 %{_libdir}/python*/site-packages/lldb
-%{_libdir}/python*/site-packages/readline.so
 %{_libdir}/python*/site-packages/six.py
 %doc %{_docdir}/lldb
 

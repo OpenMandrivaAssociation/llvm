@@ -1,7 +1,7 @@
-diff --git a/lldb/include/lldb/Utility/ArchSpec.h b/lldb/include/lldb/Utility/ArchSpec.h
---- a/lldb/include/lldb/Utility/ArchSpec.h
-+++ b/lldb/include/lldb/Utility/ArchSpec.h
-@@ -180,6 +180,9 @@
+diff -up llvm-9.0.0-20190625/lldb/include/lldb/Utility/ArchSpec.h.35~ llvm-9.0.0-20190625/lldb/include/lldb/Utility/ArchSpec.h
+--- llvm-9.0.0-20190625/lldb/include/lldb/Utility/ArchSpec.h.35~	2019-06-25 12:51:15.000000000 +0200
++++ llvm-9.0.0-20190625/lldb/include/lldb/Utility/ArchSpec.h	2019-06-25 13:34:42.563132434 +0200
+@@ -180,6 +180,9 @@ public:
      eCore_hexagon_hexagonv4,
      eCore_hexagon_hexagonv5,
  
@@ -11,9 +11,9 @@ diff --git a/lldb/include/lldb/Utility/ArchSpec.h b/lldb/include/lldb/Utility/Ar
      eCore_uknownMach32,
      eCore_uknownMach64,
  
-diff --git a/lldb/source/API/SystemInitializerFull.cpp b/lldb/source/API/SystemInitializerFull.cpp
---- a/lldb/source/API/SystemInitializerFull.cpp
-+++ b/lldb/source/API/SystemInitializerFull.cpp
+diff -up llvm-9.0.0-20190625/lldb/source/API/SystemInitializerFull.cpp.35~ llvm-9.0.0-20190625/lldb/source/API/SystemInitializerFull.cpp
+--- llvm-9.0.0-20190625/lldb/source/API/SystemInitializerFull.cpp.35~	2019-06-25 13:34:42.563132434 +0200
++++ llvm-9.0.0-20190625/lldb/source/API/SystemInitializerFull.cpp	2019-06-25 13:35:37.394129774 +0200
 @@ -32,6 +32,7 @@
  #include "Plugins/ABI/SysV-mips64/ABISysV_mips64.h"
  #include "Plugins/ABI/SysV-ppc/ABISysV_ppc.h"
@@ -21,19 +21,19 @@ diff --git a/lldb/source/API/SystemInitializerFull.cpp b/lldb/source/API/SystemI
 +#include "Plugins/ABI/SysV-riscv/ABISysV_riscv.h"
  #include "Plugins/ABI/SysV-s390x/ABISysV_s390x.h"
  #include "Plugins/ABI/SysV-x86_64/ABISysV_x86_64.h"
- #include "Plugins/Architecture/Arm/ArchitectureArm.h"
-@@ -185,6 +186,7 @@
+ #include "Plugins/ABI/Windows-x86_64/ABIWindows_x86_64.h"
+@@ -186,6 +187,7 @@ llvm::Error SystemInitializerFull::Initi
    ABISysV_ppc64::Initialize();
    ABISysV_mips::Initialize();
    ABISysV_mips64::Initialize();
 +  ABISysV_riscv::Initialize();
    ABISysV_s390x::Initialize();
+   ABIWindows_x86_64::Initialize();
  
-   ArchitectureArm::Initialize();
-diff --git a/lldb/source/Plugins/ABI/CMakeLists.txt b/lldb/source/Plugins/ABI/CMakeLists.txt
---- a/lldb/source/Plugins/ABI/CMakeLists.txt
-+++ b/lldb/source/Plugins/ABI/CMakeLists.txt
-@@ -8,6 +8,7 @@
+diff -up llvm-9.0.0-20190625/lldb/source/Plugins/ABI/CMakeLists.txt.35~ llvm-9.0.0-20190625/lldb/source/Plugins/ABI/CMakeLists.txt
+--- llvm-9.0.0-20190625/lldb/source/Plugins/ABI/CMakeLists.txt.35~	2019-06-25 12:51:15.000000000 +0200
++++ llvm-9.0.0-20190625/lldb/source/Plugins/ABI/CMakeLists.txt	2019-06-25 13:34:42.563132434 +0200
+@@ -8,6 +8,7 @@ add_subdirectory(SysV-mips64)
  add_subdirectory(SysV-s390x)
  add_subdirectory(SysV-i386)
  add_subdirectory(SysV-x86_64)
@@ -41,123 +41,9 @@ diff --git a/lldb/source/Plugins/ABI/CMakeLists.txt b/lldb/source/Plugins/ABI/CM
  add_subdirectory(MacOSX-i386)
  add_subdirectory(MacOSX-arm)
  add_subdirectory(MacOSX-arm64)
-diff --git a/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.h b/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.h
-new file mode 100644
---- /dev/null
-+++ b/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.h
-@@ -0,0 +1,108 @@
-+//===-- ABISysV_riscv.h -----------------------------------------*- C++ -*-===//
-+//
-+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-+// See https://llvm.org/LICENSE.txt for license information.
-+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-+//
-+//===----------------------------------------------------------------------===//
-+
-+#ifndef liblldb_ABISysV_riscv_h_
-+#define liblldb_ABISysV_riscv_h_
-+
-+#include "lldb/Target/ABI.h"
-+#include "lldb/lldb-private.h"
-+
-+class ABISysV_riscv : public lldb_private::ABI {
-+  bool isRV64;
-+
-+public:
-+  size_t GetRedZoneSize() const override { return 0; }
-+
-+  bool PrepareTrivialCall(lldb_private::Thread &thread, lldb::addr_t sp,
-+                          lldb::addr_t functionAddress,
-+                          lldb::addr_t returnAddress,
-+                          llvm::ArrayRef<lldb::addr_t> args) const override {
-+    // TODO: Implement
-+    return false;
-+  }
-+
-+  bool GetArgumentValues(lldb_private::Thread &thread,
-+                         lldb_private::ValueList &values) const override {
-+    // TODO: Implement
-+    return false;
-+  }
-+
-+  lldb_private::Status
-+  SetReturnValueObject(lldb::StackFrameSP &frame_sp,
-+                       lldb::ValueObjectSP &new_value) override {
-+    // TODO: Implement
-+    lldb_private::Status error;
-+    error.SetErrorString("Not yet implemented");
-+    return error;
-+  }
-+
-+  lldb::ValueObjectSP
-+  GetReturnValueObjectImpl(lldb_private::Thread &thread,
-+                           lldb_private::CompilerType &type) const override {
-+    // TODO: Implement
-+    lldb::ValueObjectSP return_valobj;
-+    return return_valobj;
-+  }
-+
-+  bool CreateFunctionEntryUnwindPlan(
-+      lldb_private::UnwindPlan &unwind_plan) override {
-+    // TODO: Implement disassembly-based unwinding
-+    unwind_plan.Clear();
-+    return false;
-+  }
-+
-+  bool CreateDefaultUnwindPlan(lldb_private::UnwindPlan &unwind_plan) override;
-+
-+  bool RegisterIsVolatile(const lldb_private::RegisterInfo *reg_info) override {
-+    // TODO: Implement
-+    return false;
-+  }
-+
-+  bool CallFrameAddressIsValid(lldb::addr_t cfa) override {
-+    // Assume any address except zero is valid
-+    if (cfa == 0)
-+      return false;
-+    return true;
-+  }
-+
-+  bool CodeAddressIsValid(lldb::addr_t pc) override {
-+    // Any address in the address space is valid
-+    if (!isRV64)
-+      return (pc <= UINT32_MAX);
-+    return (pc <= UINT64_MAX);
-+  }
-+
-+  const lldb_private::RegisterInfo *
-+  GetRegisterInfoArray(uint32_t &count) override;
-+
-+  // Static Functions
-+
-+  static void Initialize();
-+
-+  static void Terminate();
-+
-+  static lldb::ABISP CreateInstance(lldb::ProcessSP process_sp,
-+                                    const lldb_private::ArchSpec &arch);
-+
-+  // PluginInterface protocol
-+
-+  static lldb_private::ConstString GetPluginNameStatic();
-+
-+  lldb_private::ConstString GetPluginName() override;
-+
-+  uint32_t GetPluginVersion() override { return 1; }
-+
-+protected:
-+private:
-+  ABISysV_riscv(lldb::ProcessSP process_sp, bool _isRV64)
-+      : lldb_private::ABI(process_sp), isRV64(_isRV64) {
-+    // Call CreateInstance instead.
-+  }
-+};
-+
-+#endif // liblldb_ABISysV_riscv_h_
-diff --git a/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.cpp b/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.cpp
-new file mode 100644
---- /dev/null
-+++ b/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.cpp
+diff -up llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.cpp.35~ llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.cpp
+--- llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.cpp.35~	2019-06-25 13:34:42.564132434 +0200
++++ llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.cpp	2019-06-25 13:34:42.564132434 +0200
 @@ -0,0 +1,329 @@
 +//===-- ABISysV_riscv.cpp ---------------------------------------*- C++ -*-===//
 +//
@@ -488,10 +374,121 @@ new file mode 100644
 +lldb_private::ConstString ABISysV_riscv::GetPluginName() {
 +  return GetPluginNameStatic();
 +}
-diff --git a/lldb/source/Plugins/ABI/SysV-riscv/CMakeLists.txt b/lldb/source/Plugins/ABI/SysV-riscv/CMakeLists.txt
-new file mode 100644
---- /dev/null
-+++ b/lldb/source/Plugins/ABI/SysV-riscv/CMakeLists.txt
+diff -up llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.h.35~ llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.h
+--- llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.h.35~	2019-06-25 13:34:42.564132434 +0200
++++ llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/ABISysV_riscv.h	2019-06-25 13:34:42.564132434 +0200
+@@ -0,0 +1,108 @@
++//===-- ABISysV_riscv.h -----------------------------------------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef liblldb_ABISysV_riscv_h_
++#define liblldb_ABISysV_riscv_h_
++
++#include "lldb/Target/ABI.h"
++#include "lldb/lldb-private.h"
++
++class ABISysV_riscv : public lldb_private::ABI {
++  bool isRV64;
++
++public:
++  size_t GetRedZoneSize() const override { return 0; }
++
++  bool PrepareTrivialCall(lldb_private::Thread &thread, lldb::addr_t sp,
++                          lldb::addr_t functionAddress,
++                          lldb::addr_t returnAddress,
++                          llvm::ArrayRef<lldb::addr_t> args) const override {
++    // TODO: Implement
++    return false;
++  }
++
++  bool GetArgumentValues(lldb_private::Thread &thread,
++                         lldb_private::ValueList &values) const override {
++    // TODO: Implement
++    return false;
++  }
++
++  lldb_private::Status
++  SetReturnValueObject(lldb::StackFrameSP &frame_sp,
++                       lldb::ValueObjectSP &new_value) override {
++    // TODO: Implement
++    lldb_private::Status error;
++    error.SetErrorString("Not yet implemented");
++    return error;
++  }
++
++  lldb::ValueObjectSP
++  GetReturnValueObjectImpl(lldb_private::Thread &thread,
++                           lldb_private::CompilerType &type) const override {
++    // TODO: Implement
++    lldb::ValueObjectSP return_valobj;
++    return return_valobj;
++  }
++
++  bool CreateFunctionEntryUnwindPlan(
++      lldb_private::UnwindPlan &unwind_plan) override {
++    // TODO: Implement disassembly-based unwinding
++    unwind_plan.Clear();
++    return false;
++  }
++
++  bool CreateDefaultUnwindPlan(lldb_private::UnwindPlan &unwind_plan) override;
++
++  bool RegisterIsVolatile(const lldb_private::RegisterInfo *reg_info) override {
++    // TODO: Implement
++    return false;
++  }
++
++  bool CallFrameAddressIsValid(lldb::addr_t cfa) override {
++    // Assume any address except zero is valid
++    if (cfa == 0)
++      return false;
++    return true;
++  }
++
++  bool CodeAddressIsValid(lldb::addr_t pc) override {
++    // Any address in the address space is valid
++    if (!isRV64)
++      return (pc <= UINT32_MAX);
++    return (pc <= UINT64_MAX);
++  }
++
++  const lldb_private::RegisterInfo *
++  GetRegisterInfoArray(uint32_t &count) override;
++
++  // Static Functions
++
++  static void Initialize();
++
++  static void Terminate();
++
++  static lldb::ABISP CreateInstance(lldb::ProcessSP process_sp,
++                                    const lldb_private::ArchSpec &arch);
++
++  // PluginInterface protocol
++
++  static lldb_private::ConstString GetPluginNameStatic();
++
++  lldb_private::ConstString GetPluginName() override;
++
++  uint32_t GetPluginVersion() override { return 1; }
++
++protected:
++private:
++  ABISysV_riscv(lldb::ProcessSP process_sp, bool _isRV64)
++      : lldb_private::ABI(process_sp), isRV64(_isRV64) {
++    // Call CreateInstance instead.
++  }
++};
++
++#endif // liblldb_ABISysV_riscv_h_
+diff -up llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/CMakeLists.txt.35~ llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/CMakeLists.txt
+--- llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/CMakeLists.txt.35~	2019-06-25 13:34:42.564132434 +0200
++++ llvm-9.0.0-20190625/lldb/source/Plugins/ABI/SysV-riscv/CMakeLists.txt	2019-06-25 13:34:42.564132434 +0200
 @@ -0,0 +1,10 @@
 +add_lldb_library(lldbPluginABISysV_riscv PLUGIN
 +  ABISysV_riscv.cpp
@@ -503,10 +500,10 @@ new file mode 100644
 +  LINK_COMPONENTS
 +    Support
 +  )
-diff --git a/lldb/source/Plugins/Disassembler/llvm/DisassemblerLLVMC.cpp b/lldb/source/Plugins/Disassembler/llvm/DisassemblerLLVMC.cpp
---- a/lldb/source/Plugins/Disassembler/llvm/DisassemblerLLVMC.cpp
-+++ b/lldb/source/Plugins/Disassembler/llvm/DisassemblerLLVMC.cpp
-@@ -1198,6 +1198,11 @@
+diff -up llvm-9.0.0-20190625/lldb/source/Plugins/Disassembler/llvm/DisassemblerLLVMC.cpp.35~ llvm-9.0.0-20190625/lldb/source/Plugins/Disassembler/llvm/DisassemblerLLVMC.cpp
+--- llvm-9.0.0-20190625/lldb/source/Plugins/Disassembler/llvm/DisassemblerLLVMC.cpp.35~	2019-06-25 12:51:15.000000000 +0200
++++ llvm-9.0.0-20190625/lldb/source/Plugins/Disassembler/llvm/DisassemblerLLVMC.cpp	2019-06-25 13:34:42.564132434 +0200
+@@ -1198,6 +1198,11 @@ DisassemblerLLVMC::DisassemblerLLVMC(con
      cpu = "apple-latest";
    }
  
@@ -518,10 +515,10 @@ diff --git a/lldb/source/Plugins/Disassembler/llvm/DisassemblerLLVMC.cpp b/lldb/
    // We use m_disasm_up.get() to tell whether we are valid or not, so if this
    // isn't good for some reason, we won't be valid and FindPlugin will fail and
    // we won't get used.
-diff --git a/lldb/source/Target/Platform.cpp b/lldb/source/Target/Platform.cpp
---- a/lldb/source/Target/Platform.cpp
-+++ b/lldb/source/Target/Platform.cpp
-@@ -1911,6 +1911,15 @@
+diff -up llvm-9.0.0-20190625/lldb/source/Target/Platform.cpp.35~ llvm-9.0.0-20190625/lldb/source/Target/Platform.cpp
+--- llvm-9.0.0-20190625/lldb/source/Target/Platform.cpp.35~	2019-06-25 12:51:15.000000000 +0200
++++ llvm-9.0.0-20190625/lldb/source/Target/Platform.cpp	2019-06-25 13:34:42.564132434 +0200
+@@ -1911,6 +1911,15 @@ size_t Platform::GetSoftwareBreakpointTr
      trap_opcode_size = sizeof(g_i386_opcode);
    } break;
  
@@ -537,10 +534,10 @@ diff --git a/lldb/source/Target/Platform.cpp b/lldb/source/Target/Platform.cpp
    default:
      llvm_unreachable(
          "Unhandled architecture in Platform::GetSoftwareBreakpointTrapOpcode");
-diff --git a/lldb/source/Target/Thread.cpp b/lldb/source/Target/Thread.cpp
---- a/lldb/source/Target/Thread.cpp
-+++ b/lldb/source/Target/Thread.cpp
-@@ -2070,6 +2070,8 @@
+diff -up llvm-9.0.0-20190625/lldb/source/Target/Thread.cpp.35~ llvm-9.0.0-20190625/lldb/source/Target/Thread.cpp
+--- llvm-9.0.0-20190625/lldb/source/Target/Thread.cpp.35~	2019-06-25 12:51:15.000000000 +0200
++++ llvm-9.0.0-20190625/lldb/source/Target/Thread.cpp	2019-06-25 13:34:42.565132434 +0200
+@@ -2070,6 +2070,8 @@ Unwind *Thread::GetUnwinder() {
      case llvm::Triple::ppc:
      case llvm::Triple::ppc64:
      case llvm::Triple::ppc64le:
@@ -549,10 +546,10 @@ diff --git a/lldb/source/Target/Thread.cpp b/lldb/source/Target/Thread.cpp
      case llvm::Triple::systemz:
      case llvm::Triple::hexagon:
        m_unwinder_up.reset(new UnwindLLDB(*this));
-diff --git a/lldb/source/Utility/ArchSpec.cpp b/lldb/source/Utility/ArchSpec.cpp
---- a/lldb/source/Utility/ArchSpec.cpp
-+++ b/lldb/source/Utility/ArchSpec.cpp
-@@ -210,6 +210,11 @@
+diff -up llvm-9.0.0-20190625/lldb/source/Utility/ArchSpec.cpp.35~ llvm-9.0.0-20190625/lldb/source/Utility/ArchSpec.cpp
+--- llvm-9.0.0-20190625/lldb/source/Utility/ArchSpec.cpp.35~	2019-06-25 12:51:15.000000000 +0200
++++ llvm-9.0.0-20190625/lldb/source/Utility/ArchSpec.cpp	2019-06-25 13:34:42.565132434 +0200
+@@ -210,6 +210,11 @@ static const CoreDefinition g_core_defin
      {eByteOrderLittle, 4, 4, 4, llvm::Triple::hexagon,
       ArchSpec::eCore_hexagon_hexagonv5, "hexagonv5"},
  
@@ -564,7 +561,7 @@ diff --git a/lldb/source/Utility/ArchSpec.cpp b/lldb/source/Utility/ArchSpec.cpp
      {eByteOrderLittle, 4, 4, 4, llvm::Triple::UnknownArch,
       ArchSpec::eCore_uknownMach32, "unknown-mach-32"},
      {eByteOrderLittle, 8, 4, 4, llvm::Triple::UnknownArch,
-@@ -446,6 +451,10 @@
+@@ -446,6 +451,10 @@ static const ArchDefinitionEntry g_elf_a
       ArchSpec::eMIPSSubType_mips64r6el, 0xFFFFFFFFu, 0xFFFFFFFFu}, // mips64r6el
      {ArchSpec::eCore_hexagon_generic, llvm::ELF::EM_HEXAGON,
       LLDB_INVALID_CPUTYPE, 0xFFFFFFFFu, 0xFFFFFFFFu}, // HEXAGON
@@ -575,4 +572,3 @@ diff --git a/lldb/source/Utility/ArchSpec.cpp b/lldb/source/Utility/ArchSpec.cpp
  };
  
  static const ArchDefinition g_elf_arch_def = {
-

@@ -1,15 +1,22 @@
---- llvm-5.0.0.src/clang/lib/Headers/stdint.h.musl12~	2017-04-27 23:49:45.000000000 +0200
-+++ llvm-5.0.0.src/clang/lib/Headers/stdint.h	2017-06-15 23:47:54.427058662 +0200
-@@ -22,8 +22,6 @@
+diff -up llvm-9.0.0-20190625/clang/lib/Headers/stdint.h.22~ llvm-9.0.0-20190625/clang/lib/Headers/stdint.h
+--- llvm-9.0.0-20190625/clang/lib/Headers/stdint.h.22~	2019-06-25 12:51:15.000000000 +0200
++++ llvm-9.0.0-20190625/clang/lib/Headers/stdint.h	2019-06-25 13:33:00.785137372 +0200
+@@ -6,14 +6,6 @@
   *
  \*===----------------------------------------------------------------------===*/
  
 -#ifndef __CLANG_STDINT_H
+-// AIX system headers need stdint.h to be re-enterable while _STD_TYPES_T
+-// is defined until an inclusion of it without _STD_TYPES_T occurs, in which
+-// case the header guard macro is defined.
+-#if !defined(_AIX) || !defined(_STD_TYPES_T) || !defined(__STDC_HOSTED__)
 -#define __CLANG_STDINT_H
- 
+-#endif
+-
  /* If we're hosted, fall back to the system's stdint.h, which might have
   * additional definitions.
-@@ -72,6 +70,8 @@
+  */
+@@ -61,6 +53,8 @@
  # endif
  
  #else
@@ -18,7 +25,7 @@
  
  /* C99 7.18.1.1 Exact-width integer types.
   * C99 7.18.1.2 Minimum-width integer types.
-@@ -700,5 +700,5 @@ typedef __UINTMAX_TYPE__ uintmax_t;
+@@ -689,5 +683,5 @@ typedef __UINTMAX_TYPE__ uintmax_t;
  #define  INTMAX_C(v) __int_c(v,  __INTMAX_C_SUFFIX__)
  #define UINTMAX_C(v) __int_c(v, __UINTMAX_C_SUFFIX__)
  

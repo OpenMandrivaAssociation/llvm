@@ -1,0 +1,16 @@
+diff -up llvm-9.0.0-20190629/clang/lib/Driver/ToolChains/CommonArgs.cpp.18~ llvm-9.0.0-20190629/clang/lib/Driver/ToolChains/CommonArgs.cpp
+--- llvm-9.0.0-20190629/clang/lib/Driver/ToolChains/CommonArgs.cpp.18~	2019-06-29 11:24:12.000000000 +0200
++++ llvm-9.0.0-20190629/clang/lib/Driver/ToolChains/CommonArgs.cpp	2019-06-29 16:12:47.201623945 +0200
+@@ -389,8 +389,11 @@ void tools::AddGoldPlugin(const ToolChai
+     if (A->getOption().matches(options::OPT_O4) ||
+         A->getOption().matches(options::OPT_Ofast))
+       OOpt = "3";
+-    else if (A->getOption().matches(options::OPT_O))
++    else if (A->getOption().matches(options::OPT_O)) {
+       OOpt = A->getValue();
++      if(OOpt == "s" || OOpt == "z")
++        OOpt = "3";
++    }
+     else if (A->getOption().matches(options::OPT_O0))
+       OOpt = "0";
+     if (!OOpt.empty())
