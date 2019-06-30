@@ -206,7 +206,7 @@ BuildRequires:	pkgconfig(isl) >= 0.13
 BuildRequires:	pkgconfig(libtirpc)
 BuildRequires:	pkgconfig(libxml-2.0)
 BuildRequires:	pkgconfig(icu-i18n)
-%ifnarch aarch64 riscv64
+%ifnarch riscv64
 BuildRequires:	devel(libatomic)
 %endif
 BuildRequires:	python >= 3.4
