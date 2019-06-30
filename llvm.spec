@@ -211,7 +211,7 @@ BuildRequires:	pkgconfig(libtirpc)
 BuildRequires:	pkgconfig(libxml-2.0)
 BuildRequires:	pkgconfig(icu-i18n)
 %ifnarch riscv64
-BuildRequires:	devel(libatomic)
+BuildRequires:	atomic-devel
 %endif
 BuildRequires:	python >= 3.4
 BuildRequires:	cmake
