@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%define date 20190629
+%define date 20190630
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -139,6 +139,10 @@ Patch16:	clang-rename-fix-linkage.patch
 Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
 # https://bugs.llvm.org/show_bug.cgi?id=42445
 Patch18:	clang-Os-Oz-bug42445.patch
+# Enable --no-undefined, --as-needed, --enable-new-dtags,
+# --hash-style=gnu, --warn-common, --icf=safe, --build-id=sha1,
+# -O by default
+Patch19:	lld-default-settings.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
 Patch21:	llvm-5.0-MuslX32.patch
@@ -808,6 +812,7 @@ The linker from the LLVM project.
 %{_bindir}/llvm-dlltool
 %{_bindir}/llvm-readelf
 %{_bindir}/llvm-mt
+%{_mandir}/man1/ld.lld.1*
 
 #-----------------------------------------------------------
 
@@ -1017,6 +1022,9 @@ done
 %endif
 
 %ninja_install -C build
+
+# https://bugs.llvm.org/show_bug.cgi?id=42455
+cp lld/docs/ld.lld.1 %{buildroot}%{_mandir}/man1/
 
 # Install the clang python bits
 mkdir -p %{buildroot}%{python_sitelib}

@@ -1,0 +1,134 @@
+diff -up llvm-9.0.0-20190629/lld/ELF/Config.h.omv~ llvm-9.0.0-20190629/lld/ELF/Config.h
+--- llvm-9.0.0-20190629/lld/ELF/Config.h.omv~	2019-06-30 13:16:42.550944696 +0200
++++ llvm-9.0.0-20190629/lld/ELF/Config.h	2019-06-30 14:04:25.915805776 +0200
+@@ -124,12 +124,12 @@ struct Configuration {
+                   uint64_t>
+       CallGraphProfile;
+   bool AllowMultipleDefinition;
+-  bool AllowShlibUndefined;
++  bool AllowShlibUndefined = false;
+   bool AndroidPackDynRelocs;
+   bool ARMHasBlx = false;
+   bool ARMHasMovtMovw = false;
+   bool ARMJ1J2BranchEncoding = false;
+-  bool AsNeeded = false;
++  bool AsNeeded = true;
+   bool Bsymbolic;
+   bool BsymbolicFunctions;
+   bool CallGraphProfileSort;
+@@ -143,16 +143,16 @@ struct Configuration {
+   bool EhFrameHdr;
+   bool EmitLLVM;
+   bool EmitRelocs;
+-  bool EnableNewDtags;
++  bool EnableNewDtags = true;
+   bool ExecuteOnly;
+   bool ExportDynamic;
+   bool FixCortexA53Errata843419;
+   bool ForceBTI;
+   bool FormatBinary = false;
+   bool RequireCET;
+-  bool GcSections;
++  bool GcSections = true;
+   bool GdbIndex;
+-  bool GnuHash = false;
++  bool GnuHash = true;
+   bool GnuUnique;
+   bool HasDynamicList = false;
+   bool HasDynSymTab;
+@@ -189,14 +189,14 @@ struct Configuration {
+   bool UndefinedVersion;
+   bool UseAndroidRelrTags = false;
+   bool WarnBackrefs;
+-  bool WarnCommon;
++  bool WarnCommon = true;
+   bool WarnIfuncTextrel;
+   bool WarnMissingEntry;
+   bool WarnSymbolOrdering;
+   bool WriteAddends;
+   bool ZCombreloc;
+   bool ZCopyreloc;
+-  bool ZExecstack;
++  bool ZExecstack = false;
+   bool ZGlobal;
+   bool ZHazardplt;
+   bool ZIfuncNoplt;
+@@ -214,14 +214,14 @@ struct Configuration {
+   bool ZRetpolineplt;
+   bool ZWxneeded;
+   DiscardPolicy Discard;
+-  ICFLevel ICF;
++  ICFLevel ICF = ICFLevel::Safe;
+   OrphanHandlingPolicy OrphanHandling;
+   SortSectionPolicy SortSection;
+   StripPolicy Strip;
+   UnresolvedPolicy UnresolvedSymbols;
+   Target2Policy Target2;
+   ARMVFPArgKind ARMVFPArgs = ARMVFPArgKind::Default;
+-  BuildIdKind BuildId = BuildIdKind::None;
++  BuildIdKind BuildId = BuildIdKind::Sha1;
+   ELFKind EKind = ELFNoneKind;
+   uint16_t DefaultSymbolVersion = llvm::ELF::VER_NDX_GLOBAL;
+   uint16_t EMachine = llvm::ELF::EM_NONE;
+@@ -232,7 +232,7 @@ struct Configuration {
+   uint64_t ZStackSize;
+   unsigned LTOPartitions;
+   unsigned LTOO;
+-  unsigned Optimize;
++  unsigned Optimize = 1;
+   unsigned ThinLTOJobs;
+   int32_t SplitStackAdjustSize;
+ 
+diff -up llvm-9.0.0-20190629/lld/ELF/Driver.cpp.omv~ llvm-9.0.0-20190629/lld/ELF/Driver.cpp
+--- llvm-9.0.0-20190629/lld/ELF/Driver.cpp.omv~	2019-06-30 13:16:11.308946212 +0200
++++ llvm-9.0.0-20190629/lld/ELF/Driver.cpp	2019-06-30 14:07:41.219796301 +0200
+@@ -567,10 +567,10 @@ static StringRef getDynamicLinker(opt::I
+ 
+ static ICFLevel getICF(opt::InputArgList &Args) {
+   auto *Arg = Args.getLastArg(OPT_icf_none, OPT_icf_safe, OPT_icf_all);
+-  if (!Arg || Arg->getOption().getID() == OPT_icf_none)
+-    return ICFLevel::None;
+-  if (Arg->getOption().getID() == OPT_icf_safe)
++  if (!Arg || Arg->getOption().getID() == OPT_icf_safe)
+     return ICFLevel::Safe;
++  if (Arg->getOption().getID() == OPT_icf_none)
++    return ICFLevel::None;
+   return ICFLevel::All;
+ }
+ 
+@@ -645,7 +645,7 @@ getBuildId(opt::InputArgList &Args) {
+     return {BuildIdKind::None, {}};
+ 
+   if (Arg->getOption().getID() == OPT_build_id)
+-    return {BuildIdKind::Fast, {}};
++    return {BuildIdKind::Sha1, {}};
+ 
+   StringRef S = Arg->getValue();
+   if (S == "fast")
+@@ -826,7 +826,7 @@ static void readConfigs(opt::InputArgLis
+   Config->FixCortexA53Errata843419 = Args.hasArg(OPT_fix_cortex_a53_843419);
+   Config->ForceBTI = Args.hasArg(OPT_force_bti);
+   Config->RequireCET = Args.hasArg(OPT_require_cet);
+-  Config->GcSections = Args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, false);
++  Config->GcSections = Args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, true);
+   Config->GnuUnique = Args.hasFlag(OPT_gnu_unique, OPT_no_gnu_unique, true);
+   Config->GdbIndex = Args.hasFlag(OPT_gdb_index, OPT_no_gdb_index, false);
+   Config->ICF = getICF(Args);
+@@ -907,7 +907,7 @@ static void readConfigs(opt::InputArgLis
+   Config->UnresolvedSymbols = getUnresolvedSymbolPolicy(Args);
+   Config->WarnBackrefs =
+       Args.hasFlag(OPT_warn_backrefs, OPT_no_warn_backrefs, false);
+-  Config->WarnCommon = Args.hasFlag(OPT_warn_common, OPT_no_warn_common, false);
++  Config->WarnCommon = Args.hasFlag(OPT_warn_common, OPT_no_warn_common, true);
+   Config->WarnIfuncTextrel =
+       Args.hasFlag(OPT_warn_ifunc_textrel, OPT_no_warn_ifunc_textrel, false);
+   Config->WarnSymbolOrdering =
+@@ -1668,7 +1668,7 @@ template <class ELFT> void LinkerDriver:
+     if (Config->EMachine == EM_MIPS)
+       Config->SysvHash = true;
+     else
+-      Config->SysvHash = Config->GnuHash = true;
++      Config->SysvHash = false; Config->GnuHash = true;
+   }
+ 
+   // Default output filename is "a.out" by the Unix tradition.
