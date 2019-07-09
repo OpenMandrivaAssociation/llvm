@@ -1,8 +1,8 @@
-diff -up llvm-9.0.0-20190313/clang/CMakeLists.txt.24~ llvm-9.0.0-20190313/clang/CMakeLists.txt
---- llvm-9.0.0-20190313/clang/CMakeLists.txt.24~	2019-03-13 02:29:11.218969778 +0100
-+++ llvm-9.0.0-20190313/clang/CMakeLists.txt	2019-03-13 02:36:22.398164361 +0100
-@@ -305,7 +305,7 @@ set(CLANG_PYTHON_BINDINGS_VERSIONS "" CA
-     "Python versions to install libclang python bindings for")
+diff -up llvm-9.0.0-20190707/clang/CMakeLists.txt.29~ llvm-9.0.0-20190707/clang/CMakeLists.txt
+--- llvm-9.0.0-20190707/clang/CMakeLists.txt.29~	2019-07-07 16:29:47.012528828 +0200
++++ llvm-9.0.0-20190707/clang/CMakeLists.txt	2019-07-07 16:30:39.589532038 +0200
+@@ -332,7 +332,7 @@ if (NOT LLVM_LINK_LLVM_DYLIB AND CLANG_L
+ endif()
  
  # The libdir suffix must exactly match whatever LLVM's configuration used.
 -set(CLANG_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}")

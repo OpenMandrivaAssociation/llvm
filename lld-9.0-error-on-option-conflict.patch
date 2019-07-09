@@ -1,0 +1,24 @@
+diff -up llvm-9.0.0-20190707/lld/ELF/Driver.cpp.omv~ llvm-9.0.0-20190707/lld/ELF/Driver.cpp
+--- llvm-9.0.0-20190707/lld/ELF/Driver.cpp.omv~	2019-07-07 19:03:16.870091181 +0200
++++ llvm-9.0.0-20190707/lld/ELF/Driver.cpp	2019-07-07 19:08:17.109109514 +0200
+@@ -320,12 +320,16 @@ static void checkOptions() {
+   if (Config->Relocatable) {
+     if (Config->Shared)
+       error("-r and -shared may not be used together");
+-    if (Config->GcSections)
+-      error("-r and --gc-sections may not be used together");
++    if (Config->GcSections) {
++      warn("-r and --gc-sections may not be used together, disabling --gc-sections");
++      Config->GcSections = false;
++    }
+     if (Config->GdbIndex)
+       error("-r and --gdb-index may not be used together");
+-    if (Config->ICF != ICFLevel::None)
+-      error("-r and --icf may not be used together");
++    if (Config->ICF != ICFLevel::None) {
++      warn("-r and --icf may not be used together, disabling --icf");
++      Config->ICF = ICFLevel::None;
++    }
+     if (Config->Pie)
+       error("-r and -pie may not be used together");
+   }

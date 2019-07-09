@@ -1,0 +1,15 @@
+diff -up llvm-9.0.0-20190707/compiler-rt/lib/fuzzer/CMakeLists.txt.omv~ llvm-9.0.0-20190707/compiler-rt/lib/fuzzer/CMakeLists.txt
+--- llvm-9.0.0-20190707/compiler-rt/lib/fuzzer/CMakeLists.txt.omv~	2019-07-08 18:22:40.159217970 +0200
++++ llvm-9.0.0-20190707/compiler-rt/lib/fuzzer/CMakeLists.txt	2019-07-08 18:40:05.380281791 +0200
+@@ -122,9 +124,9 @@ if(OS_NAME MATCHES "Linux|Fuchsia" AND
+    COMPILER_RT_LIBCXXABI_PATH)
+   macro(partially_link_libcxx name dir arch)
+     if(${arch} MATCHES "i386")
+-      set(EMULATION_ARGUMENT "-m" "elf_i386")
++      set(EMULATION_ARGUMENT "-m" "elf_i386" "--icf=none" "--no-gc-sections")
+     else()
+-      set(EMULATION_ARGUMENT "")
++      set(EMULATION_ARGUMENT "--icf=none" "--no-gc-sections")
+     endif()
+     set(cxx_${arch}_merge_dir "${CMAKE_CURRENT_BINARY_DIR}/cxx_${arch}_merge.dir")
+     file(MAKE_DIRECTORY ${cxx_${arch}_merge_dir})
