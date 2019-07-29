@@ -1,24 +1,24 @@
-diff -up llvm-9.0.0-20190707/lld/ELF/Driver.cpp.omv~ llvm-9.0.0-20190707/lld/ELF/Driver.cpp
---- llvm-9.0.0-20190707/lld/ELF/Driver.cpp.omv~	2019-07-07 19:03:16.870091181 +0200
-+++ llvm-9.0.0-20190707/lld/ELF/Driver.cpp	2019-07-07 19:08:17.109109514 +0200
+diff -up llvm-9.0.0-20190729/lld/ELF/Driver.cpp.22~ llvm-9.0.0-20190729/lld/ELF/Driver.cpp
+--- llvm-9.0.0-20190729/lld/ELF/Driver.cpp.22~	2019-07-29 19:32:42.451368350 +0200
++++ llvm-9.0.0-20190729/lld/ELF/Driver.cpp	2019-07-29 19:34:39.745668143 +0200
 @@ -320,12 +320,16 @@ static void checkOptions() {
-   if (Config->Relocatable) {
-     if (Config->Shared)
+   if (config->relocatable) {
+     if (config->shared)
        error("-r and -shared may not be used together");
--    if (Config->GcSections)
+-    if (config->gcSections)
 -      error("-r and --gc-sections may not be used together");
-+    if (Config->GcSections) {
++    if (config->gcSections) {
 +      warn("-r and --gc-sections may not be used together, disabling --gc-sections");
-+      Config->GcSections = false;
++      config->gcSections = false;
 +    }
-     if (Config->GdbIndex)
+     if (config->gdbIndex)
        error("-r and --gdb-index may not be used together");
--    if (Config->ICF != ICFLevel::None)
+-    if (config->icf != ICFLevel::None)
 -      error("-r and --icf may not be used together");
-+    if (Config->ICF != ICFLevel::None) {
++    if (config->icf != ICFLevel::None) {
 +      warn("-r and --icf may not be used together, disabling --icf");
-+      Config->ICF = ICFLevel::None;
++      config->icf = ICFLevel::None;
 +    }
-     if (Config->Pie)
+     if (config->pie)
        error("-r and -pie may not be used together");
    }

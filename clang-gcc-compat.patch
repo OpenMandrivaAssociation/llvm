@@ -1,7 +1,6 @@
-diff -up llvm-9.0.0-20190618/clang/lib/Driver/Driver.cpp.6~ llvm-9.0.0-20190618/clang/lib/Driver/Driver.cpp
-diff -up llvm-9.0.0-20190618/clang/lib/Frontend/InitPreprocessor.cpp.6~ llvm-9.0.0-20190618/clang/lib/Frontend/InitPreprocessor.cpp
---- llvm-9.0.0-20190618/clang/lib/Frontend/InitPreprocessor.cpp.6~	2019-06-18 20:22:30.000000000 +0200
-+++ llvm-9.0.0-20190618/clang/lib/Frontend/InitPreprocessor.cpp	2019-06-18 20:56:41.546711784 +0200
+diff -up llvm-9.0.0-20190725/clang/lib/Frontend/InitPreprocessor.cpp.7~ llvm-9.0.0-20190725/clang/lib/Frontend/InitPreprocessor.cpp
+--- llvm-9.0.0-20190725/clang/lib/Frontend/InitPreprocessor.cpp.7~	2019-07-25 17:06:35.000000000 +0200
++++ llvm-9.0.0-20190725/clang/lib/Frontend/InitPreprocessor.cpp	2019-07-25 22:18:42.694260827 +0200
 @@ -571,12 +571,13 @@ static void InitializePredefinedMacros(c
                        "\"" CLANG_VERSION_STRING " "
                        + getClangFullRepositoryVersion() + "\"");
@@ -19,19 +18,7 @@ diff -up llvm-9.0.0-20190618/clang/lib/Frontend/InitPreprocessor.cpp.6~ llvm-9.0
    }
  
    // Define macros for the C11 / C++11 memory orderings
-@@ -605,9 +606,9 @@ static void InitializePredefinedMacros(c
-   Builder.defineMacro("__PRAGMA_REDEFINE_EXTNAME", "1");
- 
-   // As sad as it is, enough software depends on the __VERSION__ for version
--  // checks that it is necessary to report 4.2.1 (the base GCC version we claim
-+  // checks that it is necessary to report 9.1.0 (the base GCC version we claim
-   // compatibility with) first.
--  Builder.defineMacro("__VERSION__", "\"4.2.1 Compatible " +
-+  Builder.defineMacro("__VERSION__", "\"9.1.0 Compatible " +
-                       Twine(getClangFullCPPVersion()) + "\"");
- 
-   // Initialize language-specific preprocessor defines.
-@@ -711,7 +712,7 @@ static void InitializePredefinedMacros(c
+@@ -710,7 +711,7 @@ static void InitializePredefinedMacros(c
      Builder.defineMacro("__DEPRECATED");
  
    if (!LangOpts.MSVCCompat && LangOpts.CPlusPlus) {
@@ -40,16 +27,4 @@ diff -up llvm-9.0.0-20190618/clang/lib/Frontend/InitPreprocessor.cpp.6~ llvm-9.0
      Builder.defineMacro("__GXX_WEAK__");
      Builder.defineMacro("__private_extern__", "extern");
    }
-diff -up llvm-9.0.0-20190618/clang/test/Driver/immediate-options.c.6~ llvm-9.0.0-20190618/clang/test/Driver/immediate-options.c
-diff -up llvm-9.0.0-20190618/clang/test/Preprocessor/init.c.6~ llvm-9.0.0-20190618/clang/test/Preprocessor/init.c
---- llvm-9.0.0-20190618/clang/test/Preprocessor/init.c.6~	2019-06-18 20:22:30.000000000 +0200
-+++ llvm-9.0.0-20190618/clang/test/Preprocessor/init.c	2019-06-18 20:56:41.549711811 +0200
-@@ -8169,7 +8169,7 @@
- // SPARC:#define __UINT_LEAST8_MAX__ 255
- // SPARC:#define __UINT_LEAST8_TYPE__ unsigned char
- // SPARC:#define __USER_LABEL_PREFIX__
--// SPARC:#define __VERSION__ "4.2.1 Compatible{{.*}}
-+// SPARC:#define __VERSION__ "9.1.0 Compatible{{.*}}
- // SPARC:#define __WCHAR_MAX__ 2147483647
- // SPARC:#define __WCHAR_TYPE__ int
- // SPARC:#define __WCHAR_WIDTH__ 32
+diff -up llvm-9.0.0-20190725/clang/test/Preprocessor/init.c.7~ llvm-9.0.0-20190725/clang/test/Preprocessor/init.c
