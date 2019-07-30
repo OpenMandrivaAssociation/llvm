@@ -216,6 +216,8 @@ BuildRequires:	pkgconfig(icu-i18n)
 BuildRequires:	atomic-devel
 %endif
 BuildRequires:	python >= 3.4
+BuildRequires:	python3dist(pyyaml)
+BuildRequires:	python3dist(pygments)
 BuildRequires:	cmake
 BuildRequires:	ninja
 %if %{with apidox}
