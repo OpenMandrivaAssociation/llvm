@@ -229,7 +229,7 @@ BuildRequires:	go
 Obsoletes:	llvm-ocaml
 # For lldb
 BuildRequires:	swig
-BuildRequires:	pkgconfig(python2)
+BuildRequires:	pkgconfig(python3)
 BuildRequires:	gcc
 BuildRequires:	pkgconfig(libtirpc)
 %if %mdvver > 3000000
