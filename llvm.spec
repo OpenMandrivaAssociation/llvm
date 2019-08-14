@@ -2,7 +2,8 @@
 %define _python_bytecompile_build 0
 
 # 20190729 is RC1
-%define date 20190729
+# 20190814 is RC2
+%define date 20190814
 
 %define debug_package %{nil}
 %define debugcflags %{nil}

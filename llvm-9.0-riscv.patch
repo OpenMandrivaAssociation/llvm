@@ -1,6 +1,6 @@
-diff -up llvm-9.0.0-20190729/clang/lib/Driver/ToolChains/Gnu.cpp.34~ llvm-9.0.0-20190729/clang/lib/Driver/ToolChains/Gnu.cpp
---- llvm-9.0.0-20190729/clang/lib/Driver/ToolChains/Gnu.cpp.34~	2019-07-29 19:35:34.410341119 +0200
-+++ llvm-9.0.0-20190729/clang/lib/Driver/ToolChains/Gnu.cpp	2019-07-29 19:35:34.436340964 +0200
+diff -up llvm-9.0.0-20190814/clang/lib/Driver/ToolChains/Gnu.cpp.34~ llvm-9.0.0-20190814/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-9.0.0-20190814/clang/lib/Driver/ToolChains/Gnu.cpp.34~	2019-08-14 12:35:43.728039331 +0200
++++ llvm-9.0.0-20190814/clang/lib/Driver/ToolChains/Gnu.cpp	2019-08-14 12:35:43.754039425 +0200
 @@ -2066,7 +2066,10 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const RISCV64LibDirs[] = {"/lib64", "/lib"};
    static const char *const RISCV64Triples[] = {"riscv64-unknown-linux-gnu",
@@ -13,9 +13,9 @@ diff -up llvm-9.0.0-20190729/clang/lib/Driver/ToolChains/Gnu.cpp.34~ llvm-9.0.0-
  
    static const char *const SPARCv8LibDirs[] = {"/lib32", "/lib"};
    static const char *const SPARCv8Triples[] = {"sparc-linux-gnu",
-diff -up llvm-9.0.0-20190729/clang/lib/Headers/stddef.h.34~ llvm-9.0.0-20190729/clang/lib/Headers/stddef.h
---- llvm-9.0.0-20190729/clang/lib/Headers/stddef.h.34~	2019-07-29 11:51:02.000000000 +0200
-+++ llvm-9.0.0-20190729/clang/lib/Headers/stddef.h	2019-07-29 19:35:34.436340964 +0200
+diff -up llvm-9.0.0-20190814/clang/lib/Headers/stddef.h.34~ llvm-9.0.0-20190814/clang/lib/Headers/stddef.h
+--- llvm-9.0.0-20190814/clang/lib/Headers/stddef.h.34~	2019-08-13 14:39:23.000000000 +0200
++++ llvm-9.0.0-20190814/clang/lib/Headers/stddef.h	2019-08-14 12:35:43.754039425 +0200
 @@ -11,6 +11,10 @@
      defined(__need_size_t) || defined(__need_wchar_t) ||                       \
      defined(__need_NULL) || defined(__need_wint_t)
@@ -27,9 +27,9 @@ diff -up llvm-9.0.0-20190729/clang/lib/Headers/stddef.h.34~ llvm-9.0.0-20190729/
  #if !defined(__need_ptrdiff_t) && !defined(__need_size_t) &&                   \
      !defined(__need_wchar_t) && !defined(__need_NULL) &&                       \
      !defined(__need_wint_t)
-diff -up llvm-9.0.0-20190729/clang-tools-extra/clangd/CMakeLists.txt.34~ llvm-9.0.0-20190729/clang-tools-extra/clangd/CMakeLists.txt
---- llvm-9.0.0-20190729/clang-tools-extra/clangd/CMakeLists.txt.34~	2019-07-29 11:51:02.000000000 +0200
-+++ llvm-9.0.0-20190729/clang-tools-extra/clangd/CMakeLists.txt	2019-07-29 19:35:34.436340964 +0200
+diff -up llvm-9.0.0-20190814/clang-tools-extra/clangd/CMakeLists.txt.34~ llvm-9.0.0-20190814/clang-tools-extra/clangd/CMakeLists.txt
+--- llvm-9.0.0-20190814/clang-tools-extra/clangd/CMakeLists.txt.34~	2019-08-13 14:39:23.000000000 +0200
++++ llvm-9.0.0-20190814/clang-tools-extra/clangd/CMakeLists.txt	2019-08-14 12:35:43.754039425 +0200
 @@ -30,9 +30,7 @@ if(CLANG_BUILT_STANDALONE)
  endif()
  
@@ -41,9 +41,9 @@ diff -up llvm-9.0.0-20190729/clang-tools-extra/clangd/CMakeLists.txt.34~ llvm-9.
  
  add_clang_library(clangDaemon
    AST.cpp
-diff -up llvm-9.0.0-20190729/llvm/tools/dsymutil/CMakeLists.txt.34~ llvm-9.0.0-20190729/llvm/tools/dsymutil/CMakeLists.txt
---- llvm-9.0.0-20190729/llvm/tools/dsymutil/CMakeLists.txt.34~	2019-07-29 11:51:02.000000000 +0200
-+++ llvm-9.0.0-20190729/llvm/tools/dsymutil/CMakeLists.txt	2019-07-29 19:35:34.436340964 +0200
+diff -up llvm-9.0.0-20190814/llvm/tools/dsymutil/CMakeLists.txt.34~ llvm-9.0.0-20190814/llvm/tools/dsymutil/CMakeLists.txt
+--- llvm-9.0.0-20190814/llvm/tools/dsymutil/CMakeLists.txt.34~	2019-08-13 14:39:23.000000000 +0200
++++ llvm-9.0.0-20190814/llvm/tools/dsymutil/CMakeLists.txt	2019-08-14 12:35:43.754039425 +0200
 @@ -31,4 +31,6 @@ add_llvm_tool(dsymutil
  
  if(APPLE)
@@ -51,12 +51,12 @@ diff -up llvm-9.0.0-20190729/llvm/tools/dsymutil/CMakeLists.txt.34~ llvm-9.0.0-2
 +else(APPLE)
 +  target_link_libraries(dsymutil PRIVATE "-latomic")
  endif(APPLE)
-diff -up llvm-9.0.0-20190729/llvm/utils/benchmark/src/cycleclock.h.34~ llvm-9.0.0-20190729/llvm/utils/benchmark/src/cycleclock.h
---- llvm-9.0.0-20190729/llvm/utils/benchmark/src/cycleclock.h.34~	2019-07-29 11:51:02.000000000 +0200
-+++ llvm-9.0.0-20190729/llvm/utils/benchmark/src/cycleclock.h	2019-07-29 19:35:34.436340964 +0200
-@@ -165,10 +165,10 @@ inline BENCHMARK_ALWAYS_INLINE int64_t N
-   asm("stck %0" : "=Q" (tsc) : : "cc");
-   return tsc;
+diff -up llvm-9.0.0-20190814/llvm/utils/benchmark/src/cycleclock.h.34~ llvm-9.0.0-20190814/llvm/utils/benchmark/src/cycleclock.h
+--- llvm-9.0.0-20190814/llvm/utils/benchmark/src/cycleclock.h.34~	2019-08-14 12:35:43.754039425 +0200
++++ llvm-9.0.0-20190814/llvm/utils/benchmark/src/cycleclock.h	2019-08-14 12:37:34.635439007 +0200
+@@ -180,10 +180,10 @@ inline BENCHMARK_ALWAYS_INLINE int64_t N
+   return cycles;
+ #endif
  #else
 -// The soft failover to a generic implementation is automatic only for ARM.
 -// For other platforms the developer is expected to make an attempt to create
