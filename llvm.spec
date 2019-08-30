@@ -3,7 +3,8 @@
 
 # 20190729 is RC1
 # 20190814 is RC2
-%define date 20190814
+# 20190830 is RC3
+%define date 20190830
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
