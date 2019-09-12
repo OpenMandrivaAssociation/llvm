@@ -47,8 +47,16 @@
 %endif
 %bcond_without ffi
 # Force gcc to compile, in case previous clang is busted
+%ifarch %{riscv}
+%bcond_without bootstrap_gcc
+%else
 %bcond_with bootstrap_gcc
+%endif
 %if %{with bootstrap_gcc}
+# gcc and clang don't fully agree about function name
+# pretty printing, causing lldb to bomb out when built
+# with gcc format checking
+%global Werror_cflags %{nil}
 # libcxx fails to bootstrap with gcc
 %bcond_with build_libcxx
 %else
@@ -123,9 +131,7 @@ Patch4:		clang-9.0.0-bogus-headers.patch
 # Patches from AOSP
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
-# Allow building with an older version of clang while bootstrapping
-Patch6:		llvm-9.0.0-bootstrap.patch
-# Claim compatibility with gcc 9.1.0 rather than 4.2.1, it's
+# Claim compatibility with gcc 9.2.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
@@ -162,8 +168,6 @@ Patch27:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
 Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
 Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
 Patch40:	libc++-3.7.0-musl-compat.patch
-# https://llvm.org/bugs/show_bug.cgi?id=23935
-Patch41:	llvm-3.7-bootstrap.patch
 # Make it possible to override CLANG_LIBDIR_SUFFIX
 # (that is used only to find LLVMgold.so)
 # https://llvm.org/bugs/show_bug.cgi?id=23793

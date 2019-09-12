@@ -6,7 +6,7 @@ diff -up llvm-9.0.0-20190725/clang/lib/Frontend/InitPreprocessor.cpp.7~ llvm-9.0
                        + getClangFullRepositoryVersion() + "\"");
    if (!LangOpts.MSVCCompat) {
 -    // Currently claim to be compatible with GCC 4.2.1-5621, but only if we're
-+    // Currently claim to be compatible with GCC 9.1.0, but only if we're
++    // Currently claim to be compatible with GCC 9.2.1, but only if we're
      // not compiling for MSVC compatibility
      Builder.defineMacro("__GNUC_MINOR__", "2");
      Builder.defineMacro("__GNUC_PATCHLEVEL__", "1");
@@ -27,4 +27,3 @@ diff -up llvm-9.0.0-20190725/clang/lib/Frontend/InitPreprocessor.cpp.7~ llvm-9.0
      Builder.defineMacro("__GXX_WEAK__");
      Builder.defineMacro("__private_extern__", "extern");
    }
-diff -up llvm-9.0.0-20190725/clang/test/Preprocessor/init.c.7~ llvm-9.0.0-20190725/clang/test/Preprocessor/init.c
