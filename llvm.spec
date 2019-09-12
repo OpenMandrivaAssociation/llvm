@@ -125,7 +125,7 @@ Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
 # Allow building with an older version of clang while bootstrapping
 Patch6:		llvm-9.0.0-bootstrap.patch
-# Claim compatibility with gcc 7.1.1 rather than 4.2.1, it's
+# Claim compatibility with gcc 9.1.0 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
