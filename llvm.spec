@@ -271,7 +271,6 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/find-all-symbols
 %{_bindir}/git-clang-format
 %{_bindir}/hmaptool
-%{_bindir}/lit-cpuid
 %{_bindir}/llc
 %{_bindir}/lli
 %{_bindir}/lli-child-target
@@ -773,6 +772,7 @@ Debugger from the LLVM toolchain.
 
 %files -n lldb
 %{_bindir}/lldb*
+%{_bindir}/lit-cpuid
 %{_libdir}/python*/site-packages/lldb
 %{_libdir}/python*/site-packages/six.py
 %doc %{_docdir}/lldb
