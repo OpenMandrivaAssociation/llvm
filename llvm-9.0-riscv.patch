@@ -13,20 +13,6 @@ diff -up llvm-9.0.0-20190814/clang/lib/Driver/ToolChains/Gnu.cpp.34~ llvm-9.0.0-
  
    static const char *const SPARCv8LibDirs[] = {"/lib32", "/lib"};
    static const char *const SPARCv8Triples[] = {"sparc-linux-gnu",
-diff -up llvm-9.0.0-20190814/clang/lib/Headers/stddef.h.34~ llvm-9.0.0-20190814/clang/lib/Headers/stddef.h
---- llvm-9.0.0-20190814/clang/lib/Headers/stddef.h.34~	2019-08-13 14:39:23.000000000 +0200
-+++ llvm-9.0.0-20190814/clang/lib/Headers/stddef.h	2019-08-14 12:35:43.754039425 +0200
-@@ -11,6 +11,10 @@
-     defined(__need_size_t) || defined(__need_wchar_t) ||                       \
-     defined(__need_NULL) || defined(__need_wint_t)
- 
-+#if !defined(__clang__) && __GNUC__ < 9
-+#define __has_feature(x) 0
-+#endif
-+
- #if !defined(__need_ptrdiff_t) && !defined(__need_size_t) &&                   \
-     !defined(__need_wchar_t) && !defined(__need_NULL) &&                       \
-     !defined(__need_wint_t)
 diff -up llvm-9.0.0-20190814/clang-tools-extra/clangd/CMakeLists.txt.34~ llvm-9.0.0-20190814/clang-tools-extra/clangd/CMakeLists.txt
 --- llvm-9.0.0-20190814/clang-tools-extra/clangd/CMakeLists.txt.34~	2019-08-13 14:39:23.000000000 +0200
 +++ llvm-9.0.0-20190814/clang-tools-extra/clangd/CMakeLists.txt	2019-08-14 12:35:43.754039425 +0200

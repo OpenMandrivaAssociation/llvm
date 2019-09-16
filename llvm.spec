@@ -27,7 +27,11 @@
 # and need adjustment whenever there's a new GCC version
 %define gcc_version %(gcc -dumpversion)
 
+%ifarch %{riscv}
+%bcond_with default_compiler
+%else
 %bcond_without default_compiler
+%endif
 
 # As of 238820, the "make install" target for apidox
 # is broken with cmake. Re-enable later.
@@ -179,6 +183,7 @@ Patch46:	llvm-4.0.1-libomp-versioning.patch
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
 Patch49:	llvm-9.0-riscv.patch
+Patch50:	llvm-9.0-riscv-default-lp64d.patch
 # Show more information when aborting because posix_spawn failed
 # (happened in some qemu aarch64 chroots)
 Patch51:	llvm-4.0.1-debug-posix_spawn.patch
@@ -226,6 +231,8 @@ BuildRequires:	atomic-devel
 BuildRequires:	python >= 3.4
 BuildRequires:	python3dist(pyyaml)
 BuildRequires:	python3dist(pygments)
+# Make sure lld doesn't install its own copy
+BuildRequires:	python-six
 BuildRequires:	cmake
 BuildRequires:	ninja
 %if %{with apidox}
@@ -766,6 +773,7 @@ Objective-CAML bindings for LLVM.
 %package -n lldb
 Summary:	Debugger from the LLVM toolchain
 Group:		Development/Other
+Requires:	python-six
 %{expand:%(for i in %{LLDBLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 
 %description -n lldb
@@ -775,7 +783,6 @@ Debugger from the LLVM toolchain.
 %{_bindir}/lldb*
 %{_bindir}/lit-cpuid
 %{_libdir}/python*/site-packages/lldb
-%{_libdir}/python*/site-packages/six.py
 %doc %{_docdir}/lldb
 
 %define lldbdev %mklibname -d lldb
@@ -1040,6 +1047,9 @@ done
 %endif
 
 %ninja_install -C build
+
+# Nuke the internal copy, we have system python-six
+rm -f %{buildroot}%{_libdir}/python*/site-packages/six.py
 
 # https://bugs.llvm.org/show_bug.cgi?id=42455
 cp lld/docs/ld.lld.1 %{buildroot}%{_mandir}/man1/

@@ -1,0 +1,34 @@
+diff -up llvm-9.0.0-20190913/clang/lib/Driver/ToolChains/Clang.cpp.omv~ llvm-9.0.0-20190913/clang/lib/Driver/ToolChains/Clang.cpp
+--- llvm-9.0.0-20190913/clang/lib/Driver/ToolChains/Clang.cpp.omv~	2019-09-16 12:18:42.941054913 +0200
++++ llvm-9.0.0-20190913/clang/lib/Driver/ToolChains/Clang.cpp	2019-09-16 12:20:00.549016964 +0200
+@@ -1862,7 +1862,10 @@ void Clang::AddRISCVTargetArgs(const Arg
+   else if (Triple.getArch() == llvm::Triple::riscv32)
+     ABIName = "ilp32";
+   else if (Triple.getArch() == llvm::Triple::riscv64)
+-    ABIName = "lp64";
++    // For now, we only support lp64d in OpenMandriva, so let's
++    // use that instead of going with soft-float...
++    //ABIName = "lp64";
++    ABIName = "lp64d";
+   else
+     llvm_unreachable("Unexpected triple!");
+ 
+diff -up llvm-9.0.0-20190913/clang/lib/Driver/ToolChains/Gnu.cpp.omv~ llvm-9.0.0-20190913/clang/lib/Driver/ToolChains/Gnu.cpp
+diff -up llvm-9.0.0-20190913/llvm/lib/Target/RISCV/Utils/RISCVBaseInfo.cpp.omv~ llvm-9.0.0-20190913/llvm/lib/Target/RISCV/Utils/RISCVBaseInfo.cpp
+--- llvm-9.0.0-20190913/llvm/lib/Target/RISCV/Utils/RISCVBaseInfo.cpp.omv~	2019-09-16 12:20:16.116395414 +0200
++++ llvm-9.0.0-20190913/llvm/lib/Target/RISCV/Utils/RISCVBaseInfo.cpp	2019-09-16 12:21:27.009950768 +0200
+@@ -60,10 +60,13 @@ ABI computeTargetABI(const Triple &TT, F
+   // or an invalid/unrecognised string is given. In the future, it might be
+   // worth changing this to default to ilp32f/lp64f and ilp32d/lp64d when
+   // hardware support for floating point is present.
++  // OpenMandriva modification: We default to LP64D given it's the only
++  // platform targeted by the OS right now
+   if (IsRV32E)
+     return ABI_ILP32E;
+   if (IsRV64)
+-    return ABI_LP64;
++    //return ABI_LP64;
++    return ABI_LP64D;
+   return ABI_ILP32;
+ }
+ } // namespace RISCVABI
