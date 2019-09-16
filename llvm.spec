@@ -105,7 +105,7 @@ Url:		http://llvm.org/
 %if "%{date}" != ""
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	llvm-%{version}-%{date}.tar.xz
-Release:	0.%{date}.1
+Release:	0.%{date}.2
 %else
 Release:	1
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
