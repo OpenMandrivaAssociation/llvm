@@ -1,12 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-# 20190729 is RC1
-# 20190814 is RC2
-# 20190830 is RC3
-# 20190910 is RC4
-# 20190913 is RC5
-%define date 20190913
+%define date %{nil}
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -102,10 +97,10 @@ Version:	9.0.0
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
-%if "%{date}" != ""
+%if 0%{date}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	llvm-%{version}-%{date}.tar.xz
-Release:	0.%{date}.2
+Release:	0.%{date}.1
 %else
 Release:	1
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
@@ -117,9 +112,8 @@ Source5:	http://llvm.org/releases/%{version}/libcxx-%{version}.src.tar.xz
 Source6:	http://llvm.org/releases/%{version}/libcxxabi-%{version}.src.tar.xz
 Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
 Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
-Source9:	http://llvm.org/releases/%{version}/llgo-%{version}.src.tar.xz
-Source10:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
-Source11:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
+Source9:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
+Source10:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
 %endif
 Source1000:	llvm.rpmlintrc
 # Adjust search paths to match the OS
@@ -189,9 +183,11 @@ Patch50:	llvm-9.0-riscv-default-lp64d.patch
 Patch51:	llvm-4.0.1-debug-posix_spawn.patch
 # Polly LLVM OpenMP backend
 Patch56:	polly-8.0-default-llvm-backend.patch
-# llgo bits
+%if 0%{date}
+# llgo bits -- not yet part of releases
 Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
+%endif
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -883,10 +879,22 @@ Python bindings to parts of the Clang library
 #-----------------------------------------------------------
 
 %prep
-%if "%{date}" != ""
+%if 0%{date}
 %autosetup -p1 -n %{name}-%{version}-%{date}
 %else
-%setup -q %{?with_clang:-a1 -a2 -a3 -a4} %{?with_build_libcxx:-a5} %{?with_build_libcxx:-a6} %{?with_unwind:-a7} %{?with_lldb:-a8} %{?with_llgo:-a9} %{?with_lld:-a10} %{?with_openmp:-a11} -n %{name}-%{version}.src
+%setup -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10
+mv llvm-%{version}.src llvm
+mv cfe-%{version}.src clang
+mv clang-tools-extra-%{version}.src clang-tools-extra
+mv polly-%{version}.src polly
+mv compiler-rt-%{version}.src compiler-rt
+mv libcxx-%{version}.src libcxx
+mv libcxxabi-%{version}.src libcxxabi
+mv libunwind-%{version}.src libunwind
+mv lld-%{version}.src lld
+mv lldb-%{version}.src lldb
+mv openmp-%{version}.src openmp
+%autopatch -p1
 %endif
 
 # Fix bogus permissions
