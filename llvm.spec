@@ -191,6 +191,8 @@ Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
 # (tpg) https://github.com/ClangBuiltLinux/linux/issues/726
 # should be merged for 9.0.1
 Patch100:	0001-X86-convertToThreeAddress-make-sure-second-operand-o.patch
+# (tpg) https://github.com/ClangBuiltLinux/linux/issues/697
+Patch101:	0001-AArch64InstPrinter-prefer-bfi-to-bfc-for-armv8.2-a.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath

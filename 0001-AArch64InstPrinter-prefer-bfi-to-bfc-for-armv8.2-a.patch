@@ -1,0 +1,132 @@
+From ede784ff5a600c5ee99270987d55abcc1e806891 Mon Sep 17 00:00:00 2001
+From: Nick Desaulniers <ndesaulniers@google.com>
+Date: Thu, 3 Oct 2019 20:10:02 +0000
+Subject: [PATCH] [AArch64InstPrinter] prefer bfi to bfc for < armv8.2-a
+
+Summary:
+Fixes pr/42576.
+
+Link: https://github.com/ClangBuiltLinux/linux/issues/697
+
+Reviewers: t.p.northover
+
+Reviewed By: t.p.northover
+
+Subscribers: kristof.beyls, hiraditya, llvm-commits, srhines
+
+Tags: #llvm
+
+Differential Revision: https://reviews.llvm.org/D68356
+
+llvm-svn: 373655
+---
+ .../AArch64/MCTargetDesc/AArch64InstPrinter.cpp      |  3 ++-
+ llvm/test/MC/AArch64/armv8.2a-bfc.s                  | 11 +++++++++++
+ llvm/test/MC/AArch64/basic-a64-instructions.s        | 12 ++++++------
+ .../Disassembler/AArch64/basic-a64-instructions.txt  |  7 +++++--
+ 4 files changed, 24 insertions(+), 9 deletions(-)
+ create mode 100644 llvm/test/MC/AArch64/armv8.2a-bfc.s
+
+diff --git a/llvm/lib/Target/AArch64/MCTargetDesc/AArch64InstPrinter.cpp b/llvm/lib/Target/AArch64/MCTargetDesc/AArch64InstPrinter.cpp
+index d0a544273b8..1a16468484a 100644
+--- a/llvm/lib/Target/AArch64/MCTargetDesc/AArch64InstPrinter.cpp
++++ b/llvm/lib/Target/AArch64/MCTargetDesc/AArch64InstPrinter.cpp
+@@ -172,7 +172,8 @@ void AArch64InstPrinter::printInst(const MCInst *MI, raw_ostream &O,
+     int ImmS = MI->getOperand(4).getImm();
+ 
+     if ((Op2.getReg() == AArch64::WZR || Op2.getReg() == AArch64::XZR) &&
+-        (ImmR == 0 || ImmS < ImmR)) {
++        (ImmR == 0 || ImmS < ImmR) &&
++        STI.getFeatureBits()[AArch64::HasV8_2aOps]) {
+       // BFC takes precedence over its entire range, sligtly differently to BFI.
+       int BitWidth = Opcode == AArch64::BFMXri ? 64 : 32;
+       int LSB = (BitWidth - ImmR) % BitWidth;
+diff --git a/llvm/test/MC/AArch64/armv8.2a-bfc.s b/llvm/test/MC/AArch64/armv8.2a-bfc.s
+new file mode 100644
+index 00000000000..1346850d401
+--- /dev/null
++++ b/llvm/test/MC/AArch64/armv8.2a-bfc.s
+@@ -0,0 +1,11 @@
++// RUN: llvm-mc -triple aarch64-linux-gnu -o - %s | FileCheck %s --check-prefix=BFI
++// RUN: llvm-mc -triple aarch64-linux-gnu -o - %s -mattr=+v8.1a | FileCheck %s --check-prefix=BFI
++// RUN: llvm-mc -triple aarch64-linux-gnu -o - %s -mattr=-v8.2a | FileCheck %s --check-prefix=BFI
++// RUN: llvm-mc -triple aarch64-linux-gnu -o - %s -mattr=+v8.2a | FileCheck %s --check-prefix=BFC
++// RUN: llvm-mc -triple aarch64-linux-gnu -o - %s -mattr=+v8.3a | FileCheck %s --check-prefix=BFC
++// RUN: llvm-mc -triple aarch64-linux-gnu -o - %s -mattr=+v8.4a | FileCheck %s --check-prefix=BFC
++// RUN: llvm-mc -triple aarch64-linux-gnu -o - %s -mattr=+v8.5a | FileCheck %s --check-prefix=BFC
++  bfc w0, #1, #5
++
++// BFI: bfi w0, wzr, #1, #5
++// BFC: bfc w0, #1, #5
+diff --git a/llvm/test/MC/AArch64/basic-a64-instructions.s b/llvm/test/MC/AArch64/basic-a64-instructions.s
+index 07afdba8c37..0cb8e3eb207 100644
+--- a/llvm/test/MC/AArch64/basic-a64-instructions.s
++++ b/llvm/test/MC/AArch64/basic-a64-instructions.s
+@@ -978,7 +978,7 @@ _func:
+         bfm x5, x6, #12, #63
+ // CHECK: bfi      x4, x5, #52, #11           // encoding: [0xa4,0x28,0x4c,0xb3]
+ // CHECK: bfxil    xzr, x4, #0, #1            // encoding: [0x9f,0x00,0x40,0xb3]
+-// CHECK: bfc      x4, #1, #6                 // encoding: [0xe4,0x17,0x7f,0xb3]
++// CHECK: bfi      x4, xzr, #1, #6            // encoding: [0xe4,0x17,0x7f,0xb3]
+ // CHECK: bfxil    x5, x6, #12, #52           // encoding: [0xc5,0xfc,0x4c,0xb3]
+ 
+         sxtb w1, w2
+@@ -1078,7 +1078,7 @@ _func:
+ // CHECK: bfxil    w9, w10, #0, #32           // encoding: [0x49,0x7d,0x00,0x33]
+ // CHECK: bfi      w11, w12, #31, #1          // encoding: [0x8b,0x01,0x01,0x33]
+ // CHECK: bfi      w13, w14, #29, #3          // encoding: [0xcd,0x09,0x03,0x33]
+-// CHECK: bfc      xzr, #10, #11              // encoding: [0xff,0x2b,0x76,0xb3]
++// CHECK: bfi      xzr, xzr, #10, #11         // encoding: [0xff,0x2b,0x76,0xb3]
+ 
+         bfxil w9, w10, #0, #1
+         bfxil x2, x3, #63, #1
+@@ -1137,10 +1137,10 @@ _func:
+         bfc wzr, #31, #1
+         bfc x0, #5, #9
+         bfc xzr, #63, #1
+-// CHECK: bfc w3, #0, #32             // encoding: [0xe3,0x7f,0x00,0x33]
+-// CHECK: bfc wzr, #31, #1            // encoding: [0xff,0x03,0x01,0x33]
+-// CHECK: bfc x0, #5, #9              // encoding: [0xe0,0x23,0x7b,0xb3]
+-// CHECK: bfc xzr, #63, #1            // encoding: [0xff,0x03,0x41,0xb3]
++// CHECK: bfxil w3, wzr, #0, #32      // encoding: [0xe3,0x7f,0x00,0x33]
++// CHECK: bfi wzr, wzr, #31, #1       // encoding: [0xff,0x03,0x01,0x33]
++// CHECK: bfi x0, xzr, #5, #9         // encoding: [0xe0,0x23,0x7b,0xb3]
++// CHECK: bfi xzr, xzr, #63, #1       // encoding: [0xff,0x03,0x41,0xb3]
+ 
+ //------------------------------------------------------------------------------
+ // Compare & branch (immediate)
+diff --git a/llvm/test/MC/Disassembler/AArch64/basic-a64-instructions.txt b/llvm/test/MC/Disassembler/AArch64/basic-a64-instructions.txt
+index 74edc4c4a54..482dd1f68ed 100644
+--- a/llvm/test/MC/Disassembler/AArch64/basic-a64-instructions.txt
++++ b/llvm/test/MC/Disassembler/AArch64/basic-a64-instructions.txt
+@@ -1,6 +1,7 @@
+ # RUN: llvm-mc -triple=aarch64 -mattr=+fp-armv8 -disassemble < %s | FileCheck %s
+ # RUN: llvm-mc -triple=arm64 -mattr=+fp-armv8 -disassemble < %s | FileCheck %s
+ # RUN: llvm-mc -triple=arm64 -mattr=+fp-armv8,+fullfp16 -disassemble < %s | FileCheck %s --check-prefix=CHECK --check-prefix=FP16
++# RUN: llvm-mc -triple=arm64 -mattr=+v8.2a -disassemble < %s | FileCheck %s --check-prefix=CHECK-V82
+ # RUN: llvm-mc -triple=arm64 -mattr=+v8.3a -disassemble < %s | FileCheck %s --check-prefix=CHECK-V83
+ 
+ #------------------------------------------------------------------------------
+@@ -624,7 +625,8 @@
+ 
+ # CHECK: bfi      x4, x5, #52, #11
+ # CHECK: bfxil    xzr, x4, #0, #1
+-# CHECK: bfc      x4, #1, #6
++# CHECK: bfi      x4, xzr, #1, #6
++# CHECK-V82: bfc      x4, #1, #6
+ # CHECK: bfxil    x5, x6, #12, #52
+ 0xa4 0x28 0x4c 0xb3
+ 0x9f 0x0 0x40 0xb3
+@@ -717,7 +719,8 @@
+ # CHECK: bfxil    w9, w10, #0, #32
+ # CHECK: bfi      w11, w12, #31, #1
+ # CHECK: bfi      w13, w14, #29, #3
+-# CHECK: bfc      xzr, #10, #11
++# CHECK-V82: bfc      xzr, #10, #11
++# CHECK: bfi      xzr, xzr, #10, #11
+ 0x49 0x1 0x0 0x33
+ 0x62 0x0 0x41 0xb3
+ 0x93 0xfe 0x40 0xb3
+-- 
+2.21.0
+
