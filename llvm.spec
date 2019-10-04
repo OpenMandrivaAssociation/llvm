@@ -102,7 +102,7 @@ Url:		http://llvm.org/
 Source0:	llvm-%{version}-%{date}.tar.xz
 Release:	0.%{date}.1
 %else
-Release:	2
+Release:	3
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
 Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.xz
@@ -188,11 +188,13 @@ Patch56:	polly-8.0-default-llvm-backend.patch
 Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
 %endif
+# These probably will be merged for 9.0.1
 # (tpg) https://github.com/ClangBuiltLinux/linux/issues/726
-# should be merged for 9.0.1
 Patch100:	0001-X86-convertToThreeAddress-make-sure-second-operand-o.patch
 # (tpg) https://github.com/ClangBuiltLinux/linux/issues/697
 Patch101:	0001-AArch64InstPrinter-prefer-bfi-to-bfc-for-armv8.2-a.patch
+# (tpg) https://github.com/ClangBuiltLinux/linux/issues/634
+Patch102:	0001-ELF-Make-LinkerScript-assignAddresses-iterative.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
