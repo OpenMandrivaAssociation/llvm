@@ -1,12 +1,2 @@
 sources:
-  cfe-9.0.0.src.tar.xz: 6977cf7a802a053c57fa74138d3648b563e71e88
-  clang-tools-extra-9.0.0.src.tar.xz: ac64403321d8486699d8bea5376b2438663dbb41
-  compiler-rt-9.0.0.src.tar.xz: 4e00cb231ff87fd4f970f35b2da86185a612e0e2
-  libcxx-9.0.0.src.tar.xz: e27ce439b2aec1f4af302db255359ccbc1cc6f46
-  libcxxabi-9.0.0.src.tar.xz: 9e6532595d98eca447cb00352848fed7688f722c
-  libunwind-9.0.0.src.tar.xz: ae3cc4616986b8131e8336f40e60f97745cbddfb
-  lld-9.0.0.src.tar.xz: 021a8c38cf27d63db37d939c7cdec46ffd627be2
-  lldb-9.0.0.src.tar.xz: 7ac23c548c805be55713a759c4275d0389f9197e
-  llvm-9.0.0.src.tar.xz: 7ef2527ba3da7603a41ce3592a8cd890f8d27ffa
-  openmp-9.0.0.src.tar.xz: 53a17a74f23a2b6a24964cc3f6c1dd8a8e7d8eb3
-  polly-9.0.0.src.tar.xz: 99e5d6c2f1f92bdf0311cec4c36fbecb1ff725da
+  9.x.tar.gz: c783cb61ffe91ce16db52b293730ca0342d68ba2

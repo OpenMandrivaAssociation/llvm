@@ -1,67 +1,7 @@
-From debcac9fef21bc0a9159d189357d5a37fd7336f6 Mon Sep 17 00:00:00 2001
-From: Fangrui Song <maskray@google.com>
-Date: Mon, 26 Aug 2019 10:23:31 +0000
-Subject: [PATCH] [ELF] Make LinkerScript::assignAddresses iterative
-
-PR42990. For `SECTIONS { b = a; . = 0xff00 + (a >> 8); a = .; }`,
-we currently set st_value(a)=0xff00 while st_value(b)=0xffff.
-
-The following call tree demonstrates the problem:
-
-```
-link<ELF64LE>(Args);
-  Script->declareSymbols(); // insert a and b as absolute Defined
-  Writer<ELFT>().run();
-    Script->processSectionCommands();
-      addSymbol(cmd);       // a and b are re-inserted. LinkerScript::getSymbolValue
-                            // is lazily called by subsequent evaluation
-    finalizeSections();
-      forEachRelSec(scanRelocations<ELFT>);
-        processRelocAux     // another problem PR42506, not affected by this patch
-      finalizeAddressDependentContent(); // loop executed once
-        script->assignAddresses(); // a = 0, b = 0xff00
-    script->assignAddresses(); // a = 0xff00, _end = 0xffff
-```
-
-We need another assignAddresses() to finalize the value of `a`.
-
-This patch
-
-1) modifies assignAddress() to track the original section/value of each
-  symbol and return a symbol whose section/value has changed.
-2) moves the post-finalizeSections assignAddress() inside the loop
-  of finalizeAddressDependentContent() and makes it iterative.
-  Symbol assignment may not converge so we make a few attempts before
-  bailing out.
-
-Note, assignAddresses() must be called at least twice. The penultimate
-call finalized section addresses while the last finalized symbol values.
-It is somewhat obscure and there was no comment.
-linkerscript/addr-zero.test tests this.
-
-Reviewed By: ruiu
-
-Differential Revision: https://reviews.llvm.org/D66279
-
-llvm-svn: 369889
----
- lld/ELF/LinkerScript.cpp                      | 45 ++++++++++++++++++-
- lld/ELF/LinkerScript.h                        |  2 +-
- lld/ELF/Relocations.cpp                       |  5 ---
- lld/ELF/Writer.cpp                            | 32 ++++++++-----
- .../symbol-assign-many-passes.test            | 25 +++++++++++
- .../symbol-assign-many-passes2.test           | 28 ++++++++++++
- .../symbol-assign-not-converge.test           | 20 +++++++++
- 7 files changed, 140 insertions(+), 17 deletions(-)
- create mode 100644 lld/test/ELF/linkerscript/symbol-assign-many-passes.test
- create mode 100644 lld/test/ELF/linkerscript/symbol-assign-many-passes2.test
- create mode 100644 lld/test/ELF/linkerscript/symbol-assign-not-converge.test
-
-diff --git a/lld/ELF/LinkerScript.cpp b/lld/ELF/LinkerScript.cpp
-index a489943d62c..2fc9b0b091d 100644
---- a/lld/ELF/LinkerScript.cpp
-+++ b/lld/ELF/LinkerScript.cpp
-@@ -210,6 +210,44 @@ static void declareSymbol(SymbolAssignment *cmd) {
+diff -up llvm-project-release-9.x/lld/ELF/LinkerScript.cpp.40~ llvm-project-release-9.x/lld/ELF/LinkerScript.cpp
+--- llvm-project-release-9.x/lld/ELF/LinkerScript.cpp.40~	2019-10-10 21:44:38.000000000 +0200
++++ llvm-project-release-9.x/lld/ELF/LinkerScript.cpp	2019-10-11 03:43:41.139339098 +0200
+@@ -210,6 +210,44 @@ static void declareSymbol(SymbolAssignme
    sym->scriptDefined = true;
  }
  
@@ -106,7 +46,7 @@ index a489943d62c..2fc9b0b091d 100644
  // This method is used to handle INSERT AFTER statement. Here we rebuild
  // the list of script commands to mix sections inserted into.
  void LinkerScript::processInsertCommands() {
-@@ -1051,7 +1089,9 @@ static uint64_t getInitialDot() {
+@@ -1046,7 +1084,9 @@ static uint64_t getInitialDot() {
  // Here we assign addresses as instructed by linker script SECTIONS
  // sub-commands. Doing that allows us to use final VA values, so here
  // we also handle rest commands like symbol assignments and ASSERTs.
@@ -116,8 +56,8 @@ index a489943d62c..2fc9b0b091d 100644
 +const Defined *LinkerScript::assignAddresses() {
    dot = getInitialDot();
  
-   auto deleter = std::make_unique<AddressState>();
-@@ -1059,6 +1099,7 @@ void LinkerScript::assignAddresses() {
+   auto deleter = make_unique<AddressState>();
+@@ -1054,6 +1094,7 @@ void LinkerScript::assignAddresses() {
    errorOnMissingSection = true;
    switchTo(aether);
  
@@ -125,7 +65,7 @@ index a489943d62c..2fc9b0b091d 100644
    for (BaseCommand *base : sectionCommands) {
      if (auto *cmd = dyn_cast<SymbolAssignment>(base)) {
        cmd->addr = dot;
-@@ -1068,7 +1109,9 @@ void LinkerScript::assignAddresses() {
+@@ -1063,7 +1104,9 @@ void LinkerScript::assignAddresses() {
      }
      assignOffsets(cast<OutputSection>(base));
    }
@@ -135,10 +75,9 @@ index a489943d62c..2fc9b0b091d 100644
  }
  
  // Creates program headers as instructed by PHDRS linker script command.
-diff --git a/lld/ELF/LinkerScript.h b/lld/ELF/LinkerScript.h
-index 9e9c08ef10b..5607b313031 100644
---- a/lld/ELF/LinkerScript.h
-+++ b/lld/ELF/LinkerScript.h
+diff -up llvm-project-release-9.x/lld/ELF/LinkerScript.h.40~ llvm-project-release-9.x/lld/ELF/LinkerScript.h
+--- llvm-project-release-9.x/lld/ELF/LinkerScript.h.40~	2019-10-10 21:44:38.000000000 +0200
++++ llvm-project-release-9.x/lld/ELF/LinkerScript.h	2019-10-11 03:42:57.198275049 +0200
 @@ -271,7 +271,7 @@ public:
    bool needsInterpSection();
  
@@ -148,11 +87,10 @@ index 9e9c08ef10b..5607b313031 100644
    void allocateHeaders(std::vector<PhdrEntry *> &phdrs);
    void processSectionCommands();
    void declareSymbols();
-diff --git a/lld/ELF/Relocations.cpp b/lld/ELF/Relocations.cpp
-index f1421540900..f7cd17d1e50 100644
---- a/lld/ELF/Relocations.cpp
-+++ b/lld/ELF/Relocations.cpp
-@@ -1692,11 +1692,6 @@ bool ThunkCreator::createThunks(ArrayRef<OutputSection *> outputSections) {
+diff -up llvm-project-release-9.x/lld/ELF/Relocations.cpp.40~ llvm-project-release-9.x/lld/ELF/Relocations.cpp
+--- llvm-project-release-9.x/lld/ELF/Relocations.cpp.40~	2019-10-10 21:44:38.000000000 +0200
++++ llvm-project-release-9.x/lld/ELF/Relocations.cpp	2019-10-11 03:42:57.198275049 +0200
+@@ -1745,11 +1745,6 @@ bool ThunkCreator::createThunks(ArrayRef
    if (pass == 0 && target->getThunkSectionSpacing())
      createInitialThunkSections(outputSections);
  
@@ -164,11 +102,10 @@ index f1421540900..f7cd17d1e50 100644
    // Create all the Thunks and insert them into synthetic ThunkSections. The
    // ThunkSections are later inserted back into InputSectionDescriptions.
    // We separate the creation of ThunkSections from the insertion of the
-diff --git a/lld/ELF/Writer.cpp b/lld/ELF/Writer.cpp
-index 9db4259be49..dcf4bbb61bf 100644
---- a/lld/ELF/Writer.cpp
-+++ b/lld/ELF/Writer.cpp
-@@ -578,8 +578,6 @@ template <class ELFT> void Writer<ELFT>::run() {
+diff -up llvm-project-release-9.x/lld/ELF/Writer.cpp.40~ llvm-project-release-9.x/lld/ELF/Writer.cpp
+--- llvm-project-release-9.x/lld/ELF/Writer.cpp.40~	2019-10-10 21:44:38.000000000 +0200
++++ llvm-project-release-9.x/lld/ELF/Writer.cpp	2019-10-11 03:42:57.198275049 +0200
+@@ -582,8 +582,6 @@ template <class ELFT> void Writer<ELFT>:
    if (errorCount())
      return;
  
@@ -177,7 +114,7 @@ index 9db4259be49..dcf4bbb61bf 100644
    // If -compressed-debug-sections is specified, we need to compress
    // .debug_* sections. Do it right now because it changes the size of
    // output sections.
-@@ -1562,15 +1560,18 @@ template <class ELFT> void Writer<ELFT>::resolveShfLinkOrder() {
+@@ -1569,15 +1567,18 @@ template <class ELFT> void Writer<ELFT>:
  template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
    ThunkCreator tc;
    AArch64Err843419Patcher a64p;
@@ -202,7 +139,7 @@ index 9db4259be49..dcf4bbb61bf 100644
  
      if (config->fixCortexA53Errata843419) {
        if (changed)
-@@ -1587,8 +1588,19 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
+@@ -1594,8 +1595,19 @@ template <class ELFT> void Writer<ELFT>:
          changed |= part.relrDyn->updateAllocSize();
      }
  
@@ -224,42 +161,9 @@ index 9db4259be49..dcf4bbb61bf 100644
    }
  }
  
-diff --git a/lld/test/ELF/linkerscript/symbol-assign-many-passes.test b/lld/test/ELF/linkerscript/symbol-assign-many-passes.test
-new file mode 100644
-index 00000000000..7e2d2d9ace8
---- /dev/null
-+++ b/lld/test/ELF/linkerscript/symbol-assign-many-passes.test
-@@ -0,0 +1,25 @@
-+# REQUIRES: aarch64, x86
-+# RUN: llvm-mc -filetype=obj -triple=x86_64 /dev/null -o %t.o
-+# RUN: ld.lld %t.o -T %s -o %t
-+# RUN: llvm-nm %t | FileCheck %s
-+
-+## AArch64 needs thunks and has different address finalization process, so test
-+## it as well.
-+# RUN: llvm-mc -filetype=obj -triple=aarch64 /dev/null -o %t.o
-+# RUN: ld.lld %t.o -T %s -o %t
-+# RUN: llvm-nm %t | FileCheck %s
-+
-+# CHECK: 0000000000001004 T a
-+# CHECK: 0000000000001003 T b
-+# CHECK: 0000000000001002 T c
-+# CHECK: 0000000000001001 T d
-+# CHECK: 0000000000001000 T e
-+
-+SECTIONS {
-+  . = 0x1000;
-+  a = b + 1;
-+  b = c + 1;
-+  c = d + 1;
-+  d = e + 1;
-+  e = .;
-+}
-diff --git a/lld/test/ELF/linkerscript/symbol-assign-many-passes2.test b/lld/test/ELF/linkerscript/symbol-assign-many-passes2.test
-new file mode 100644
-index 00000000000..b8a0624ac30
---- /dev/null
-+++ b/lld/test/ELF/linkerscript/symbol-assign-many-passes2.test
+diff -up llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-many-passes2.test.40~ llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-many-passes2.test
+--- llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-many-passes2.test.40~	2019-10-11 03:42:57.198275049 +0200
++++ llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-many-passes2.test	2019-10-11 03:42:57.198275049 +0200
 @@ -0,0 +1,28 @@
 +# REQUIRES: arm
 +# RUN: llvm-mc -arm-add-build-attributes -filetype=obj -triple=armv7a-linux-gnueabihf %S/../arm-thunk-many-passes.s -o %t.o
@@ -289,11 +193,38 @@ index 00000000000..b8a0624ac30
 +  }
 +  e = .;
 +}
-diff --git a/lld/test/ELF/linkerscript/symbol-assign-not-converge.test b/lld/test/ELF/linkerscript/symbol-assign-not-converge.test
-new file mode 100644
-index 00000000000..38f40640d92
---- /dev/null
-+++ b/lld/test/ELF/linkerscript/symbol-assign-not-converge.test
+diff -up llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-many-passes.test.40~ llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-many-passes.test
+--- llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-many-passes.test.40~	2019-10-11 03:42:57.198275049 +0200
++++ llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-many-passes.test	2019-10-11 03:42:57.198275049 +0200
+@@ -0,0 +1,25 @@
++# REQUIRES: aarch64, x86
++# RUN: llvm-mc -filetype=obj -triple=x86_64 /dev/null -o %t.o
++# RUN: ld.lld %t.o -T %s -o %t
++# RUN: llvm-nm %t | FileCheck %s
++
++## AArch64 needs thunks and has different address finalization process, so test
++## it as well.
++# RUN: llvm-mc -filetype=obj -triple=aarch64 /dev/null -o %t.o
++# RUN: ld.lld %t.o -T %s -o %t
++# RUN: llvm-nm %t | FileCheck %s
++
++# CHECK: 0000000000001004 T a
++# CHECK: 0000000000001003 T b
++# CHECK: 0000000000001002 T c
++# CHECK: 0000000000001001 T d
++# CHECK: 0000000000001000 T e
++
++SECTIONS {
++  . = 0x1000;
++  a = b + 1;
++  b = c + 1;
++  c = d + 1;
++  d = e + 1;
++  e = .;
++}
+diff -up llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-not-converge.test.40~ llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-not-converge.test
+--- llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-not-converge.test.40~	2019-10-11 03:42:57.199275050 +0200
++++ llvm-project-release-9.x/lld/test/ELF/linkerscript/symbol-assign-not-converge.test	2019-10-11 03:42:57.198275049 +0200
 @@ -0,0 +1,20 @@
 +# REQUIRES: aarch64, x86
 +# RUN: llvm-mc -filetype=obj -triple=x86_64 /dev/null -o %t.o
@@ -315,6 +246,3 @@ index 00000000000..38f40640d92
 +  e = f;
 +  f = .;
 +}
--- 
-2.21.0
-

@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%define date %{nil}
+%define date 20191011
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -99,10 +99,10 @@ Group:		Development/Other
 Url:		http://llvm.org/
 %if 0%{date}
 # git archive-d from https://github.com/llvm/llvm-project
-Source0:	llvm-%{version}-%{date}.tar.xz
+Source0:	https://github.com/llvm/llvm-project/archive/release/9.x.tar.gz
 Release:	0.%{date}.1
 %else
-Release:	3
+Release:	1
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
 Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.xz
@@ -887,7 +887,7 @@ Python bindings to parts of the Clang library
 
 %prep
 %if 0%{date}
-%autosetup -p1 -n %{name}-%{version}-%{date}
+%autosetup -p1 -n llvm-project-release-%(echo %{version} |cut -d. -f1).x
 %else
 %setup -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10
 mv llvm-%{version}.src llvm
@@ -1050,9 +1050,6 @@ done
 %endif
 %if %{with unwind}
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
-%endif
-%if %{with lld}
-	-DCLANG_DEFAULT_LINKER="ld.lld" \
 %endif
 	-G Ninja \
 	../llvm
