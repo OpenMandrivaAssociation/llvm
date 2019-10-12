@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%define date 20191011
+%define date 20191012
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -93,7 +93,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	9.0.0
+Version:	9.0.1
 License:	NCSA
 Group:		Development/Other
 Url:		http://llvm.org/
