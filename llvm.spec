@@ -102,7 +102,7 @@ Url:		http://llvm.org/
 Source0:	https://github.com/llvm/llvm-project/archive/release/9.x.tar.gz
 Release:	0.%{date}.1
 %else
-Release:	1
+Release:	2
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
 Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.xz
