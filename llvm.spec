@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%define date 20191012
+%define date 20191216
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -189,10 +189,6 @@ Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
 %endif
 # These probably will be merged for 9.0.1
-# (tpg) https://github.com/ClangBuiltLinux/linux/issues/726
-Patch100:	0001-X86-convertToThreeAddress-make-sure-second-operand-o.patch
-# (tpg) https://github.com/ClangBuiltLinux/linux/issues/697
-Patch101:	0001-AArch64InstPrinter-prefer-bfi-to-bfc-for-armv8.2-a.patch
 # (tpg) https://github.com/ClangBuiltLinux/linux/issues/634
 Patch102:	0001-ELF-Make-LinkerScript-assignAddresses-iterative.patch
 BuildRequires:	bison
