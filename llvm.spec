@@ -736,9 +736,6 @@ intended to run in tandem with a build of a project or code base.
 %{_datadir}/scan-build
 %{_datadir}/scan-view
 %{_mandir}/man1/scan-build.1*
-%{_libdir}/CheckerDependencyHandlingAnalyzerPlugin.so
-%{_libdir}/CheckerOptionHandlingAnalyzerPlugin.so
-%{_libdir}/SampleAnalyzerPlugin.so
 
 %package -n clang-doc
 Summary:	Documentation for Clang
