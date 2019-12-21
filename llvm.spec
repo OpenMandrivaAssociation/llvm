@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%define date 20191216
+%define date %{nil}
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -91,6 +91,8 @@
 %define ompmajor 1
 %define ompname %mklibname omp %{ompmajor}
 
+%bcond_with upstream_tarballs
+
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	9.0.1
@@ -102,7 +104,8 @@ Url:		http://llvm.org/
 Source0:	https://github.com/llvm/llvm-project/archive/release/9.x.tar.gz
 Release:	0.%{date}.1
 %else
-Release:	2
+Release:	1
+%if %{with upstream_tarballs}
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
 Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
 Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.xz
@@ -114,6 +117,9 @@ Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
 Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
 Source9:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
 Source10:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
+%else
+Source0:	https://github.com/llvm/llvm-project/archive/llvmorg-%{version}.tar.gz
+%endif
 %endif
 Source1000:	llvm.rpmlintrc
 # Adjust search paths to match the OS
@@ -882,6 +888,7 @@ Python bindings to parts of the Clang library
 %if 0%{date}
 %autosetup -p1 -n llvm-project-release-%(echo %{version} |cut -d. -f1).x
 %else
+%if %{with upstream_tarballs}
 %setup -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10
 mv llvm-%{version}.src llvm
 mv cfe-%{version}.src clang
@@ -895,6 +902,9 @@ mv lld-%{version}.src lld
 mv lldb-%{version}.src lldb
 mv openmp-%{version}.src openmp
 %autopatch -p1
+%else
+%autosetup -p1 -n llvm-project-llvmorg-%{version}
+%endif
 %endif
 
 # Fix bogus permissions
