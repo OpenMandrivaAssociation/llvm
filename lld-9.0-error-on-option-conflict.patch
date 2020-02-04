@@ -1,7 +1,7 @@
-diff -up llvm-9.0.0-20190729/lld/ELF/Driver.cpp.22~ llvm-9.0.0-20190729/lld/ELF/Driver.cpp
---- llvm-9.0.0-20190729/lld/ELF/Driver.cpp.22~	2019-07-29 19:32:42.451368350 +0200
-+++ llvm-9.0.0-20190729/lld/ELF/Driver.cpp	2019-07-29 19:34:39.745668143 +0200
-@@ -320,12 +320,16 @@ static void checkOptions() {
+diff -up llvm-project-release-10.x/lld/ELF/Driver.cpp.20~ llvm-project-release-10.x/lld/ELF/Driver.cpp
+--- llvm-project-release-10.x/lld/ELF/Driver.cpp.20~	2020-02-03 16:14:10.615138009 +0100
++++ llvm-project-release-10.x/lld/ELF/Driver.cpp	2020-02-03 16:16:06.678143127 +0100
+@@ -326,12 +326,16 @@ static void checkOptions() {
    if (config->relocatable) {
      if (config->shared)
        error("-r and -shared may not be used together");
@@ -21,4 +21,4 @@ diff -up llvm-9.0.0-20190729/lld/ELF/Driver.cpp.22~ llvm-9.0.0-20190729/lld/ELF/
 +    }
      if (config->pie)
        error("-r and -pie may not be used together");
-   }
+     if (config->exportDynamic)

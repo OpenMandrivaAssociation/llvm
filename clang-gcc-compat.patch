@@ -1,29 +1,51 @@
-diff -up llvm-9.0.0-20190725/clang/lib/Frontend/InitPreprocessor.cpp.7~ llvm-9.0.0-20190725/clang/lib/Frontend/InitPreprocessor.cpp
---- llvm-9.0.0-20190725/clang/lib/Frontend/InitPreprocessor.cpp.7~	2019-07-25 17:06:35.000000000 +0200
-+++ llvm-9.0.0-20190725/clang/lib/Frontend/InitPreprocessor.cpp	2019-07-25 22:18:42.694260827 +0200
-@@ -571,12 +571,13 @@ static void InitializePredefinedMacros(c
-                       "\"" CLANG_VERSION_STRING " "
-                       + getClangFullRepositoryVersion() + "\"");
-   if (!LangOpts.MSVCCompat) {
--    // Currently claim to be compatible with GCC 4.2.1-5621, but only if we're
-+    // Currently claim to be compatible with GCC 9.2.1, but only if we're
-     // not compiling for MSVC compatibility
-     Builder.defineMacro("__GNUC_MINOR__", "2");
-     Builder.defineMacro("__GNUC_PATCHLEVEL__", "1");
--    Builder.defineMacro("__GNUC__", "4");
+diff -up llvm-project-release-10.x/clang/include/clang/Basic/LangOptions.def.6~ llvm-project-release-10.x/clang/include/clang/Basic/LangOptions.def
+--- llvm-project-release-10.x/clang/include/clang/Basic/LangOptions.def.6~	2020-02-03 16:01:01.243103202 +0100
++++ llvm-project-release-10.x/clang/include/clang/Basic/LangOptions.def	2020-02-03 16:03:22.387109425 +0100
+@@ -111,7 +111,7 @@ BENIGN_LANGOPT(DollarIdents   , 1, 1, "'
+ BENIGN_LANGOPT(AsmPreprocessor, 1, 0, "preprocessor in asm mode")
+ LANGOPT(GNUMode           , 1, 1, "GNU extensions")
+ LANGOPT(GNUKeywords       , 1, 1, "GNU keywords")
+-VALUE_LANGOPT(GNUCVersion , 32, 0, "GNU C compatibility version")
++VALUE_LANGOPT(GNUCVersion , 32, 90201, "GNU C compatibility version")
+ BENIGN_LANGOPT(ImplicitInt, 1, !C99 && !CPlusPlus, "C89 implicit 'int'")
+ LANGOPT(Digraphs          , 1, 0, "digraphs")
+ BENIGN_LANGOPT(HexFloats  , 1, C99, "C99 hexadecimal float constants")
+diff -up llvm-project-release-10.x/clang/lib/Frontend/CompilerInvocation.cpp.6~ llvm-project-release-10.x/clang/lib/Frontend/CompilerInvocation.cpp
+--- llvm-project-release-10.x/clang/lib/Frontend/CompilerInvocation.cpp.6~	2020-02-03 16:02:12.389106339 +0100
++++ llvm-project-release-10.x/clang/lib/Frontend/CompilerInvocation.cpp	2020-02-03 16:03:11.683108953 +0100
+@@ -2284,7 +2284,7 @@ void CompilerInvocation::setLangDefaults
+   Opts.Digraphs = Std.hasDigraphs();
+   Opts.GNUMode = Std.isGNUMode();
+   Opts.GNUInline = !Opts.C99 && !Opts.CPlusPlus;
+-  Opts.GNUCVersion = 0;
++  Opts.GNUCVersion = 90201;
+   Opts.HexFloats = Std.hasHexFloats();
+   Opts.ImplicitInt = Std.hasImplicitInt();
+ 
+diff -up llvm-project-release-10.x/clang/lib/Frontend/InitPreprocessor.cpp.6~ llvm-project-release-10.x/clang/lib/Frontend/InitPreprocessor.cpp
+--- llvm-project-release-10.x/clang/lib/Frontend/InitPreprocessor.cpp.6~	2020-02-03 15:57:27.021093755 +0100
++++ llvm-project-release-10.x/clang/lib/Frontend/InitPreprocessor.cpp	2020-02-03 15:59:22.956098868 +0100
+@@ -596,7 +596,10 @@ static void InitializePredefinedMacros(c
+     Builder.defineMacro("__GNUC__", Twine(GNUCMajor));
+     Builder.defineMacro("__GNUC_MINOR__", Twine(GNUCMinor));
+     Builder.defineMacro("__GNUC_PATCHLEVEL__", Twine(GNUCPatch));
 -    Builder.defineMacro("__GXX_ABI_VERSION", "1002");
-+    Builder.defineMacro("__GNUC__", "9");
-+    if (LangOpts.CPlusPlus)
++    if (GNUCMajor < 6)
++      Builder.defineMacro("__GXX_ABI_VERSION", "1002");
++    else
 +      Builder.defineMacro("__GXX_ABI_VERSION", "1013");
-   }
  
-   // Define macros for the C11 / C++11 memory orderings
-@@ -710,7 +711,7 @@ static void InitializePredefinedMacros(c
-     Builder.defineMacro("__DEPRECATED");
+     if (LangOpts.CPlusPlus) {
+       Builder.defineMacro("__GNUG__", Twine(GNUCMajor));
+diff -up llvm-project-release-10.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp.6~ llvm-project-release-10.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp
+--- llvm-project-release-10.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp.6~	2020-02-03 16:00:12.232101040 +0100
++++ llvm-project-release-10.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp	2020-02-03 16:00:36.085102092 +0100
+@@ -517,7 +517,7 @@ ClangExpressionParser::ClangExpressionPa
+     lang_opts.CPlusPlus11 = true;
  
-   if (!LangOpts.MSVCCompat && LangOpts.CPlusPlus) {
--    Builder.defineMacro("__GNUG__", "4");
-+    Builder.defineMacro("__GNUG__", "9");
-     Builder.defineMacro("__GXX_WEAK__");
-     Builder.defineMacro("__private_extern__", "extern");
-   }
+     // The Darwin libc expects this macro to be set.
+-    lang_opts.GNUCVersion = 40201;
++    lang_opts.GNUCVersion = 90201;
+ 
+     SetupModuleHeaderPaths(m_compiler.get(), m_include_directories,
+                            target_sp);

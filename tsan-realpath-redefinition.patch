@@ -1,0 +1,13 @@
+diff -up llvm-project-release-10.x/compiler-rt/lib/tsan/dd/dd_interceptors.cpp.omv~ llvm-project-release-10.x/compiler-rt/lib/tsan/dd/dd_interceptors.cpp
+--- llvm-project-release-10.x/compiler-rt/lib/tsan/dd/dd_interceptors.cpp.omv~	2020-02-03 19:25:46.507644919 +0100
++++ llvm-project-release-10.x/compiler-rt/lib/tsan/dd/dd_interceptors.cpp	2020-02-03 19:27:01.532648227 +0100
+@@ -10,7 +10,9 @@
+ #include "interception/interception.h"
+ #include "sanitizer_common/sanitizer_procmaps.h"
+ #include <pthread.h>
++#define realpath real_realpath
+ #include <stdlib.h>
++#undef realpath
+ 
+ using namespace __dsan;
+ 

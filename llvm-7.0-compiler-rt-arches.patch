@@ -1,7 +1,7 @@
-diff -up llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake.crt~ llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake
---- llvm-7.0.0.src/compiler-rt/cmake/base-config-ix.cmake.crt~	2018-03-03 12:48:54.000000000 +0100
-+++ llvm-7.0.0.src/compiler-rt/cmake/base-config-ix.cmake	2018-05-09 18:07:44.291104400 +0200
-@@ -148,6 +148,7 @@ macro(test_targets)
+diff -up llvm-project-release-10.x/compiler-rt/cmake/base-config-ix.cmake.22~ llvm-project-release-10.x/compiler-rt/cmake/base-config-ix.cmake
+--- llvm-project-release-10.x/compiler-rt/cmake/base-config-ix.cmake.22~	2020-02-03 15:05:29.000000000 +0100
++++ llvm-project-release-10.x/compiler-rt/cmake/base-config-ix.cmake	2020-02-03 16:17:05.392145716 +0100
+@@ -179,6 +179,7 @@ macro(test_targets)
          else()
            test_target_arch(x86_64 "" "-m64")
            test_target_arch(i386 __i386__ "-m32")
@@ -9,9 +9,9 @@ diff -up llvm-7.0.0.src/projects/compiler-rt/cmake/base-config-ix.cmake.crt~ llv
          endif()
        else()
          if (CMAKE_SIZEOF_VOID_P EQUAL 4)
-diff -up llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake.crt~ llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake
---- llvm-7.0.0.src/compiler-rt/cmake/builtin-config-ix.cmake.crt~	2018-05-09 18:07:44.291104400 +0200
-+++ llvm-7.0.0.src/compiler-rt/cmake/builtin-config-ix.cmake	2018-05-09 18:08:10.176504719 +0200
+diff -up llvm-project-release-10.x/compiler-rt/cmake/builtin-config-ix.cmake.22~ llvm-project-release-10.x/compiler-rt/cmake/builtin-config-ix.cmake
+--- llvm-project-release-10.x/compiler-rt/cmake/builtin-config-ix.cmake.22~	2020-02-03 15:05:29.000000000 +0100
++++ llvm-project-release-10.x/compiler-rt/cmake/builtin-config-ix.cmake	2020-02-03 16:17:05.393145716 +0100
 @@ -26,7 +26,7 @@ int foo(int x, int y) {
  set(ARM64 aarch64)
  set(ARM32 arm armhf armv6m armv7m armv7em armv7 armv7s armv7k)
@@ -21,15 +21,15 @@ diff -up llvm-7.0.0.src/projects/compiler-rt/cmake/builtin-config-ix.cmake.crt~ 
  set(X86_64 x86_64)
  set(MIPS32 mips mipsel)
  set(MIPS64 mips64 mips64el)
-diff -up llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt.crt~ llvm-7.0.0.src/projects/compiler-rt/lib/builtins/CMakeLists.txt
---- llvm-7.0.0.src/compiler-rt/lib/builtins/CMakeLists.txt.crt~	2018-05-09 16:44:54.000000000 +0200
-+++ llvm-7.0.0.src/compiler-rt/lib/builtins/CMakeLists.txt	2018-05-09 18:07:44.291104400 +0200
-@@ -562,7 +562,7 @@ else ()
-       set(_arch ${arch})
-       if("${arch}" STREQUAL "armv6m")
-         set(_arch "arm|armv6m")
--      elseif("${arch}" MATCHES "^(armhf|armv7|armv7s|armv7k|armv7m|armv7em)$")
-+      elseif("${arch}" MATCHES "^(armhf|armv7|armv7s|armv7k|armv7m|armv7em|armv8|armv8l|armv8hl|armv8hnl|armv8hcnl)$")
-         set(_arch "arm")
-       endif()
- 
+diff -up llvm-project-release-10.x/compiler-rt/lib/builtins/CMakeLists.txt.22~ llvm-project-release-10.x/compiler-rt/lib/builtins/CMakeLists.txt
+--- llvm-project-release-10.x/compiler-rt/lib/builtins/CMakeLists.txt.22~	2020-02-03 16:17:05.393145716 +0100
++++ llvm-project-release-10.x/compiler-rt/lib/builtins/CMakeLists.txt	2020-02-03 17:49:53.612391246 +0100
+@@ -595,7 +595,7 @@ else ()
+   foreach (arch ${BUILTIN_SUPPORTED_ARCH})
+     if (CAN_TARGET_${arch})
+       # For ARM archs, exclude any VFP builtins if VFP is not supported
+-      if (${arch} MATCHES "^(arm|armhf|armv7|armv7s|armv7k|armv7m|armv7em)$")
++      if (${arch} MATCHES "^(arm|armhf|armv7|armv7s|armv7k|armv7m|armv7em|armv8|armv8l|armv8hl|armv8hnl|armv8hcnl)$")
+         string(REPLACE ";" " " _TARGET_${arch}_CFLAGS "${TARGET_${arch}_CFLAGS}")
+         check_compile_definition(__VFP_FP__ "${CMAKE_C_FLAGS} ${_TARGET_${arch}_CFLAGS}" COMPILER_RT_HAS_${arch}_VFP)
+         if(NOT COMPILER_RT_HAS_${arch}_VFP)

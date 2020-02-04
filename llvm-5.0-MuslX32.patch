@@ -1,7 +1,7 @@
-diff -up llvm-9.0.0-20190618/clang/lib/Driver/Driver.cpp.17~ llvm-9.0.0-20190618/clang/lib/Driver/Driver.cpp
---- llvm-9.0.0-20190618/clang/lib/Driver/Driver.cpp.17~	2019-06-18 20:22:30.000000000 +0200
-+++ llvm-9.0.0-20190618/clang/lib/Driver/Driver.cpp	2019-06-18 21:03:49.096640940 +0200
-@@ -475,14 +475,21 @@ static llvm::Triple computeTargetTriple(
+diff -up llvm-project-release-10.x/clang/lib/Driver/Driver.cpp.19~ llvm-project-release-10.x/clang/lib/Driver/Driver.cpp
+--- llvm-project-release-10.x/clang/lib/Driver/Driver.cpp.19~	2020-02-03 15:05:29.000000000 +0100
++++ llvm-project-release-10.x/clang/lib/Driver/Driver.cpp	2020-02-03 16:12:47.690134352 +0100
+@@ -477,14 +477,21 @@ static llvm::Triple computeTargetTriple(
        AT = Target.get64BitArchVariant().getArch();
        if (Target.getEnvironment() == llvm::Triple::GNUX32)
          Target.setEnvironment(llvm::Triple::GNU);
@@ -24,9 +24,9 @@ diff -up llvm-9.0.0-20190618/clang/lib/Driver/Driver.cpp.17~ llvm-9.0.0-20190618
      } else if (A->getOption().matches(options::OPT_m16) &&
                 Target.get32BitArchVariant().getArch() == llvm::Triple::x86) {
        AT = llvm::Triple::x86;
-diff -up llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp.17~ llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp
---- llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp.17~	2019-06-18 21:03:49.081640802 +0200
-+++ llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp	2019-06-18 21:03:49.096640940 +0200
+diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp.19~ llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp.19~	2020-02-03 16:12:47.683134352 +0100
++++ llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp	2020-02-03 16:12:47.690134352 +0100
 @@ -305,7 +305,7 @@ static const char *getLDMOption(const ll
    case llvm::Triple::systemz:
      return "elf64_s390";
@@ -36,7 +36,7 @@ diff -up llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp.17~ llvm-9.0.0-
        return "elf32_x86_64";
      return "elf_x86_64";
    default:
-@@ -680,7 +680,7 @@ void tools::gnutools::Assembler::Constru
+@@ -681,7 +681,7 @@ void tools::gnutools::Assembler::Constru
      CmdArgs.push_back("--32");
      break;
    case llvm::Triple::x86_64:
@@ -45,7 +45,7 @@ diff -up llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp.17~ llvm-9.0.0-
        CmdArgs.push_back("--x32");
      else
        CmdArgs.push_back("--64");
-@@ -1602,7 +1602,7 @@ static bool findBiarchMultilibs(const Dr
+@@ -1668,7 +1668,7 @@ static bool findBiarchMultilibs(const Dr
    // Determine default multilib from: 32, 64, x32
    // Also handle cases such as 64 on 32, 32 on 64, etc.
    enum { UNKNOWN, WANT32, WANT64, WANTX32 } Want = UNKNOWN;
@@ -54,7 +54,7 @@ diff -up llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp.17~ llvm-9.0.0-
    if (TargetTriple.isArch32Bit() && !NonExistent(Alt32))
      Want = WANT64;
    else if (TargetTriple.isArch64Bit() && IsX32 && !NonExistent(Altx32))
-@@ -2230,7 +2230,7 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2299,7 +2299,7 @@ void Generic_GCC::GCCInstallationDetecto
      TripleAliases.append(begin(X86_64Triples), end(X86_64Triples));
      // x32 is always available when x86_64 is available, so adding it as
      // secondary arch with x86_64 triples
@@ -63,10 +63,10 @@ diff -up llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Gnu.cpp.17~ llvm-9.0.0-
        BiarchLibDirs.append(begin(X32LibDirs), end(X32LibDirs));
        BiarchTripleAliases.append(begin(X86_64Triples), end(X86_64Triples));
      } else {
-diff -up llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Linux.cpp.17~ llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Linux.cpp.17~	2019-06-18 21:03:49.051640526 +0200
-+++ llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Linux.cpp	2019-06-18 21:03:49.097640949 +0200
-@@ -91,6 +91,9 @@ static std::string getMultiarchTriple(co
+diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp.19~ llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp.19~	2020-02-03 16:12:47.673134351 +0100
++++ llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp	2020-02-03 16:12:47.690134352 +0100
+@@ -91,6 +91,9 @@ std::string Linux::getMultiarchTriple(co
      if (TargetEnvironment != llvm::Triple::GNUX32 &&
          D.getVFS().exists(SysRoot + "/lib/x86_64-linux-gnu"))
        return "x86_64-linux-gnu";
@@ -76,7 +76,7 @@ diff -up llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Linux.cpp.17~ llvm-9.0.
      break;
    case llvm::Triple::aarch64:
      if (IsAndroid)
-@@ -643,7 +646,7 @@ std::string Linux::getDynamicLinker(cons
+@@ -639,7 +642,7 @@ std::string Linux::getDynamicLinker(cons
      Loader = "ld-linux.so.2";
      break;
    case llvm::Triple::x86_64: {
@@ -85,10 +85,10 @@ diff -up llvm-9.0.0-20190618/clang/lib/Driver/ToolChains/Linux.cpp.17~ llvm-9.0.
  
      LibDir = X32 ? "libx32" : "lib64";
      Loader = X32 ? "ld-linux-x32.so.2" : "ld-linux-x86-64.so.2";
-diff -up llvm-9.0.0-20190618/llvm/include/llvm/ADT/Triple.h.17~ llvm-9.0.0-20190618/llvm/include/llvm/ADT/Triple.h
---- llvm-9.0.0-20190618/llvm/include/llvm/ADT/Triple.h.17~	2019-06-18 20:22:30.000000000 +0200
-+++ llvm-9.0.0-20190618/llvm/include/llvm/ADT/Triple.h	2019-06-18 21:32:20.515174764 +0200
-@@ -209,6 +209,7 @@ public:
+diff -up llvm-project-release-10.x/llvm/include/llvm/ADT/Triple.h.19~ llvm-project-release-10.x/llvm/include/llvm/ADT/Triple.h
+--- llvm-project-release-10.x/llvm/include/llvm/ADT/Triple.h.19~	2020-02-03 15:05:29.000000000 +0100
++++ llvm-project-release-10.x/llvm/include/llvm/ADT/Triple.h	2020-02-03 16:12:47.690134352 +0100
+@@ -210,6 +210,7 @@ public:
      Musl,
      MuslEABI,
      MuslEABIHF,
@@ -96,7 +96,7 @@ diff -up llvm-9.0.0-20190618/llvm/include/llvm/ADT/Triple.h.17~ llvm-9.0.0-20190
  
      MSVC,
      Itanium,
-@@ -672,7 +673,8 @@ public:
+@@ -678,7 +679,8 @@ public:
    bool isMusl() const {
      return getEnvironment() == Triple::Musl ||
             getEnvironment() == Triple::MuslEABI ||
@@ -106,18 +106,18 @@ diff -up llvm-9.0.0-20190618/llvm/include/llvm/ADT/Triple.h.17~ llvm-9.0.0-20190
    }
  
    /// Tests whether the target is SPIR (32- or 64-bit).
-diff -up llvm-9.0.0-20190618/llvm/lib/Support/Triple.cpp.17~ llvm-9.0.0-20190618/llvm/lib/Support/Triple.cpp
---- llvm-9.0.0-20190618/llvm/lib/Support/Triple.cpp.17~	2019-06-18 20:22:30.000000000 +0200
-+++ llvm-9.0.0-20190618/llvm/lib/Support/Triple.cpp	2019-06-18 21:03:49.093640912 +0200
-@@ -234,6 +234,7 @@ StringRef Triple::getEnvironmentTypeName
+diff -up llvm-project-release-10.x/llvm/lib/Support/Triple.cpp.19~ llvm-project-release-10.x/llvm/lib/Support/Triple.cpp
+--- llvm-project-release-10.x/llvm/lib/Support/Triple.cpp.19~	2020-02-03 15:05:29.000000000 +0100
++++ llvm-project-release-10.x/llvm/lib/Support/Triple.cpp	2020-02-03 16:13:35.428136457 +0100
+@@ -240,6 +240,7 @@ StringRef Triple::getEnvironmentTypeName
    case Musl: return "musl";
    case MuslEABI: return "musleabi";
    case MuslEABIHF: return "musleabihf";
 +  case MuslX32: return "muslx32";
-   case MSVC: return "msvc";
-   case Itanium: return "itanium";
-   case Cygnus: return "cygnus";
-@@ -535,6 +536,7 @@ static Triple::EnvironmentType parseEnvi
+   case Simulator: return "simulator";
+   }
+ 
+@@ -537,6 +538,7 @@ static Triple::EnvironmentType parseEnvi
      .StartsWith("android", Triple::Android)
      .StartsWith("musleabihf", Triple::MuslEABIHF)
      .StartsWith("musleabi", Triple::MuslEABI)
@@ -125,10 +125,10 @@ diff -up llvm-9.0.0-20190618/llvm/lib/Support/Triple.cpp.17~ llvm-9.0.0-20190618
      .StartsWith("musl", Triple::Musl)
      .StartsWith("msvc", Triple::MSVC)
      .StartsWith("itanium", Triple::Itanium)
-diff -up llvm-9.0.0-20190618/llvm/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp.17~ llvm-9.0.0-20190618/llvm/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp
---- llvm-9.0.0-20190618/llvm/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp.17~	2019-06-18 20:22:30.000000000 +0200
-+++ llvm-9.0.0-20190618/llvm/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp	2019-06-18 21:03:49.093640912 +0200
-@@ -873,7 +873,7 @@ MCAsmBackend *llvm::createX86_64AsmBacke
+diff -up llvm-project-release-10.x/llvm/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp.19~ llvm-project-release-10.x/llvm/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp
+--- llvm-project-release-10.x/llvm/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp.19~	2020-02-03 15:05:29.000000000 +0100
++++ llvm-project-release-10.x/llvm/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp	2020-02-03 16:12:47.690134352 +0100
+@@ -1194,7 +1194,7 @@ MCAsmBackend *llvm::createX86_64AsmBacke
  
    uint8_t OSABI = MCELFObjectTargetWriter::getOSABI(TheTriple.getOS());
  
@@ -137,9 +137,9 @@ diff -up llvm-9.0.0-20190618/llvm/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp.
      return new ELFX86_X32AsmBackend(T, OSABI, STI);
    return new ELFX86_64AsmBackend(T, OSABI, STI);
  }
-diff -up llvm-9.0.0-20190618/llvm/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp.17~ llvm-9.0.0-20190618/llvm/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp
---- llvm-9.0.0-20190618/llvm/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp.17~	2019-06-18 20:22:30.000000000 +0200
-+++ llvm-9.0.0-20190618/llvm/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp	2019-06-18 21:03:49.094640921 +0200
+diff -up llvm-project-release-10.x/llvm/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp.19~ llvm-project-release-10.x/llvm/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp
+--- llvm-project-release-10.x/llvm/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp.19~	2020-02-03 15:05:29.000000000 +0100
++++ llvm-project-release-10.x/llvm/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp	2020-02-03 16:12:47.691134352 +0100
 @@ -83,7 +83,7 @@ void X86ELFMCAsmInfo::anchor() { }
  
  X86ELFMCAsmInfo::X86ELFMCAsmInfo(const Triple &T) {
@@ -149,9 +149,9 @@ diff -up llvm-9.0.0-20190618/llvm/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp.1
  
    // For ELF, x86-64 pointer size depends on the ABI.
    // For x86-64 without the x32 ABI, pointer size is 8. For x86 and for x86-64
-diff -up llvm-9.0.0-20190618/llvm/lib/Target/X86/X86RegisterInfo.cpp.17~ llvm-9.0.0-20190618/llvm/lib/Target/X86/X86RegisterInfo.cpp
---- llvm-9.0.0-20190618/llvm/lib/Target/X86/X86RegisterInfo.cpp.17~	2019-06-18 20:22:30.000000000 +0200
-+++ llvm-9.0.0-20190618/llvm/lib/Target/X86/X86RegisterInfo.cpp	2019-06-18 21:03:49.094640921 +0200
+diff -up llvm-project-release-10.x/llvm/lib/Target/X86/X86RegisterInfo.cpp.19~ llvm-project-release-10.x/llvm/lib/Target/X86/X86RegisterInfo.cpp
+--- llvm-project-release-10.x/llvm/lib/Target/X86/X86RegisterInfo.cpp.19~	2020-02-03 15:05:29.000000000 +0100
++++ llvm-project-release-10.x/llvm/lib/Target/X86/X86RegisterInfo.cpp	2020-02-03 16:12:47.691134352 +0100
 @@ -60,7 +60,7 @@ X86RegisterInfo::X86RegisterInfo(const T
      // This matches the simplified 32-bit pointer code in the data layout
      // computation.
@@ -161,10 +161,10 @@ diff -up llvm-9.0.0-20190618/llvm/lib/Target/X86/X86RegisterInfo.cpp.17~ llvm-9.
      StackPtr = Use64BitReg ? X86::RSP : X86::ESP;
      FramePtr = Use64BitReg ? X86::RBP : X86::EBP;
      BasePtr = Use64BitReg ? X86::RBX : X86::EBX;
-diff -up llvm-9.0.0-20190618/llvm/lib/Target/X86/X86Subtarget.h.17~ llvm-9.0.0-20190618/llvm/lib/Target/X86/X86Subtarget.h
---- llvm-9.0.0-20190618/llvm/lib/Target/X86/X86Subtarget.h.17~	2019-06-18 20:22:30.000000000 +0200
-+++ llvm-9.0.0-20190618/llvm/lib/Target/X86/X86Subtarget.h	2019-06-18 21:03:49.094640921 +0200
-@@ -554,12 +554,14 @@ public:
+diff -up llvm-project-release-10.x/llvm/lib/Target/X86/X86Subtarget.h.19~ llvm-project-release-10.x/llvm/lib/Target/X86/X86Subtarget.h
+--- llvm-project-release-10.x/llvm/lib/Target/X86/X86Subtarget.h.19~	2020-02-03 15:05:29.000000000 +0100
++++ llvm-project-release-10.x/llvm/lib/Target/X86/X86Subtarget.h	2020-02-03 16:12:47.691134352 +0100
+@@ -563,12 +563,14 @@ public:
    /// Is this x86_64 with the ILP32 programming model (x32 ABI)?
    bool isTarget64BitILP32() const {
      return In64BitMode && (TargetTriple.getEnvironment() == Triple::GNUX32 ||
@@ -179,10 +179,10 @@ diff -up llvm-9.0.0-20190618/llvm/lib/Target/X86/X86Subtarget.h.17~ llvm-9.0.0-2
                             !TargetTriple.isOSNaCl());
    }
  
-diff -up llvm-9.0.0-20190618/llvm/lib/Target/X86/X86TargetMachine.cpp.17~ llvm-9.0.0-20190618/llvm/lib/Target/X86/X86TargetMachine.cpp
---- llvm-9.0.0-20190618/llvm/lib/Target/X86/X86TargetMachine.cpp.17~	2019-06-18 20:22:30.000000000 +0200
-+++ llvm-9.0.0-20190618/llvm/lib/Target/X86/X86TargetMachine.cpp	2019-06-18 21:03:49.094640921 +0200
-@@ -112,7 +112,7 @@ static std::string computeDataLayout(con
+diff -up llvm-project-release-10.x/llvm/lib/Target/X86/X86TargetMachine.cpp.19~ llvm-project-release-10.x/llvm/lib/Target/X86/X86TargetMachine.cpp
+--- llvm-project-release-10.x/llvm/lib/Target/X86/X86TargetMachine.cpp.19~	2020-02-03 15:05:29.000000000 +0100
++++ llvm-project-release-10.x/llvm/lib/Target/X86/X86TargetMachine.cpp	2020-02-03 16:12:47.691134352 +0100
+@@ -114,7 +114,7 @@ static std::string computeDataLayout(con
    Ret += DataLayout::getManglingComponent(TT);
    // X86 and x32 have 32 bit pointers.
    if ((TT.isArch64Bit() &&
