@@ -510,7 +510,9 @@ This package contains the development files for LLVM.
 %{_includedir}/%{name}-c
 %{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
+%ifnarch %{riscv}
 %{_libdir}/libarcher_static.a
+%endif
 %if %{with openmp}
 %exclude %{_libdir}/libomp.so
 %endif
