@@ -22,11 +22,7 @@
 # and need adjustment whenever there's a new GCC version
 %define gcc_version %(gcc -dumpversion)
 
-%ifarch %{riscv}
-%bcond_with default_compiler
-%else
 %bcond_without default_compiler
-%endif
 
 # As of 238820, the "make install" target for apidox
 # is broken with cmake. Re-enable later.
