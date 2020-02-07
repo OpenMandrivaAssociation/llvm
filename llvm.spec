@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%define date 20200204
+%define date 20200207
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -121,6 +121,9 @@ Source0:	https://github.com/llvm/llvm-project/archive/llvmorg-%{version}.tar.gz
 %endif
 %endif
 Source1000:	llvm.rpmlintrc
+# Fix Qt examples on i686
+# https://bugs.llvm.org/show_bug.cgi?id=44812
+Patch0:		https://github.com/llvm/llvm-project/commit/ec9a94af4d5fb3270f2451fcbec5a3a99f4ac03a.patch
 # Adjust search paths to match the OS
 Patch1:		0000-clang-mandriva.patch
 # ARM hardfloat hack
