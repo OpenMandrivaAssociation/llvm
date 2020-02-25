@@ -2,28 +2,21 @@
 %define _python_bytecompile_build 0
 
 # Roughly equivalent to 10.0.0-rc2
-%define date 20200224
+%define date 20200225
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
 %define build_lto 1
 %define _disable_ld_no_undefined 0
 %define _disable_lto 1
-# We use -fuse-ld=gold right now to work around a bug in the
-# previous lld package that caused it to not compile llvm correctly.
-# -fuse-ld=gold can go away again ASAP because patch 22 fixes the problem.
-%ifarch %{aarch64}
-%global optflags %{optflags} -O3 -fpic
-%else
 # (tpg) optimize it a bit
 %global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic
-%endif
 
 # clang header paths are hard-coded at compile time
 # and need adjustment whenever there's a new GCC version
 %define gcc_version %(gcc -dumpversion)
 
-%bcond_with default_compiler
+%bcond_without default_compiler
 
 # As of 238820, the "make install" target for apidox
 # is broken with cmake. Re-enable later.
