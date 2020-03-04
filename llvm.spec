@@ -1,8 +1,8 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-# Roughly equivalent to 10.0.0-rc2
-%define date 20200225
+# Roughly equivalent to 10.0.0-rc3
+%define date 20200304
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -180,9 +180,6 @@ Patch51:	llvm-4.0.1-debug-posix_spawn.patch
 # Polly LLVM OpenMP backend
 Patch56:	polly-8.0-default-llvm-backend.patch
 Patch57:	tsan-realpath-redefinition.patch
-# https://bugs.llvm.org/show_bug.cgi?id=45001
-# https://reviews.llvm.org/D72372
-Patch58:	https://reviews.llvm.org/file/data/7sih45mcim7fvpu6ogm3/PHID-FILE-cayqvhwf6i4rmt5c4zna/D72372.diff
 %if 0%{date}
 # llgo bits -- not yet part of releases
 Patch60:	llgo-4.0rc1-compile-workaround.patch
