@@ -1,8 +1,8 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-# Roughly equivalent to 10.0.0-rc3
-%define date 20200304
+# Roughly equivalent to 10.0.0-rc4
+%define date 20200315
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
