@@ -1,8 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-# This is 10.0.0-rc5
-%define date 20200319
+%define date %{nil}
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -89,7 +88,7 @@
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
 Version:	10.0.0
-License:	NCSA
+License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
 %if 0%{date}
