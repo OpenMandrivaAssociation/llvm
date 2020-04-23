@@ -1,0 +1,116 @@
+From 30588a739584bb8ac41715d68656d22bd85198e7 Mon Sep 17 00:00:00 2001
+From: Erich Keane <erich.keane@intel.com>
+Date: Wed, 8 Apr 2020 13:14:33 -0700
+Subject: [PATCH] Make target features check work with ctor and dtor-
+
+The problem was reported in PR45468, applying target features to an
+always_inline constructor/destructor runs afoul of GlobalDecl
+construction assert when checking for target-feature compatibility.
+
+The core problem is fixed by using the version of the check that takes a
+FunctionDecl rather than the GlobalDecl. However, while writing the
+test, I discovered that source locations weren't properly set for this
+check on ctors/dtors. This patch also fixes constructors and CALLED destructors.
+
+Unfortunately, it doesn't seem too possible to get a meaningful source
+location for a 'cleanup' destructor, so those are still 'frontend' level
+errors unfortunately. A fixme was added to the test to cover that
+situation.
+---
+ clang/lib/CodeGen/CGClass.cpp                 |  2 +-
+ clang/lib/CodeGen/CGExprCXX.cpp               |  5 ++--
+ clang/lib/CodeGen/CodeGenFunction.cpp         |  3 +--
+ .../test/CodeGenCXX/target-features-error.cpp | 26 +++++++++++++++++++
+ 4 files changed, 31 insertions(+), 5 deletions(-)
+
+diff --git a/clang/lib/CodeGen/CGClass.cpp b/clang/lib/CodeGen/CGClass.cpp
+index 73c522a8696a..017a29e2361c 100644
+--- a/clang/lib/CodeGen/CGClass.cpp
++++ b/clang/lib/CodeGen/CGClass.cpp
+@@ -2174,7 +2174,7 @@ void CodeGenFunction::EmitCXXConstructorCall(const CXXConstructorDecl *D,
+   const CGFunctionInfo &Info = CGM.getTypes().arrangeCXXConstructorCall(
+       Args, D, Type, ExtraArgs.Prefix, ExtraArgs.Suffix, PassPrototypeArgs);
+   CGCallee Callee = CGCallee::forDirect(CalleePtr, GlobalDecl(D, Type));
+-  EmitCall(Info, Callee, ReturnValueSlot(), Args);
++  EmitCall(Info, Callee, ReturnValueSlot(), Args, nullptr, Loc);
+ 
+   // Generate vtable assumptions if we're constructing a complete object
+   // with a vtable.  We don't do this for base subobjects for two reasons:
+diff --git a/clang/lib/CodeGen/CGExprCXX.cpp b/clang/lib/CodeGen/CGExprCXX.cpp
+index 42c1c34c57ad..a68d5109baf8 100644
+--- a/clang/lib/CodeGen/CGExprCXX.cpp
++++ b/clang/lib/CodeGen/CGExprCXX.cpp
+@@ -112,7 +112,8 @@ RValue CodeGenFunction::EmitCXXDestructorCall(
+   commonEmitCXXMemberOrOperatorCall(*this, DtorDecl, This, ImplicitParam,
+                                     ImplicitParamTy, CE, Args, nullptr);
+   return EmitCall(CGM.getTypes().arrangeCXXStructorDeclaration(Dtor), Callee,
+-                  ReturnValueSlot(), Args);
++                  ReturnValueSlot(), Args, nullptr,
++                  CE ? CE->getExprLoc() : SourceLocation{});
+ }
+ 
+ RValue CodeGenFunction::EmitCXXPseudoDestructorExpr(
+@@ -380,7 +381,7 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
+           IsArrow ? Base->getType()->getPointeeType() : Base->getType();
+       EmitCXXDestructorCall(GD, Callee, This.getPointer(*this), ThisTy,
+                             /*ImplicitParam=*/nullptr,
+-                            /*ImplicitParamTy=*/QualType(), nullptr);
++                            /*ImplicitParamTy=*/QualType(), CE);
+     }
+     return RValue::get(nullptr);
+   }
+diff --git a/clang/lib/CodeGen/CodeGenFunction.cpp b/clang/lib/CodeGen/CodeGenFunction.cpp
+index 618c9a046321..b01a5a4c3685 100644
+--- a/clang/lib/CodeGen/CodeGenFunction.cpp
++++ b/clang/lib/CodeGen/CodeGenFunction.cpp
+@@ -2359,8 +2359,7 @@ void CodeGenFunction::checkTargetFeatures(SourceLocation Loc,
+ 
+     SmallVector<StringRef, 1> ReqFeatures;
+     llvm::StringMap<bool> CalleeFeatureMap;
+-    CGM.getContext().getFunctionFeatureMap(CalleeFeatureMap,
+-                                           GlobalDecl(TargetDecl));
++    CGM.getContext().getFunctionFeatureMap(CalleeFeatureMap, TargetDecl);
+ 
+     for (const auto &F : ParsedAttr.Features) {
+       if (F[0] == '+' && CalleeFeatureMap.lookup(F.substr(1)))
+diff --git a/clang/test/CodeGenCXX/target-features-error.cpp b/clang/test/CodeGenCXX/target-features-error.cpp
+index 28fe4d0e7206..850e0541ac62 100644
+--- a/clang/test/CodeGenCXX/target-features-error.cpp
++++ b/clang/test/CodeGenCXX/target-features-error.cpp
+@@ -1,6 +1,7 @@
+ // RUN: %clang_cc1 %s -triple=x86_64-linux-gnu -S -verify -o - -DTEST1
+ // RUN: %clang_cc1 %s -triple=x86_64-linux-gnu -S -verify -o - -DTEST2
+ // RUN: %clang_cc1 %s -triple=x86_64-linux-gnu -S -verify -o - -DTEST3
++// RUN: %clang_cc1 %s -triple=x86_64-linux-gnu -S -verify -o - -DTEST4
+ 
+ struct S {
+   __attribute__((always_inline, target("avx512f")))
+@@ -59,3 +60,28 @@ void usage(S & s) {
+   }();
+ }
+ #endif
++
++#ifdef TEST4
++namespace PR45468 {
++  struct CtorAndDTor {
++    __attribute__((always_inline, target("avx512f"))) CtorAndDTor();
++    __attribute__((always_inline, target("avx512f"))) ~CtorAndDTor();
++  };
++
++  void usage() {
++    //expected-error@+1{{'CtorAndDTor' requires target feature 'avx512f'}}
++    CtorAndDTor c;
++    {
++      //expected-error@+1{{'CtorAndDTor' requires target feature 'avx512f'}}
++      CtorAndDTor c2;
++      //expected-error@+1{{'~CtorAndDTor' requires target feature 'avx512f'}}
++      c2.~CtorAndDTor();
++    }
++    // FIXME: These need to be given a line number, however theres no good way
++    // to get to the SourceLocation of anything by the time we're doing CodeGen
++    // cleanups.
++    //expected-error@*{{'~CtorAndDTor' requires target feature 'avx512f'}}
++    //expected-error@*{{'~CtorAndDTor' requires target feature 'avx512f'}}
++  }
++}
++#endif

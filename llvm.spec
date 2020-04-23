@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%define date %{nil}
+%define date 20200423
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -87,7 +87,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	10.0.0
+Version:	10.0.1
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -169,6 +169,8 @@ Patch40:	libc++-3.7.0-musl-compat.patch
 Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
 # Fix library versioning
 Patch46:	llvm-4.0.1-libomp-versioning.patch
+# https://bugs.llvm.org/show_bug.cgi?id=45468
+Patch47:	https://github.com/llvm/llvm-project/commit/30588a739584bb8ac41715d68656d22bd85198e7.patch
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
