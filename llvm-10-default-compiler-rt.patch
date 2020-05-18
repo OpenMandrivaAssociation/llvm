@@ -1,0 +1,14 @@
+diff -up llvm-project-release-10.x/clang/include/clang/Driver/Options.td.omv~ llvm-project-release-10.x/clang/include/clang/Driver/Options.td
+diff -up llvm-project-release-10.x/clang/include/clang/Driver/ToolChain.h.omv~ llvm-project-release-10.x/clang/include/clang/Driver/ToolChain.h
+--- llvm-project-release-10.x/clang/include/clang/Driver/ToolChain.h.omv~	2020-05-18 03:35:54.739462095 +0200
++++ llvm-project-release-10.x/clang/include/clang/Driver/ToolChain.h	2020-05-18 03:36:24.224680623 +0200
+@@ -374,7 +374,7 @@ public:
+ 
+   /// GetDefaultRuntimeLibType - Get the default runtime library variant to use.
+   virtual RuntimeLibType GetDefaultRuntimeLibType() const {
+-    return ToolChain::RLT_Libgcc;
++    return ToolChain::RLT_CompilerRT;
+   }
+ 
+   virtual CXXStdlibType GetDefaultCXXStdlibType() const {
+diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChain.cpp.omv~ llvm-project-release-10.x/clang/lib/Driver/ToolChain.cpp

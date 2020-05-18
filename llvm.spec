@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%define date 20200423
+%define date 20200518
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -66,13 +66,13 @@
 %bcond_without openmp
 %bcond_without unwind
 %endif
-# As of 9.0.0 2019/07/09 LLGO is broken
-# https://bugs.llvm.org/show_bug.cgi?id=42548
+# As of 10.0 2020/05/18 LLGO is broken
+# (fails to compile)
 %bcond_with llgo
 %bcond_without lld
 
 # Prefer compiler-rt over libgcc
-%bcond_with default_compilerrt
+%bcond_without default_compilerrt
 
 # Clang's libLLVMgold.so shouldn't trigger devel(*) dependencies
 %define __requires_exclude 'devel.*'
@@ -186,6 +186,9 @@ Patch57:	tsan-realpath-redefinition.patch
 Patch60:	llgo-4.0rc1-compile-workaround.patch
 Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
 %endif
+# Really a patch -- but we want to apply it conditionally
+# and we use %%autosetup for other patches...
+Source62:	llvm-10-default-compiler-rt.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -233,7 +236,7 @@ BuildRequires:	ninja
 BuildRequires:	doxygen
 %endif
 %if %{with llgo}
-BuildRequires:	go
+BuildRequires:	(go or gcc-go)
 %endif
 Obsoletes:	llvm-ocaml
 # For lldb
@@ -898,6 +901,9 @@ mv openmp-%{version}.src openmp
 %else
 %autosetup -p1 -n llvm-project-llvmorg-%{version}
 %endif
+%endif
+%if %{with default_compilerrt}
+patch -p1 -b -z .crt~ <%{S:62}
 %endif
 
 # Fix bogus permissions
