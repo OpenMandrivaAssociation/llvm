@@ -1,0 +1,14 @@
+diff -up llvm-project-release-10.x/openmp/CMakeLists.txt.omv~ llvm-project-release-10.x/openmp/CMakeLists.txt
+diff -up llvm-project-release-10.x/openmp/runtime/CMakeLists.txt.omv~ llvm-project-release-10.x/openmp/runtime/CMakeLists.txt
+diff -up llvm-project-release-10.x/openmp/runtime/src/CMakeLists.txt.omv~ llvm-project-release-10.x/openmp/runtime/src/CMakeLists.txt
+--- llvm-project-release-10.x/openmp/runtime/src/CMakeLists.txt.omv~	2020-05-19 04:28:39.241145984 +0200
++++ llvm-project-release-10.x/openmp/runtime/src/CMakeLists.txt	2020-05-19 04:29:31.548897314 +0200
+@@ -148,6 +148,8 @@ set_target_properties(omp PROPERTIES
+   LINKER_LANGUAGE ${LIBOMP_LINKER_LANGUAGE}
+ )
+ 
++target_link_libraries(omp m)
++
+ # Get the library's location within the build tree for the unit tester
+ if(NOT WIN32)
+   get_target_property(LIBOMP_LIBRARY_DIR omp LIBRARY_OUTPUT_DIRECTORY)

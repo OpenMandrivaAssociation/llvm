@@ -94,7 +94,7 @@ Url:		http://llvm.org/
 %if 0%{date}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/release/%{major1}.x/llvm-%{major1}-%{date}.tar.gz
-Release:	0.%{date}.1
+Release:	0.%{date}.2
 %else
 Release:	1
 %if %{with upstream_tarballs}
@@ -113,6 +113,8 @@ Source10:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
 Source0:	https://github.com/llvm/llvm-project/archive/llvmorg-%{version}.tar.gz
 %endif
 %endif
+# For compatibility with the nongnu.org libunwind
+Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
 # Adjust search paths to match the OS
 Patch1:		0000-clang-mandriva.patch
@@ -181,6 +183,9 @@ Patch51:	llvm-4.0.1-debug-posix_spawn.patch
 # Polly LLVM OpenMP backend
 Patch56:	polly-8.0-default-llvm-backend.patch
 Patch57:	tsan-realpath-redefinition.patch
+# libomp needs to link to libm so it can see
+# logbl and fmaxl when using compiler-rt
+Patch58:	llvm-10-omp-needs-libm.patch
 %if 0%{date}
 # llgo bits -- not yet part of releases
 Patch60:	llgo-4.0rc1-compile-workaround.patch
@@ -382,9 +387,11 @@ for effective implementation, proper tail calls or garbage collection.
 %define libunwind_major 1.0
 %define libunwind %mklibname unwind %{libunwind_major}
 
+%define devunwind %mklibname -d unwind
+
 %package -n %{libunwind}
-Summary: Development files for libunwind
-Group: Development/C
+Summary: The LLVM unwind library
+Group: System/Libraries
 
 %description -n %{libunwind}
 The unwind library, a part of llvm.
@@ -393,7 +400,22 @@ The unwind library, a part of llvm.
 %doc %{_docdir}/libunwind
 %{_libdir}/libunwind.so.%{libunwind_major}
 %{_libdir}/libunwind.so.1
+
+%package -n %{devunwind}
+Summary: Development files for libunwind
+Group: Development/C
+Requires: %{libunwind} = %{EVRD}
+
+%description -n %{devunwind}
+Development files for libunwind
+
+%files -n %{devunwind}
 %{_libdir}/libunwind.a
+%{_libdir}/libunwind.so
+%{_libdir}/pkgconfig/libunwind.pc
+%{_includedir}/unwind.h
+%{_includedir}/libunwind.h
+%{_includedir}/__libunwind_config.h
 %endif
 
 #-----------------------------------------------------------
@@ -1052,6 +1074,7 @@ done
 %endif
 %if %{with unwind}
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
+	-DCLANG_DEFAULT_UNWINDLIB=compiler-rt \
 %endif
 	-G Ninja \
 	../llvm
@@ -1128,6 +1151,11 @@ rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
 rm -f %{buildroot}%{_libdir}/libgomp.so
 
 %if %{with unwind}
-# (tpg) fix bug https://issues.openmandriva.org/show_bug.cgi?id=2214
-mv %{buildroot}%{_libdir}/libunwind.so %{buildroot}%{_libdir}/libunwind-llvm.so
+# Add more headers and a pkgconfig file so we can use the llvm
+# unwinder instead of the traditional nongnu.org libunwind
+cp libunwind/include/libunwind.h libunwind/include/__libunwind_config.h %{buildroot}%{_includedir}/
+# And move unwind.h to where gcc can see it as well
+mv %{buildroot}%{_libdir}/clang/%{version}/include/unwind.h %{buildroot}%{_includedir}/
+mkdir -p %{buildroot}%{_libdir}/pkgconfig
+sed -e 's,@LIBDIR@,%{_libdir},g;s,@VERSION@,%{version},g' %{S:50} >%{buildroot}%{_libdir}/pkgconfig/libunwind.pc
 %endif
