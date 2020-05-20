@@ -205,6 +205,7 @@ BuildRequires:	binutils-devel
 BuildRequires:	chrpath
 BuildRequires:	flex
 BuildRequires:	pkgconfig(libedit)
+BuildRequires:	pkgconfig(libelf)
 %if %{without bootstrap}
 BuildRequires:	graphviz
 %endif
@@ -262,6 +263,11 @@ BuildRequires:	lld < %{EVRD}
 %endif
 %if %{with openmp}
 Requires:	%{ompname} = %{EVRD}
+%endif
+%if %{with compat32}
+BuildRequires:	devel(libffi)
+BuildRequires:	devel(libxml2)
+BuildRequires:	devel(libelf)
 %endif
 # Temporary workaround for missing libunwind.so
 BuildRequires:	llvm-devel
