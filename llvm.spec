@@ -263,6 +263,9 @@ BuildRequires:	lld < %{EVRD}
 %if %{with openmp}
 Requires:	%{ompname} = %{EVRD}
 %endif
+# Temporary workaround for missing libunwind.so
+BuildRequires:	llvm-devel
+BuildRequires:	%{_lib}unwind-devel
 
 Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
 Obsoletes: %{mklibname LLVMRISCVDesc 5} < %{EVRD}
