@@ -1,6 +1,12 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
+%ifarch %{x86_64}
+%bcond_without compat32
+%else
+%bcond_with compat32
+%endif
+
 %define date 20200518
 
 %define debug_package %{nil}
@@ -49,7 +55,7 @@
 # libcxx fails to bootstrap with gcc
 %bcond_with build_libcxx
 %else
-%bcond_with build_libcxx
+%bcond_without build_libcxx
 %endif
 %ifarch %{riscv}
 # Disabled until we get a RISC-V implementation of NativeRegisterContext
@@ -94,7 +100,7 @@ Url:		http://llvm.org/
 %if 0%{date}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/release/%{major1}.x/llvm-%{major1}-%{date}.tar.gz
-Release:	0.%{date}.2
+Release:	0.%{date}.3
 %else
 Release:	1
 %if %{with upstream_tarballs}
@@ -365,9 +371,13 @@ for effective implementation, proper tail calls or garbage collection.
 
 #-----------------------------------------------------------
 
-%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitstreamReader LLVMBitWriter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML findAllSymbols LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo Remarks LLVMRISCVAsmParser LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVDisassembler LLVMRISCVInfo LLVMRISCVUtils LLVMDebugInfoGSYM LLVMJITLink LLVMCFGuard LLVMDWARFLinker LLVMFrontendOpenMP LLVMOrcError
+%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitstreamReader LLVMBitWriter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMX86Utils LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo Remarks LLVMRISCVAsmParser LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVDisassembler LLVMRISCVInfo LLVMRISCVUtils LLVMDebugInfoGSYM LLVMJITLink LLVMCFGuard LLVMDWARFLinker LLVMFrontendOpenMP LLVMOrcError
 
-%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangApplyReplacements clangBasic clangChangeNamespace clangCodeGen clangCrossTU clangDaemon clangDoc clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIncludeFixerPlugin clangIndex clangLex clangMove clangParse clangQuery clangRewrite clangRewriteFrontend clangReorderFields clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTidy clangTidyAndroidModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyUtils clangTooling clangToolingASTDiff clangToolingCore clangIncludeFixer clangTidyAbseilModule clangTidyBoostModule clangTidyPlugin clangTidyPortabilityModule clangTidyZirconModule clangHandleLLVM clangToolingInclusions clangDaemonTweaks clangDependencyScanning clangTidyOpenMPModule clangToolingRefactoring clangToolingSyntax clang-cpp clangDirectoryWatcher clangTidyDarwinModule clangTidyLinuxKernelModule clangTransformer
+%define LLVM64Libs findAllSymbols
+
+%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangBasic clangCodeGen clangCrossTU clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIndex clangLex clangParse clangRewrite clangRewriteFrontend clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTooling clangToolingASTDiff clangToolingCore clangHandleLLVM clangToolingInclusions clangDependencyScanning clangToolingRefactoring clangToolingSyntax clang-cpp clangDirectoryWatcher clangTransformer
+
+%define Clang64Libs clangApplyReplacements clangChangeNamespace clangDaemon clangDaemonTweaks clangDoc clangIncludeFixer clangIncludeFixerPlugin clangMove clangQuery clangReorderFields clangTidy clangTidyPlugin clangTidyAbseilModule clangTidyAndroidModule clangTidyBoostModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyDarwinModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyLinuxKernelModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyOpenMPModule clangTidyPortabilityModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyZirconModule clangTidyUtils
 
 %if %{with lld}
 %define LLDLibs lldCOFF lldCommon lldCore lldDriver lldELF lldMachO lldMinGW lldReaderWriter lldWasm lldYAML
@@ -381,7 +391,22 @@ for effective implementation, proper tail calls or garbage collection.
 %define LLDBLibs %{nil}
 %endif
 
-%{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs} %{LLDBLibs}; do echo %%libpackage $i %{major1}; done)}
+%{expand:%(for i in %{LLVMLibs} %{LLVM64Libs} %{ClangLibs} %{Clang64Libs} %{LLDLibs} %{LLDBLibs}; do echo %%libpackage $i %{major1}; done)}
+
+%if %{with compat32}
+%{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do cat <<EOF
+%%package -n lib${i}%{major1}
+Summary: 32-bit LLVM ${i} library
+Group: Development/C
+
+%%description -n lib${i}%{major1}
+32-bit LLVM ${i} library
+
+%%files -n lib${i}%{major1}
+%%{_prefix}/lib/lib${i}.so.%{major1}*
+EOF
+done)}
+%endif
 
 %if %{with unwind}
 %define libunwind_major 1.0
@@ -424,8 +449,6 @@ Development files for libunwind
 %libpackage c++abi 1
 %{_libdir}/libc++abi.so
 %{_libdir}/libc++.a
-%{_libdir}/libc++fs.a
-%{_libdir}/libc++experimental.a
 
 %define cxxdevname %mklibname c++ -d
 %define cxxabistatic %mklibname c++abi -d -s
@@ -443,6 +466,8 @@ Development files for libc++, an alternative implementation of the STL.
 %files -n %{cxxdevname}
 %doc %{_docdir}/libcxx
 %{_includedir}/c++
+%{_includedir}/__pstl*
+%{_includedir}/pstl
 
 %package -n %{cxxabistatic}
 Summary: Static library for libc++ C++ ABI support
@@ -465,7 +490,7 @@ Group:		System/Libraries
 Conflicts:	llvm < 3.0-4
 Obsoletes:	%{mklibname %{name} 3.5.0}
 Obsoletes:	%{mklibname %{name} 3.6.0}
-%{expand:%(for i in %{LLVMLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
+%{expand:%(for i in %{LLVMLibs} %{LLVM64Libs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 Obsoletes:	%{mklibname LLVMCppBackendCodeGen 3} < %{EVRD}
 Obsoletes:	%{mklibname LLVMCppBackendInfo 3} < %{EVRD}
 Obsoletes:	%{mklibname LLVMAArch64AsmPrinter 9} < %{EVRD}
@@ -679,9 +704,12 @@ Requires:	libstdc++-devel >= %{gcc_version}
 %if %{with unwind}
 Requires:	%{_lib}unwind1.0 = %{EVRD}
 %endif
+%if %{with unwind}
+Requires:	%{devunwind} = %{EVRD}
+%endif
 Obsoletes:	%{mklibname clang 3.7.0}
 Obsoletes:	%{mklibname clang_shared 9}
-%{expand:%(for i in %{ClangLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
+%{expand:%(for i in %{ClangLibs} %{Clang64Libs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 
 %description -n clang
 clang: noun
@@ -902,6 +930,64 @@ Python bindings to parts of the Clang library
 %{python_sitelib}/clang
 #-----------------------------------------------------------
 
+%if %{with compat32}
+%package -n libllvm-devel
+Summary: 32-bit LLVM development files
+Group: Development/C
+%{expand:%(for i in %{LLVMLibs}; do echo Requires:	lib${i}%{major1} = %{EVRD}; done)}
+
+%description -n libllvm-devel
+32-bit LLVM development files
+
+%files -n libllvm-devel
+%{_prefix}/lib/cmake/ParallelSTL
+%{_prefix}/lib/cmake/clang
+%{_prefix}/lib/cmake/llvm
+%{_prefix}/lib/libLLVM*.so
+%{_prefix}/lib/libLTO.so
+%{_prefix}/lib/libRemarks.so
+%{_prefix}/lib/libarcher.so
+%{_prefix}/lib/libarcher_static.a
+
+%package -n libclang-devel
+Summary: 32-bit Clang development files
+Group: Development/C
+%{expand:%(for i in %{ClangLibs}; do echo Requires:	lib${i}%{major1} = %{EVRD}; done)}
+
+%description -n libclang-devel
+32-bit Clang development files
+
+%files -n libclang-devel
+%{_prefix}/lib/libclang*.so
+
+%package -n libomp1
+Summary: 32-bit OpenMP runtime
+Group: System/Libraries
+
+%description -n libomp1
+32-bit OpenMP runtime
+
+%files -n libomp1
+%{_prefix}/lib/libomp.so.1*
+%{_prefix}/lib/libomptarget.rtl.*.so
+%{_prefix}/lib/libomptarget.so
+
+%package -n libomp-devel
+Summary: Development files for the 32-bit OpenMP runtime
+Group: Development/C
+
+%description -n libomp-devel
+Development files for the 32-bit OpenMP runtime
+
+%files -n libomp-devel
+%{_prefix}/lib/libgomp.so
+%{_prefix}/lib/libiomp5.so
+%{_prefix}/lib/libomp.so
+%endif
+
+#-----------------------------------------------------------
+
+
 %prep
 %if 0%{date}
 %autosetup -p1 -n llvm-project-release-%{major1}.x
@@ -965,6 +1051,7 @@ COMPONENTS="$COMPONENTS;openmp"
 %if %{with build_libcxx}
 COMPONENTS="$COMPONENTS;libcxx;libcxxabi;pstl;parallel-libs"
 %endif
+COMPONENTS="$COMPONENTS;libclc"
 
 %if %{with bootstrap_gcc}
 export CC=gcc
@@ -998,7 +1085,6 @@ if echo %{_target_platform} | grep -q musl; then
 	sed -i -e 's,set(COMPILER_RT_HAS_SANITIZER_COMMON TRUE),set(COMPILER_RT_HAS_SANITIZER_COMMON FALSE),' compiler-rt/cmake/config-ix.cmake
 fi
 
-%ifarch %ix86
 # Fix noexecstack
 for i in compiler-rt/lib/builtins/i386/*.S; do
 	cat >>$i <<'EOF'
@@ -1007,13 +1093,23 @@ for i in compiler-rt/lib/builtins/i386/*.S; do
 #endif
 EOF
 done
-%endif
 
+# The "%if 1" below is just a quick way to get rid of the real
+# 64-bit build to debug 32-bit build issues. No need to do a
+# proper define/with condition here, the switch is useless for
+# any regular use.
+%if 1
 # We set an RPATH in CMAKE_EXE_LINKER_FLAGS to make sure the newly built
 # clang and friends use the just-built shared libraries -- there's no guarantee
-# that the ABI remains compatible between a snapshot libclang.so.3.8 and the
-# final libclang.so.3.8 at the moment.
+# that the ABI remains compatible between a snapshot libclang.so.11 and the
+# final libclang.so.11 at the moment.
 # We strip out the rpath in %%install though - so we aren't really being evil.
+#
+# We should probably enable
+#	-DLIBUNWIND_BUILD_32_BITS:BOOL=ON \
+#	-DLIBCXXABI_BUILD_32_BITS:BOOL=ON \
+#	-DLIBCXX_BUILD_32_BITS:BOOL=ON \
+# at some point - but right now, builds are broken
 %cmake \
 	-DLLVM_ENABLE_PROJECTS="$COMPONENTS" \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
@@ -1079,11 +1175,91 @@ done
 	-G Ninja \
 	../llvm
 
+if ! %ninja_build; then
+	# With many threads, there's a chance of libc++ being built
+	# before libc++abi, causing linkage to fail. Simply trying
+	# again "fixes" it.
+	%ninja_build
+fi
+
+cd ..
+%endif
+
+%if %{with compat32}
+%cmake32 \
+	-DBUILD_SHARED_LIBS:BOOL=ON \
+	-DLLVM_ENABLE_FFI:BOOL=ON \
+	-DLLVM_TARGETS_TO_BUILD=all \
+	-DLLVM_ENABLE_CXX1Y:BOOL=ON \
+	-DLLVM_ENABLE_RTTI:BOOL=ON \
+	-DLLVM_ENABLE_PIC:BOOL=ON \
+	-DLLVM_INCLUDE_DOCS:BOOL=ON \
+	-DLLVM_ENABLE_EH:BOOL=ON \
+	-DLLVM_INSTALL_UTILS:BOOL=ON \
+	-DLLVM_BINUTILS_INCDIR=%{_includedir} \
+	-DLLVM_BUILD_DOCS:BOOL=OFF \
+	-DLLVM_BUILD_EXAMPLES:BOOL=OFF \
+	-DLLVM_BUILD_RUNTIME:BOOL=OFF \
+	-DLLVM_TOOL_COMPILER_RT_BUILD:BOOL=ON \
+	-DENABLE_LINKER_BUILD_ID:BOOL=ON \
+	-DOCAMLFIND=NOTFOUND \
+	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \
+	-DLLVM_DEFAULT_TARGET_TRIPLE=i686-%{_vendor}-%{_os}%{_gnu} \
+	-DPOLLY_ENABLE_GPGPU_CODEGEN:BOOL=ON \
+	-DWITH_POLLY:BOOL=ON \
+	-DLINK_POLLY_INTO_TOOLS:BOOL=ON \
+%if %{with libcxx}
+	-DLLVM_ENABLE_LIBCXX:BOOL=ON \
+	-DLLVM_ENABLE_LIBCXXABI:BOOL=ON \
+%endif
+	-DLIBCXX_CXX_ABI=libcxxabi \
+	-DLIBCXX_ENABLE_CXX1Y:BOOL=ON \
+	-DLIBCXXABI_ENABLE_SHARED:BOOL=ON \
+	-DLIBCXXABI_ENABLE_STATIC:BOOL=ON \
+	-DLIBCXX_ENABLE_SHARED:BOOL=ON \
+	-DLIBCXX_ENABLE_STATIC:BOOL=ON \
+	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/libcxx/include \
+	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/libcxxabi/include \
+	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/lib" \
+	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/lib" \
+	-DLLVM_ENABLE_DOXYGEN:BOOL=OFF \
+	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
+	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;libcxxabi;libcxx;pstl;parallel-libs" \
+	-DCLANG_DEFAULT_UNWINDLIB=compiler-rt \
+	-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=i686-openmandriva-linux-gnu \
+	-DLIBCXX_USE_COMPILER_RT:BOOL=ON \
+	-DLIBUNWIND_USE_COMPILER_RT:BOOL=ON \
+	-DLLVM_ENABLE_PER_TARGET_RUNTIME:BOOL=ON \
+	-DLLVM_TARGET_ARCH=i686 \
+	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/lib" \
+	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/lib" \
+	-DLIBCXX_CXX_ABI=libcxxabi \
+	-DLIBCXX_ENABLE_CXX1Y:BOOL=ON \
+	-DLIBCXXABI_ENABLE_SHARED:BOOL=ON \
+	-DLIBCXXABI_ENABLE_STATIC:BOOL=ON \
+	-DLIBCXX_ENABLE_SHARED:BOOL=ON \
+	-DLIBCXX_ENABLE_STATIC:BOOL=ON \
+	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/libcxx/include \
+	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/libcxxabi/include \
+	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
+	-G Ninja \
+	../llvm
 %ninja_build
+%endif
 
 %install
 %if %{with ocaml}
 #cp bindings/ocaml/llvm/META.llvm bindings/ocaml/llvm/Release/
+%endif
+
+%if %{with compat32}
+%ninja_install -C build32
+# Get rid of compat32 stuff that isn't needed in a 64-bit
+# environment
+rm -rf \
+	%{buildroot}%{_prefix}/lib/LLVMgold.so \
+	%{buildroot}%{_prefix}/lib/clang \
+	%{buildroot}%{_bindir}
 %endif
 
 %ninja_install -C build
