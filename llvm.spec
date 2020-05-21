@@ -149,7 +149,7 @@ Patch12:	llvm-3.8.0-sonames.patch
 Patch13:	llvm-3.8.0-fix-optlevel.patch
 # because we have an odd combination (compiler-rt but using libstdc++) we need to add
 # the unwind exception handling code which is found in libgcc by linking to libgcc anyway...
-Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
+#Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
 Patch15:	libunwind-3.8-aarch64-gas.patch
 Patch16:	clang-rename-fix-linkage.patch
 Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
@@ -269,9 +269,10 @@ BuildRequires:	devel(libffi)
 BuildRequires:	devel(libxml2)
 BuildRequires:	devel(libelf)
 %endif
+%ifarch %{armx}
 # Temporary workaround for missing libunwind.so
 BuildRequires:	llvm-devel
-BuildRequires:	%{_lib}unwind-devel
+%endif
 
 Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
 Obsoletes: %{mklibname LLVMRISCVDesc 5} < %{EVRD}
