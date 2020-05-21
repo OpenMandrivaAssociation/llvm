@@ -7,7 +7,7 @@
 %bcond_with compat32
 %endif
 
-%define date 20200518
+%define date 20200521
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -100,7 +100,7 @@ Url:		http://llvm.org/
 %if 0%{date}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/release/%{major1}.x/llvm-%{major1}-%{date}.tar.gz
-Release:	0.%{date}.3
+Release:	0.%{date}.1
 %else
 Release:	1
 %if %{with upstream_tarballs}
