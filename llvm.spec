@@ -147,9 +147,6 @@ Patch11:	llvm-doc-buildfix-bug-41789.patch
 Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
-# because we have an odd combination (compiler-rt but using libstdc++) we need to add
-# the unwind exception handling code which is found in libgcc by linking to libgcc anyway...
-#Patch14:	llvm-3.8.0-stdc++-unwind-linkage.patch
 Patch15:	libunwind-3.8-aarch64-gas.patch
 Patch16:	clang-rename-fix-linkage.patch
 Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
