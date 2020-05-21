@@ -1179,7 +1179,7 @@ done
 %endif
 %if %{with unwind}
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
-	-DCLANG_DEFAULT_UNWINDLIB=compiler-rt \
+	-DCLANG_DEFAULT_UNWINDLIB=libunwind \
 %endif
 	-G Ninja \
 	../llvm
@@ -1234,7 +1234,7 @@ cd ..
 	-DLLVM_ENABLE_DOXYGEN:BOOL=OFF \
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
 	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;libcxxabi;libcxx;pstl;parallel-libs" \
-	-DCLANG_DEFAULT_UNWINDLIB=compiler-rt \
+	-DCLANG_DEFAULT_UNWINDLIB=libunwind \
 	-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=i686-openmandriva-linux-gnu \
 	-DLIBCXX_USE_COMPILER_RT:BOOL=ON \
 	-DLIBUNWIND_USE_COMPILER_RT:BOOL=ON \
