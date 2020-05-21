@@ -266,9 +266,12 @@ BuildRequires:	devel(libffi)
 BuildRequires:	devel(libxml2)
 BuildRequires:	devel(libelf)
 %endif
-%ifarch %{armx}
+%ifarch %{armx} i686
 # Temporary workaround for missing libunwind.so
 BuildRequires:	llvm-devel
+%ifarch i686
+BuildRequires:	libunwind-devel
+%endif
 %endif
 
 Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
