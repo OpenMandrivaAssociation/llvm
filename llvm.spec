@@ -475,6 +475,7 @@ Development files for libc++, an alternative implementation of the STL.
 %{_includedir}/c++
 %{_includedir}/__pstl*
 %{_includedir}/pstl
+%{_prefix}/lib/cmake/ParallelSTL
 
 %package -n %{cxxabistatic}
 Summary: Static library for libc++ C++ ABI support
@@ -947,7 +948,6 @@ Group: Development/C
 32-bit LLVM development files
 
 %files -n libllvm-devel
-%{_prefix}/lib/cmake/ParallelSTL
 %{_prefix}/lib/cmake/clang
 %{_prefix}/lib/cmake/llvm
 %{_prefix}/lib/libLLVM*.so
