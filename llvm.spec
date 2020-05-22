@@ -100,7 +100,7 @@ Url:		http://llvm.org/
 %if 0%{date}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/release/%{major1}.x/llvm-%{major1}-%{date}.tar.gz
-Release:	0.%{date}.1
+Release:	0.%{date}.2
 %else
 Release:	1
 %if %{with upstream_tarballs}
@@ -993,6 +993,54 @@ Development files for the 32-bit OpenMP runtime
 %{_prefix}/lib/libgomp.so
 %{_prefix}/lib/libiomp5.so
 %{_prefix}/lib/libomp.so
+
+%package polly32
+Summary: Polyhedral optimizations for LLVM (32-bit)
+License: MIT
+Group: Development/Other
+
+%description polly32
+Polly is a polyhedral optimizer for LLVM.
+
+Using an abstract mathematical representation it analyzes and optimizes
+the memory access pattern of a program. This includes data-locality
+optimizations for cache locality as well as automatic parallelization
+for thread-level and SIMD parallelism.
+
+Our overall goal is an integrated optimizer for data-locality and
+parallelism that takes advantage of multi-cores, cache hierarchies,
+short vector instructions as well as dedicated accelerators.
+
+%files polly32
+%{_prefix}/lib/LLVMPolly.so
+# Unversioned library, not -devel file
+%{_prefix}/lib/libPolly.so*
+%{_prefix}/lib/libPollyISL.so
+%{_prefix}/lib/libPollyPPCG.so
+
+%package polly32-devel
+Summary: Development files for Polly (32-bit)
+License: MIT
+Group: Development/Other
+Requires: %{name}-polly32 = %{EVRD}
+Requires: %{name}-polly-devel = %{EVRD}
+
+%description polly32-devel
+Development files for Polly.
+
+Polly is a polyhedral optimizer for LLVM.
+
+Using an abstract mathematical representation it analyzes and optimizes
+the memory access pattern of a program. This includes data-locality
+optimizations for cache locality as well as automatic parallelization
+for thread-level and SIMD parallelism.
+
+Our overall goal is an integrated optimizer for data-locality and
+parallelism that takes advantage of multi-cores, cache hierarchies,
+short vector instructions as well as dedicated accelerators.
+
+%files polly32-devel
+%{_prefix}/lib/cmake/polly
 %endif
 
 #-----------------------------------------------------------
@@ -1224,7 +1272,7 @@ cd ..
 	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/lib" \
 	-DLLVM_ENABLE_DOXYGEN:BOOL=OFF \
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
-	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;libcxxabi;libcxx;pstl;parallel-libs" \
+	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;libcxxabi;libcxx;pstl;parallel-libs;polly" \
 	-DCLANG_DEFAULT_UNWINDLIB=libunwind \
 	-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=i686-openmandriva-linux-gnu \
 	-DLIBCXX_USE_COMPILER_RT:BOOL=ON \
