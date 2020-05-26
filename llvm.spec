@@ -55,7 +55,12 @@
 # libcxx fails to bootstrap with gcc
 %bcond_with build_libcxx
 %else
+%ifarch %{ix86}
+# FIXME libc++ seems to be broken on x86_32
+%bcond_with build_libcxx
+%else
 %bcond_without build_libcxx
+%endif
 %endif
 %ifarch %{riscv}
 # Disabled until we get a RISC-V implementation of NativeRegisterContext
