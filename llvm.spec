@@ -105,7 +105,7 @@ Url:		http://llvm.org/
 %if 0%{date}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/release/%{major1}.x/llvm-%{major1}-%{date}.tar.gz
-Release:	0.%{date}.2
+Release:	0.%{date}.3
 %else
 Release:	1
 %if %{with upstream_tarballs}
@@ -270,6 +270,9 @@ Requires:	%{ompname} = %{EVRD}
 BuildRequires:	devel(libffi)
 BuildRequires:	devel(libxml2)
 BuildRequires:	devel(libelf)
+# For Polly
+BuildRequires:	devel(libgmp)
+BuildRequires:	devel(libisl)
 %endif
 %ifarch %{armx} i686
 # Temporary workaround for missing libunwind.so
@@ -1046,6 +1049,34 @@ short vector instructions as well as dedicated accelerators.
 
 %files polly32-devel
 %{_prefix}/lib/cmake/polly
+
+%define lib32unwind libunwind%{libunwind_major}
+%define dev32unwind libunwind-devel
+
+%package -n %{lib32unwind}
+Summary: The LLVM unwind library (32-bit)
+Group: System/Libraries
+
+%description -n %{lib32unwind}
+The unwind library, a part of llvm.
+
+%files -n %{lib32unwind}
+%{_prefix}/lib/libunwind.so.%{libunwind_major}
+%{_prefix}/lib/libunwind.so.1
+
+%package -n %{dev32unwind}
+Summary: Development files for libunwind (32-bit)
+Group: Development/C
+Requires: %{lib32unwind} = %{EVRD}
+Requires: %{devunwind} = %{EVRD}
+
+%description -n %{dev32unwind}
+Development files for libunwind
+
+%files -n %{dev32unwind}
+%{_prefix}/lib/libunwind.a
+%{_prefix}/lib/libunwind.so
+%{_prefix}/lib/pkgconfig/libunwind.pc
 %endif
 
 #-----------------------------------------------------------
@@ -1240,6 +1271,7 @@ cd ..
 
 %if %{with compat32}
 %cmake32 \
+	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;parallel-libs;polly" \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 	-DLLVM_ENABLE_FFI:BOOL=ON \
 	-DLLVM_TARGETS_TO_BUILD=all \
@@ -1252,7 +1284,7 @@ cd ..
 	-DLLVM_BINUTILS_INCDIR=%{_includedir} \
 	-DLLVM_BUILD_DOCS:BOOL=OFF \
 	-DLLVM_BUILD_EXAMPLES:BOOL=OFF \
-	-DLLVM_BUILD_RUNTIME:BOOL=OFF \
+	-DLLVM_BUILD_RUNTIME:BOOL=ON \
 	-DLLVM_TOOL_COMPILER_RT_BUILD:BOOL=ON \
 	-DENABLE_LINKER_BUILD_ID:BOOL=ON \
 	-DOCAMLFIND=NOTFOUND \
@@ -1277,12 +1309,12 @@ cd ..
 	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/lib" \
 	-DLLVM_ENABLE_DOXYGEN:BOOL=OFF \
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
-	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;libcxxabi;libcxx;pstl;parallel-libs;polly" \
 	-DCLANG_DEFAULT_UNWINDLIB=libunwind \
 	-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=i686-openmandriva-linux-gnu \
 	-DLIBCXX_USE_COMPILER_RT:BOOL=ON \
 	-DLIBUNWIND_USE_COMPILER_RT:BOOL=ON \
 	-DLLVM_ENABLE_PER_TARGET_RUNTIME:BOOL=ON \
+	-DLLVM_HOST_TRIPLE=i686-openmandriva-linux-gnu \
 	-DLLVM_TARGET_ARCH=i686 \
 	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/lib" \
 	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/lib" \
@@ -1385,6 +1417,9 @@ rm -f %{buildroot}%{_libdir}/libgomp.so
 cp libunwind/include/libunwind.h libunwind/include/__libunwind_config.h %{buildroot}%{_includedir}/
 # And move unwind.h to where gcc can see it as well
 mv %{buildroot}%{_libdir}/clang/%{version}/include/unwind.h %{buildroot}%{_includedir}/
-mkdir -p %{buildroot}%{_libdir}/pkgconfig
+mkdir -p %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_prefix}/lib/pkgconfig
 sed -e 's,@LIBDIR@,%{_libdir},g;s,@VERSION@,%{version},g' %{S:50} >%{buildroot}%{_libdir}/pkgconfig/libunwind.pc
+%if %{with compat32}
+sed -e 's,@LIBDIR@,%{_prefix}/lib,g;s,@VERSION@,%{version},g' %{S:50} >%{buildroot}%{_prefix}/lib/pkgconfig/libunwind.pc
+%endif
 %endif
