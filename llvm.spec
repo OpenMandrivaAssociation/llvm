@@ -141,6 +141,7 @@ Patch4:		clang-9.0.0-bogus-headers.patch
 # Patches from AOSP
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
+Patch6:		llvm-10.0-fix-m32.patch
 # Claim compatibility with gcc 9.2.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
@@ -570,6 +571,7 @@ This package contains the development files for LLVM.
 %{_includedir}/%{name}-c
 %{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
+%exclude %{_libdir}/libGPURuntime.so
 %ifnarch %{riscv} %{arm}
 %{_libdir}/libarcher_static.a
 %endif
@@ -949,6 +951,18 @@ Python bindings to parts of the Clang library
 %{python_sitelib}/clang
 #-----------------------------------------------------------
 
+%package -n %{_lib}gpuruntime
+Summary: GPU runtime library
+Group: System/Libraries
+
+%description -n %{_lib}gpuruntime
+32-bit GPU runtime library
+
+%files -n %{_lib}gpuruntime
+%{_libdir}/libGPURuntime.so
+
+#-----------------------------------------------------------
+
 %if %{with compat32}
 %package -n libllvm-devel
 Summary: 32-bit LLVM development files
@@ -977,6 +991,16 @@ Group: Development/C
 
 %files -n libclang-devel
 %{_prefix}/lib/libclang*.so
+
+%package -n libgpuruntime
+Summary: 32-bit GPU runtime library
+Group: System/Libraries
+
+%description -n libgpuruntime
+32-bit GPU runtime library
+
+%files -n libgpuruntime
+%{_prefix}/lib/libGPURuntime.so
 
 %package -n libomp1
 Summary: 32-bit OpenMP runtime
@@ -1216,6 +1240,8 @@ done
 	-DLLVM_BUILD_EXAMPLES:BOOL=OFF \
 	-DLLVM_BUILD_RUNTIME:BOOL=ON \
 	-DLLVM_TOOL_COMPILER_RT_BUILD:BOOL=ON \
+	-DCOMPILER_RT_BUILD_BUILTINS:BOOL=ON \
+	-DCOMPILER_RT_BUILD_CRT:BOOL=ON \
 	-DENABLE_LINKER_BUILD_ID:BOOL=ON \
 	-DOCAMLFIND=NOTFOUND \
 	-DLLVM_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
@@ -1286,6 +1312,8 @@ cd ..
 	-DLLVM_BUILD_EXAMPLES:BOOL=OFF \
 	-DLLVM_BUILD_RUNTIME:BOOL=ON \
 	-DLLVM_TOOL_COMPILER_RT_BUILD:BOOL=ON \
+	-DCOMPILER_RT_BUILD_BUILTINS:BOOL=ON \
+	-DCOMPILER_RT_BUILD_CRT:BOOL=ON \
 	-DENABLE_LINKER_BUILD_ID:BOOL=ON \
 	-DOCAMLFIND=NOTFOUND \
 	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \

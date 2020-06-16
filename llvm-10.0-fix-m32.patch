@@ -1,0 +1,19 @@
+diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp.omv~ llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp.omv~	2020-06-16 17:17:44.754375205 +0200
++++ llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp	2020-06-16 17:18:52.284080938 +0200
+@@ -446,10 +446,15 @@ Linux::Linux(const Driver &D, const llvm
+                            Multilib.osSuffix(),
+                     Paths);
+ 
++#if 0
+     // See comments above on the multilib variant for details of why this is
+     // only included from within the sysroot.
++    // This is actually harmful unconditionally because it adds
++    // 	/usr/bin/../lib64/gcc/x86_64-openmandriva-linux-gnu/10.0.0/../../..
++    // ( == /usr/lib64 ) even in -m32 mode. Let's NOT do it.
+     if (StringRef(LibPath).startswith(SysRoot))
+       addPathIfExists(D, LibPath, Paths);
++#endif
+   }
+ 
+   // Similar to the logic for GCC above, if we are currently running Clang
