@@ -7,7 +7,7 @@
 %bcond_with compat32
 %endif
 
-%define date 20200521
+%define date 20200616
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -105,7 +105,7 @@ Url:		http://llvm.org/
 %if 0%{date}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/release/%{major1}.x/llvm-%{major1}-%{date}.tar.gz
-Release:	0.%{date}.3
+Release:	0.%{date}.1
 %else
 Release:	1
 %if %{with upstream_tarballs}
@@ -1221,6 +1221,10 @@ done
 %cmake \
 	-DLLVM_ENABLE_PROJECTS="$COMPONENTS" \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
+	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
+	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
+	-DCLANG_DEFAULT_RTLIB=compiler-rt \
+	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
 %if %{with ffi}
 	-DLLVM_ENABLE_FFI:BOOL=ON \
 %else
@@ -1298,6 +1302,10 @@ cd ..
 %if %{with compat32}
 %cmake32 \
 	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;parallel-libs;polly" \
+	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
+	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
+	-DCLANG_DEFAULT_RTLIB=compiler-rt \
+	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 	-DLLVM_ENABLE_FFI:BOOL=ON \
 	-DLLVM_TARGETS_TO_BUILD=all \
@@ -1360,6 +1368,35 @@ cd ..
 %ninja_build
 %endif
 
+%ifarch %{x86_64}
+# Build 32-bit compiler-rt libraries so
+# -m32 can do the right thing
+#
+# We use --rtlib=libgcc --unwindlib=libgcc in the flags below
+# for bootstrapping -- they're needed only to get cmake to shut
+# up about the compiler tests.
+cd ..
+mkdir xbuild-crt-32
+cd xbuild-crt-32
+cmake \
+	-G Ninja \
+	../compiler-rt \
+	-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{version} \
+	-DCOMPILER_RT_BUILD_BUILTINS:BOOL=ON \
+	-DCOMPILER_RT_BUILD_SANITIZERS:BOOL=ON \
+	-DCOMPILER_RT_BUILD_XRAY:BOOL=OFF \
+	-DCOMPILER_RT_BUILD_LIBFUZZER:BOOL=OFF \
+	-DCOMPILER_RT_BUILD_PROFILE:BOOL=OFF \
+	-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=i686-openmandriva-linux-gnu \
+	-DCMAKE_EXE_LINKER_FLAGS="$(echo %{ldflags} |sed -e 's,-m64,,g;s,-mx32,,g') -m32" \
+	-DCMAKE_C_COMPILER_TARGET="i686-openmandriva-linux-gnu" \
+	-DCMAKE_ASM_COMPILER_TARGET="i686-openmandriva-linux-gnu" \
+	-DCMAKE_C_FLAGS="$(echo %{optflags} |sed -e 's,-m64,,g;s,-mx32,,g') -m32 --rtlib=libgcc --unwindlib=libgcc" \
+	-DCMAKE_CXX_FLAGS="$(echo %{optflags} |sed -e 's,-m64,,g;s,-mx32,,g') -m32 --rtlib=libgcc --unwindlib=libgcc" \
+	-DCMAKE_ASM_FLAGS="$(echo %{optflags} |sed -e 's,-m64,,g;s,-mx32,,g') -m32 --rtlib=libgcc --unwindlib=libgcc"
+%ninja_build
+%endif
+
 %install
 %if %{with ocaml}
 #cp bindings/ocaml/llvm/META.llvm bindings/ocaml/llvm/Release/
@@ -1376,6 +1413,10 @@ rm -rf \
 %endif
 
 %ninja_install -C build
+
+%ifarch %{x86_64}
+%ninja_install -C xbuild-crt-32
+%endif
 
 # Nuke the internal copy, we have system python-six
 rm -f %{buildroot}%{_libdir}/python*/site-packages/six.py
