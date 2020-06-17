@@ -282,6 +282,13 @@ BuildRequires:	llvm-devel
 BuildRequires:	libunwind-devel
 %endif
 %endif
+# for libGPURuntime in Polly
+BuildRequires:	pkgconfig(OpenCL)
+BuildRequires:	mesa-opencl-devel
+%if %{with compat32}
+BuildRequires:	devel(libOpenCL)
+BuildRequires:	devel(libMesaOpenCL)
+%endif
 
 Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
 Obsoletes: %{mklibname LLVMRISCVDesc 5} < %{EVRD}
