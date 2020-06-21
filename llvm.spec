@@ -7,7 +7,7 @@
 %bcond_with compat32
 %endif
 
-%define date 20200616
+%define date 20200621
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -69,14 +69,8 @@
 %else
 %bcond_without lldb
 %endif
-%ifarch %{riscv} riscv64
-# OpenMP and libunwind aren't working on RISC-V yet
-%bcond_with openmp
-%bcond_with unwind
-%else
 %bcond_without openmp
 %bcond_without unwind
-%endif
 # As of 10.0 2020/05/18 LLGO is broken
 # (fails to compile)
 %bcond_with llgo
