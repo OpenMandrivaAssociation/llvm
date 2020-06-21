@@ -1,7 +1,7 @@
-diff -up llvm-project-release-10.x/lld/ELF/Config.h.17~ llvm-project-release-10.x/lld/ELF/Config.h
---- llvm-project-release-10.x/lld/ELF/Config.h.17~	2020-02-03 15:05:29.000000000 +0100
-+++ llvm-project-release-10.x/lld/ELF/Config.h	2020-02-03 16:11:27.299130807 +0100
-@@ -128,12 +128,12 @@ struct Configuration {
+diff -up llvm-project-master/lld/ELF/Config.h.14~ llvm-project-master/lld/ELF/Config.h
+--- llvm-project-master/lld/ELF/Config.h.14~	2020-06-21 19:00:42.000000000 +0200
++++ llvm-project-master/lld/ELF/Config.h	2020-06-21 19:57:06.345779527 +0200
+@@ -133,12 +133,12 @@ struct Configuration {
                    uint64_t>
        callGraphProfile;
    bool allowMultipleDefinition;
@@ -16,7 +16,7 @@ diff -up llvm-project-release-10.x/lld/ELF/Config.h.17~ llvm-project-release-10.
    bool bsymbolic;
    bool bsymbolicFunctions;
    bool callGraphProfileSort;
-@@ -147,16 +147,16 @@ struct Configuration {
+@@ -152,15 +152,15 @@ struct Configuration {
    bool ehFrameHdr;
    bool emitLLVM;
    bool emitRelocs;
@@ -26,7 +26,6 @@ diff -up llvm-project-release-10.x/lld/ELF/Config.h.17~ llvm-project-release-10.
    bool exportDynamic;
    bool fixCortexA53Errata843419;
    bool fixCortexA8;
-   bool forceBTI;
    bool formatBinary = false;
 -  bool gcSections;
 +  bool gcSections = true;
@@ -34,18 +33,18 @@ diff -up llvm-project-release-10.x/lld/ELF/Config.h.17~ llvm-project-release-10.
 -  bool gnuHash = false;
 +  bool gnuHash = true;
    bool gnuUnique;
-   bool hasDynamicList = false;
    bool hasDynSymTab;
-@@ -195,7 +195,7 @@ struct Configuration {
-   bool undefinedVersion;
+   bool ignoreDataAddressEquality;
+@@ -206,7 +206,7 @@ struct Configuration {
    bool useAndroidRelrTags = false;
    bool warnBackrefs;
+   std::vector<llvm::GlobPattern> warnBackrefsExclude;
 -  bool warnCommon;
 +  bool warnCommon = true;
    bool warnIfuncTextrel;
    bool warnMissingEntry;
    bool warnSymbolOrdering;
-@@ -222,14 +222,14 @@ struct Configuration {
+@@ -235,14 +235,14 @@ struct Configuration {
    bool zWxneeded;
    DiscardPolicy discard;
    GnuStackKind zGnustack;
@@ -62,19 +61,19 @@ diff -up llvm-project-release-10.x/lld/ELF/Config.h.17~ llvm-project-release-10.
    SeparateSegmentKind zSeparate;
    ELFKind ekind = ELFNoneKind;
    uint16_t emachine = llvm::ELF::EM_NONE;
-@@ -240,7 +240,7 @@ struct Configuration {
+@@ -253,7 +253,7 @@ struct Configuration {
    uint64_t zStackSize;
    unsigned ltoPartitions;
    unsigned ltoo;
 -  unsigned optimize;
 +  unsigned optimize = 1;
-   unsigned thinLTOJobs;
+   StringRef thinLTOJobs;
+   unsigned timeTraceGranularity;
    int32_t splitStackAdjustSize;
- 
-diff -up llvm-project-release-10.x/lld/ELF/Driver.cpp.17~ llvm-project-release-10.x/lld/ELF/Driver.cpp
---- llvm-project-release-10.x/lld/ELF/Driver.cpp.17~	2020-02-03 15:05:29.000000000 +0100
-+++ llvm-project-release-10.x/lld/ELF/Driver.cpp	2020-02-03 16:12:19.729133119 +0100
-@@ -614,10 +614,10 @@ static StringRef getDynamicLinker(opt::I
+diff -up llvm-project-master/lld/ELF/Driver.cpp.14~ llvm-project-master/lld/ELF/Driver.cpp
+--- llvm-project-master/lld/ELF/Driver.cpp.14~	2020-06-21 19:00:42.000000000 +0200
++++ llvm-project-master/lld/ELF/Driver.cpp	2020-06-21 19:57:30.194512821 +0200
+@@ -635,10 +635,10 @@ static StringRef getDynamicLinker(opt::I
  
  static ICFLevel getICF(opt::InputArgList &args) {
    auto *arg = args.getLastArg(OPT_icf_none, OPT_icf_safe, OPT_icf_all);
@@ -88,7 +87,7 @@ diff -up llvm-project-release-10.x/lld/ELF/Driver.cpp.17~ llvm-project-release-1
    return ICFLevel::All;
  }
  
-@@ -693,7 +693,7 @@ getBuildId(opt::InputArgList &args) {
+@@ -714,7 +714,7 @@ getBuildId(opt::InputArgList &args) {
      return {BuildIdKind::None, {}};
  
    if (arg->getOption().getID() == OPT_build_id)
@@ -97,16 +96,16 @@ diff -up llvm-project-release-10.x/lld/ELF/Driver.cpp.17~ llvm-project-release-1
  
    StringRef s = arg->getValue();
    if (s == "fast")
-@@ -882,7 +882,7 @@ static void readConfigs(opt::InputArgLis
-   config->fixCortexA53Errata843419 = args.hasArg(OPT_fix_cortex_a53_843419);
-   config->fixCortexA8 = args.hasArg(OPT_fix_cortex_a8);
-   config->forceBTI = hasZOption(args, "force-bti");
+@@ -921,7 +921,7 @@ static void readConfigs(opt::InputArgLis
+                                      !args.hasArg(OPT_relocatable);
+   config->fixCortexA8 =
+       args.hasArg(OPT_fix_cortex_a8) && !args.hasArg(OPT_relocatable);
 -  config->gcSections = args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, false);
 +  config->gcSections = args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, true);
    config->gnuUnique = args.hasFlag(OPT_gnu_unique, OPT_no_gnu_unique, true);
    config->gdbIndex = args.hasFlag(OPT_gdb_index, OPT_no_gdb_index, false);
    config->icf = getICF(args);
-@@ -963,7 +963,7 @@ static void readConfigs(opt::InputArgLis
+@@ -1017,7 +1017,7 @@ static void readConfigs(opt::InputArgLis
    config->unresolvedSymbols = getUnresolvedSymbolPolicy(args);
    config->warnBackrefs =
        args.hasFlag(OPT_warn_backrefs, OPT_no_warn_backrefs, false);
@@ -115,7 +114,7 @@ diff -up llvm-project-release-10.x/lld/ELF/Driver.cpp.17~ llvm-project-release-1
    config->warnIfuncTextrel =
        args.hasFlag(OPT_warn_ifunc_textrel, OPT_no_warn_ifunc_textrel, false);
    config->warnSymbolOrdering =
-@@ -1735,7 +1735,7 @@ template <class ELFT> void LinkerDriver:
+@@ -1827,7 +1827,7 @@ template <class ELFT> void LinkerDriver:
      if (config->emachine == EM_MIPS)
        config->sysvHash = true;
      else

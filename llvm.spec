@@ -71,9 +71,6 @@
 %endif
 %bcond_without openmp
 %bcond_without unwind
-# As of 10.0 2020/05/18 LLGO is broken
-# (fails to compile)
-%bcond_with llgo
 %bcond_without lld
 
 # Prefer compiler-rt over libgcc
@@ -89,16 +86,17 @@
 
 %define major %(echo %{version} |cut -d. -f1-2)  
 %define major1 %(echo %{version} |cut -d. -f1)
+%define is_master 1
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	10.0.1
+Version:	11.0.0
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
 %if 0%{date}
 # git archive-d from https://github.com/llvm/llvm-project
-Source0:	https://github.com/llvm/llvm-project/archive/release/%{major1}.x/llvm-%{major1}-%{date}.tar.gz
+Source0:	https://github.com/llvm/llvm-project/archive/%{?is_master:master}%{!?is_master:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
 Release:	0.%{date}.1
 %else
 Release:	1
@@ -135,8 +133,8 @@ Patch4:		clang-9.0.0-bogus-headers.patch
 # Patches from AOSP
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
-Patch6:		llvm-10.0-fix-m32.patch
-# Claim compatibility with gcc 9.2.1 rather than 4.2.1, it's
+Patch6:		llvm-11-compiler-rt-cmake-verbose.patch
+# Claim compatibility with gcc 11.0.1 rather than 4.2.1, it's
 # much much closer in terms of standards supported etc.
 Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
@@ -147,11 +145,8 @@ Patch11:	llvm-doc-buildfix-bug-41789.patch
 Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
-Patch15:	libunwind-3.8-aarch64-gas.patch
 Patch16:	clang-rename-fix-linkage.patch
 Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
-# https://bugs.llvm.org/show_bug.cgi?id=42445
-Patch18:	clang-Os-Oz-bug42445.patch
 # Enable --no-undefined, --as-needed, --enable-new-dtags,
 # --hash-style=gnu, --warn-common, --icf=safe, --build-id=sha1,
 # -O by default
@@ -174,8 +169,6 @@ Patch40:	libc++-3.7.0-musl-compat.patch
 Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
 # Fix library versioning
 Patch46:	llvm-4.0.1-libomp-versioning.patch
-# https://bugs.llvm.org/show_bug.cgi?id=45468
-Patch47:	https://github.com/llvm/llvm-project/commit/30588a739584bb8ac41715d68656d22bd85198e7.patch
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
@@ -189,11 +182,6 @@ Patch57:	tsan-realpath-redefinition.patch
 # libomp needs to link to libm so it can see
 # logbl and fmaxl when using compiler-rt
 Patch58:	llvm-10-omp-needs-libm.patch
-%if 0%{date}
-# llgo bits -- not yet part of releases
-Patch60:	llgo-4.0rc1-compile-workaround.patch
-Patch61:	llgo-4.0rc1-compilerflags-workaround.patch
-%endif
 # Really a patch -- but we want to apply it conditionally
 # and we use %%autosetup for other patches...
 Source62:	llvm-10-default-compiler-rt.patch
@@ -243,9 +231,6 @@ BuildRequires:	cmake
 BuildRequires:	ninja
 %if %{with apidox}
 BuildRequires:	doxygen
-%endif
-%if %{with llgo}
-BuildRequires:	(go or gcc-go)
 %endif
 Obsoletes:	llvm-ocaml
 # For lldb
@@ -584,9 +569,6 @@ This package contains the development files for LLVM.
 %endif
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
-%if %{with llgo}
-%exclude %{_libdir}/libgo-llgo.so
-%endif
 %exclude %{_libdir}/libLTO.so
 %exclude %{_libdir}/libPolly.so
 %exclude %{_libdir}/libPollyISL.so
@@ -922,25 +904,6 @@ writing lld plugins.
 %endif
 #-----------------------------------------------------------
 
-%if %{with llgo}
-%package -n llgo
-Summary:	LLVM based implementation of the Go language
-Group:		Development/Other
-
-%description -n llgo
-LLVM based implementation of the Go language.
-
-%files -n llgo
-%{_bindir}/llgo
-%{_bindir}/llgo-go
-%{_bindir}/llgoi
-%{_libdir}/libgo-llgo.so*
-%{_libdir}/libgo-llgo.a
-%{_libdir}/libgobegin-llgo.a
-%{_libdir}/go/llgo-%{version}*
-%endif
-
-#-----------------------------------------------------------
 %package -n python-clang
 Summary:	Python bindings to parts of the Clang library
 Group:		Development/Python
@@ -1109,7 +1072,7 @@ Development files for libunwind
 
 %prep
 %if 0%{date}
-%autosetup -p1 -n llvm-project-release-%{major1}.x
+%autosetup -p1 -n llvm-project-%{?is_master:master}%{!?is_master:release-%{major1}.x}
 %else
 %if %{with upstream_tarballs}
 %setup -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10
@@ -1158,9 +1121,6 @@ COMPONENTS="$COMPONENTS;libunwind"
 %if %{with lldb}
 COMPONENTS="$COMPONENTS;lldb"
 %endif
-%if %{with llgo}
-COMPONENTS="$COMPONENTS;llgo"
-%endif
 %if %{with lld}
 COMPONENTS="$COMPONENTS;lld"
 %endif
@@ -1207,7 +1167,7 @@ done
 # 64-bit build to debug 32-bit build issues. No need to do a
 # proper define/with condition here, the switch is useless for
 # any regular use.
-%if 1
+%if 0
 # We set an RPATH in CMAKE_EXE_LINKER_FLAGS to make sure the newly built
 # clang and friends use the just-built shared libraries -- there's no guarantee
 # that the ABI remains compatible between a snapshot libclang.so.11 and the
@@ -1301,7 +1261,24 @@ cd ..
 %endif
 
 %if %{with compat32}
+TOP="$(pwd)"
+cat >xc <<EOF
+#!/bin/sh
+exec %{_bindir}/clang -target i686-openmandriva-linux-gnu "\$@"
+EOF
+cat >xc++ <<EOF
+#!/bin/sh
+exec %{_bindir}/clang++ -target i686-openmandriva-linux-gnu "\$@"
+EOF
+chmod +x xc xc++
+cat >cmake-i686.toolchain <<EOF
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR i686)
+set(CMAKE_C_COMPILER ${TOP}/xc)
+set(CMAKE_CXX_COMPILER ${TOP}/xc++)
+EOF
 %cmake32 \
+	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
 	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;parallel-libs;polly" \
 	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \

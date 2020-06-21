@@ -6,7 +6,7 @@ diff -up llvm-project-release-10.x/clang/include/clang/Basic/LangOptions.def.6~ 
  LANGOPT(GNUMode           , 1, 1, "GNU extensions")
  LANGOPT(GNUKeywords       , 1, 1, "GNU keywords")
 -VALUE_LANGOPT(GNUCVersion , 32, 0, "GNU C compatibility version")
-+VALUE_LANGOPT(GNUCVersion , 32, 90201, "GNU C compatibility version")
++VALUE_LANGOPT(GNUCVersion , 32, 110201, "GNU C compatibility version")
  BENIGN_LANGOPT(ImplicitInt, 1, !C99 && !CPlusPlus, "C89 implicit 'int'")
  LANGOPT(Digraphs          , 1, 0, "digraphs")
  BENIGN_LANGOPT(HexFloats  , 1, C99, "C99 hexadecimal float constants")
@@ -18,7 +18,7 @@ diff -up llvm-project-release-10.x/clang/lib/Frontend/CompilerInvocation.cpp.6~ 
    Opts.GNUMode = Std.isGNUMode();
    Opts.GNUInline = !Opts.C99 && !Opts.CPlusPlus;
 -  Opts.GNUCVersion = 0;
-+  Opts.GNUCVersion = 90201;
++  Opts.GNUCVersion = 110201;
    Opts.HexFloats = Std.hasHexFloats();
    Opts.ImplicitInt = Std.hasImplicitInt();
  
@@ -45,7 +45,7 @@ diff -up llvm-project-release-10.x/lldb/source/Plugins/ExpressionParser/Clang/Cl
  
      // The Darwin libc expects this macro to be set.
 -    lang_opts.GNUCVersion = 40201;
-+    lang_opts.GNUCVersion = 90201;
++    lang_opts.GNUCVersion = 110201;
  
      SetupModuleHeaderPaths(m_compiler.get(), m_include_directories,
                             target_sp);

@@ -1,16 +1,16 @@
-diff -up llvm-project-release-10.x/clang/include/clang/Driver/Distro.h.1~ llvm-project-release-10.x/clang/include/clang/Driver/Distro.h
---- llvm-project-release-10.x/clang/include/clang/Driver/Distro.h.1~	2020-02-03 15:05:29.000000000 +0100
-+++ llvm-project-release-10.x/clang/include/clang/Driver/Distro.h	2020-02-03 15:55:08.167087633 +0100
-@@ -67,6 +67,8 @@ public:
-     UbuntuDisco,
+diff -up llvm-project-master/clang/include/clang/Driver/Distro.h.1~ llvm-project-master/clang/include/clang/Driver/Distro.h
+--- llvm-project-master/clang/include/clang/Driver/Distro.h.1~	2020-06-21 19:00:42.000000000 +0200
++++ llvm-project-master/clang/include/clang/Driver/Distro.h	2020-06-21 19:46:38.165269136 +0200
+@@ -68,6 +68,8 @@ public:
      UbuntuEoan,
      UbuntuFocal,
+     UbuntuGroovy,
 +    OpenMandriva,
 +    ROSA,
      UnknownDistro
    };
  
-@@ -131,6 +133,10 @@ public:
+@@ -132,6 +134,10 @@ public:
      return DistroVal == Gentoo;
    }
  
@@ -21,10 +21,10 @@ diff -up llvm-project-release-10.x/clang/include/clang/Driver/Distro.h.1~ llvm-p
    /// @}
  };
  
-diff -up llvm-project-release-10.x/clang/lib/Driver/Distro.cpp.1~ llvm-project-release-10.x/clang/lib/Driver/Distro.cpp
---- llvm-project-release-10.x/clang/lib/Driver/Distro.cpp.1~	2020-02-03 15:05:29.000000000 +0100
-+++ llvm-project-release-10.x/clang/lib/Driver/Distro.cpp	2020-02-03 15:56:38.882091633 +0100
-@@ -42,7 +42,7 @@ static Distro::DistroType DetectDistro(l
+diff -up llvm-project-master/clang/lib/Driver/Distro.cpp.1~ llvm-project-master/clang/lib/Driver/Distro.cpp
+--- llvm-project-master/clang/lib/Driver/Distro.cpp.1~	2020-06-21 19:00:42.000000000 +0200
++++ llvm-project-master/clang/lib/Driver/Distro.cpp	2020-06-21 19:47:41.959029630 +0200
+@@ -43,7 +43,7 @@ static Distro::DistroType DetectDistro(l
      SmallVector<StringRef, 16> Lines;
      Data.split(Lines, "\n");
      Distro::DistroType Version = Distro::UnknownDistro;
@@ -33,11 +33,10 @@ diff -up llvm-project-release-10.x/clang/lib/Driver/Distro.cpp.1~ llvm-project-r
        if (Version == Distro::UnknownDistro && Line.startswith("DISTRIB_CODENAME="))
          Version = llvm::StringSwitch<Distro::DistroType>(Line.substr(17))
                        .Case("hardy", Distro::UbuntuHardy)
-@@ -71,6 +71,18 @@ static Distro::DistroType DetectDistro(l
-                       .Case("eoan", Distro::UbuntuEoan)
+@@ -73,6 +73,17 @@ static Distro::DistroType DetectDistro(l
                        .Case("focal", Distro::UbuntuFocal)
+                       .Case("groovy", Distro::UbuntuGroovy)
                        .Default(Distro::UnknownDistro);
-+
 +      else if (Version == Distro::UnknownDistro && Line.startswith("DISTRIB_ID=MandrivaLinux"))
 +        // It's a Mandriva derivate -- will get details
 +        // from DISTRIB_DESCRIPTION
@@ -52,10 +51,10 @@ diff -up llvm-project-release-10.x/clang/lib/Driver/Distro.cpp.1~ llvm-project-r
      if (Version != Distro::UnknownDistro)
        return Version;
    }
-diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp
---- llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~	2020-02-03 15:05:29.000000000 +0100
-+++ llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp	2020-02-03 15:52:26.515080505 +0100
-@@ -1997,7 +1997,10 @@ void Generic_GCC::GCCInstallationDetecto
+diff -up llvm-project-master/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-master/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-project-master/clang/lib/Driver/ToolChains/Gnu.cpp.1~	2020-06-21 19:00:42.000000000 +0200
++++ llvm-project-master/clang/lib/Driver/ToolChains/Gnu.cpp	2020-06-21 19:46:06.874896598 +0200
+@@ -2002,7 +2002,10 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
        "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-redhat-linux",
@@ -67,7 +66,7 @@ diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-p
    static const char *const AArch64beLibDirs[] = {"/lib"};
    static const char *const AArch64beTriples[] = {"aarch64_be-none-linux-gnu",
                                                   "aarch64_be-linux-gnu"};
-@@ -2008,7 +2011,40 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2013,7 +2016,40 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const ARMHFTriples[] = {"arm-linux-gnueabihf",
                                               "armv7hl-redhat-linux-gnueabi",
                                               "armv6hl-suse-linux-gnueabi",
@@ -109,7 +108,7 @@ diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-p
    static const char *const ARMebLibDirs[] = {"/lib"};
    static const char *const ARMebTriples[] = {"armeb-linux-gnueabi",
                                               "armeb-linux-androideabi"};
-@@ -2025,7 +2061,11 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2030,7 +2066,11 @@ void Generic_GCC::GCCInstallationDetecto
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-linux-gnu",
        "x86_64-slackware-linux", "x86_64-unknown-linux",
@@ -122,7 +121,7 @@ diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-p
    static const char *const X32LibDirs[] = {"/libx32"};
    static const char *const X86LibDirs[] = {"/lib32", "/lib"};
    static const char *const X86Triples[] = {
-@@ -2034,7 +2074,12 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2039,7 +2079,12 @@ void Generic_GCC::GCCInstallationDetecto
        "i586-redhat-linux",    "i386-redhat-linux",     "i586-suse-linux",
        "i486-slackware-linux", "i686-montavista-linux", "i586-linux-gnu",
        "i686-linux-android",   "i386-gnu",              "i486-gnu",
@@ -136,9 +135,9 @@ diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-p
  
    static const char *const MIPSLibDirs[] = {"/lib"};
    static const char *const MIPSTriples[] = {
-diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp.1~	2020-02-03 15:05:29.000000000 +0100
-+++ llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp	2020-02-03 15:52:26.515080505 +0100
+diff -up llvm-project-master/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project-master/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-master/clang/lib/Driver/ToolChains/Linux.cpp.1~	2020-06-21 19:00:42.000000000 +0200
++++ llvm-project-master/clang/lib/Driver/ToolChains/Linux.cpp	2020-06-21 19:48:11.814385955 +0200
 @@ -166,7 +166,7 @@ std::string Linux::getMultiarchTriple(co
    return TargetTriple.str();
  }
@@ -170,7 +169,7 @@ diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm
      return "libx32";
  
    if (Triple.getArch() == llvm::Triple::riscv32)
-@@ -248,7 +254,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -227,7 +233,7 @@ Linux::Linux(const Driver &D, const llvm
    }
  
    if (Distro.IsOpenSUSE() || Distro.IsUbuntu() || Distro.IsAlpineLinux() ||
@@ -179,7 +178,7 @@ diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm
      ExtraOpts.push_back("-z");
      ExtraOpts.push_back("relro");
    }
-@@ -289,6 +295,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -267,6 +273,7 @@ Linux::Linux(const Driver &D, const llvm
    // Hexagon linker/loader does not support .gnu.hash
    if (!IsMips && !IsHexagon) {
      if (Distro.IsRedhat() || Distro.IsOpenSUSE() || Distro.IsAlpineLinux() ||
@@ -187,7 +186,7 @@ diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm
          (Distro.IsUbuntu() && Distro >= Distro::UbuntuMaverick) ||
          (IsAndroid && !Triple.isAndroidVersionLT(23)))
        ExtraOpts.push_back("--hash-style=gnu");
-@@ -304,7 +311,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -282,7 +289,7 @@ Linux::Linux(const Driver &D, const llvm
    ExtraOpts.push_back("--build-id");
  #endif
  
@@ -196,12 +195,12 @@ diff -up llvm-project-release-10.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm
      ExtraOpts.push_back("--enable-new-dtags");
  
    // The selection of paths to try here is designed to match the patterns which
-@@ -314,7 +321,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -292,7 +299,7 @@ Linux::Linux(const Driver &D, const llvm
    // to the link paths.
    path_list &Paths = getFilePaths();
  
--  const std::string OSLibDir = getOSLibDir(Triple, Args);
-+  const std::string OSLibDir = getOSLibDir(Distro, Triple, Args);
+-  const std::string OSLibDir = std::string(getOSLibDir(Triple, Args));
++  const std::string OSLibDir = std::string(getOSLibDir(Distro, Triple, Args));
    const std::string MultiarchTriple = getMultiarchTriple(D, Triple, SysRoot);
  
-   // Add the multilib suffixed paths where they are available.
+   Generic_GCC::AddMultilibPaths(D, SysRoot, OSLibDir, MultiarchTriple, Paths);
