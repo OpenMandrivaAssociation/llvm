@@ -1,0 +1,31 @@
+diff -up llvm-project-release-11.x/flang/docs/CMakeLists.txt.omv~ llvm-project-release-11.x/flang/docs/CMakeLists.txt
+--- llvm-project-release-11.x/flang/docs/CMakeLists.txt.omv~	2020-07-30 20:49:05.767629466 +0200
++++ llvm-project-release-11.x/flang/docs/CMakeLists.txt	2020-07-30 20:50:35.449026821 +0200
+@@ -91,15 +91,16 @@ if (LLVM_ENABLE_DOXYGEN)
+ endif()
+ endif()
+ 
+-if (LLVM_ENABLE_SPHINX)
+-  include(AddSphinxTarget)
+-  if (SPHINX_FOUND)
+-    if (${SPHINX_OUTPUT_HTML})
+-      add_sphinx_target(html flang)
+-    endif()
+-    if (${SPHINX_OUTPUT_MAN})
+-      add_sphinx_target(man flang)
+-    endif()
+-  endif()
+-endif()
++# Uncomment the bits below once documentation has been added
++#if (LLVM_ENABLE_SPHINX)
++#  include(AddSphinxTarget)
++#  if (SPHINX_FOUND)
++#    if (${SPHINX_OUTPUT_HTML})
++#      add_sphinx_target(html flang)
++#    endif()
++#    if (${SPHINX_OUTPUT_MAN})
++#      add_sphinx_target(man flang)
++#    endif()
++#  endif()
++#endif()
+ 

@@ -1,0 +1,15 @@
+diff -up llvm-project-llvmorg-10.0.1/lld/ELF/Driver.cpp.omv~ llvm-project-llvmorg-10.0.1/lld/ELF/Driver.cpp
+--- llvm-project-llvmorg-10.0.1/lld/ELF/Driver.cpp.omv~        2020-07-21 21:40:01.687046083 +0200
++++ llvm-project-llvmorg-10.0.1/lld/ELF/Driver.cpp     2020-07-21 21:45:23.190212533 +0200
+@@ -1172,7 +1172,10 @@ static void setConfigs(opt::InputArgList
+ static bool isFormatBinary(StringRef s) {
+   if (s == "binary")
+     return true;
+-  if (s == "elf" || s == "default")
++  // OMV: Change s == "elf" to s.startswith_lower("elf")
++  // for better compatibility with GNU ld (which allows for
++  // things like elf64-x86-64). Relied on by e.g. fpc
++  if (s.startswith_lower("elf") || s == "default")
+     return false;
+   error("unknown -format value: " + s +
+         " (supported formats: elf, default, binary)");

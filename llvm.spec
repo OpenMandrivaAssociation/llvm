@@ -7,7 +7,7 @@
 %bcond_with compat32
 %endif
 
-%define date 20200621
+%define date 20200731
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -25,12 +25,13 @@
 
 # As of 238820, the "make install" target for apidox
 # is broken with cmake. Re-enable later.
-%bcond_with apidox
+%bcond_without apidox
 # Note: --with libcxx doesn't mean "build libcxx", but "USE libcxx",
 # as in "link llvm libs and clang libs to libcxx rather than libstdc++
 # Don't do this if you care about binary compatibility...
 %bcond_with libcxx
 %bcond_without clang
+%bcond_without flang
 %ifarch aarch64 riscv64
 # AArch64 doesn't have a working ocaml compiler yet
 %bcond_with ocaml
@@ -86,7 +87,11 @@
 
 %define major %(echo %{version} |cut -d. -f1-2)  
 %define major1 %(echo %{version} |cut -d. -f1)
-%define is_master 1
+#define is_master 1
+
+%ifarch %{x86_64}
+%bcond_without crosscrt
+%endif
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
@@ -94,7 +99,7 @@ Version:	11.0.0
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
-%if 0%{date}
+%if 0%{?date:1}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_master:master}%{!?is_master:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
 Release:	0.%{date}.1
@@ -139,6 +144,7 @@ Patch6:		llvm-11-compiler-rt-cmake-verbose.patch
 Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
 Patch8:		clang-fuse-ld.patch
+Patch9:		lld-10.0.1-format.patch
 Patch10:	lldb-9.0.0-swig-compile.patch
 # https://bugs.llvm.org/show_bug.cgi?id=41789
 Patch11:	llvm-doc-buildfix-bug-41789.patch
@@ -156,7 +162,8 @@ Patch20:	llvm-3.7-musl.patch
 Patch21:	llvm-5.0-MuslX32.patch
 Patch22:	lld-9.0-error-on-option-conflict.patch
 Patch23:	llvm-9.0-lld-workaround.patch
-Patch25:	llvm-7.0-compiler-rt-arches.patch
+Patch24:	llvm-11-flang-missing-docs.patch
+#Patch25:	llvm-7.0-compiler-rt-arches.patch
 Patch27:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
 # breaks exception handling -- removes gcc_eh
@@ -821,6 +828,26 @@ Objective-CAML bindings for LLVM.
 %endif
 #-----------------------------------------------------------
 
+%if %{with flang}
+%package -n flang
+Summary:	A Fortran language front-end for LLVM
+License:	NCSA
+Group:		Development/Other
+Requires:	clang = %{EVRD}
+%if %{with unwind}
+Requires:	%{_lib}unwind1.0 = %{EVRD}
+Requires:	%{devunwind} = %{EVRD}
+%endif
+
+%description -n flang
+A Fortran language front-end for LLVM
+
+%files -n flang
+%{_bindir}/flang
+%endif
+
+#-----------------------------------------------------------
+
 %if %{with lldb}
 %package -n lldb
 Summary:	Debugger from the LLVM toolchain
@@ -1071,7 +1098,7 @@ Development files for libunwind
 
 
 %prep
-%if 0%{date}
+%if 0%{?date:1}
 %autosetup -p1 -n llvm-project-%{?is_master:master}%{!?is_master:release-%{major1}.x}
 %else
 %if %{with upstream_tarballs}
@@ -1107,13 +1134,16 @@ find . -type d |while read r; do chmod 0755 "$r"; done
 
 %build
 # Temporary workaround for compiling with lld that doesn't have patch 21
-mkdir path-override
-ln -s %{_bindir}/ld.gold path-override/ld
-export PATH=$(pwd)/path-override:$PATH
+#mkdir path-override
+#ln -s %{_bindir}/ld.gold path-override/ld
+#export PATH=$(pwd)/path-override:$PATH
 
 COMPONENTS="llvm"
 %if %{with clang}
 COMPONENTS="$COMPONENTS;clang;clang-tools-extra;polly;compiler-rt"
+%endif
+%if %{with flang}
+COMPONENTS="$COMPONENTS;flang"
 %endif
 %if %{with unwind}
 COMPONENTS="$COMPONENTS;libunwind"
@@ -1167,7 +1197,7 @@ done
 # 64-bit build to debug 32-bit build issues. No need to do a
 # proper define/with condition here, the switch is useless for
 # any regular use.
-%if 0
+%if 1
 # We set an RPATH in CMAKE_EXE_LINKER_FLAGS to make sure the newly built
 # clang and friends use the just-built shared libraries -- there's no guarantee
 # that the ABI remains compatible between a snapshot libclang.so.11 and the
@@ -1181,6 +1211,8 @@ done
 # at some point - but right now, builds are broken
 %cmake \
 	-DLLVM_ENABLE_PROJECTS="$COMPONENTS" \
+	-DCLANG_VENDOR="OpenMandriva %{version}-%{release}" \
+	-DLLD_VENDOR="OpenMandriva %{version}-%{release}" \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
@@ -1233,7 +1265,7 @@ done
 	-DLIBCXXABI_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
 	-DLIBCXX_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
 	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/%{_lib}" \
-	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/%{_lib}" \
+	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/%{_lib},-rpath,$(pwd)/lib" \
 %if %{with apidox}
 	-DLLVM_ENABLE_DOXYGEN:BOOL=ON \
 %endif
@@ -1279,6 +1311,7 @@ set(CMAKE_CXX_COMPILER ${TOP}/xc++)
 EOF
 %cmake32 \
 	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
+	-DLLVM_CONFIG_PATH=$(pwd)/../build/bin/llvm-config \
 	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;parallel-libs;polly" \
 	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
@@ -1317,6 +1350,8 @@ EOF
 	-DLIBCXXABI_ENABLE_STATIC:BOOL=ON \
 	-DLIBCXX_ENABLE_SHARED:BOOL=ON \
 	-DLIBCXX_ENABLE_STATIC:BOOL=ON \
+	-DLIBCXX_ENABLE_PARALLEL_ALGORITHMS:BOOL=ON \
+	-DLIBCXX_HAS_MUSL_LIBC:BOOL=OFF \
 	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/libcxx/include \
 	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/libcxxabi/include \
 	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/lib" \
@@ -1326,12 +1361,11 @@ EOF
 	-DCLANG_DEFAULT_UNWINDLIB=libunwind \
 	-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=i686-openmandriva-linux-gnu \
 	-DLIBCXX_USE_COMPILER_RT:BOOL=ON \
+	-DLIBCXXABI_USE_COMPILER_RT:BOOL=ON \
 	-DLIBUNWIND_USE_COMPILER_RT:BOOL=ON \
 	-DLLVM_ENABLE_PER_TARGET_RUNTIME:BOOL=ON \
 	-DLLVM_HOST_TRIPLE=i686-openmandriva-linux-gnu \
 	-DLLVM_TARGET_ARCH=i686 \
-	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/lib" \
-	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/lib" \
 	-DLIBCXX_CXX_ABI=libcxxabi \
 	-DLIBCXX_ENABLE_CXX1Y:BOOL=ON \
 	-DLIBCXXABI_ENABLE_SHARED:BOOL=ON \
@@ -1346,7 +1380,7 @@ EOF
 %ninja_build
 %endif
 
-%ifarch %{x86_64}
+%if %{with crosscrt}
 # Build 32-bit compiler-rt libraries so
 # -m32 can do the right thing
 #
@@ -1392,7 +1426,7 @@ rm -rf \
 
 %ninja_install -C build
 
-%ifarch %{x86_64}
+%if %{with crosscrt}
 %ninja_install -C xbuild-crt-32
 %endif
 
@@ -1457,6 +1491,14 @@ rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
 
 # We get libgomp from gcc, so don't symlink libomp to it
 rm -f %{buildroot}%{_libdir}/libgomp.so
+
+# Fix bogus pointers to incorrect locations
+%if "%{_lib}" != "lib"
+# Weird, but for some reason those files seem to get installed only on x86
+if [ -e %{buildroot}%{_prefix}/lib/cmake/clang/ClangTargets-*.cmake ]; then
+	sed -i -e "s,/lib/,/%{_lib}/,g" %{buildroot}%{_prefix}/lib/cmake/clang/ClangTargets-*.cmake %{buildroot}%{_prefix}/lib/cmake/llvm/LLVMExports-*.cmake
+fi
+%endif
 
 %if %{with unwind}
 # Add more headers and a pkgconfig file so we can use the llvm
