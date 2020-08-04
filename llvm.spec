@@ -35,7 +35,7 @@
 %bcond_without clang
 %bcond_without flang
 %bcond_without mlir
-%ifarch aarch64 riscv64
+%ifarch armv7hnl aarch64 riscv64
 # AArch64 doesn't have a working ocaml compiler yet
 %bcond_with ocaml
 # No graphviz yet either
