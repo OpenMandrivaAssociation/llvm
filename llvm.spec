@@ -77,8 +77,12 @@
 %bcond_without unwind
 %bcond_without lld
 
+%ifarch %{arm}
+%bcond_with default_compilerrt
+%else
 # Prefer compiler-rt over libgcc
 %bcond_without default_compilerrt
+%endif
 
 # Clang's libLLVMgold.so shouldn't trigger devel(*) dependencies
 %define __requires_exclude 'devel.*'
