@@ -248,6 +248,8 @@ BuildRequires:	ninja
 BuildRequires:	doxygen
 %endif
 Obsoletes:	llvm-ocaml
+# Some cmake files try to look up the commit hash
+BuildRequires:	git-core
 # For lldb
 BuildRequires:	swig
 BuildRequires:	pkgconfig(python3)
@@ -1194,6 +1196,9 @@ mv openmp-%{version}.src openmp
 %if %{with default_compilerrt}
 patch -p1 -b -z .crt~ <%{S:62}
 %endif
+git init
+git add *
+git commit -am "Fake commit to make cmake files happy"
 
 # Fix bogus permissions
 find . -type d |while read r; do chmod 0755 "$r"; done
