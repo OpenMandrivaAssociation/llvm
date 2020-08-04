@@ -7,7 +7,7 @@
 %bcond_with compat32
 %endif
 
-%define date 20200802
+%define date 20200804
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -23,9 +23,11 @@
 
 %bcond_without default_compiler
 
-# As of 238820, the "make install" target for apidox
-# is broken with cmake. Re-enable later.
-%bcond_without apidox
+# apidox are *huge* (> 8 GB)
+# Enabling this option will take forever and create
+# a giant package that might even cause timeouts when
+# uploading to ABF...
+%bcond_with apidox
 # Note: --with libcxx doesn't mean "build libcxx", but "USE libcxx",
 # as in "link llvm libs and clang libs to libcxx rather than libstdc++
 # Don't do this if you care about binary compatibility...
@@ -91,7 +93,7 @@
 #define is_master 1
 
 %ifarch %{x86_64}
-%bcond_without crosscrt
+%bcond_with crosscrt
 %endif
 
 Summary:	Low Level Virtual Machine (LLVM)
@@ -152,6 +154,7 @@ Patch11:	llvm-doc-buildfix-bug-41789.patch
 Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
+Patch14:	llvm-10.0-fix-m32.patch
 Patch16:	clang-rename-fix-linkage.patch
 Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
 # Enable --no-undefined, --as-needed, --enable-new-dtags,
@@ -397,9 +400,9 @@ for effective implementation, proper tail calls or garbage collection.
 
 %define LLVM64Libs findAllSymbols
 
-%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangBasic clangCodeGen clangCrossTU clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIndex clangLex clangParse clangRewrite clangRewriteFrontend clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTooling clangToolingASTDiff clangToolingCore clangHandleLLVM clangToolingInclusions clangDependencyScanning clangToolingRefactoring clangToolingSyntax clang-cpp clangDirectoryWatcher clangTransformer clangTesting clangTidyLLVMLibcModule clangTidyMain clangdRemoteIndex clangdSupport
+%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangBasic clangCodeGen clangCrossTU clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIndex clangLex clangParse clangRewrite clangRewriteFrontend clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTooling clangToolingASTDiff clangToolingCore clangHandleLLVM clangToolingInclusions clangDependencyScanning clangToolingRefactoring clangToolingSyntax clang-cpp clangDirectoryWatcher clangTransformer clangTesting
 
-%define Clang64Libs clangApplyReplacements clangChangeNamespace clangDaemon clangDaemonTweaks clangDoc clangIncludeFixer clangIncludeFixerPlugin clangMove clangQuery clangReorderFields clangTidy clangTidyPlugin clangTidyAbseilModule clangTidyAndroidModule clangTidyBoostModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyDarwinModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyLinuxKernelModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyOpenMPModule clangTidyPortabilityModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyZirconModule clangTidyUtils
+%define Clang64Libs clangApplyReplacements clangChangeNamespace clangDaemon clangDaemonTweaks clangDoc clangIncludeFixer clangIncludeFixerPlugin clangMove clangQuery clangReorderFields clangTidy clangTidyPlugin clangTidyAbseilModule clangTidyAndroidModule clangTidyBoostModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyDarwinModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyLinuxKernelModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyOpenMPModule clangTidyPortabilityModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyZirconModule clangTidyUtils clangTidyLLVMLibcModule clangTidyMain clangdRemoteIndex clangdSupport
 
 %define FlangLibs FIROptimizer FortranCommon FortranDecimal FortranEvaluate FortranLower FortranParser FortranRuntime FortranSemantics
 
@@ -1030,7 +1033,6 @@ Group: System/Libraries
 
 %files -n libomp1
 %{_prefix}/lib/libomp.so.1*
-%{_prefix}/lib/libomptarget.rtl.*.so
 %{_prefix}/lib/libomptarget.so
 
 %package -n libomp-devel
@@ -1360,15 +1362,15 @@ fi
 cd ..
 %endif
 
-%if %{with compat32}
+%if %{with compat32} || %{with crosscrt}
 TOP="$(pwd)"
 cat >xc <<EOF
 #!/bin/sh
-exec %{_bindir}/clang -target i686-openmandriva-linux-gnu "\$@"
+exec %{_bindir}/clang -m32 "\$@"
 EOF
 cat >xc++ <<EOF
 #!/bin/sh
-exec %{_bindir}/clang++ -target i686-openmandriva-linux-gnu "\$@"
+exec %{_bindir}/clang++ -m32 "\$@"
 EOF
 chmod +x xc xc++
 cat >cmake-i686.toolchain <<EOF
@@ -1377,6 +1379,9 @@ set(CMAKE_SYSTEM_PROCESSOR i686)
 set(CMAKE_C_COMPILER ${TOP}/xc)
 set(CMAKE_CXX_COMPILER ${TOP}/xc++)
 EOF
+%endif
+
+%if %{with compat32}
 %cmake32 \
 	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
 	-DLLVM_CONFIG_PATH=$(pwd)/../build/bin/llvm-config \
@@ -1461,6 +1466,7 @@ cd xbuild-crt-32
 cmake \
 	-G Ninja \
 	../compiler-rt \
+	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
 	-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{version} \
 	-DCOMPILER_RT_BUILD_BUILTINS:BOOL=ON \
 	-DCOMPILER_RT_BUILD_SANITIZERS:BOOL=ON \
@@ -1581,5 +1587,7 @@ sed -e 's,@LIBDIR@,%{_prefix}/lib,g;s,@VERSION@,%{version},g' %{S:50} >%{buildro
 %endif
 %endif
 
+%if %{with apidocs}
 mv %{buildroot}%{_prefix}/docs/html/html %{buildroot}%{_docdir}/llvm/doxygen-polly
 rm -rf %{buildroot}%{_prefix}/docs
+%endif

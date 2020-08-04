@@ -1,0 +1,24 @@
+diff -up llvm-project-release-11.x/clang/lib/Driver/ToolChains/Linux.cpp.14~ llvm-project-release-11.x/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-release-11.x/clang/lib/Driver/ToolChains/Linux.cpp.14~	2020-08-02 22:37:51.308096369 +0200
++++ llvm-project-release-11.x/clang/lib/Driver/ToolChains/Linux.cpp	2020-08-02 22:53:44.560839887 +0200
+@@ -331,6 +331,7 @@ Linux::Linux(const Driver &D, const llvm
+                     Paths);
+   }
+ 
++  addPathIfExists(D, SysRoot + "/usr/" + MultiarchTriple + "/lib", Paths); // OMV 5.x
+   addPathIfExists(D, SysRoot + "/usr/lib/" + MultiarchTriple, Paths);
+   // 64-bit OpenEmbedded sysroots may not have a /usr/lib dir. So they cannot
+   // find /usr/lib64 as it is referenced as /usr/lib/../lib64. So we handle
+@@ -346,7 +347,12 @@ Linux::Linux(const Driver &D, const llvm
+     addPathIfExists(D, SysRoot + "/usr/" + OSLibDir + "/" + ABIName, Paths);
+   }
+ 
++#if 0
++  // This is actually harmful unconditionally because it adds
++  //         /usr/bin/../lib64/gcc/x86_64-openmandriva-linux-gnu/10.0.0/../../..
++  // ( == /usr/lib64 ) even in -m32 mode. Let's NOT do it.
+   Generic_GCC::AddMultiarchPaths(D, SysRoot, OSLibDir, Paths);
++#endif
+ 
+   // Similar to the logic for GCC above, if we are currently running Clang
+   // inside of the requested system root, add its parent library path to those
