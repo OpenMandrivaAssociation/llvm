@@ -278,6 +278,7 @@ BuildRequires:	mesa-opencl-devel
 %if %{with compat32}
 BuildRequires:	devel(libOpenCL)
 BuildRequires:	devel(libMesaOpenCL)
+BuildRequires:	libunwind-devel
 %endif
 
 Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
