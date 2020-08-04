@@ -33,7 +33,7 @@
 # Don't do this if you care about binary compatibility...
 %bcond_with libcxx
 %bcond_without clang
-%bcond_without flang
+%bcond_with flang
 %bcond_without mlir
 %ifarch armv7hnl aarch64 riscv64
 # AArch64 doesn't have a working ocaml compiler yet
