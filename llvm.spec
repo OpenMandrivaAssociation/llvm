@@ -2,7 +2,7 @@
 %define _python_bytecompile_build 0
 
 %ifarch %{x86_64}
-%bcond_without compat32
+%bcond_with compat32
 %else
 %bcond_with compat32
 %endif
