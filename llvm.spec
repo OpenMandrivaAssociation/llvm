@@ -387,7 +387,6 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/yaml2obj
 %{_bindir}/yaml-bench
 %{_bindir}/not
-%{_bindir}/tco
 
 %{_mandir}/man1/FileCheck.1*
 %{_mandir}/man1/bugpoint.1*
@@ -870,6 +869,7 @@ A Fortran language front-end for LLVM
 %{_bindir}/flang
 %{_bindir}/f18
 %{_bindir}/f18-parse-demo
+%{_bindir}/tco
 
 %define flangdev %mklibname -d flang
 
