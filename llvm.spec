@@ -1197,6 +1197,8 @@ mv openmp-%{version}.src openmp
 patch -p1 -b -z .crt~ <%{S:62}
 %endif
 git init
+git config user.email build@openmandriva.org
+git config user.name "OpenMandriva builder"
 git add *
 git commit -am "Fake commit to make cmake files happy"
 
