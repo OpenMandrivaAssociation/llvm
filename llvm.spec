@@ -426,7 +426,11 @@ for effective implementation, proper tail calls or garbage collection.
 %define LLDBLibs %{nil}
 %endif
 
-%{expand:%(for i in %{LLVMLibs} %{LLVM64Libs} %{ClangLibs} %{Clang64Libs} %{LLDLibs} %{LLDBLibs} %{FlangLibs} %{MLIRLibs}; do echo %%libpackage $i %{major1}; done)}
+%{expand:%(for i in %{LLVMLibs} %{LLVM64Libs} %{ClangLibs} %{Clang64Libs} %{LLDLibs} %{LLDBLibs} %{MLIRLibs}; do echo %%libpackage $i %{major1}; done)}
+
+%if %{with flang}
+%{expand:%(for i in %{FlangLibs}; do echo %%libpackage $i %{major1}; done)}
+%endif
 
 %if %{with compat32}
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do cat <<EOF
