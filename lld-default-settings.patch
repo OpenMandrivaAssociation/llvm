@@ -119,7 +119,7 @@ diff -up llvm-project-master/lld/ELF/Driver.cpp.14~ llvm-project-master/lld/ELF/
        config->sysvHash = true;
      else
 -      config->sysvHash = config->gnuHash = true;
-+      config->sysvHash = false; config->gnuHash = true;
++      {config->sysvHash = false; config->gnuHash = true;}
    }
  
    // Default output filename is "a.out" by the Unix tradition.
