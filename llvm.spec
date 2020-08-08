@@ -2,7 +2,7 @@
 %define _python_bytecompile_build 0
 
 %ifarch %{x86_64}
-%bcond_with compat32
+%bcond_without compat32
 %else
 %bcond_with compat32
 %endif
@@ -284,7 +284,7 @@ BuildRequires:	mesa-opencl-devel
 %if %{with compat32}
 BuildRequires:	devel(libOpenCL)
 BuildRequires:	devel(libMesaOpenCL)
-BuildRequires:	libunwind-devel
+#BuildRequires:	libunwind-devel
 %endif
 
 Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
