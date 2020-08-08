@@ -282,8 +282,8 @@ BuildRequires:	libunwind-devel
 BuildRequires:	pkgconfig(OpenCL)
 BuildRequires:	mesa-opencl-devel
 %if %{with compat32}
-BuildRequires:	devel(libOpenCL)
-BuildRequires:	devel(libMesaOpenCL)
+#BuildRequires:	devel(libOpenCL)
+#BuildRequires:	devel(libMesaOpenCL)
 #BuildRequires:	libunwind-devel
 %endif
 
