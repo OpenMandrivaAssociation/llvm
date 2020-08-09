@@ -3,6 +3,7 @@
 
 %ifarch %{x86_64}
 %bcond_without compat32
+%bcond_without bootstrap32
 %else
 %bcond_with compat32
 %endif
@@ -281,10 +282,10 @@ BuildRequires:	libunwind-devel
 # for libGPURuntime in Polly
 BuildRequires:	pkgconfig(OpenCL)
 BuildRequires:	mesa-opencl-devel
-%if %{with compat32}
-#BuildRequires:	devel(libOpenCL)
-#BuildRequires:	devel(libMesaOpenCL)
-#BuildRequires:	libunwind-devel
+%if %{with compat32} && ! %{with bootstrap32}
+BuildRequires:	devel(libOpenCL)
+BuildRequires:	devel(libMesaOpenCL)
+BuildRequires:	libunwind-devel
 %endif
 
 Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
@@ -1382,11 +1383,19 @@ cd ..
 TOP="$(pwd)"
 cat >xc <<EOF
 #!/bin/sh
+%if %{with bootstrap32}
+exec %{_bindir}/clang --rtlib=libgcc --unwindlib=libgcc -m32 "\$@"
+%else
 exec %{_bindir}/clang -m32 "\$@"
+%endif
 EOF
 cat >xc++ <<EOF
 #!/bin/sh
+%if %{with bootstrap32}
+exec %{_bindir}/clang++ --rtlib=libgcc --unwindlib=libgcc -m32 "\$@"
+%else
 exec %{_bindir}/clang++ -m32 "\$@"
+%endif
 EOF
 chmod +x xc xc++
 cat >cmake-i686.toolchain <<EOF
@@ -1405,7 +1414,9 @@ EOF
 	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
 	-DCLANG_DEFAULT_RTLIB=compiler-rt \
+%if ! %{with bootstrap32}
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
+%endif
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 	-DLLVM_ENABLE_FFI:BOOL=ON \
 	-DLLVM_TARGETS_TO_BUILD=all \
