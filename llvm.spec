@@ -1033,8 +1033,10 @@ Group: System/Libraries
 %description -n libgpuruntime
 32-bit GPU runtime library
 
+%if ! %{with bootstrap32}
 %files -n libgpuruntime
 %{_prefix}/lib/libGPURuntime.so
+%endif
 
 %package -n libomp1
 Summary: 32-bit OpenMP runtime
