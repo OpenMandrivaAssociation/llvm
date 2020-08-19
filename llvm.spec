@@ -8,7 +8,7 @@
 %bcond_with compat32
 %endif
 
-%define date 20200808
+%define date 20200819
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -78,12 +78,8 @@
 %bcond_without unwind
 %bcond_without lld
 
-%ifarch %{arm}
+# If enabled, prefer compiler-rt over libgcc
 %bcond_with default_compilerrt
-%else
-# Prefer compiler-rt over libgcc
-%bcond_without default_compilerrt
-%endif
 
 # Clang's libLLVMgold.so shouldn't trigger devel(*) dependencies
 %define __requires_exclude 'devel.*'
@@ -742,7 +738,7 @@ Requires:	libstdc++-devel >= %{gcc_version}
 %if %{with unwind}
 Requires:	%{_lib}unwind1.0 = %{EVRD}
 %endif
-%if %{with unwind}
+%if %{with unwind} && %{with default_compilerrt}
 Requires:	%{devunwind} = %{EVRD}
 %endif
 Obsoletes:	%{mklibname clang 3.7.0}
@@ -1305,7 +1301,9 @@ done
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
+%if %{with default_compilerrt}
 	-DCLANG_DEFAULT_RTLIB=compiler-rt \
+%endif
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
 %if %{with ffi}
 	-DLLVM_ENABLE_FFI:BOOL=ON \
@@ -1364,9 +1362,13 @@ done
 	-DCLANG_TABLEGEN=%{_bindir}/clang-tblgen \
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
 %endif
+%if %{with default_compilerrt}
 %if %{with unwind}
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
 	-DCLANG_DEFAULT_UNWINDLIB=libunwind \
+%endif
+%else
+	-DCLANG_DEFAULT_UNWINDLIB=libgcc \
 %endif
 	-G Ninja \
 	../llvm
@@ -1415,7 +1417,9 @@ EOF
 	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;parallel-libs;polly" \
 	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
+%if %{with default_compilerrt}
 	-DCLANG_DEFAULT_RTLIB=compiler-rt \
+%endif
 %if ! %{with bootstrap32}
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
 %endif
@@ -1460,7 +1464,11 @@ EOF
 	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/lib" \
 	-DLLVM_ENABLE_DOXYGEN:BOOL=OFF \
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
+%if %{with default_compilerrt}
 	-DCLANG_DEFAULT_UNWINDLIB=libunwind \
+%else
+	-DCLANG_DEFAULT_UNWINDLIB=libgcc \
+%endif
 	-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=i686-openmandriva-linux-gnu \
 	-DLIBCXX_USE_COMPILER_RT:BOOL=ON \
 	-DLIBCXXABI_USE_COMPILER_RT:BOOL=ON \
