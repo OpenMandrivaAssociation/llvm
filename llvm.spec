@@ -94,7 +94,7 @@
 #define is_master 1
 
 %ifarch %{x86_64}
-%bcond_with crosscrt
+%bcond_without crosscrt
 %endif
 
 Summary:	Low Level Virtual Machine (LLVM)
@@ -1309,8 +1309,10 @@ done
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
 %if %{with default_compilerrt}
 	-DCLANG_DEFAULT_RTLIB=compiler-rt \
-%endif
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
+%else
+	-DCLANG_DEFAULT_RTLIB=libgcc \
+%endif
 %if %{with ffi}
 	-DLLVM_ENABLE_FFI:BOOL=ON \
 %else
@@ -1425,9 +1427,11 @@ EOF
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
 %if %{with default_compilerrt}
 	-DCLANG_DEFAULT_RTLIB=compiler-rt \
-%endif
 %if ! %{with bootstrap32}
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
+%endif
+%else
+	-DCLANG_DEFAULT_RTLIB=libgcc \
 %endif
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 	-DLLVM_ENABLE_FFI:BOOL=ON \
@@ -1501,7 +1505,8 @@ cd ..
 # Build 32-bit compiler-rt libraries so
 # -m32 can do the right thing
 #
-# We use --rtlib=libgcc --unwindlib=libgcc in the flags below
+# We use --rtlib=libgcc --unwindlib=libgcc in the flags
+# (see creation of xc/xc++ scripts before building 32bit libs)
 # for bootstrapping -- they're needed only to get cmake to shut
 # up about the compiler tests.
 mkdir xbuild-crt-32
