@@ -8,7 +8,7 @@
 %bcond_with compat32
 %endif
 
-%define date 20200819
+%define date 20200821
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -150,8 +150,6 @@ Patch7:		clang-gcc-compat.patch
 Patch8:		clang-fuse-ld.patch
 Patch9:		lld-10.0.1-format.patch
 Patch10:	lldb-9.0.0-swig-compile.patch
-# https://bugs.llvm.org/show_bug.cgi?id=41789
-Patch11:	llvm-doc-buildfix-bug-41789.patch
 Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
@@ -473,7 +471,11 @@ Development files for libunwind
 %files -n %{devunwind}
 %{_libdir}/libunwind.a
 %{_libdir}/libunwind.so
+%if %{with default_compilerrt}
 %{_libdir}/pkgconfig/libunwind.pc
+%else
+%{_libdir}/pkgconfig/libunwind-llvm.pc
+%endif
 %{_includedir}/unwind.h
 %{_includedir}/libunwind.h
 %{_includedir}/__libunwind_config.h
@@ -1131,7 +1133,11 @@ Development files for libunwind
 %files -n %{dev32unwind}
 %{_prefix}/lib/libunwind.a
 %{_prefix}/lib/libunwind.so
+%if %{with default_compilerrt}
 %{_prefix}/lib/pkgconfig/libunwind.pc
+%else
+%{_prefix}/lib/pkgconfig/libunwind-llvm.pc
+%endif
 %endif
 
 #-----------------------------------------------------------
@@ -1618,9 +1624,16 @@ cp libunwind/include/libunwind.h libunwind/include/__libunwind_config.h %{buildr
 # And move unwind.h to where gcc can see it as well
 mv %{buildroot}%{_libdir}/clang/%{version}/include/unwind.h %{buildroot}%{_includedir}/
 mkdir -p %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_prefix}/lib/pkgconfig
+%if %{with default_compilerrt}
 sed -e 's,@LIBDIR@,%{_libdir},g;s,@VERSION@,%{version},g' %{S:50} >%{buildroot}%{_libdir}/pkgconfig/libunwind.pc
 %if %{with compat32}
 sed -e 's,@LIBDIR@,%{_prefix}/lib,g;s,@VERSION@,%{version},g' %{S:50} >%{buildroot}%{_prefix}/lib/pkgconfig/libunwind.pc
+%endif
+%else
+sed -e 's,@LIBDIR@,%{_libdir},g;s,@VERSION@,%{version},g' %{S:50} >%{buildroot}%{_libdir}/pkgconfig/libunwind-llvm.pc
+%if %{with compat32}
+sed -e 's,@LIBDIR@,%{_prefix}/lib,g;s,@VERSION@,%{version},g' %{S:50} >%{buildroot}%{_prefix}/lib/pkgconfig/libunwind-llvm.pc
+%endif
 %endif
 %endif
 
