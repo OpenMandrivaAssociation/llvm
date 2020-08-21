@@ -737,11 +737,11 @@ Requires:	llvm%{?_isa} = %{EVRD}
 # clang requires gcc, clang++ requires libstdc++-devel
 Requires:	gcc
 Requires:	libstdc++-devel >= %{gcc_version}
-%if %{with unwind}
-Requires:	%{_lib}unwind1.0 = %{EVRD}
-%endif
 %if %{with unwind} && %{with default_compilerrt}
+Requires:	%{_lib}unwind1.0 = %{EVRD}
 Requires:	%{devunwind} = %{EVRD}
+%else
+BuildRequires:	pkgconfig(libunwind)
 %endif
 Obsoletes:	%{mklibname clang 3.7.0}
 Obsoletes:	%{mklibname clang_shared 9}
