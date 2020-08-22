@@ -292,6 +292,8 @@ Obsoletes: %{mklibname lldConfig 5} < %{EVRD}
 BuildRequires:	%{_lib}gpuruntime
 # llvm-config called by cmake scripts
 BuildRequires:	llvm-devel
+# Required because of references in LLVMExports.cmake
+BuildRequires:	llvm-mlir-tools
 %endif
 
 %description
@@ -573,6 +575,8 @@ Requires:	ffi-devel
 Requires:	pkgconfig(ncursesw)
 Requires:	stdc++-devel
 Requires:	pkgconfig(zlib)
+# Required because of references in LLVMExports.cmake
+Requires:	llvm-mlir-tools = %{EVRD}
 Conflicts:	llvm < 3.0-7
 Conflicts:	%{_lib}llvm3.0 < 3.0-9
 %if %{with openmp}
