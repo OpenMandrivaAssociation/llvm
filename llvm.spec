@@ -290,6 +290,8 @@ Obsoletes: %{mklibname lldConfig 5} < %{EVRD}
 %if %{with crosscrt}
 # Referenced in cmake files used by crosscrt
 BuildRequires:	%{_lib}gpuruntime
+# llvm-config called by cmake scripts
+BuildRequires:	llvm-devel
 %endif
 
 %description
