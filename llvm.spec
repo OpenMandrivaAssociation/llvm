@@ -294,6 +294,8 @@ BuildRequires:	%{_lib}gpuruntime
 BuildRequires:	llvm-devel
 # Required because of references in LLVMExports.cmake
 BuildRequires:	llvm-mlir-tools
+BuildRequires:	%{_lib}mlir_test_cblas%{major1}
+BuildRequires:	%{_lib}mlir_test_cblas_interface%{major1}
 %endif
 
 %description
@@ -577,8 +579,9 @@ Requires:	stdc++-devel
 Requires:	pkgconfig(zlib)
 # Required because of references in LLVMExports.cmake
 Requires:	llvm-mlir-tools = %{EVRD}
-Conflicts:	llvm < 3.0-7
-Conflicts:	%{_lib}llvm3.0 < 3.0-9
+Requires:	%{_lib}mlir_test_cblas%{major1} = %{EVRD}
+Requires:	%{_lib}mlir_test_cblas_interface%{major1} = %{EVRD}
+# Back to regular dependencies
 %if %{with openmp}
 Provides:	openmp-devel = %{EVRD}
 Requires:	%{ompname} = %{EVRD}
