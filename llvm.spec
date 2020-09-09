@@ -750,7 +750,7 @@ Requires:	libstdc++-devel >= %{gcc_version}
 Requires:	%{_lib}unwind1.0 = %{EVRD}
 Requires:	%{devunwind} = %{EVRD}
 %else
-BuildRequires:	pkgconfig(libunwind)
+BuildRequires:	pkgconfig(libunwind-llvm)
 %endif
 Obsoletes:	%{mklibname clang 3.7.0}
 Obsoletes:	%{mklibname clang_shared 9}
