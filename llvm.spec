@@ -3,12 +3,12 @@
 
 %ifarch %{x86_64}
 %bcond_without compat32
-%bcond_without bootstrap32
+%bcond_with bootstrap32
 %else
 %bcond_with compat32
 %endif
 
-%define date 20200909
+%define date 20200922
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -94,7 +94,7 @@
 #define is_master 1
 
 %ifarch %{x86_64}
-%bcond_without crosscrt
+%bcond_with crosscrt
 %endif
 
 Summary:	Low Level Virtual Machine (LLVM)
