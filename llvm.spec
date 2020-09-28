@@ -8,7 +8,7 @@
 %bcond_with compat32
 %endif
 
-%define date 20200922
+%define date 20200928
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
