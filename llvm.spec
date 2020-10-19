@@ -659,7 +659,9 @@ Shared libraries for LLVM OpenMP support.
 # by keeping the .so we can keep compatible with binaries
 # built against upstream libomp
 %{_libdir}/libomp.so*
+%ifnarch armv7hnl
 %{_includedir}/ompt-multiplex.h
+%endif
 %endif
 
 #-----------------------------------------------------------
@@ -750,7 +752,12 @@ Requires:	libstdc++-devel >= %{gcc_version}
 Requires:	%{_lib}unwind1.0 = %{EVRD}
 Requires:	%{devunwind} = %{EVRD}
 %else
+%ifarch armv7hnl
+# Workaround for missing previous packaging change
+BuildRequires:	pkgconfig(libunwind)
+%else
 BuildRequires:	pkgconfig(libunwind-llvm)
+%endif
 %endif
 Obsoletes:	%{mklibname clang 3.7.0}
 Obsoletes:	%{mklibname clang_shared 9}
