@@ -1,0 +1,11 @@
+diff -up llvm-project-llvmorg-11.0.0/clang-tools-extra/clangd/CMakeLists.txt.omv~ llvm-project-llvmorg-11.0.0/clang-tools-extra/clangd/CMakeLists.txt
+--- llvm-project-llvmorg-11.0.0/clang-tools-extra/clangd/CMakeLists.txt.omv~	2020-10-24 10:16:59.317520123 +0000
++++ llvm-project-llvmorg-11.0.0/clang-tools-extra/clangd/CMakeLists.txt	2020-10-24 10:17:27.630721699 +0000
+@@ -105,6 +105,7 @@ add_clang_library(clangDaemon
+   clangTidy
+   ${LLVM_PTHREAD_LIB}
+   ${ALL_CLANG_TIDY_CHECKS}
++  -latomic
+ 
+   DEPENDS
+   omp_gen

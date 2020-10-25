@@ -17,6 +17,10 @@
 %define _disable_lto 1
 # (tpg) optimize it a bit
 %global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic
+%ifarch %{riscv}
+# Workaround for broken previous version
+%global optflags %{optflags} -fpermissive
+%endif
 
 # clang header paths are hard-coded at compile time
 # and need adjustment whenever there's a new GCC version
@@ -195,6 +199,8 @@ Patch58:	llvm-10-omp-needs-libm.patch
 # Really a patch -- but we want to apply it conditionally
 # and we use %%autosetup for other patches...
 Source62:	llvm-10-default-compiler-rt.patch
+# Another patch, applied conditionally
+Source63:	llvm-riscv-needs-libatomic-linkage.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -266,7 +272,7 @@ BuildRequires:	devel(libelf)
 BuildRequires:	devel(libgmp)
 BuildRequires:	devel(libisl)
 %endif
-%ifarch %{armx} i686
+%ifarch %{armx} i686 %{riscv}
 # Temporary workaround for missing libunwind.so
 BuildRequires:	llvm-devel
 %ifarch i686
@@ -274,8 +280,10 @@ BuildRequires:	libunwind-devel
 %endif
 %endif
 # for libGPURuntime in Polly
+%ifnarch %{riscv}
 BuildRequires:	pkgconfig(OpenCL)
 BuildRequires:	mesa-opencl-devel
+%endif
 %if %{with compat32} && ! %{with bootstrap32}
 BuildRequires:	devel(libOpenCL)
 BuildRequires:	devel(libMesaOpenCL)
@@ -600,8 +608,10 @@ This package contains the development files for LLVM.
 %{_includedir}/%{name}-c
 %{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
+%ifnarch %{riscv}
 %exclude %{_libdir}/libGPURuntime.so
-%ifnarch %{riscv} %{arm}
+%endif
+%ifnarch %{arm}
 %{_libdir}/libarcher_static.a
 %endif
 %if %{with openmp}
@@ -752,11 +762,13 @@ Requires:	libstdc++-devel >= %{gcc_version}
 Requires:	%{_lib}unwind1.0 = %{EVRD}
 Requires:	%{devunwind} = %{EVRD}
 %else
+%ifnarch %{riscv}
 %ifarch armv7hnl
 # Workaround for missing previous packaging change
 BuildRequires:	pkgconfig(libunwind)
 %else
 BuildRequires:	pkgconfig(libunwind-llvm)
+%endif
 %endif
 %endif
 Obsoletes:	%{mklibname clang 3.7.0}
@@ -1006,8 +1018,10 @@ Group: System/Libraries
 %description -n %{_lib}gpuruntime
 32-bit GPU runtime library
 
+%ifnarch %{riscv}
 %files -n %{_lib}gpuruntime
 %{_libdir}/libGPURuntime.so
+%endif
 
 #-----------------------------------------------------------
 
@@ -1047,9 +1061,11 @@ Group: System/Libraries
 %description -n libgpuruntime
 32-bit GPU runtime library
 
+%ifnarch %{riscv}
 %if ! %{with bootstrap32}
 %files -n libgpuruntime
 %{_prefix}/lib/libGPURuntime.so
+%endif
 %endif
 
 %package -n libomp1
@@ -1220,6 +1236,9 @@ mv openmp-%{version}.src openmp
 %endif
 %if %{with default_compilerrt}
 patch -p1 -b -z .crt~ <%{S:62}
+%endif
+%ifarch %{riscv}
+patch -p1 -b -z .rvatomic~ <%{S:63}
 %endif
 git init
 git config user.email build@openmandriva.org
