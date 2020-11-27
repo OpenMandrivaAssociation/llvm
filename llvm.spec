@@ -8,7 +8,7 @@
 %bcond_with compat32
 %endif
 
-#define date 20200930
+%define date 20201127
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
@@ -103,7 +103,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	11.0.0
+Version:	11.0.1
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
