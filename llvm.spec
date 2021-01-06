@@ -763,7 +763,7 @@ Requires:	%{_lib}unwind1.0 = %{EVRD}
 Requires:	%{devunwind} = %{EVRD}
 %else
 %ifnarch %{riscv}
-%ifarch armv7hnl
+%ifarch i686
 # Workaround for missing previous packaging change
 BuildRequires:	pkgconfig(libunwind)
 %else
