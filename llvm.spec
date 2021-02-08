@@ -272,10 +272,10 @@ BuildRequires:	devel(libelf)
 BuildRequires:	devel(libgmp)
 BuildRequires:	devel(libisl)
 %endif
-%ifarch %{armx} i686 %{riscv}
+%ifarch %{armx} %{ix86} %{riscv}
 # Temporary workaround for missing libunwind.so
 BuildRequires:	llvm-devel
-%ifarch i686
+%ifarch %{ix86}
 BuildRequires:	libunwind-devel
 %endif
 %endif
@@ -763,7 +763,7 @@ Requires:	%{_lib}unwind1.0 = %{EVRD}
 Requires:	%{devunwind} = %{EVRD}
 %else
 %ifnarch %{riscv}
-%ifarch i686
+%ifarch %{ix86}
 # Workaround for missing previous packaging change
 BuildRequires:	pkgconfig(libunwind)
 %else
