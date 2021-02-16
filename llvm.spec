@@ -209,6 +209,9 @@ BuildRequires:	pkgconfig(libedit)
 BuildRequires:	pkgconfig(libelf)
 %if %{without bootstrap}
 BuildRequires:	graphviz
+# Without this, generating man pages fails
+# Handler <function process_automodsumm_generation at 0x7fa70fc2a5e0> for event 'builder-inited' threw an exception (exception: No module named 'lldb')
+BuildRequires:	lldb
 %endif
 BuildRequires:	chrpath
 BuildRequires:	groff
