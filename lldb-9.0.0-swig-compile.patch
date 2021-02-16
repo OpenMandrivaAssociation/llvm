@@ -1,10 +1,10 @@
-diff -up llvm-9.0.0-20190313/lldb/source/API/CMakeLists.txt.omv~ llvm-9.0.0-20190313/lldb/source/API/CMakeLists.txt
---- llvm-9.0.0-20190313/lldb/source/API/CMakeLists.txt.omv~	2019-03-13 17:23:33.218604634 +0100
-+++ llvm-9.0.0-20190313/lldb/source/API/CMakeLists.txt	2019-03-13 17:24:13.473037323 +0100
-@@ -103,6 +103,8 @@ endif()
+diff -up llvm-project-release-12.x/lldb/source/API/CMakeLists.txt.10~ llvm-project-release-12.x/lldb/source/API/CMakeLists.txt
+--- llvm-project-release-12.x/lldb/source/API/CMakeLists.txt.10~	2021-02-08 19:19:45.320197985 +0100
++++ llvm-project-release-12.x/lldb/source/API/CMakeLists.txt	2021-02-08 19:21:03.304516547 +0100
+@@ -129,6 +129,8 @@ endif()
  
- if(lldb_python_wrapper)
-   add_dependencies(liblldb swig_wrapper)
+ if(LLDB_ENABLE_PYTHON)
+   add_dependencies(liblldb swig_wrapper_python)
 +  # Workaround for swig issue
 +  add_definitions(-Wno-error=format-security)
  

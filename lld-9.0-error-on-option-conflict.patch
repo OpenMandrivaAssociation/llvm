@@ -1,16 +1,21 @@
-diff -up llvm-project-release-10.x/lld/ELF/Driver.cpp.20~ llvm-project-release-10.x/lld/ELF/Driver.cpp
---- llvm-project-release-10.x/lld/ELF/Driver.cpp.20~	2020-02-03 16:14:10.615138009 +0100
-+++ llvm-project-release-10.x/lld/ELF/Driver.cpp	2020-02-03 16:16:06.678143127 +0100
-@@ -326,12 +326,16 @@ static void checkOptions() {
-   if (config->relocatable) {
-     if (config->shared)
+diff -up llvm-project-release-12.x/lld/ELF/Driver.cpp.18~ llvm-project-release-12.x/lld/ELF/Driver.cpp
+--- llvm-project-release-12.x/lld/ELF/Driver.cpp.18~	2021-02-08 19:36:56.321594067 +0100
++++ llvm-project-release-12.x/lld/ELF/Driver.cpp	2021-02-08 19:40:04.289322549 +0100
+@@ -311,8 +311,10 @@ static void initLLVM() {
+ static void checkOptions() {
+   // The MIPS ABI as of 2016 does not support the GNU-style symbol lookup
+   // table which is a relatively new feature.
+-  if (config->emachine == EM_MIPS && config->gnuHash)
+-    error("the .gnu.hash section is not compatible with the MIPS target");
++  if (config->emachine == EM_MIPS && config->gnuHash) {
++    warn("the .gnu.hash section is not compatible with the MIPS target, disabling");
++    config->gnuHash = false;
++  }
+ 
+   if (config->fixCortexA53Errata843419 && config->emachine != EM_AARCH64)
+     error("--fix-cortex-a53-843419 is only supported on AArch64 targets");
+@@ -349,8 +351,10 @@ static void checkOptions() {
        error("-r and -shared may not be used together");
--    if (config->gcSections)
--      error("-r and --gc-sections may not be used together");
-+    if (config->gcSections) {
-+      warn("-r and --gc-sections may not be used together, disabling --gc-sections");
-+      config->gcSections = false;
-+    }
      if (config->gdbIndex)
        error("-r and --gdb-index may not be used together");
 -    if (config->icf != ICFLevel::None)

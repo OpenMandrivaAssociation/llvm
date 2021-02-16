@@ -1,7 +1,7 @@
-diff -up llvm-project-master/llvm/tools/gold/gold-plugin.cpp.11~ llvm-project-master/llvm/tools/gold/gold-plugin.cpp
---- llvm-project-master/llvm/tools/gold/gold-plugin.cpp.11~	2020-06-21 19:51:18.371617534 +0200
-+++ llvm-project-master/llvm/tools/gold/gold-plugin.cpp	2020-06-21 19:52:31.230674131 +0200
-@@ -264,9 +264,12 @@ namespace options {
+diff -up llvm-project-release-12.x/llvm/tools/gold/gold-plugin.cpp.12~ llvm-project-release-12.x/llvm/tools/gold/gold-plugin.cpp
+--- llvm-project-release-12.x/llvm/tools/gold/gold-plugin.cpp.12~	2021-02-06 05:47:20.000000000 +0100
++++ llvm-project-release-12.x/llvm/tools/gold/gold-plugin.cpp	2021-02-08 19:21:41.188326874 +0100
+@@ -267,9 +267,12 @@ namespace options {
      } else if (opt.consume_front("cache-policy=")) {
        cache_policy = std::string(opt);
      } else if (opt.size() == 2 && opt[0] == 'O') {
@@ -17,10 +17,10 @@ diff -up llvm-project-master/llvm/tools/gold/gold-plugin.cpp.11~ llvm-project-ma
      } else if (opt.consume_front("jobs=")) {
        Parallelism = std::string(opt);
        if (!get_threadpool_strategy(opt))
-diff -up llvm-project-master/llvm/tools/llvm-lto/llvm-lto.cpp.11~ llvm-project-master/llvm/tools/llvm-lto/llvm-lto.cpp
---- llvm-project-master/llvm/tools/llvm-lto/llvm-lto.cpp.11~	2020-06-21 19:00:42.000000000 +0200
-+++ llvm-project-master/llvm/tools/llvm-lto/llvm-lto.cpp	2020-06-21 19:51:18.371617534 +0200
-@@ -893,8 +893,10 @@ int main(int argc, char **argv) {
+diff -up llvm-project-release-12.x/llvm/tools/llvm-lto/llvm-lto.cpp.12~ llvm-project-release-12.x/llvm/tools/llvm-lto/llvm-lto.cpp
+--- llvm-project-release-12.x/llvm/tools/llvm-lto/llvm-lto.cpp.12~	2021-02-06 05:47:20.000000000 +0100
++++ llvm-project-release-12.x/llvm/tools/llvm-lto/llvm-lto.cpp	2021-02-08 19:21:41.188326874 +0100
+@@ -886,8 +886,10 @@ int main(int argc, char **argv) {
    InitLLVM X(argc, argv);
    cl::ParseCommandLineOptions(argc, argv, "llvm LTO linker\n");
  
@@ -33,12 +33,12 @@ diff -up llvm-project-master/llvm/tools/llvm-lto/llvm-lto.cpp.11~ llvm-project-m
  
    // Initialize the configured targets.
    InitializeAllTargets();
-diff -up llvm-project-master/llvm/tools/lto/lto.cpp.11~ llvm-project-master/llvm/tools/lto/lto.cpp
---- llvm-project-master/llvm/tools/lto/lto.cpp.11~	2020-06-21 19:00:42.000000000 +0200
-+++ llvm-project-master/llvm/tools/lto/lto.cpp	2020-06-21 19:51:18.371617534 +0200
-@@ -164,9 +164,12 @@ static void lto_add_attrs(lto_code_gen_t
-     CG->setAttr(attrs);
-   }
+diff -up llvm-project-release-12.x/llvm/tools/lto/lto.cpp.12~ llvm-project-release-12.x/llvm/tools/lto/lto.cpp
+--- llvm-project-release-12.x/llvm/tools/lto/lto.cpp.12~	2021-02-08 19:21:41.188326874 +0100
++++ llvm-project-release-12.x/llvm/tools/lto/lto.cpp	2021-02-08 19:23:10.836167934 +0100
+@@ -148,9 +148,12 @@ static void lto_add_attrs(lto_code_gen_t
+   LTOCodeGenerator *CG = unwrap(cg);
+   CG->setAttrs(codegen::getMAttrs());
  
 -  if (OptLevel < '0' || OptLevel > '3')
 -    report_fatal_error("Optimization level must be between 0 and 3");
@@ -50,5 +50,5 @@ diff -up llvm-project-master/llvm/tools/lto/lto.cpp.11~ llvm-project-master/llvm
 +  else
 +    CG->setOptLevel(OptLevel - '0');
    CG->setFreestanding(EnableFreestanding);
+   CG->setDisableVerify(DisableVerify);
  }
- 

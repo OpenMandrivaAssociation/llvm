@@ -1,7 +1,7 @@
-diff -up llvm-project-release-10.x/clang/include/clang/Basic/LangOptions.def.6~ llvm-project-release-10.x/clang/include/clang/Basic/LangOptions.def
---- llvm-project-release-10.x/clang/include/clang/Basic/LangOptions.def.6~	2020-02-03 16:01:01.243103202 +0100
-+++ llvm-project-release-10.x/clang/include/clang/Basic/LangOptions.def	2020-02-03 16:03:22.387109425 +0100
-@@ -111,7 +111,7 @@ BENIGN_LANGOPT(DollarIdents   , 1, 1, "'
+diff -up llvm-project-release-12.x/clang/include/clang/Basic/LangOptions.def.7~ llvm-project-release-12.x/clang/include/clang/Basic/LangOptions.def
+--- llvm-project-release-12.x/clang/include/clang/Basic/LangOptions.def.7~	2021-02-06 05:47:20.000000000 +0100
++++ llvm-project-release-12.x/clang/include/clang/Basic/LangOptions.def	2021-02-08 19:16:07.890754749 +0100
+@@ -112,7 +112,7 @@ BENIGN_LANGOPT(DollarIdents   , 1, 1, "'
  BENIGN_LANGOPT(AsmPreprocessor, 1, 0, "preprocessor in asm mode")
  LANGOPT(GNUMode           , 1, 1, "GNU extensions")
  LANGOPT(GNUKeywords       , 1, 1, "GNU keywords")
@@ -10,22 +10,22 @@ diff -up llvm-project-release-10.x/clang/include/clang/Basic/LangOptions.def.6~ 
  BENIGN_LANGOPT(ImplicitInt, 1, !C99 && !CPlusPlus, "C89 implicit 'int'")
  LANGOPT(Digraphs          , 1, 0, "digraphs")
  BENIGN_LANGOPT(HexFloats  , 1, C99, "C99 hexadecimal float constants")
-diff -up llvm-project-release-10.x/clang/lib/Frontend/CompilerInvocation.cpp.6~ llvm-project-release-10.x/clang/lib/Frontend/CompilerInvocation.cpp
---- llvm-project-release-10.x/clang/lib/Frontend/CompilerInvocation.cpp.6~	2020-02-03 16:02:12.389106339 +0100
-+++ llvm-project-release-10.x/clang/lib/Frontend/CompilerInvocation.cpp	2020-02-03 16:03:11.683108953 +0100
-@@ -2284,7 +2284,7 @@ void CompilerInvocation::setLangDefaults
-   Opts.Digraphs = Std.hasDigraphs();
+diff -up llvm-project-release-12.x/clang/lib/Frontend/CompilerInvocation.cpp.7~ llvm-project-release-12.x/clang/lib/Frontend/CompilerInvocation.cpp
+--- llvm-project-release-12.x/clang/lib/Frontend/CompilerInvocation.cpp.7~	2021-02-08 19:16:07.890754749 +0100
++++ llvm-project-release-12.x/clang/lib/Frontend/CompilerInvocation.cpp	2021-02-08 19:17:36.515225818 +0100
+@@ -2013,7 +2013,7 @@ void CompilerInvocation::setLangDefaults
+   Opts.CPlusPlus20 = Std.isCPlusPlus20();
+   Opts.CPlusPlus2b = Std.isCPlusPlus2b();
    Opts.GNUMode = Std.isGNUMode();
-   Opts.GNUInline = !Opts.C99 && !Opts.CPlusPlus;
 -  Opts.GNUCVersion = 0;
 +  Opts.GNUCVersion = 110201;
    Opts.HexFloats = Std.hasHexFloats();
    Opts.ImplicitInt = Std.hasImplicitInt();
  
-diff -up llvm-project-release-10.x/clang/lib/Frontend/InitPreprocessor.cpp.6~ llvm-project-release-10.x/clang/lib/Frontend/InitPreprocessor.cpp
---- llvm-project-release-10.x/clang/lib/Frontend/InitPreprocessor.cpp.6~	2020-02-03 15:57:27.021093755 +0100
-+++ llvm-project-release-10.x/clang/lib/Frontend/InitPreprocessor.cpp	2020-02-03 15:59:22.956098868 +0100
-@@ -596,7 +596,10 @@ static void InitializePredefinedMacros(c
+diff -up llvm-project-release-12.x/clang/lib/Frontend/InitPreprocessor.cpp.7~ llvm-project-release-12.x/clang/lib/Frontend/InitPreprocessor.cpp
+--- llvm-project-release-12.x/clang/lib/Frontend/InitPreprocessor.cpp.7~	2021-02-06 05:47:20.000000000 +0100
++++ llvm-project-release-12.x/clang/lib/Frontend/InitPreprocessor.cpp	2021-02-08 19:16:07.894088125 +0100
+@@ -626,7 +626,10 @@ static void InitializePredefinedMacros(c
      Builder.defineMacro("__GNUC__", Twine(GNUCMajor));
      Builder.defineMacro("__GNUC_MINOR__", Twine(GNUCMinor));
      Builder.defineMacro("__GNUC_PATCHLEVEL__", Twine(GNUCPatch));
@@ -37,10 +37,10 @@ diff -up llvm-project-release-10.x/clang/lib/Frontend/InitPreprocessor.cpp.6~ ll
  
      if (LangOpts.CPlusPlus) {
        Builder.defineMacro("__GNUG__", Twine(GNUCMajor));
-diff -up llvm-project-release-10.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp.6~ llvm-project-release-10.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp
---- llvm-project-release-10.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp.6~	2020-02-03 16:00:12.232101040 +0100
-+++ llvm-project-release-10.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp	2020-02-03 16:00:36.085102092 +0100
-@@ -517,7 +517,7 @@ ClangExpressionParser::ClangExpressionPa
+diff -up llvm-project-release-12.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp.7~ llvm-project-release-12.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp
+--- llvm-project-release-12.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp.7~	2021-02-06 05:47:20.000000000 +0100
++++ llvm-project-release-12.x/lldb/source/Plugins/ExpressionParser/Clang/ClangExpressionParser.cpp	2021-02-08 19:16:07.894088125 +0100
+@@ -612,7 +612,7 @@ ClangExpressionParser::ClangExpressionPa
      lang_opts.CPlusPlus11 = true;
  
      // The Darwin libc expects this macro to be set.

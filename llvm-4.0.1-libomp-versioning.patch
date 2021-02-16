@@ -1,14 +1,15 @@
---- llvm-4.0.1.src/openmp/runtime/src/CMakeLists.txt.omv~	2017-06-04 21:08:05.776531323 +0200
-+++ llvm-4.0.1.src/openmp/runtime/src/CMakeLists.txt	2017-06-04 21:09:33.756460807 +0200
-@@ -141,6 +141,13 @@ endif()
- libomp_get_ldflags(LIBOMP_CONFIGURED_LDFLAGS)
- 
- add_library(omp ${LIBOMP_LIBRARY_KIND} ${LIBOMP_SOURCE_FILES})
-+if(UNIX)
-+  if(NOT APPLE)
+diff -up llvm-project-release-12.x/openmp/runtime/src/CMakeLists.txt.26~ llvm-project-release-12.x/openmp/runtime/src/CMakeLists.txt
+--- llvm-project-release-12.x/openmp/runtime/src/CMakeLists.txt.26~	2021-02-08 19:40:43.752267225 +0100
++++ llvm-project-release-12.x/openmp/runtime/src/CMakeLists.txt	2021-02-08 19:44:06.137304517 +0100
+@@ -155,6 +155,13 @@ else()
+   # libomp must be a C++ library such that it can link libLLVMSupport
+   set(LIBOMP_LINKER_LANGUAGE CXX)
+ endif()
++if (UNIX)
++  if (NOT APPLE)
 +    set_target_properties(omp PROPERTIES
 +                              SOVERSION 1
-+                              VERSION 1.${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}${LLVM_VERSION_SUFFIX})
++			      VERSION 1.${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}${LLVM_VERSION_SUFFIX})
 +  endif()
 +endif()
  

@@ -1,7 +1,8 @@
---- llvm-6.0.0.src/clang/lib/Basic/Targets/OSTargets.h.mcount~	2017-12-08 22:52:34.047384938 +0100
-+++ llvm-6.0.0.src/clang/lib/Basic/Targets/OSTargets.h	2017-12-08 22:53:18.877428588 +0100
-@@ -209,10 +209,13 @@ public:
-     case llvm::Triple::ppc:
+diff -up llvm-project-release-12.x/clang/lib/Basic/Targets/OSTargets.h.27~ llvm-project-release-12.x/clang/lib/Basic/Targets/OSTargets.h
+--- llvm-project-release-12.x/clang/lib/Basic/Targets/OSTargets.h.27~	2021-02-08 19:45:41.223374831 +0100
++++ llvm-project-release-12.x/clang/lib/Basic/Targets/OSTargets.h	2021-02-08 19:47:06.882909389 +0100
+@@ -256,10 +256,13 @@ public:
+     case llvm::Triple::ppcle:
      case llvm::Triple::ppc64:
      case llvm::Triple::ppc64le:
 +    case llvm::Triple::aarch64:

@@ -1,13 +1,7 @@
-diff -up llvm-project-master/lld/ELF/Config.h.14~ llvm-project-master/lld/ELF/Config.h
---- llvm-project-master/lld/ELF/Config.h.14~	2020-06-21 19:00:42.000000000 +0200
-+++ llvm-project-master/lld/ELF/Config.h	2020-06-21 19:57:06.345779527 +0200
-@@ -133,12 +133,12 @@ struct Configuration {
-                   uint64_t>
-       callGraphProfile;
-   bool allowMultipleDefinition;
--  bool allowShlibUndefined;
-+  bool allowShlibUndefined = false;
-   bool androidPackDynRelocs;
+diff -up llvm-project-release-12.x/lld/ELF/Config.h.15~ llvm-project-release-12.x/lld/ELF/Config.h
+--- llvm-project-release-12.x/lld/ELF/Config.h.15~	2021-02-06 05:47:20.000000000 +0100
++++ llvm-project-release-12.x/lld/ELF/Config.h	2021-02-08 19:28:40.073138618 +0100
+@@ -142,7 +142,7 @@ struct Configuration {
    bool armHasBlx = false;
    bool armHasMovtMovw = false;
    bool armJ1J2BranchEncoding = false;
@@ -16,7 +10,7 @@ diff -up llvm-project-master/lld/ELF/Config.h.14~ llvm-project-master/lld/ELF/Co
    bool bsymbolic;
    bool bsymbolicFunctions;
    bool callGraphProfileSort;
-@@ -152,15 +152,15 @@ struct Configuration {
+@@ -157,16 +157,16 @@ struct Configuration {
    bool ehFrameHdr;
    bool emitLLVM;
    bool emitRelocs;
@@ -27,6 +21,7 @@ diff -up llvm-project-master/lld/ELF/Config.h.14~ llvm-project-master/lld/ELF/Co
    bool fixCortexA53Errata843419;
    bool fixCortexA8;
    bool formatBinary = false;
+   bool fortranCommon;
 -  bool gcSections;
 +  bool gcSections = true;
    bool gdbIndex;
@@ -35,7 +30,7 @@ diff -up llvm-project-master/lld/ELF/Config.h.14~ llvm-project-master/lld/ELF/Co
    bool gnuUnique;
    bool hasDynSymTab;
    bool ignoreDataAddressEquality;
-@@ -206,7 +206,7 @@ struct Configuration {
+@@ -214,7 +214,7 @@ struct Configuration {
    bool useAndroidRelrTags = false;
    bool warnBackrefs;
    std::vector<llvm::GlobPattern> warnBackrefsExclude;
@@ -44,7 +39,7 @@ diff -up llvm-project-master/lld/ELF/Config.h.14~ llvm-project-master/lld/ELF/Co
    bool warnIfuncTextrel;
    bool warnMissingEntry;
    bool warnSymbolOrdering;
-@@ -235,14 +235,14 @@ struct Configuration {
+@@ -244,7 +244,7 @@ struct Configuration {
    bool zWxneeded;
    DiscardPolicy discard;
    GnuStackKind zGnustack;
@@ -53,7 +48,8 @@ diff -up llvm-project-master/lld/ELF/Config.h.14~ llvm-project-master/lld/ELF/Co
    OrphanHandlingPolicy orphanHandling;
    SortSectionPolicy sortSection;
    StripPolicy strip;
-   UnresolvedPolicy unresolvedSymbols;
+@@ -252,7 +252,7 @@ struct Configuration {
+   UnresolvedPolicy unresolvedSymbolsInShlib;
    Target2Policy target2;
    ARMVFPArgKind armVFPArgs = ARMVFPArgKind::Default;
 -  BuildIdKind buildId = BuildIdKind::None;
@@ -61,7 +57,7 @@ diff -up llvm-project-master/lld/ELF/Config.h.14~ llvm-project-master/lld/ELF/Co
    SeparateSegmentKind zSeparate;
    ELFKind ekind = ELFNoneKind;
    uint16_t emachine = llvm::ELF::EM_NONE;
-@@ -253,7 +253,7 @@ struct Configuration {
+@@ -263,7 +263,7 @@ struct Configuration {
    uint64_t zStackSize;
    unsigned ltoPartitions;
    unsigned ltoo;
@@ -70,10 +66,10 @@ diff -up llvm-project-master/lld/ELF/Config.h.14~ llvm-project-master/lld/ELF/Co
    StringRef thinLTOJobs;
    unsigned timeTraceGranularity;
    int32_t splitStackAdjustSize;
-diff -up llvm-project-master/lld/ELF/Driver.cpp.14~ llvm-project-master/lld/ELF/Driver.cpp
---- llvm-project-master/lld/ELF/Driver.cpp.14~	2020-06-21 19:00:42.000000000 +0200
-+++ llvm-project-master/lld/ELF/Driver.cpp	2020-06-21 19:57:30.194512821 +0200
-@@ -635,10 +635,10 @@ static StringRef getDynamicLinker(opt::I
+diff -up llvm-project-release-12.x/lld/ELF/Driver.cpp.15~ llvm-project-release-12.x/lld/ELF/Driver.cpp
+--- llvm-project-release-12.x/lld/ELF/Driver.cpp.15~	2021-02-08 19:25:16.668677790 +0100
++++ llvm-project-release-12.x/lld/ELF/Driver.cpp	2021-02-08 19:34:32.933924022 +0100
+@@ -691,10 +693,10 @@ static StringRef getDynamicLinker(opt::I
  
  static ICFLevel getICF(opt::InputArgList &args) {
    auto *arg = args.getLastArg(OPT_icf_none, OPT_icf_safe, OPT_icf_all);
@@ -87,7 +83,7 @@ diff -up llvm-project-master/lld/ELF/Driver.cpp.14~ llvm-project-master/lld/ELF/
    return ICFLevel::All;
  }
  
-@@ -714,7 +714,7 @@ getBuildId(opt::InputArgList &args) {
+@@ -770,7 +772,7 @@ getBuildId(opt::InputArgList &args) {
      return {BuildIdKind::None, {}};
  
    if (arg->getOption().getID() == OPT_build_id)
@@ -96,17 +92,17 @@ diff -up llvm-project-master/lld/ELF/Driver.cpp.14~ llvm-project-master/lld/ELF/
  
    StringRef s = arg->getValue();
    if (s == "fast")
-@@ -921,7 +921,7 @@ static void readConfigs(opt::InputArgLis
-                                      !args.hasArg(OPT_relocatable);
-   config->fixCortexA8 =
+@@ -981,7 +983,7 @@ static void readConfigs(opt::InputArgLis
        args.hasArg(OPT_fix_cortex_a8) && !args.hasArg(OPT_relocatable);
+   config->fortranCommon =
+       args.hasFlag(OPT_fortran_common, OPT_no_fortran_common, true);
 -  config->gcSections = args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, false);
 +  config->gcSections = args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, true);
    config->gnuUnique = args.hasFlag(OPT_gnu_unique, OPT_no_gnu_unique, true);
    config->gdbIndex = args.hasFlag(OPT_gdb_index, OPT_no_gdb_index, false);
    config->icf = getICF(args);
-@@ -1017,7 +1017,7 @@ static void readConfigs(opt::InputArgLis
-   config->unresolvedSymbols = getUnresolvedSymbolPolicy(args);
+@@ -1092,7 +1094,7 @@ static void readConfigs(opt::InputArgLis
+       OPT_use_android_relr_tags, OPT_no_use_android_relr_tags, false);
    config->warnBackrefs =
        args.hasFlag(OPT_warn_backrefs, OPT_no_warn_backrefs, false);
 -  config->warnCommon = args.hasFlag(OPT_warn_common, OPT_no_warn_common, false);
@@ -114,7 +110,7 @@ diff -up llvm-project-master/lld/ELF/Driver.cpp.14~ llvm-project-master/lld/ELF/
    config->warnIfuncTextrel =
        args.hasFlag(OPT_warn_ifunc_textrel, OPT_no_warn_ifunc_textrel, false);
    config->warnSymbolOrdering =
-@@ -1827,7 +1827,7 @@ template <class ELFT> void LinkerDriver:
+@@ -2044,7 +2046,7 @@ template <class ELFT> void LinkerDriver:
      if (config->emachine == EM_MIPS)
        config->sysvHash = true;
      else
