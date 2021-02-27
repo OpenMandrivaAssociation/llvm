@@ -39,7 +39,14 @@
 %bcond_with libcxx
 %bcond_without clang
 %bcond_with flang
+%ifarch %{aarch64}
+# Temporary workaround -- building mlir on aarch64 with clang 11
+# fails (but it works with clang 12 - so we just need a bootstrap
+# version)
+%bcond_with mlir
+%else
 %bcond_without mlir
+%endif
 %ifarch armv7hnl riscv64
 # RISC-V and armv7 don't have a working ocaml compiler yet
 %bcond_with ocaml
@@ -304,10 +311,12 @@ Obsoletes: %{mklibname lldConfig 5} < %{EVRD}
 BuildRequires:	%{_lib}gpuruntime
 # llvm-config called by cmake scripts
 BuildRequires:	llvm-devel
+%if %{with mlir}
 # Required because of references in LLVMExports.cmake
 BuildRequires:	llvm-mlir-tools
 BuildRequires:	%{_lib}mlir_test_cblas%{major1}
 BuildRequires:	%{_lib}mlir_test_cblas_interface%{major1}
+%endif
 %endif
 
 %description
@@ -428,7 +437,11 @@ for effective implementation, proper tail calls or garbage collection.
 
 %define FlangLibs FIROptimizer FortranCommon FortranDecimal FortranEvaluate FortranLower FortranParser FortranRuntime FortranSemantics
 
+%if %{with mlir}
 %define MLIRLibs MLIRAffine MLIRArmNeon MLIRArmNeonToLLVM MLIRArmSVE MLIRArmSVEToLLVM MLIRAsync MLIRAsyncToLLVM MLIRAsyncTransforms MLIRAVX512 MLIRAVX512ToLLVM MLIRAffineEDSC MLIRAffineToStandard MLIRAffineTransforms MLIRAffineTransformsTestPasses MLIRAffineUtils MLIRAnalysis MLIRCAPIIR MLIRCAPILinalg MLIRCAPIRegistration MLIRCAPISCF MLIRCAPIShape MLIRCAPIStandard MLIRCAPITensor MLIRCAPITransforms MLIRCastInterfaces MLIRCallInterfaces MLIRComplex MLIRComplexToLLVM MLIRControlFlowInterfaces MLIRCopyOpInterface MLIRDerivedAttributeOpInterface MLIRDialect MLIREDSC MLIRExecutionEngine MLIRGPU MLIRGPUToGPURuntimeTransforms MLIRGPUToNVVMTransforms MLIRGPUToROCDLTransforms MLIRGPUToSPIRV MLIRLLVMArmNeon MLIRLLVMArmSVE MLIRLinalg MLIRGPUToVulkanTransforms MLIRIR MLIRInferTypeOpInterface MLIRJitRunner MLIRLLVMAVX512 MLIRLLVMIR MLIRLLVMIRTransforms MLIRLinalgAnalysis MLIRLinalgEDSC MLIRLinalgToLLVM MLIRLinalgToSPIRV MLIRLinalgToStandard MLIRLinalgTransforms MLIRLinalgUtils MLIRLoopAnalysis MLIRLoopLikeInterface MLIRMlirOptMain MLIRNVVMIR MLIROpenACC MLIROpenMP MLIROpenMPToLLVM MLIROptLib MLIRParser MLIRPass MLIRPresburger MLIRQuant MLIRROCDLIR MLIRReduce MLIRSCF MLIRSCFToGPU MLIRSCFToOpenMP MLIRSCFToSPIRV MLIRSCFToStandard MLIRSCFTransforms MLIRSDBM MLIRSPIRV MLIRSPIRVSerialization MLIRSPIRVTestPasses MLIRSPIRVToLLVM MLIRSPIRVTransforms MLIRShape MLIRShapeOpsTransforms MLIRShapeToStandard MLIRSideEffectInterfaces MLIRStandardOpsTransforms MLIRStandardToLLVM MLIRStandardToSPIRV MLIRSupport MLIRSupportIndentedOstream MLIRTargetArmNeon MLIRTargetArmSVE MLIRTargetAVX512 MLIRTargetLLVMIR MLIRTargetLLVMIRModuleTranslation MLIRTargetNVVMIR MLIRTargetROCDLIR MLIRTestDialect MLIRTestIR MLIRTestPass MLIRTestReducer MLIRTestRewrite MLIRTestTransforms MLIRTransformUtils MLIRTransforms MLIRTranslation MLIRVector MLIRVectorInterfaces MLIRVectorToLLVM MLIRVectorToROCDL MLIRVectorToSCF MLIRVectorToSPIRV MLIRViewLikeInterface mlir_async_runtime mlir_c_runner_utils mlir_c_runner_utils_static mlir_runner_utils mlir_test_cblas mlir_test_cblas_interface MLIRPDL MLIRPDLInterp MLIRPDLToPDLInterp MLIRPublicAPI MLIRRewrite MLIRSPIRVBinaryUtils MLIRSPIRVConversion MLIRSPIRVDeserialization MLIRSPIRVModuleCombiner MLIRSPIRVTranslateRegistration MLIRSPIRVUtils MLIRShapeTestPasses MLIRStandard MLIRTensor MLIRTensorTransforms MLIRTosa MLIRTosaTestPasses MLIRTosaToLinalg MLIRTosaTransforms
+%else
+%define MLIRLibs %{nil}
+%endif
 
 %if %{with lld}
 %define LLDLibs lldCOFF lldCommon lldCore lldDriver lldELF lldMachO lldMachO2 lldMinGW lldReaderWriter lldWasm lldYAML
@@ -568,6 +581,10 @@ Obsoletes:	%{mklibname LLVMX86AsmPrinter 9} < %{EVRD}
 Obsoletes:	%{mklibname LLVMXCoreAsmPrinter 9} < %{EVRD}
 Obsoletes:	%{mklibname LLVMWebAssemblyAsmPrinter 9} < %{EVRD}
 Obsoletes:	%{mklibname LLVMRISCVAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMLTO 11} < %{EVRD}
+Obsoletes:	%{mklibname clangCodeGen 11} < %{EVRD}
+Obsoletes:	%{mklibname clang-cpp 11} < %{EVRD}
+Obsoletes:	%{mklibname LLVMExtensions 11} < %{EVRD}
 
 %description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
@@ -592,10 +609,12 @@ Requires:	ffi-devel
 Requires:	pkgconfig(ncursesw)
 Requires:	stdc++-devel
 Requires:	pkgconfig(zlib)
+%if %{with mlir}
 # Required because of references in LLVMExports.cmake
 Requires:	llvm-mlir-tools = %{EVRD}
 Requires:	%{_lib}mlir_test_cblas%{major1} = %{EVRD}
 Requires:	%{_lib}mlir_test_cblas_interface%{major1} = %{EVRD}
+%endif
 # Back to regular dependencies
 %if %{with openmp}
 Provides:	openmp-devel = %{EVRD}
@@ -1186,6 +1205,7 @@ Development files for libunwind
 %endif
 %endif
 
+%if %{with mlir}
 #-----------------------------------------------------------
 %package mlir-tools
 Summary: Tools for working with MLIR (Multi-Level Intermediate Representation)
@@ -1224,6 +1244,7 @@ existing compilers together.
 %{_libdir}/cmake/mlir
 %{_libdir}/libMLIRTableGen.a
 #-----------------------------------------------------------
+%endif
 
 
 %prep
