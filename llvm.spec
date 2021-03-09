@@ -145,11 +145,6 @@ Patch1:		0000-clang-mandriva.patch
 # see http://llvm.org/bugs/show_bug.cgi?id=15557
 # and https://bugzilla.redhat.com/show_bug.cgi?id=803433
 Patch2:		clang-hardfloat-hack.patch
-Patch3:		llvm-3.7.0-PATH_MAX-compile.patch
-# There's so many limits.h and inttypes.h headers in llvm these days that
-# a #include_next isn't sufficient to get the definitions we need.
-# This patch is ugly but effective.
-Patch4:		clang-9.0.0-bogus-headers.patch
 # Patches from AOSP
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
