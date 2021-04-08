@@ -8,8 +8,8 @@
 %bcond_with compat32
 %endif
 
-# This is -rc4
-%define date 20210401
+# This is -rc5
+%define date 20210408
 
 %define debug_package %{nil}
 %define debugcflags %{nil}
