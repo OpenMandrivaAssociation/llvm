@@ -328,11 +328,8 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/bugpoint
 %{_bindir}/count
 %{_bindir}/c-index-test
-%{_bindir}/diagtool
 %{_bindir}/dsymutil
-%{_bindir}/find-all-symbols
 %{_bindir}/git-clang-format
-%{_bindir}/hmaptool
 %{_bindir}/llc
 %{_bindir}/lli
 %{_bindir}/lli-child-target
@@ -401,7 +398,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-mt
 %{_bindir}/llvm-readelf
 %endif
-%{_bindir}/modularize
+
 %{_bindir}/sancov
 %{_bindir}/sanstats
 %{_bindir}/verify-uselistorder
@@ -413,7 +410,7 @@ for effective implementation, proper tail calls or garbage collection.
 
 %{_mandir}/man1/FileCheck.1*
 %{_mandir}/man1/bugpoint.1*
-%{_mandir}/man1/diagtool.1*
+
 %{_mandir}/man1/dsymutil.1*
 %{_mandir}/man1/lit.1*
 %{_mandir}/man1/llc.1*
@@ -811,8 +808,11 @@ and Objective C++ front-end for the LLVM compiler. Its tools are built
 as libraries and designed to be loosely-coupled and extensible.
 
 %files -n clang
-%{_bindir}/clang*
-%{_bindir}/pp-trace
+%{_bindir}/clang
+%{_bindir}/clang++
+%{_bindir}/clang-%{major1}
+%{_bindir}/clang-cl
+%{_bindir}/clang-cpp
 %{_libdir}/LLVMgold.so
 %if %{build_lto}
 %{_libdir}/bfd-plugins/LLVMgold.so
@@ -831,12 +831,46 @@ as libraries and designed to be loosely-coupled and extensible.
 
 #-----------------------------------------------------------
 
+%package -n clang-tools
+Summary:	Various tools for LLVM/clang
+Group:		Development/Other
+Requires:	clang = %{EVRD}
+
+%description -n clang-tools
+A various tools for LLVM/clang.
+
+%files -n clang-tools
+%{_bindir}/clang-apply-replacements
+%{_bindir}/clang-change-namespace
+%{_bindir}/clang-check
+%{_bindir}/clang-doc
+%{_bindir}/clang-extdef-mapping
+%{_bindir}/clang-format
+%{_bindir}/clang-include-fixer
+%{_bindir}/clang-move
+%{_bindir}/clang-offload-bundler
+%{_bindir}/clang-offload-wrapper
+%{_bindir}/clang-query
+%{_bindir}/clang-refactor
+%{_bindir}/clang-rename
+%{_bindir}/clang-reorder-fields
+%{_bindir}/clang-scan-deps
+%{_bindir}/clang-tidy
+%{_bindir}/clangd
+%{_bindir}/diagtool
+%{_bindir}/find-all-symbols
+%{_bindir}/hmaptool
+%{_bindir}/modularize
+%{_bindir}/pp-trace
+%{_mandir}/man1/diagtool.1*
+
 %define devclang %mklibname -d clang
 
 %package -n %{devclang}
 Summary:	Development files for clang
 Group:		Development/Other
 Requires:	clang = %{EVRD}
+Requires:	clang-tools = %{EVRD}
 Provides:	clang-devel = %{EVRD}
 Conflicts:	llvm-devel < 3.1
 Obsoletes:	clang-devel < 3.1
