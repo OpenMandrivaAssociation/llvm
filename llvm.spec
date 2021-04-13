@@ -101,7 +101,7 @@
 
 %bcond_with upstream_tarballs
 
-%define major %(echo %{version} |cut -d. -f1-2)  
+%define major %(echo %{version} |cut -d. -f1-2)
 %define major1 %(echo %{version} |cut -d. -f1)
 #define is_main 1
 
@@ -118,7 +118,7 @@ Url:		http://llvm.org/
 %if 0%{?date:1}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
-Release:	0.%{date}.1
+Release:	0.%{date}.2
 %else
 Release:	1
 %if %{with upstream_tarballs}
@@ -457,11 +457,11 @@ for effective implementation, proper tail calls or garbage collection.
 %if %{with compat32}
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do cat <<EOF
 %%package -n lib${i}%{major1}
-Summary: 32-bit LLVM ${i} library
-Group: Development/C
+Summary:	32-bit LLVM ${i} library
+Group:		Development/C
 
 %%description -n lib${i}%{major1}
-32-bit LLVM ${i} library
+32-bit LLVM ${i} library.
 
 %%files -n lib${i}%{major1}
 %%{_prefix}/lib/lib${i}.so.%{major1}*
@@ -476,8 +476,8 @@ done)}
 %define devunwind %mklibname -d unwind
 
 %package -n %{libunwind}
-Summary: The LLVM unwind library
-Group: System/Libraries
+Summary:	The LLVM unwind library
+Group:		System/Libraries
 
 %description -n %{libunwind}
 The unwind library, a part of llvm.
@@ -488,12 +488,12 @@ The unwind library, a part of llvm.
 %{_libdir}/libunwind.so.1
 
 %package -n %{devunwind}
-Summary: Development files for libunwind
-Group: Development/C
-Requires: %{libunwind} = %{EVRD}
+Summary:	Development files for libunwind
+Group:		Development/C
+Requires:	%{libunwind} = %{EVRD}
 
 %description -n %{devunwind}
-Development files for libunwind
+Development files for libunwind.
 
 %files -n %{devunwind}
 %{_libdir}/libunwind.a
@@ -519,11 +519,11 @@ Development files for libunwind
 %define cxxabistatic %mklibname c++abi -d -s
 
 %package -n %{cxxdevname}
-Summary: Development files for libc++, an alternative implementation of the STL
-Group: Development/C
-Requires: %{mklibname c++ 1} = %{EVRD}
-Requires: %{mklibname c++abi 1} = %{EVRD}
-Provides: c++-devel = %{EVRD}
+Summary:	Development files for libc++, an alternative implementation of the STL
+Group:		Development/C
+Requires:	%{mklibname c++ 1} = %{EVRD}
+Requires:	%{mklibname c++abi 1} = %{EVRD}
+Provides:	c++-devel = %{EVRD}
 
 %description -n %{cxxdevname}
 Development files for libc++, an alternative implementation of the STL.
@@ -537,9 +537,9 @@ Development files for libc++, an alternative implementation of the STL.
 %{_libdir}/libc++experimental.a
 
 %package -n %{cxxabistatic}
-Summary: Static library for libc++ C++ ABI support
-Group: Development/C
-Requires: %{cxxdevname} = %{EVRD}
+Summary:	Static library for libc++ C++ ABI support
+Group:		Development/C
+Requires:	%{cxxdevname} = %{EVRD}
 
 %description -n %{cxxabistatic}
 Static library for libc++'s C++ ABI library.
@@ -716,12 +716,12 @@ Documentation for the LLVM compiler infrastructure.
 
 #-----------------------------------------------------------
 %package polly
-Summary: Polyhedral optimizations for LLVM
-License: MIT
-Group: Development/Other
-Obsoletes: llvm-devel < 4.0.1
-Obsoletes: %{_lib}llvm-devel < 4.0.1
-Conflicts: %{_lib}llvm-devel < 4.0.1
+Summary:	Polyhedral optimizations for LLVM
+License:	MIT
+Group:		Development/Other
+Obsoletes:	llvm-devel < 4.0.1
+Obsoletes:	%{_lib}llvm-devel < 4.0.1
+Conflicts:	%{_lib}llvm-devel < 4.0.1
 
 %description polly
 Polly is a polyhedral optimizer for LLVM.
@@ -744,10 +744,10 @@ short vector instructions as well as dedicated accelerators.
 
 #-----------------------------------------------------------
 %package polly-devel
-Summary: Development files for Polly
-License: MIT
-Group: Development/Other
-Requires: %{name}-polly = %{EVRD}
+Summary:	Development files for Polly
+License:	MIT
+Group:		Development/Other
+Requires:	%{name}-polly = %{EVRD}
 
 %description polly-devel
 Development files for Polly.
@@ -964,11 +964,11 @@ A Fortran language front-end for LLVM
 %define flangdev %mklibname -d flang
 
 %package -n %{flangdev}
-Summary: Development files for Flang, the LLVM Fortran compiler
-Group: Development/Fortran
+Summary:	Development files for Flang, the LLVM Fortran compiler
+Group:		Development/Fortran
 
 %description -n %{flangdev}
-Development files for Flang, the LLVM Fortran compiler
+Development files for Flang, the LLVM Fortran compiler.
 
 %files -n %{flangdev}
 %{_includedir}/flang
@@ -1066,18 +1066,18 @@ Summary:	Python bindings to parts of the Clang library
 Group:		Development/Python
 
 %description -n python-clang
-Python bindings to parts of the Clang library
+Python bindings to parts of the Clang library.
 
 %files -n python-clang
 %{python_sitelib}/clang
 #-----------------------------------------------------------
 
 %package -n %{_lib}gpuruntime
-Summary: GPU runtime library
-Group: System/Libraries
+Summary:	GPU runtime library
+Group:		System/Libraries
 
 %description -n %{_lib}gpuruntime
-32-bit GPU runtime library
+32-bit GPU runtime library.
 
 %ifnarch %{riscv}
 %files -n %{_lib}gpuruntime
@@ -1088,12 +1088,12 @@ Group: System/Libraries
 
 %if %{with compat32}
 %package -n libllvm-devel
-Summary: 32-bit LLVM development files
-Group: Development/C
+Summary:	32-bit LLVM development files
+Group:		Development/C
 %{expand:%(for i in %{LLVMLibs}; do echo Requires:	lib${i}%{major1} = %{EVRD}; done)}
 
 %description -n libllvm-devel
-32-bit LLVM development files
+32-bit LLVM development files.
 
 %files -n libllvm-devel
 %{_prefix}/lib/cmake/clang
@@ -1105,22 +1105,22 @@ Group: Development/C
 %{_prefix}/lib/libarcher_static.a
 
 %package -n libclang-devel
-Summary: 32-bit Clang development files
-Group: Development/C
+Summary:	32-bit Clang development files
+Group:		Development/C
 %{expand:%(for i in %{ClangLibs}; do echo Requires:	lib${i}%{major1} = %{EVRD}; done)}
 
 %description -n libclang-devel
-32-bit Clang development files
+32-bit Clang development files.
 
 %files -n libclang-devel
 %{_prefix}/lib/libclang*.so
 
 %package -n libgpuruntime
-Summary: 32-bit GPU runtime library
-Group: System/Libraries
+Summary:	32-bit GPU runtime library
+Group:		System/Libraries
 
 %description -n libgpuruntime
-32-bit GPU runtime library
+32-bit GPU runtime library.
 
 %ifnarch %{riscv}
 %if ! %{with bootstrap32}
@@ -1130,22 +1130,22 @@ Group: System/Libraries
 %endif
 
 %package -n libomp1
-Summary: 32-bit OpenMP runtime
-Group: System/Libraries
+Summary:	32-bit OpenMP runtime
+Group:		System/Libraries
 
 %description -n libomp1
-32-bit OpenMP runtime
+32-bit OpenMP runtime.
 
 %files -n libomp1
 %{_prefix}/lib/libomp.so.1*
 %{_prefix}/lib/libomptarget.so.*
 
 %package -n libomp-devel
-Summary: Development files for the 32-bit OpenMP runtime
-Group: Development/C
+Summary:	Development files for the 32-bit OpenMP runtime
+Group:		Development/C
 
 %description -n libomp-devel
-Development files for the 32-bit OpenMP runtime
+Development files for the 32-bit OpenMP runtime.
 
 %files -n libomp-devel
 %{_prefix}/lib/libgomp.so
@@ -1154,9 +1154,9 @@ Development files for the 32-bit OpenMP runtime
 %{_prefix}/lib/libomptarget.so
 
 %package polly32
-Summary: Polyhedral optimizations for LLVM (32-bit)
-License: MIT
-Group: Development/Other
+Summary:	Polyhedral optimizations for LLVM (32-bit)
+License:	MIT
+Group:		Development/Other
 
 %description polly32
 Polly is a polyhedral optimizer for LLVM.
@@ -1178,11 +1178,11 @@ short vector instructions as well as dedicated accelerators.
 %{_prefix}/lib/libPollyPPCG.so
 
 %package polly32-devel
-Summary: Development files for Polly (32-bit)
-License: MIT
-Group: Development/Other
-Requires: %{name}-polly32 = %{EVRD}
-Requires: %{name}-polly-devel = %{EVRD}
+Summary:	Development files for Polly (32-bit)
+License:	MIT
+Group:		Development/Other
+Requires:	%{name}-polly32 = %{EVRD}
+Requires:	%{name}-polly-devel = %{EVRD}
 
 %description polly32-devel
 Development files for Polly.
@@ -1206,8 +1206,8 @@ short vector instructions as well as dedicated accelerators.
 %define dev32unwind libunwind-devel
 
 %package -n %{lib32unwind}
-Summary: The LLVM unwind library (32-bit)
-Group: System/Libraries
+Summary:	The LLVM unwind library (32-bit)
+Group:		System/Libraries
 
 %description -n %{lib32unwind}
 The unwind library, a part of llvm.
@@ -1217,13 +1217,13 @@ The unwind library, a part of llvm.
 %{_prefix}/lib/libunwind.so.1
 
 %package -n %{dev32unwind}
-Summary: Development files for libunwind (32-bit)
-Group: Development/C
-Requires: %{lib32unwind} = %{EVRD}
-Requires: %{devunwind} = %{EVRD}
+Summary:	Development files for libunwind (32-bit)
+Group:		Development/C
+Requires:	%{lib32unwind} = %{EVRD}
+Requires:	%{devunwind} = %{EVRD}
 
 %description -n %{dev32unwind}
-Development files for libunwind
+Development files for libunwind.
 
 %files -n %{dev32unwind}
 %{_prefix}/lib/libunwind.a
@@ -1238,8 +1238,8 @@ Development files for libunwind
 %if %{with mlir}
 #-----------------------------------------------------------
 %package mlir-tools
-Summary: Tools for working with MLIR (Multi-Level Intermediate Representation)
-Group: Development/C
+Summary:	Tools for working with MLIR (Multi-Level Intermediate Representation)
+Group:		Development/C
 
 %description mlir-tools
 Tools for working with MLIR (Multi-Level Intermediate Representation)
@@ -1256,8 +1256,8 @@ existing compilers together.
 
 %define mlirdev %{mklibname -d mlir}
 %package -n %{mlirdev}
-Summary: Development files for MLIR
-Group: Development/C
+Summary:	Development files for MLIR
+Group:		Development/C
 
 %description -n %{mlirdev}
 Development files for MLIR
