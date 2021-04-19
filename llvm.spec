@@ -810,7 +810,7 @@ as libraries and designed to be loosely-coupled and extensible.
 %{_bindir}/clang
 %{_bindir}/clang++
 %{_bindir}/clang-%{major1}
-%{_bindir}/clang-cl
+
 %{_bindir}/clang-cpp
 %{_libdir}/LLVMgold.so
 %if %{build_lto}
@@ -826,7 +826,6 @@ as libraries and designed to be loosely-coupled and extensible.
 %{_bindir}/c++
 %endif
 %{_mandir}/man1/clang.1*
-%{_mandir}/man1/extraclangtools.1*
 
 #-----------------------------------------------------------
 
@@ -842,6 +841,7 @@ A various tools for LLVM/clang.
 %{_bindir}/clang-apply-replacements
 %{_bindir}/clang-change-namespace
 %{_bindir}/clang-check
+%{_bindir}/clang-cl
 %{_bindir}/clang-doc
 %{_bindir}/clang-extdef-mapping
 %{_bindir}/clang-format
@@ -862,6 +862,7 @@ A various tools for LLVM/clang.
 %{_bindir}/modularize
 %{_bindir}/pp-trace
 %{_mandir}/man1/diagtool.1*
+{_mandir}/man1/extraclangtools.1*
 
 %define devclang %mklibname -d clang
 
