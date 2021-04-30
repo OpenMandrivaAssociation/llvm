@@ -1,7 +1,7 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%ifarch %{x86_64}
+%ifnarch %{x86_64}
 %bcond_without compat32
 %bcond_with bootstrap32
 %else
@@ -104,9 +104,7 @@
 %define major1 %(echo %{version} |cut -d. -f1)
 #define is_main 1
 
-%ifarch %{x86_64}
-%bcond_with crosscrt
-%endif
+%bcond_without crosscrt
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
@@ -119,7 +117,7 @@ Url:		http://llvm.org/
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
 Release:	0.%{date}.1
 %else
-Release:	1
+Release:	2
 %if %{with upstream_tarballs}
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
 Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
@@ -214,6 +212,8 @@ BuildRequires:	graphviz
 # Without this, generating man pages fails
 # Handler <function process_automodsumm_generation at 0x7fa70fc2a5e0> for event 'builder-inited' threw an exception (exception: No module named 'lldb')
 BuildRequires:	lldb
+# For libclc
+BuildRequires:	spirv-llvm-translator
 %endif
 BuildRequires:	chrpath
 BuildRequires:	groff
@@ -302,15 +302,26 @@ Obsoletes: %{mklibname LLVMRISCVInfo 5} < %{EVRD}
 Obsoletes: %{mklibname lldConfig 5} < %{EVRD}
 
 %if %{with crosscrt}
-# Referenced in cmake files used by crosscrt
-BuildRequires:	%{_lib}gpuruntime
-# llvm-config called by cmake scripts
-BuildRequires:	llvm-devel
-%if %{with mlir}
-# Required because of references in LLVMExports.cmake
-BuildRequires:	llvm-mlir-tools
-BuildRequires:	%{_lib}mlir_test_cblas%{major1}
-BuildRequires:	%{_lib}mlir_test_cblas_interface%{major1}
+%ifnarch %{aarch64}
+BuildRequires:	cross-aarch64-openmandriva-linux-gnu-gcc-bootstrap
+%endif
+%ifnarch %{arm}
+BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-gcc-bootstrap
+%endif
+%ifnarch %{ix86}
+BuildRequires:	cross-i686-openmandriva-linux-gnu-gcc-bootstrap
+%endif
+%ifnarch ppc64le
+BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-gcc-bootstrap
+%endif
+%ifnarch ppc64
+BuildRequires:	cross-ppc64-openmandriva-linux-gnu-gcc-bootstrap
+%endif
+%ifnarch %{riscv64}
+BuildRequires:	cross-riscv64-openmandriva-linux-gnu-gcc-bootstrap
+%endif
+%ifnarch %{x86_64}
+BuildRequires:	cross-x86_64-openmandriva-linux-gnu-gcc-bootstrap
 %endif
 %endif
 
@@ -1275,6 +1286,65 @@ existing compilers together.
 #-----------------------------------------------------------
 %endif
 
+%package -n libclc
+Summary:	Core library of the OpenCL language runtime
+Group:		Development/Other
+Url:		http://libclc.llvm.org/
+
+%description -n libclc
+Core library of the OpenCL language runtime
+
+%package -n libclc-spirv
+Summary:	SPIR-V (Vulkan) backend for the libclc OpenCL library
+Group:		System/Libraries
+Requires:	libclc = %{EVRD}
+
+%description -n libclc-spirv
+SPIR-V (Vulkan) backend for the libclc OpenCL library
+
+%package -n libclc-r600
+Summary:	Radeon 600 (older ATI/AMD GPU) backend for the libclc OpenCL library
+Group:		System/Libraries
+Requires:	libclc = %{EVRD}
+
+%description -n libclc-r600
+Radeon 600 (older ATI/AMD GPU) backend for the libclc OpenCL library
+
+%package -n libclc-amdgcn
+Summary:	AMD GCN (newer ATI/AMD GPU) backend for the libclc OpenCL library
+Group:		System/Libraries
+Requires:	libclc = %{EVRD}
+
+%description -n libclc-amdgcn
+AMD GCN (newer ATI/AMD GPU) backend for the libclc OpenCL library
+
+%package -n libclc-nvptx
+Summary:	Nvidia PTX backend for the libclc OpenCL library
+Group:		System/Libraries
+Requires:	libclc = %{EVRD}
+
+%description -n libclc-nvptx
+Nvidia PTX backend for the libclc OpenCL library
+
+%if %{without bootstrap}
+%files -n libclc
+%{_includedir}/clc
+%dir %{_datadir}/clc
+%{_datadir}/pkgconfig/libclc.pc
+
+%files -n libclc-spirv
+%{_datadir}/clc/spirv*
+
+%files -n libclc-r600
+%{_datadir}/clc/*-r600-*
+
+%files -n libclc-nvptx
+%{_datadir}/clc/nvptx*
+
+%files -n libclc-amdgcn
+%{_datadir}/clc/*amdgcn*
+%endif
+
 
 %prep
 %if 0%{?date:1}
@@ -1492,7 +1562,7 @@ fi
 cd ..
 %endif
 
-%if %{with compat32} || %{with crosscrt}
+%if %{with compat32}
 TOP="$(pwd)"
 cat >xc <<EOF
 #!/bin/sh
@@ -1602,35 +1672,81 @@ EOF
 cd ..
 %endif
 
-%if %{with crosscrt}
-# Build 32-bit compiler-rt libraries so
-# -m32 can do the right thing
-#
-# We use --rtlib=libgcc --unwindlib=libgcc in the flags
-# (see creation of xc/xc++ scripts before building 32bit libs)
-# for bootstrapping -- they're needed only to get cmake to shut
-# up about the compiler tests.
-mkdir xbuild-crt-32
-cd xbuild-crt-32
+# Where our just-built compilers can be found...
+BINDIR=$(pwd)/build/bin
+
+%if %{without bootstrap}
+# libclc integration into the main build seems to be broken
+mkdir build-libclc
+cd build-libclc
 cmake \
+	../libclc \
 	-G Ninja \
-	../compiler-rt \
-	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
-	-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{version} \
-	-DCOMPILER_RT_BUILD_BUILTINS:BOOL=ON \
-	-DCOMPILER_RT_BUILD_SANITIZERS:BOOL=ON \
-	-DCOMPILER_RT_BUILD_XRAY:BOOL=OFF \
-	-DCOMPILER_RT_BUILD_LIBFUZZER:BOOL=OFF \
-	-DCOMPILER_RT_BUILD_PROFILE:BOOL=OFF \
-	-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=i686-openmandriva-linux-gnu \
-	-DCMAKE_EXE_LINKER_FLAGS="$(echo %{ldflags} |sed -e 's,-m64,,g;s,-mx32,,g') -m32" \
-	-DCMAKE_C_COMPILER_TARGET="i686-openmandriva-linux-gnu" \
-	-DCMAKE_ASM_COMPILER_TARGET="i686-openmandriva-linux-gnu" \
-	-DCMAKE_C_FLAGS="$(echo %{optflags} |sed -e 's,-m64,,g;s,-mx32,,g') -m32 --rtlib=libgcc --unwindlib=libgcc" \
-	-DCMAKE_CXX_FLAGS="$(echo %{optflags} |sed -e 's,-m64,,g;s,-mx32,,g') -m32 --rtlib=libgcc --unwindlib=libgcc" \
-	-DCMAKE_ASM_FLAGS="$(echo %{optflags} |sed -e 's,-m64,,g;s,-mx32,,g') -m32 --rtlib=libgcc --unwindlib=libgcc"
+	-DCMAKE_INSTALL_PREFIX=%{_prefix} \
+	-DCMAKE_AR=${BINDIR}/llvm-ar \
+	-DCMAKE_NM=${BINDIR}/llvm-nm \
+	-DCMAKE_RANLIB=${BINDIR}/llvm-ranlib \
+	-DLLVM_CONFIG_PATH=${BINDIR}/llvm-config \
+	-DCMAKE_C_COMPILER=${BINDIR}/clang
 %ninja_build
+cd ..
 %endif
+
+%if %{with crosscrt}
+# Build compiler-rt for all potential crosscompiler targets
+unset CFLAGS
+unset CXXFLAGS
+# FIXME armv7hnl fails to locate crtbegin.o
+# ppc64le/ppc64/riscv64 fails to locate libc.so.6
+# x86_64 doesn't find crt1.o
+XCRTARCHES=""
+%ifnarch %{aarch64}
+XCRTARCHES="$XCRTARCHES aarch64"
+%endif
+%ifnarch %{ix86}
+XCRTARCHES="$XCRTARCHES i686"
+%endif
+if [ -n "$XCRTARCHES" ]; then
+	for arch in $XCRTARCHES; do
+		if [ "$arch" = "armv7hnl" ]; then
+			LIBC=gnueabihf
+		else
+			LIBC=gnu
+		fi
+		mkdir xbuild-crt-${arch}
+		cd xbuild-crt-${arch}
+		cmake \
+			../compiler-rt \
+			-G Ninja \
+			-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{version} \
+			-DCMAKE_AR=${BINDIR}/llvm-ar \
+			-DCMAKE_NM=${BINDIR}/llvm-nm \
+			-DCMAKE_RANLIB=${BINDIR}/llvm-ranlib \
+			-DLLVM_CONFIG_PATH=${BINDIR}/llvm-config \
+			-DCMAKE_ASM_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
+			-DCMAKE_C_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
+			-DCMAKE_CXX_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
+			-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=${arch}-openmandriva-linux-${LIBC} \
+			-DCMAKE_C_COMPILER=${BINDIR}/clang \
+			-DCMAKE_ASM_FLAGS="-O3 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}" \
+			-DCMAKE_C_FLAGS="-O3 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}" \
+			-DCMAKE_CXX_FLAGS="-O3 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix} -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/10.3.0/${arch}-openmandriva-linux-${LIBC}" \
+			-DCMAKE_EXE_LINKER_FLAGS="-O3 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}" \
+			-DCMAKE_MODULE_LINKER_FLAGS="-O3 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}" \
+			-DCMAKE_SHARED_LINKER_FLAGS="-O3 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}" \
+			-DCOMPILER_RT_BUILD_BUILTINS:BOOL=ON \
+			-DCOMPILER_RT_BUILD_SANITIZERS:BOOL=OFF \
+			-DCOMPILER_RT_BUILD_LIBFUZZER:BOOL=OFF \
+			-DCOMPILER_RT_BUILD_MEMPROF:BOOL=OFF \
+			-DCOMPILER_RT_BUILD_PROFILE:BOOL=OFF \
+			-DCOMPILER_RT_BUILD_XRAY:BOOL=OFF \
+			-DCOMPILER_RT_DEFAULT_TARGET_ONLY:BOOL=OFF
+		%ninja_build
+		cd ..
+	done
+fi
+%endif
+
 
 %install
 %if %{with ocaml}
@@ -1649,8 +1765,26 @@ rm -rf \
 
 %ninja_install -C build
 
+%if %{without bootstrap}
+%ninja_install -C build-libclc
+%endif
+
 %if %{with crosscrt}
-%ninja_install -C xbuild-crt-32
+# FIXME armv7hnl fails to locate crtbegin.o
+# ppc64le/ppc64/riscv64 fails to locate libc.so.6
+# x86_64 doesn't find crt1.o
+XCRTARCHES=""
+%ifnarch %{aarch64}
+XCRTARCHES="$XCRTARCHES aarch64"
+%endif
+%ifnarch %{ix86}
+XCRTARCHES="$XCRTARCHES i686"
+%endif
+if [ -n "$XCRTARCHES" ]; then
+	for arch in $XCRTARCHES; do
+		%ninja_install -C xbuild-crt-${arch}
+	done
+fi
 %endif
 
 # Nuke the internal copy, we have system python-six
