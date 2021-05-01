@@ -1374,6 +1374,9 @@ patch -p1 -b -z .crt~ <%{S:62}
 %ifarch %{riscv}
 patch -p1 -b -z .rvatomic~ <%{S:63}
 %endif
+# Something in abf likes to mess with "git add" by creating a
+# file called "--quiet"
+rm -f -- \-\-*
 git init
 git config user.email build@openmandriva.org
 git config user.name "OpenMandriva builder"
