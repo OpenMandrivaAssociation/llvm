@@ -130,6 +130,7 @@ Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
 Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
 Source9:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
 Source10:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
+Source11:	http://llvm.org/releases/%{version}/libclc-%{version}.src.tar.xz
 %else
 Source0:	https://github.com/llvm/llvm-project/archive/llvmorg-%{version}.tar.gz
 %endif
@@ -821,7 +822,7 @@ as libraries and designed to be loosely-coupled and extensible.
 %{_bindir}/clang
 %{_bindir}/clang++
 %{_bindir}/clang-%{major1}
-%{_bindir}/clang-cl
+
 %{_bindir}/clang-cpp
 %{_libdir}/LLVMgold.so
 %if %{build_lto}
@@ -837,7 +838,6 @@ as libraries and designed to be loosely-coupled and extensible.
 %{_bindir}/c++
 %endif
 %{_mandir}/man1/clang.1*
-%{_mandir}/man1/extraclangtools.1*
 
 #-----------------------------------------------------------
 
@@ -853,6 +853,7 @@ A various tools for LLVM/clang.
 %{_bindir}/clang-apply-replacements
 %{_bindir}/clang-change-namespace
 %{_bindir}/clang-check
+%{_bindir}/clang-cl
 %{_bindir}/clang-doc
 %{_bindir}/clang-extdef-mapping
 %{_bindir}/clang-format
@@ -873,6 +874,7 @@ A various tools for LLVM/clang.
 %{_bindir}/modularize
 %{_bindir}/pp-trace
 %{_mandir}/man1/diagtool.1*
+{_mandir}/man1/extraclangtools.1*
 
 %define devclang %mklibname -d clang
 
@@ -1351,7 +1353,7 @@ Nvidia PTX backend for the libclc OpenCL library
 %autosetup -p1 -n llvm-project-%{?is_main:main}%{!?is_main:release-%{major1}.x}
 %else
 %if %{with upstream_tarballs}
-%setup -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10
+%setup -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10 -a 11
 mv llvm-%{version}.src llvm
 mv cfe-%{version}.src clang
 mv clang-tools-extra-%{version}.src clang-tools-extra
@@ -1363,6 +1365,7 @@ mv libunwind-%{version}.src libunwind
 mv lld-%{version}.src lld
 mv lldb-%{version}.src lldb
 mv openmp-%{version}.src openmp
+mv libclc-%{version}.src libclc
 %autopatch -p1
 %else
 %autosetup -p1 -n llvm-project-llvmorg-%{version}
@@ -1380,11 +1383,11 @@ rm -f -- \-\-*
 git init
 git config user.email build@openmandriva.org
 git config user.name "OpenMandriva builder"
-git add *
-git commit -am "Fake commit to make cmake files happy"
+git add --quiet *
+git commit --quiet -am "Fake commit to make cmake files happy"
 
 # Fix bogus permissions
-find . -type d |while read r; do chmod 0755 "$r"; done
+find . -type d -exec chmod 0755 {} \;
 
 # LLVM doesn't use autoconf, but it uses autoconf's config.guess
 # to find target arch and friends (hidden away in cmake/).
