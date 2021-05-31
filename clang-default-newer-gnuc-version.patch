@@ -1,0 +1,15 @@
+diff -up llvm-project-release-12.x/clang/include/clang/Driver/Options.td.omv~ llvm-project-release-12.x/clang/include/clang/Driver/Options.td
+diff -up llvm-project-release-12.x/clang/lib/Driver/ToolChains/Clang.cpp.omv~ llvm-project-release-12.x/clang/lib/Driver/ToolChains/Clang.cpp
+--- llvm-project-release-12.x/clang/lib/Driver/ToolChains/Clang.cpp.omv~	2021-05-30 18:29:17.919987269 +0200
++++ llvm-project-release-12.x/clang/lib/Driver/ToolChains/Clang.cpp	2021-05-30 18:30:59.405244704 +0200
+@@ -5831,8 +5831,8 @@ void Clang::ConstructJob(Compilation &C,
+           << A->getAsString(Args) << A->getValue();
+     }
+   } else if (!IsMSVCCompat) {
+-    // Imitate GCC 4.2.1 by default if -fms-compatibility is not in effect.
+-    GNUCVer = VersionTuple(4, 2, 1);
++    // Imitate GCC 11.1.1 by default if -fms-compatibility is not in effect.
++    GNUCVer = VersionTuple(11, 1, 1);
+   }
+   if (!GNUCVer.empty()) {
+     CmdArgs.push_back(

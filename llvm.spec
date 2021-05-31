@@ -1,17 +1,21 @@
 # Barfs because of python2 files
 %define _python_bytecompile_build 0
 
-%ifnarch %{x86_64}
+%ifarch %{x86_64}
 %bcond_without compat32
-%bcond_with bootstrap32
 %else
 %bcond_with compat32
 %endif
+%if %{with compat32}
+%bcond_with bootstrap32
+%endif
 
-#define date 20210408
+# Roughly == 12.0.1-rc1
+%define date 20210530
 
-%define debug_package %{nil}
-%define debugcflags %{nil}
+# Allow empty debugsource package for some subdirs
+%define _empty_manifest_terminate_build 0
+
 %define build_lto 1
 %define _disable_ld_no_undefined 1
 %define _disable_lto 1
@@ -108,7 +112,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	12.0.0
+Version:	12.0.1
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -117,7 +121,7 @@ Url:		http://llvm.org/
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
 Release:	0.%{date}.1
 %else
-Release:	2
+Release:	1
 %if %{with upstream_tarballs}
 Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
 Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
@@ -144,6 +148,14 @@ Patch1:		0000-clang-mandriva.patch
 # see http://llvm.org/bugs/show_bug.cgi?id=15557
 # and https://bugzilla.redhat.com/show_bug.cgi?id=803433
 Patch2:		clang-hardfloat-hack.patch
+# Default to a newer -fgnuc-version to get better performance
+# out of stuff that does the likes of
+# #if __GNUC__ > 5
+# // assume SSE and friends are supported
+# #else
+# // slow workaround
+# #endif
+Patch3:		clang-default-newer-gnuc-version.patch
 # Patches from AOSP
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
@@ -202,6 +214,11 @@ Patch58:	llvm-10-omp-needs-libm.patch
 Source62:	llvm-10-default-compiler-rt.patch
 # Another patch, applied conditionally
 Source63:	llvm-riscv-needs-libatomic-linkage.patch
+# RISC-V improvements
+# ===================
+# Linker relaxation support for LLD
+# https://reviews.llvm.org/D100835
+Patch70:	https://reviews.llvm.org/file/data/uxcqagnbvcinly5c7tmp/PHID-FILE-sjeuqpsqsxwbjengaxdp/D100835.diff
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -874,7 +891,7 @@ A various tools for LLVM/clang.
 %{_bindir}/modularize
 %{_bindir}/pp-trace
 %{_mandir}/man1/diagtool.1*
-{_mandir}/man1/extraclangtools.1*
+%{_mandir}/man1/extraclangtools.1*
 
 %define devclang %mklibname -d clang
 
@@ -1481,6 +1498,8 @@ done
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
+	-DCLANG_DEFAULT_LINKER=%{_bindir}/ld.lld \
+	-DCLANG_DEFAULT_OBJCOPY=%{_bindir}/llvm-objcopy \
 %if %{with default_compilerrt}
 	-DCLANG_DEFAULT_RTLIB=compiler-rt \
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
@@ -1575,12 +1594,13 @@ exec %{_bindir}/clang --rtlib=libgcc --unwindlib=libgcc -m32 "\$@"
 exec %{_bindir}/clang -m32 "\$@"
 %endif
 EOF
+gccver="$(i686-openmandriva-linux-gnu-gcc --version |head -n1 |cut -d' ' -f3)"
 cat >xc++ <<EOF
 #!/bin/sh
 %if %{with bootstrap32}
-exec %{_bindir}/clang++ --rtlib=libgcc --unwindlib=libgcc -m32 "\$@"
+exec %{_bindir}/clang++ --rtlib=libgcc --unwindlib=libgcc -m32 -isystem %{_includedir}/c++/x86_64-openmandriva-linux-gnu/32 "\$@"
 %else
-exec %{_bindir}/clang++ -m32 "\$@"
+exec %{_bindir}/clang++ -m32 -isystem %{_includedir}/c++/${gccver}/x86_64-openmandriva-linux-gnu/32 "\$@"
 %endif
 EOF
 chmod +x xc xc++
@@ -1699,15 +1719,26 @@ cd ..
 # Build compiler-rt for all potential crosscompiler targets
 unset CFLAGS
 unset CXXFLAGS
-# FIXME armv7hnl fails to locate crtbegin.o
-# ppc64le/ppc64/riscv64 fails to locate libc.so.6
-# x86_64 doesn't find crt1.o
+# FIXME ppc64 fails:
+# ld.lld: error: /usr/ppc64-openmandriva-linux-gnu/usr/ppc64-openmandriva-linux-gnu/lib/crt1.o: ABI version 1 is not supported
 XCRTARCHES=""
+%ifnarch %{arm}
+XCRTARCHES="$XCRTARCHES armv7hnl"
+%endif
 %ifnarch %{aarch64}
 XCRTARCHES="$XCRTARCHES aarch64"
 %endif
 %ifnarch %{ix86}
 XCRTARCHES="$XCRTARCHES i686"
+%endif
+%ifnarch %{riscv64}
+XCRTARCHES="$XCRTARCHES riscv64"
+%endif
+%ifnarch ppc64
+#XCRTARCHES="$XCRTARCHES ppc64"
+%endif
+%ifnarch ppc64le
+XCRTARCHES="$XCRTARCHES ppc64le"
 %endif
 if [ -n "$XCRTARCHES" ]; then
 	for arch in $XCRTARCHES; do
@@ -1718,25 +1749,35 @@ if [ -n "$XCRTARCHES" ]; then
 		fi
 		mkdir xbuild-crt-${arch}
 		cd xbuild-crt-${arch}
+		gccver="$(${arch}-openmandriva-linux-${LIBC}-gcc --version |head -n1 |cut -d' ' -f3)"
+		LFLAGS="-O3 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}"
+		FLAGS="$LFLAGS -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
+		if echo $arch |grep -q riscv; then
+			# Workaround of lack of linker relaxation support in lld
+			LFLAGS="$LFLAGS -fuse-ld=bfd"
+		fi
 		cmake \
 			../compiler-rt \
 			-G Ninja \
+			-DCMAKE_CROSSCOMPILING:BOOL=ON \
 			-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{version} \
 			-DCMAKE_AR=${BINDIR}/llvm-ar \
 			-DCMAKE_NM=${BINDIR}/llvm-nm \
 			-DCMAKE_RANLIB=${BINDIR}/llvm-ranlib \
+%if 0
 			-DLLVM_CONFIG_PATH=${BINDIR}/llvm-config \
+%endif
 			-DCMAKE_ASM_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
 			-DCMAKE_C_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
 			-DCMAKE_CXX_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
 			-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=${arch}-openmandriva-linux-${LIBC} \
 			-DCMAKE_C_COMPILER=${BINDIR}/clang \
-			-DCMAKE_ASM_FLAGS="-O3 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}" \
-			-DCMAKE_C_FLAGS="-O3 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}" \
-			-DCMAKE_CXX_FLAGS="-O3 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix} -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/10.3.0/${arch}-openmandriva-linux-${LIBC}" \
-			-DCMAKE_EXE_LINKER_FLAGS="-O3 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}" \
-			-DCMAKE_MODULE_LINKER_FLAGS="-O3 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}" \
-			-DCMAKE_SHARED_LINKER_FLAGS="-O3 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}" \
+			-DCMAKE_ASM_FLAGS="$FLAGS" \
+			-DCMAKE_C_FLAGS="$FLAGS" \
+			-DCMAKE_CXX_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
+			-DCMAKE_EXE_LINKER_FLAGS="$LFLAGS" \
+			-DCMAKE_MODULE_LINKER_FLAGS="$LFLAGS" \
+			-DCMAKE_SHARED_LINKER_FLAGS="$LFLAGS" \
 			-DCOMPILER_RT_BUILD_BUILTINS:BOOL=ON \
 			-DCOMPILER_RT_BUILD_SANITIZERS:BOOL=OFF \
 			-DCOMPILER_RT_BUILD_LIBFUZZER:BOOL=OFF \
@@ -1773,15 +1814,24 @@ rm -rf \
 %endif
 
 %if %{with crosscrt}
-# FIXME armv7hnl fails to locate crtbegin.o
-# ppc64le/ppc64/riscv64 fails to locate libc.so.6
-# x86_64 doesn't find crt1.o
 XCRTARCHES=""
+%ifnarch %{arm}
+XCRTARCHES="$XCRTARCHES armv7hnl"
+%endif
 %ifnarch %{aarch64}
 XCRTARCHES="$XCRTARCHES aarch64"
 %endif
 %ifnarch %{ix86}
 XCRTARCHES="$XCRTARCHES i686"
+%endif
+%ifnarch %{riscv64}
+XCRTARCHES="$XCRTARCHES riscv64"
+%endif
+%ifnarch ppc64
+#XCRTARCHES="$XCRTARCHES ppc64"
+%endif
+%ifnarch ppc64le
+XCRTARCHES="$XCRTARCHES ppc64le"
 %endif
 if [ -n "$XCRTARCHES" ]; then
 	for arch in $XCRTARCHES; do
