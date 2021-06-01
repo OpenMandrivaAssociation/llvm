@@ -1,0 +1,32 @@
+diff -up llvm-project-release-12.x/clang/lib/Basic/Targets/PPC.cpp.omv~ llvm-project-release-12.x/clang/lib/Basic/Targets/PPC.cpp
+diff -up llvm-project-release-12.x/clang/lib/Basic/Targets/PPC.h.omv~ llvm-project-release-12.x/clang/lib/Basic/Targets/PPC.h
+--- llvm-project-release-12.x/clang/lib/Basic/Targets/PPC.h.omv~	2021-06-01 20:45:08.337940850 +0200
++++ llvm-project-release-12.x/clang/lib/Basic/Targets/PPC.h	2021-06-01 20:45:31.242297980 +0200
+@@ -418,7 +418,7 @@ public:
+       ABI = "elfv2";
+     } else {
+       DataLayout = "E-m:e-i64:64-n32:64";
+-      ABI = "elfv1";
++      ABI = "elfv2";
+     }
+ 
+     if (Triple.isOSFreeBSD() || Triple.isOSOpenBSD() || Triple.isMusl()) {
+diff -up llvm-project-release-12.x/clang/lib/Driver/ToolChains/Clang.cpp.omv~ llvm-project-release-12.x/clang/lib/Driver/ToolChains/Clang.cpp
+--- llvm-project-release-12.x/clang/lib/Driver/ToolChains/Clang.cpp.omv~	2021-06-01 23:40:04.598850382 +0200
++++ llvm-project-release-12.x/clang/lib/Driver/ToolChains/Clang.cpp	2021-06-01 23:40:48.175331550 +0200
+@@ -1920,14 +1920,7 @@ void Clang::AddPPCTargetArgs(const ArgLi
+   const llvm::Triple &T = getToolChain().getTriple();
+   if (T.isOSBinFormatELF()) {
+     switch (getToolChain().getArch()) {
+-    case llvm::Triple::ppc64: {
+-      if ((T.isOSFreeBSD() && T.getOSMajorVersion() >= 13) ||
+-          T.isOSOpenBSD() || T.isMusl())
+-        ABIName = "elfv2";
+-      else
+-        ABIName = "elfv1";
+-      break;
+-    }
++    case llvm::Triple::ppc64:
+     case llvm::Triple::ppc64le:
+       ABIName = "elfv2";
+       break;

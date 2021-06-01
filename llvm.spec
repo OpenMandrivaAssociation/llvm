@@ -11,7 +11,7 @@
 %endif
 
 # Roughly == 12.0.1-rc1
-%define date 20210530
+%define date 20210601
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -160,8 +160,7 @@ Patch3:		clang-default-newer-gnuc-version.patch
 Patch5:		0001-llvm-Make-EnableGlobalMerge-non-static-so-we-can-modify-i.patch
 # End AOSP patch section
 Patch6:		llvm-11-compiler-rt-cmake-verbose.patch
-# Claim compatibility with gcc 11.0.1 rather than 4.2.1, it's
-# much much closer in terms of standards supported etc.
+# Set _GXX_ABI_VERSION correctly while pretending to be a newer gcc
 Patch7:		clang-gcc-compat.patch
 # Support -fuse-ld=XXX properly
 Patch8:		clang-fuse-ld.patch
@@ -209,6 +208,9 @@ Patch56:	polly-8.0-default-llvm-backend.patch
 # libomp needs to link to libm so it can see
 # logbl and fmaxl when using compiler-rt
 Patch58:	llvm-10-omp-needs-libm.patch
+# Use ELFv2 ABI even for big-endian PPC64
+# for compatibility with LLD
+Patch59:	llvm-12.0-ppc64-elfv2-abi.patch
 # Really a patch -- but we want to apply it conditionally
 # and we use %%autosetup for other patches...
 Source62:	llvm-10-default-compiler-rt.patch
@@ -1498,8 +1500,8 @@ done
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
-	-DCLANG_DEFAULT_LINKER=%{_bindir}/ld.lld \
-	-DCLANG_DEFAULT_OBJCOPY=%{_bindir}/llvm-objcopy \
+	-DCLANG_DEFAULT_LINKER=lld \
+	-DCLANG_DEFAULT_OBJCOPY=llvm-objcopy \
 %if %{with default_compilerrt}
 	-DCLANG_DEFAULT_RTLIB=compiler-rt \
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
