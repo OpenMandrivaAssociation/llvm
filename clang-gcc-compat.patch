@@ -9,7 +9,7 @@ diff -up llvm-project-release-12.x/clang/lib/Frontend/InitPreprocessor.cpp.7~ ll
 +    if (GNUCMajor < 6)
 +      Builder.defineMacro("__GXX_ABI_VERSION", "1002");
 +    else
-+      Builder.defineMacro("__GXX_ABI_VERSION", "1013");
++      Builder.defineMacro("__GXX_ABI_VERSION", "1016");
  
      if (LangOpts.CPlusPlus) {
        Builder.defineMacro("__GNUG__", Twine(GNUCMajor));
