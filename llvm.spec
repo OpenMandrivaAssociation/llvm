@@ -234,6 +234,10 @@ BuildRequires:	graphviz
 BuildRequires:	lldb
 # For libclc
 BuildRequires:	spirv-llvm-translator
+BuildRequires:	pkgconfig(LLVMSPIRVLib)
+%if %{with compat32}
+BuildRequires:	devel(libLLVMSPIRVLib)
+%endif
 %endif
 BuildRequires:	chrpath
 BuildRequires:	groff
