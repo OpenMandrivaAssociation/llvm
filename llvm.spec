@@ -1708,6 +1708,8 @@ BINDIR=$(pwd)/build/bin
 # libclc integration into the main build seems to be broken
 mkdir build-libclc
 cd build-libclc
+ls -l ${BINDIR}/llvm-config
+${BINDIR}/llvm-config --version
 cmake \
 	../libclc \
 	-G Ninja \
