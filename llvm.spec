@@ -1708,8 +1708,7 @@ BINDIR=$(pwd)/build/bin
 # libclc integration into the main build seems to be broken
 mkdir build-libclc
 cd build-libclc
-ls -l ${BINDIR}/llvm-config
-${BINDIR}/llvm-config --version
+ln -sf %{_bindir}/llvm-spirv ../build/bin
 cmake \
 	../libclc \
 	-G Ninja \
@@ -1717,7 +1716,7 @@ cmake \
 	-DCMAKE_AR=${BINDIR}/llvm-ar \
 	-DCMAKE_NM=${BINDIR}/llvm-nm \
 	-DCMAKE_RANLIB=${BINDIR}/llvm-ranlib \
-	-DLLVM_CONFIG_PATH=${BINDIR}/llvm-config \
+	-DLLVM_CONFIG=${BINDIR}/llvm-config \
 	-DCMAKE_C_COMPILER=${BINDIR}/clang
 %ninja_build
 cd ..
