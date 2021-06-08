@@ -328,24 +328,31 @@ Obsoletes: %{mklibname lldConfig 5} < %{EVRD}
 %if %{with crosscrt}
 %ifnarch %{aarch64}
 BuildRequires:	cross-aarch64-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-aarch64-openmandriva-linux-gnu-libc
 %endif
 %ifnarch %{arm}
 BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-gcc-bootstrap
+BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-libc
 %endif
 %ifnarch %{ix86}
 BuildRequires:	cross-i686-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-i686-openmandriva-linux-gnu-libc
 %endif
 %ifnarch ppc64le
 BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-libc
 %endif
 %ifnarch ppc64
 BuildRequires:	cross-ppc64-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-ppc64-openmandriva-linux-gnu-libc
 %endif
 %ifnarch %{riscv64}
 BuildRequires:	cross-riscv64-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-riscv64-openmandriva-linux-gnu-libc
 %endif
 %ifnarch %{x86_64}
 BuildRequires:	cross-x86_64-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-x86_64-openmandriva-linux-gnu-libc
 %endif
 %endif
 
