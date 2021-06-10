@@ -659,6 +659,11 @@ Provides:	devel(libomp(64bit))
 Provides:	devel(libomp)
 %endif
 %endif
+%ifnarch %{riscv}
+Requires:	%{_lib}gpuruntime
+BuildRequires:	%{_lib}gpuruntime
+%endif
+
 %description -n %{devname}
 This package contains the development files for LLVM.
 
