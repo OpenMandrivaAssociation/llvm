@@ -357,7 +357,7 @@ BuildRequires:	cross-x86_64-openmandriva-linux-gnu-libc
 %endif
 
 %description
-LVM is a robust system, particularly well suited for developing new mid-level
+LLVM is a robust system, particularly well suited for developing new mid-level
 language-independent analyses and optimizations of all sorts, including those
 that require  extensive interprocedural analysis. LLVM is also a great target
 for front-end development for conventional or research programming languages,
