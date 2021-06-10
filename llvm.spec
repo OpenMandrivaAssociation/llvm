@@ -1751,7 +1751,7 @@ XCRTARCHES="$XCRTARCHES aarch64"
 XCRTARCHES="$XCRTARCHES i686"
 %endif
 %ifnarch %{riscv64}
-XCRTARCHES="$XCRTARCHES riscv64"
+#XCRTARCHES="$XCRTARCHES riscv64"
 %endif
 %ifnarch ppc64
 #XCRTARCHES="$XCRTARCHES ppc64"
@@ -1791,6 +1791,7 @@ if [ -n "$XCRTARCHES" ]; then
 			-DCMAKE_CXX_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
 			-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=${arch}-openmandriva-linux-${LIBC} \
 			-DCMAKE_C_COMPILER=${BINDIR}/clang \
+			-DCMAKE_CXX_COMPILER=${BINDIR}/clang++ \
 			-DCMAKE_ASM_FLAGS="$FLAGS" \
 			-DCMAKE_C_FLAGS="$FLAGS" \
 			-DCMAKE_CXX_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
@@ -1844,7 +1845,7 @@ XCRTARCHES="$XCRTARCHES aarch64"
 XCRTARCHES="$XCRTARCHES i686"
 %endif
 %ifnarch %{riscv64}
-XCRTARCHES="$XCRTARCHES riscv64"
+#XCRTARCHES="$XCRTARCHES riscv64"
 %endif
 %ifnarch ppc64
 #XCRTARCHES="$XCRTARCHES ppc64"
