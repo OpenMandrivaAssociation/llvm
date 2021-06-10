@@ -1124,7 +1124,7 @@ Summary: GPU runtime library
 Group: System/Libraries
 
 %description -n %{_lib}gpuruntime
-32-bit GPU runtime library
+GPU runtime library
 
 %ifnarch %{riscv}
 %files -n %{_lib}gpuruntime
