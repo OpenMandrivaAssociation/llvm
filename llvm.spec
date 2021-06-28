@@ -10,8 +10,8 @@
 %bcond_with bootstrap32
 %endif
 
-# Roughly == 12.0.1-rc1
-%define date 20210601
+# Roughly == 12.0.1-rc3
+%define date 20210627
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -20,7 +20,7 @@
 %define _disable_ld_no_undefined 1
 %define _disable_lto 1
 # (tpg) optimize it a bit
-%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic
+%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Wl,-Bsymbolic
 %ifarch %{riscv}
 # Workaround for broken previous version
 %global optflags %{optflags} -fpermissive
@@ -216,6 +216,9 @@ Patch59:	llvm-12.0-ppc64-elfv2-abi.patch
 Source62:	llvm-10-default-compiler-rt.patch
 # Another patch, applied conditionally
 Source63:	llvm-riscv-needs-libatomic-linkage.patch
+# Allow -fno-semantic-interposition on non-x86
+Patch64:	https://reviews.llvm.org/file/data/miwnzzepgeylrlupg5po/PHID-FILE-rydrnduho62obbuww2uw/D101873.diff
+Patch65:	https://reviews.llvm.org/file/data/drgodafek2r5f5pr7kqz/PHID-FILE-rjzonmxi7hovvd6qbdim/D101876.diff
 # RISC-V improvements
 # ===================
 # Linker relaxation support for LLD
@@ -1738,8 +1741,6 @@ cd ..
 # Build compiler-rt for all potential crosscompiler targets
 unset CFLAGS
 unset CXXFLAGS
-# FIXME ppc64 fails:
-# ld.lld: error: /usr/ppc64-openmandriva-linux-gnu/usr/ppc64-openmandriva-linux-gnu/lib/crt1.o: ABI version 1 is not supported
 XCRTARCHES=""
 %ifnarch %{arm}
 XCRTARCHES="$XCRTARCHES armv7hnl"
@@ -1751,10 +1752,10 @@ XCRTARCHES="$XCRTARCHES aarch64"
 XCRTARCHES="$XCRTARCHES i686"
 %endif
 %ifnarch %{riscv64}
-#XCRTARCHES="$XCRTARCHES riscv64"
+XCRTARCHES="$XCRTARCHES riscv64"
 %endif
 %ifnarch ppc64
-#XCRTARCHES="$XCRTARCHES ppc64"
+XCRTARCHES="$XCRTARCHES ppc64"
 %endif
 %ifnarch ppc64le
 XCRTARCHES="$XCRTARCHES ppc64le"
@@ -1845,10 +1846,10 @@ XCRTARCHES="$XCRTARCHES aarch64"
 XCRTARCHES="$XCRTARCHES i686"
 %endif
 %ifnarch %{riscv64}
-#XCRTARCHES="$XCRTARCHES riscv64"
+XCRTARCHES="$XCRTARCHES riscv64"
 %endif
 %ifnarch ppc64
-#XCRTARCHES="$XCRTARCHES ppc64"
+XCRTARCHES="$XCRTARCHES ppc64"
 %endif
 %ifnarch ppc64le
 XCRTARCHES="$XCRTARCHES ppc64le"
