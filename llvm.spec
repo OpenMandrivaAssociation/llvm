@@ -353,6 +353,7 @@ BuildRequires:	cross-ppc64-openmandriva-linux-gnu-libc
 BuildRequires:	cross-riscv64-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-riscv64-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-riscv64-openmandriva-linux-gnu-libc
+BuildRequires:	cross-riscv64-openmandriva-linux-gnu-kernel-headers
 %endif
 %ifnarch %{x86_64}
 BuildRequires:	cross-x86_64-openmandriva-linux-gnu-gcc-bootstrap
