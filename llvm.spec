@@ -10,8 +10,8 @@
 %bcond_with bootstrap32
 %endif
 
-# Roughly == 12.0.1-rc3
-%define date 20210627
+# Roughly == 12.0.1-rc4
+%define date 20210703
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
