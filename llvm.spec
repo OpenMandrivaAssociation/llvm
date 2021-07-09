@@ -10,8 +10,8 @@
 %bcond_with bootstrap32
 %endif
 
-# Roughly == 12.0.1-rc4
-%define date 20210703
+# (tpg) set snapshot date
+%undefine date
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -21,6 +21,8 @@
 %define _disable_lto 1
 # (tpg) optimize it a bit
 %global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Wl,-Bsymbolic
+%global build_ldflags %{build_ldflags} -fno-semantic-interposition -Wl,-Bsymbolic
+
 %ifarch %{riscv}
 # Workaround for broken previous version
 %global optflags %{optflags} -fpermissive
@@ -136,7 +138,7 @@ Source9:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
 Source10:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
 Source11:	http://llvm.org/releases/%{version}/libclc-%{version}.src.tar.xz
 %else
-Source0:	https://github.com/llvm/llvm-project/archive/llvmorg-%{version}.tar.gz
+Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 %endif
 %endif
 # For compatibility with the nongnu.org libunwind
@@ -367,7 +369,7 @@ language-independent analyses and optimizations of all sorts, including those
 that require  extensive interprocedural analysis. LLVM is also a great target
 for front-end development for conventional or research programming languages,
 including those which require compile-time, link-time, or run-time optimization 
-for effective implementation, proper tail calls or garbage collection. 
+for effective implementation, proper tail calls or garbage collection.
 
 %files
 %{_bindir}/FileCheck
@@ -518,12 +520,11 @@ done)}
 %if %{with unwind}
 %define libunwind_major 1.0
 %define libunwind %mklibname unwind %{libunwind_major}
-
 %define devunwind %mklibname -d unwind
 
 %package -n %{libunwind}
-Summary: The LLVM unwind library
-Group: System/Libraries
+Summary:	The LLVM unwind library
+Group:		System/Libraries
 
 %description -n %{libunwind}
 The unwind library, a part of llvm.
@@ -534,12 +535,12 @@ The unwind library, a part of llvm.
 %{_libdir}/libunwind.so.1
 
 %package -n %{devunwind}
-Summary: Development files for libunwind
-Group: Development/C
-Requires: %{libunwind} = %{EVRD}
+Summary:	Development files for libunwind
+Group:		Development/C
+Requires:	%{libunwind} = %{EVRD}
 
 %description -n %{devunwind}
-Development files for libunwind
+Development files for libunwind.
 
 %files -n %{devunwind}
 %{_libdir}/libunwind.a
@@ -565,11 +566,11 @@ Development files for libunwind
 %define cxxabistatic %mklibname c++abi -d -s
 
 %package -n %{cxxdevname}
-Summary: Development files for libc++, an alternative implementation of the STL
-Group: Development/C
-Requires: %{mklibname c++ 1} = %{EVRD}
-Requires: %{mklibname c++abi 1} = %{EVRD}
-Provides: c++-devel = %{EVRD}
+Summary:	Development files for libc++, an alternative implementation of the STL
+Group:		Development/C
+Requires:	%{mklibname c++ 1} = %{EVRD}
+Requires:	%{mklibname c++abi 1} = %{EVRD}
+Provides:	c++-devel = %{EVRD}
 
 %description -n %{cxxdevname}
 Development files for libc++, an alternative implementation of the STL.
@@ -583,9 +584,9 @@ Development files for libc++, an alternative implementation of the STL.
 %{_libdir}/libc++experimental.a
 
 %package -n %{cxxabistatic}
-Summary: Static library for libc++ C++ ABI support
-Group: Development/C
-Requires: %{cxxdevname} = %{EVRD}
+Summary:	Static library for libc++ C++ ABI support
+Group:		Development/C
+Requires:	%{cxxdevname} = %{EVRD}
 
 %description -n %{cxxabistatic}
 Static library for libc++'s C++ ABI library.
@@ -767,12 +768,12 @@ Documentation for the LLVM compiler infrastructure.
 
 #-----------------------------------------------------------
 %package polly
-Summary: Polyhedral optimizations for LLVM
-License: MIT
-Group: Development/Other
-Obsoletes: llvm-devel < 4.0.1
-Obsoletes: %{_lib}llvm-devel < 4.0.1
-Conflicts: %{_lib}llvm-devel < 4.0.1
+Summary:	Polyhedral optimizations for LLVM
+License:	MIT
+Group:		Development/Other
+Obsoletes:	llvm-devel < 4.0.1
+Obsoletes:	%{_lib}llvm-devel < 4.0.1
+Conflicts:	%{_lib}llvm-devel < 4.0.1
 
 %description polly
 Polly is a polyhedral optimizer for LLVM.
@@ -795,10 +796,10 @@ short vector instructions as well as dedicated accelerators.
 
 #-----------------------------------------------------------
 %package polly-devel
-Summary: Development files for Polly
-License: MIT
-Group: Development/Other
-Requires: %{name}-polly = %{EVRD}
+Summary:	Development files for Polly
+License:	MIT
+Group:		Development/Other
+Requires:	%{name}-polly = %{EVRD}
 
 %description polly-devel
 Development files for Polly.
@@ -1016,11 +1017,11 @@ A Fortran language front-end for LLVM
 %define flangdev %mklibname -d flang
 
 %package -n %{flangdev}
-Summary: Development files for Flang, the LLVM Fortran compiler
-Group: Development/Fortran
+Summary:	Development files for Flang, the LLVM Fortran compiler
+Group:		Development/Fortran
 
 %description -n %{flangdev}
-Development files for Flang, the LLVM Fortran compiler
+Development files for Flang, the LLVM Fortran compiler.
 
 %files -n %{flangdev}
 %{_includedir}/flang
@@ -1125,11 +1126,11 @@ Python bindings to parts of the Clang library
 #-----------------------------------------------------------
 
 %package -n %{_lib}gpuruntime
-Summary: GPU runtime library
-Group: System/Libraries
+Summary:	GPU runtime library
+Group:		System/Libraries
 
 %description -n %{_lib}gpuruntime
-GPU runtime library
+GPU runtime library.
 
 %ifnarch %{riscv}
 %files -n %{_lib}gpuruntime
@@ -1140,12 +1141,12 @@ GPU runtime library
 
 %if %{with compat32}
 %package -n libllvm-devel
-Summary: 32-bit LLVM development files
-Group: Development/C
+Summary:	32-bit LLVM development files
+Group:		Development/C
 %{expand:%(for i in %{LLVMLibs}; do echo Requires:	lib${i}%{major1} = %{EVRD}; done)}
 
 %description -n libllvm-devel
-32-bit LLVM development files
+32-bit LLVM development files.
 
 %files -n libllvm-devel
 %{_prefix}/lib/cmake/clang
@@ -1157,22 +1158,22 @@ Group: Development/C
 %{_prefix}/lib/libarcher_static.a
 
 %package -n libclang-devel
-Summary: 32-bit Clang development files
-Group: Development/C
+Summary:	32-bit Clang development files
+Group:		Development/C
 %{expand:%(for i in %{ClangLibs}; do echo Requires:	lib${i}%{major1} = %{EVRD}; done)}
 
 %description -n libclang-devel
-32-bit Clang development files
+32-bit Clang development files.
 
 %files -n libclang-devel
 %{_prefix}/lib/libclang*.so
 
 %package -n libgpuruntime
-Summary: 32-bit GPU runtime library
-Group: System/Libraries
+Summary:	32-bit GPU runtime library
+Group:		System/Libraries
 
 %description -n libgpuruntime
-32-bit GPU runtime library
+32-bit GPU runtime library.
 
 %ifnarch %{riscv}
 %if ! %{with bootstrap32}
@@ -1182,22 +1183,22 @@ Group: System/Libraries
 %endif
 
 %package -n libomp1
-Summary: 32-bit OpenMP runtime
-Group: System/Libraries
+Summary:	32-bit OpenMP runtime
+Group:		System/Libraries
 
 %description -n libomp1
-32-bit OpenMP runtime
+32-bit OpenMP runtime.
 
 %files -n libomp1
 %{_prefix}/lib/libomp.so.1*
 %{_prefix}/lib/libomptarget.so.*
 
 %package -n libomp-devel
-Summary: Development files for the 32-bit OpenMP runtime
-Group: Development/C
+Summary:	Development files for the 32-bit OpenMP runtime
+Group:		Development/C
 
 %description -n libomp-devel
-Development files for the 32-bit OpenMP runtime
+Development files for the 32-bit OpenMP runtime.
 
 %files -n libomp-devel
 %{_prefix}/lib/libgomp.so
@@ -1206,9 +1207,9 @@ Development files for the 32-bit OpenMP runtime
 %{_prefix}/lib/libomptarget.so
 
 %package polly32
-Summary: Polyhedral optimizations for LLVM (32-bit)
-License: MIT
-Group: Development/Other
+Summary:	Polyhedral optimizations for LLVM (32-bit)
+License:	MIT
+Group:		Development/Other
 
 %description polly32
 Polly is a polyhedral optimizer for LLVM.
@@ -1230,11 +1231,11 @@ short vector instructions as well as dedicated accelerators.
 %{_prefix}/lib/libPollyPPCG.so
 
 %package polly32-devel
-Summary: Development files for Polly (32-bit)
-License: MIT
-Group: Development/Other
-Requires: %{name}-polly32 = %{EVRD}
-Requires: %{name}-polly-devel = %{EVRD}
+Summary:	Development files for Polly (32-bit)
+License:	MIT
+Group:		Development/Other
+Requires:	%{name}-polly32 = %{EVRD}
+Requires:	%{name}-polly-devel = %{EVRD}
 
 %description polly32-devel
 Development files for Polly.
@@ -1258,8 +1259,8 @@ short vector instructions as well as dedicated accelerators.
 %define dev32unwind libunwind-devel
 
 %package -n %{lib32unwind}
-Summary: The LLVM unwind library (32-bit)
-Group: System/Libraries
+Summary:	The LLVM unwind library (32-bit)
+Group:		System/Libraries
 
 %description -n %{lib32unwind}
 The unwind library, a part of llvm.
@@ -1269,13 +1270,13 @@ The unwind library, a part of llvm.
 %{_prefix}/lib/libunwind.so.1
 
 %package -n %{dev32unwind}
-Summary: Development files for libunwind (32-bit)
-Group: Development/C
-Requires: %{lib32unwind} = %{EVRD}
-Requires: %{devunwind} = %{EVRD}
+Summary:	Development files for libunwind (32-bit)
+Group:		Development/C
+Requires:	%{lib32unwind} = %{EVRD}
+Requires:	%{devunwind} = %{EVRD}
 
 %description -n %{dev32unwind}
-Development files for libunwind
+Development files for libunwind.
 
 %files -n %{dev32unwind}
 %{_prefix}/lib/libunwind.a
@@ -1290,8 +1291,8 @@ Development files for libunwind
 %if %{with mlir}
 #-----------------------------------------------------------
 %package mlir-tools
-Summary: Tools for working with MLIR (Multi-Level Intermediate Representation)
-Group: Development/C
+Summary:	Tools for working with MLIR (Multi-Level Intermediate Representation)
+Group:		Development/C
 
 %description mlir-tools
 Tools for working with MLIR (Multi-Level Intermediate Representation)
@@ -1308,8 +1309,8 @@ existing compilers together.
 
 %define mlirdev %{mklibname -d mlir}
 %package -n %{mlirdev}
-Summary: Development files for MLIR
-Group: Development/C
+Summary:	Development files for MLIR
+Group:	Development/C
 
 %description -n %{mlirdev}
 Development files for MLIR
@@ -1334,7 +1335,7 @@ Group:		Development/Other
 Url:		http://libclc.llvm.org/
 
 %description -n libclc
-Core library of the OpenCL language runtime
+Core library of the OpenCL language runtime.
 
 %package -n libclc-spirv
 Summary:	SPIR-V (Vulkan) backend for the libclc OpenCL library
@@ -1342,7 +1343,7 @@ Group:		System/Libraries
 Requires:	libclc = %{EVRD}
 
 %description -n libclc-spirv
-SPIR-V (Vulkan) backend for the libclc OpenCL library
+SPIR-V (Vulkan) backend for the libclc OpenCL library.
 
 %package -n libclc-r600
 Summary:	Radeon 600 (older ATI/AMD GPU) backend for the libclc OpenCL library
@@ -1350,7 +1351,7 @@ Group:		System/Libraries
 Requires:	libclc = %{EVRD}
 
 %description -n libclc-r600
-Radeon 600 (older ATI/AMD GPU) backend for the libclc OpenCL library
+Radeon 600 (older ATI/AMD GPU) backend for the libclc OpenCL library.
 
 %package -n libclc-amdgcn
 Summary:	AMD GCN (newer ATI/AMD GPU) backend for the libclc OpenCL library
@@ -1358,7 +1359,7 @@ Group:		System/Libraries
 Requires:	libclc = %{EVRD}
 
 %description -n libclc-amdgcn
-AMD GCN (newer ATI/AMD GPU) backend for the libclc OpenCL library
+AMD GCN (newer ATI/AMD GPU) backend for the libclc OpenCL library.
 
 %package -n libclc-nvptx
 Summary:	Nvidia PTX backend for the libclc OpenCL library
@@ -1366,7 +1367,7 @@ Group:		System/Libraries
 Requires:	libclc = %{EVRD}
 
 %description -n libclc-nvptx
-Nvidia PTX backend for the libclc OpenCL library
+Nvidia PTX backend for the libclc OpenCL library.
 
 %if %{without bootstrap}
 %files -n libclc
@@ -1408,7 +1409,7 @@ mv openmp-%{version}.src openmp
 mv libclc-%{version}.src libclc
 %autopatch -p1
 %else
-%autosetup -p1 -n llvm-project-llvmorg-%{version}
+%autosetup -p1 -n llvm-project-%{version}.src
 %endif
 %endif
 %if %{with default_compilerrt}
@@ -1486,12 +1487,12 @@ export CXXFLAGS="%{optflags} -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FI
 %endif
 
 if echo %{_target_platform} | grep -q musl; then
-	sed -i -e 's,set(COMPILER_RT_HAS_SANITIZER_COMMON TRUE),set(COMPILER_RT_HAS_SANITIZER_COMMON FALSE),' compiler-rt/cmake/config-ix.cmake
+    sed -i -e 's,set(COMPILER_RT_HAS_SANITIZER_COMMON TRUE),set(COMPILER_RT_HAS_SANITIZER_COMMON FALSE),' compiler-rt/cmake/config-ix.cmake
 fi
 
 # Fix noexecstack
 for i in compiler-rt/lib/builtins/i386/*.S; do
-	cat >>$i <<'EOF'
+    cat >>$i <<'EOF'
 #if defined(__linux__) && defined(__ELF__)
 .section .note.GNU-stack,"",%progbits
 #endif
@@ -1555,7 +1556,7 @@ done
 	-DLLVM_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
 	-DCLANG_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
 	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \
-%ifarch %arm
+%ifarch %{arm}
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{product_arch}-%{_vendor}-%{_os}%{_gnu} \
 %endif
 	-DPOLLY_ENABLE_GPGPU_CODEGEN:BOOL=ON \
@@ -1598,10 +1599,10 @@ done
 	../llvm
 
 if ! %ninja_build; then
-	# With many threads, there's a chance of libc++ being built
-	# before libc++abi, causing linkage to fail. Simply trying
-	# again "fixes" it.
-	%ninja_build
+    # With many threads, there's a chance of libc++ being built
+    # before libc++abi, causing linkage to fail. Simply trying
+    # again "fixes" it.
+    %ninja_build
 fi
 
 cd ..
@@ -1857,9 +1858,9 @@ XCRTARCHES="$XCRTARCHES ppc64"
 XCRTARCHES="$XCRTARCHES ppc64le"
 %endif
 if [ -n "$XCRTARCHES" ]; then
-	for arch in $XCRTARCHES; do
-		%ninja_install -C xbuild-crt-${arch}
-	done
+    for arch in $XCRTARCHES; do
+	%ninja_install -C xbuild-crt-${arch}
+    done
 fi
 %endif
 
@@ -1912,9 +1913,9 @@ ln -s %{_libdir}/LLVMgold.so %{buildroot}%{_libdir}/bfd-plugins/LLVMgold.so
 %endif
 
 for i in %{buildroot}%{_bindir}/*; do
-	# We allow this to fail because some stuff in %{_bindir}
-	# is shell scripts -- no point in excluding them separately
-	chrpath -d $i || :
+# We allow this to fail because some stuff in %{_bindir}
+# is shell scripts -- no point in excluding them separately
+    chrpath -d $i || :
 done
 
 # Relics of libcxx_msan installing a copy of libc++ headers to
@@ -1929,7 +1930,7 @@ rm -f %{buildroot}%{_libdir}/libgomp.so
 %if "%{_lib}" != "lib"
 # Weird, but for some reason those files seem to get installed only on x86
 if [ -e %{buildroot}%{_prefix}/lib/cmake/clang/ClangTargets-*.cmake ]; then
-	sed -i -e "s,/lib/,/%{_lib}/,g" %{buildroot}%{_prefix}/lib/cmake/clang/ClangTargets-*.cmake %{buildroot}%{_prefix}/lib/cmake/llvm/LLVMExports-*.cmake
+    sed -i -e "s,/lib/,/%{_lib}/,g" %{buildroot}%{_prefix}/lib/cmake/clang/ClangTargets-*.cmake %{buildroot}%{_prefix}/lib/cmake/llvm/LLVMExports-*.cmake
 fi
 %endif
 
