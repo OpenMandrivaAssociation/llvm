@@ -1,6 +1,6 @@
-diff -up llvm-project-release-12.x/llvm/tools/gold/gold-plugin.cpp.12~ llvm-project-release-12.x/llvm/tools/gold/gold-plugin.cpp
---- llvm-project-release-12.x/llvm/tools/gold/gold-plugin.cpp.12~	2021-02-06 05:47:20.000000000 +0100
-+++ llvm-project-release-12.x/llvm/tools/gold/gold-plugin.cpp	2021-02-08 19:21:41.188326874 +0100
+diff -up llvm-project-release-13.x/llvm/tools/gold/gold-plugin.cpp.10~ llvm-project-release-13.x/llvm/tools/gold/gold-plugin.cpp
+--- llvm-project-release-13.x/llvm/tools/gold/gold-plugin.cpp.10~	2021-08-02 20:31:08.000000000 +0200
++++ llvm-project-release-13.x/llvm/tools/gold/gold-plugin.cpp	2021-08-02 22:19:36.020926211 +0200
 @@ -267,9 +267,12 @@ namespace options {
      } else if (opt.consume_front("cache-policy=")) {
        cache_policy = std::string(opt);
@@ -17,11 +17,11 @@ diff -up llvm-project-release-12.x/llvm/tools/gold/gold-plugin.cpp.12~ llvm-proj
      } else if (opt.consume_front("jobs=")) {
        Parallelism = std::string(opt);
        if (!get_threadpool_strategy(opt))
-diff -up llvm-project-release-12.x/llvm/tools/llvm-lto/llvm-lto.cpp.12~ llvm-project-release-12.x/llvm/tools/llvm-lto/llvm-lto.cpp
---- llvm-project-release-12.x/llvm/tools/llvm-lto/llvm-lto.cpp.12~	2021-02-06 05:47:20.000000000 +0100
-+++ llvm-project-release-12.x/llvm/tools/llvm-lto/llvm-lto.cpp	2021-02-08 19:21:41.188326874 +0100
-@@ -886,8 +886,10 @@ int main(int argc, char **argv) {
-   InitLLVM X(argc, argv);
+diff -up llvm-project-release-13.x/llvm/tools/llvm-lto/llvm-lto.cpp.10~ llvm-project-release-13.x/llvm/tools/llvm-lto/llvm-lto.cpp
+--- llvm-project-release-13.x/llvm/tools/llvm-lto/llvm-lto.cpp.10~	2021-08-02 22:19:36.020926211 +0200
++++ llvm-project-release-13.x/llvm/tools/llvm-lto/llvm-lto.cpp	2021-08-02 22:21:57.464884271 +0200
+@@ -927,8 +927,10 @@ int main(int argc, char **argv) {
+   cl::HideUnrelatedOptions({&LTOCategory, &getColorCategory()});
    cl::ParseCommandLineOptions(argc, argv, "llvm LTO linker\n");
  
 -  if (OptLevel < '0' || OptLevel > '3')
@@ -33,10 +33,10 @@ diff -up llvm-project-release-12.x/llvm/tools/llvm-lto/llvm-lto.cpp.12~ llvm-pro
  
    // Initialize the configured targets.
    InitializeAllTargets();
-diff -up llvm-project-release-12.x/llvm/tools/lto/lto.cpp.12~ llvm-project-release-12.x/llvm/tools/lto/lto.cpp
---- llvm-project-release-12.x/llvm/tools/lto/lto.cpp.12~	2021-02-08 19:21:41.188326874 +0100
-+++ llvm-project-release-12.x/llvm/tools/lto/lto.cpp	2021-02-08 19:23:10.836167934 +0100
-@@ -148,9 +148,12 @@ static void lto_add_attrs(lto_code_gen_t
+diff -up llvm-project-release-13.x/llvm/tools/lto/lto.cpp.10~ llvm-project-release-13.x/llvm/tools/lto/lto.cpp
+--- llvm-project-release-13.x/llvm/tools/lto/lto.cpp.10~	2021-08-02 20:31:08.000000000 +0200
++++ llvm-project-release-13.x/llvm/tools/lto/lto.cpp	2021-08-02 22:19:36.020926211 +0200
+@@ -152,9 +152,12 @@ static void lto_add_attrs(lto_code_gen_t
    LTOCodeGenerator *CG = unwrap(cg);
    CG->setAttrs(codegen::getMAttrs());
  

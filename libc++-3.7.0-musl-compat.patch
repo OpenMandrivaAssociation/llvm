@@ -1,7 +1,7 @@
-diff -up llvm-7.0.0.src/projects/libcxx/include/__config.libcxxmusl~ llvm-7.0.0.src/projects/libcxx/include/__config
---- llvm-7.0.0.src/libcxx/include/__config.libcxxmusl~	2018-09-01 13:58:24.242053399 +0200
-+++ llvm-7.0.0.src/libcxx/include/__config	2018-09-01 14:01:29.387536977 +0200
-@@ -11,6 +11,13 @@
+diff -up llvm-project-release-13.x/libcxx/include/__config.21~ llvm-project-release-13.x/libcxx/include/__config
+--- llvm-project-release-13.x/libcxx/include/__config.21~	2021-08-02 22:28:58.851830387 +0200
++++ llvm-project-release-13.x/libcxx/include/__config	2021-08-02 22:30:03.342154641 +0200
+@@ -10,6 +10,13 @@
  #ifndef _LIBCPP_CONFIG
  #define _LIBCPP_CONFIG
  
@@ -12,6 +12,6 @@ diff -up llvm-7.0.0.src/projects/libcxx/include/__config.libcxxmusl~ llvm-7.0.0.
 +#define _LIBCPP_HAS_MUSL_LIBC
 +#endif
 +
+ #include <__config_site>
+ 
  #if defined(_MSC_VER) && !defined(__clang__)
- #  if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
- #    define _LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER

@@ -1,17 +1,13 @@
-diff -up llvm-9.0.0-20190618/compiler-rt/lib/builtins/int_math.h.20~ llvm-9.0.0-20190618/compiler-rt/lib/builtins/int_math.h
---- llvm-9.0.0-20190618/compiler-rt/lib/builtins/int_math.h.20~	2019-06-18 21:33:08.506921115 +0200
-+++ llvm-9.0.0-20190618/compiler-rt/lib/builtins/int_math.h	2019-06-18 21:33:59.944699910 +0200
-@@ -77,30 +77,14 @@
+diff -up llvm-project-release-13.x/compiler-rt/lib/builtins/int_math.h.18~ llvm-project-release-13.x/compiler-rt/lib/builtins/int_math.h
+--- llvm-project-release-13.x/compiler-rt/lib/builtins/int_math.h.18~	2021-08-02 22:25:24.032831260 +0200
++++ llvm-project-release-13.x/compiler-rt/lib/builtins/int_math.h	2021-08-02 22:28:26.322670596 +0200
+@@ -77,22 +77,10 @@
  #define crt_fabsl(x) __builtin_fabsl((x))
  #endif
  
 -#if defined(_MSC_VER) && !defined(__clang__)
--#define crt_fmax(x, y) __max((x), (y))
--#define crt_fmaxf(x, y) __max((x), (y))
 -#define crt_fmaxl(x, y) __max((x), (y))
 -#else
- #define crt_fmax(x, y) __builtin_fmax((x), (y))
- #define crt_fmaxf(x, y) __builtin_fmaxf((x), (y))
  #define crt_fmaxl(x, y) __builtin_fmaxl((x), (y))
 -#endif
  
@@ -22,12 +18,8 @@ diff -up llvm-9.0.0-20190618/compiler-rt/lib/builtins/int_math.h.20~ llvm-9.0.0-
 -#endif
  
 -#if defined(_MSC_VER) && !defined(__clang__)
--#define crt_scalbn(x, y) scalbn((x), (y))
--#define crt_scalbnf(x, y) scalbnf((x), (y))
 -#define crt_scalbnl(x, y) scalbnl((x), (y))
 -#else
- #define crt_scalbn(x, y) __builtin_scalbn((x), (y))
- #define crt_scalbnf(x, y) __builtin_scalbnf((x), (y))
  #define crt_scalbnl(x, y) __builtin_scalbnl((x), (y))
 -#endif
  

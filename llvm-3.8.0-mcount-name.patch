@@ -1,7 +1,7 @@
-diff -up llvm-project-release-12.x/clang/lib/Basic/Targets/OSTargets.h.27~ llvm-project-release-12.x/clang/lib/Basic/Targets/OSTargets.h
---- llvm-project-release-12.x/clang/lib/Basic/Targets/OSTargets.h.27~	2021-02-08 19:45:41.223374831 +0100
-+++ llvm-project-release-12.x/clang/lib/Basic/Targets/OSTargets.h	2021-02-08 19:47:06.882909389 +0100
-@@ -256,10 +256,13 @@ public:
+diff -up llvm-project-release-13.x/clang/lib/Basic/Targets/OSTargets.h.24~ llvm-project-release-13.x/clang/lib/Basic/Targets/OSTargets.h
+--- llvm-project-release-13.x/clang/lib/Basic/Targets/OSTargets.h.24~	2021-08-02 22:30:34.849316363 +0200
++++ llvm-project-release-13.x/clang/lib/Basic/Targets/OSTargets.h	2021-08-02 22:32:11.189822771 +0200
+@@ -246,11 +246,16 @@ public:
      case llvm::Triple::ppcle:
      case llvm::Triple::ppc64:
      case llvm::Triple::ppc64le:
@@ -10,9 +10,11 @@ diff -up llvm-project-release-12.x/clang/lib/Basic/Targets/OSTargets.h.27~ llvm-
        this->MCountName = "_mcount";
        break;
      case llvm::Triple::arm:
--      this->MCountName = "__mcount";
+       this->MCountName = "__mcount";
+       break;
 +    case llvm::Triple::armeb:
 +      this->MCountName = "__gnu_mcount_nc";
++      break;
+     case llvm::Triple::riscv32:
+     case llvm::Triple::riscv64:
        break;
-     }
-   }
