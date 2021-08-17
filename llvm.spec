@@ -11,7 +11,7 @@
 %endif
 
 # (tpg) set snapshot date
-%define date 20210805
+%define date 20210817
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
