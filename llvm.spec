@@ -11,7 +11,7 @@
 %endif
 
 # (tpg) set snapshot date
-%define date 20210817
+%define date 20210819
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -336,22 +336,27 @@ Obsoletes: %{mklibname lldConfig 5} < %{EVRD}
 
 %if %{with crosscrt}
 %ifnarch %{aarch64}
+BuildRequires:	cross-aarch64-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-aarch64-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-aarch64-openmandriva-linux-gnu-libc
 %endif
 %ifnarch %{arm}
+BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-binutils
 BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-gcc-bootstrap
 BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-libc
 %endif
 %ifnarch %{ix86}
+BuildRequires:	cross-i686-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-i686-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-i686-openmandriva-linux-gnu-libc
 %endif
 %ifnarch ppc64le
+BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-libc
 %endif
 %ifnarch ppc64
+BuildRequires:	cross-ppc64-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-ppc64-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-ppc64-openmandriva-linux-gnu-libc
 %endif
@@ -362,6 +367,7 @@ BuildRequires:	cross-riscv64-openmandriva-linux-gnu-libc
 BuildRequires:	cross-riscv64-openmandriva-linux-gnu-kernel-headers
 %endif
 %ifnarch %{x86_64}
+BuildRequires:	cross-x86_64-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-x86_64-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-x86_64-openmandriva-linux-gnu-libc
 %endif
