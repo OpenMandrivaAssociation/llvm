@@ -11,7 +11,7 @@
 %endif
 
 # (tpg) set snapshot date
-%define date 20210819
+%define date 20210822
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -20,7 +20,7 @@
 %define _disable_ld_no_undefined 1
 %define _disable_lto 1
 # (tpg) optimize it a bit
-%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Wl,-Bsymbolic
+%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Wl,-Bsymbolic -Qunused-arguments
 %global build_ldflags %{build_ldflags} -fno-semantic-interposition -Wl,-Bsymbolic
 
 %ifarch %{riscv}
@@ -149,6 +149,11 @@ Source11:	http://llvm.org/releases/%{version}/libclc-%{version}.src.tar.xz
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 %endif
 %endif
+# llvm-spirv-translator and friends
+Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_130.tar.gz
+# HEAD as of 2021/08/22
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/449bc986ba6f4c5e10e32828783f9daef2a77644.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2021.2.tar.gz
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
@@ -230,6 +235,9 @@ Source63:	llvm-riscv-needs-libatomic-linkage.patch
 # Linker relaxation support for LLD
 # https://reviews.llvm.org/D100835
 Patch70:	https://reviews.llvm.org/file/data/uxcqagnbvcinly5c7tmp/PHID-FILE-sjeuqpsqsxwbjengaxdp/D100835.diff
+# SPIR-V fixes
+Patch90:	spirv-tools-compile.patch
+Source91:	https://github.com/KhronosGroup/SPIRV-Tools/commit/e065c482c6c98ef22900822d32a21df8c5473054.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -241,12 +249,6 @@ BuildRequires:	graphviz
 # Without this, generating man pages fails
 # Handler <function process_automodsumm_generation at 0x7fa70fc2a5e0> for event 'builder-inited' threw an exception (exception: No module named 'lldb')
 BuildRequires:	lldb
-# For libclc
-BuildRequires:	spirv-llvm-translator
-BuildRequires:	pkgconfig(LLVMSPIRVLib)
-%if %{with compat32}
-BuildRequires:	devel(libLLVMSPIRVLib)
-%endif
 %endif
 BuildRequires:	chrpath
 BuildRequires:	groff
@@ -484,7 +486,7 @@ for effective implementation, proper tail calls or garbage collection.
 %{_mandir}/man1/mlir-tblgen.1*
 
 #-----------------------------------------------------------
-%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitstreamReader LLVMBitWriter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo Remarks LLVMRISCVAsmParser LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVDisassembler LLVMRISCVInfo LLVMDebugInfoGSYM LLVMJITLink LLVMCFGuard LLVMDWARFLinker LLVMFrontendOpenMP LLVMAVRAsmParser LLVMAVRCodeGen LLVMAVRDesc LLVMAVRDisassembler LLVMAVRInfo LLVMExtensions LLVMFrontendOpenACC LLVMFileCheck LLVMInterfaceStub LLVMOrcShared LLVMOrcTargetProcess Polly LLVMCFIVerify LLVMDWP LLVMExegesis LLVMExegesisAArch64 LLVMExegesisMips LLVMExegesisPowerPC LLVMExegesisX86 LLVMMCACustomBehaviourAMDGPU LLVMTableGenGlobalISel LLVMWebAssemblyUtils
+%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitstreamReader LLVMBitWriter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo Remarks LLVMRISCVAsmParser LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVDisassembler LLVMRISCVInfo LLVMDebugInfoGSYM LLVMJITLink LLVMCFGuard LLVMDWARFLinker LLVMFrontendOpenMP LLVMAVRAsmParser LLVMAVRCodeGen LLVMAVRDesc LLVMAVRDisassembler LLVMAVRInfo LLVMExtensions LLVMFrontendOpenACC LLVMFileCheck LLVMInterfaceStub LLVMOrcShared LLVMOrcTargetProcess Polly LLVMCFIVerify LLVMDWP LLVMExegesis LLVMExegesisAArch64 LLVMExegesisMips LLVMExegesisPowerPC LLVMExegesisX86 LLVMMCACustomBehaviourAMDGPU LLVMTableGenGlobalISel LLVMWebAssemblyUtils LLVMSPIRVLib
 
 %define LLVM64Libs findAllSymbols
 
@@ -695,6 +697,8 @@ This package contains the development files for LLVM.
 %{_includedir}/%{name}-c
 %{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
+# FIXME this needs a real soname
+%exclude %{_libdir}/libSPIRV-Tools-shared.so
 %ifnarch %{riscv}
 %exclude %{_libdir}/libGPURuntime.so
 %endif
@@ -1420,13 +1424,154 @@ Nvidia PTX backend for the libclc OpenCL library.
 %{_datadir}/clc/*amdgcn*
 %endif
 
+%package -n spirv-headers
+Summary: Headers for working with SPIR-V, a language for running on GPUs
+Group: Development/Tools
+BuildArch: noarch
+
+%description -n spirv-headers
+This package contains machine-readable files for the SPIR-V Registry.
+
+This includes:
+
+* Header files for various languages.
+* JSON files describing the grammar for the SPIR-V core instruction
+  set and the extended instruction sets.
+* The XML registry file.
+* A tool to build the headers from the JSON grammar.
+
+Headers are provided in the include directory, with up-to-date
+headers in the unified1 subdirectory. Older headers are provided
+according to their version.
+
+%files -n spirv-headers
+%{_includedir}/spirv
+%dir %{_datadir}/cmake/SPIRV-Headers
+%{_datadir}/cmake/SPIRV-Headers/*.cmake
+
+%package -n spirv-llvm-translator
+Summary: Library for bi-directional translation between SPIR-V and LLVM IR
+
+%description -n spirv-llvm-translator
+Library for bi-directional translation between SPIR-V and LLVM IR
+
+%files -n spirv-llvm-translator
+%{_bindir}/llvm-spirv
+
+%define libspirv %mklibname LLVMSPIRVLib %{major1}
+%define devspirv %mklibname -d LLVMSPIRVLib
+
+%package -n %{devspirv}
+Summary: Library for bi-directional translation between SPIR-V and LLVM IR
+Group: Development/Tools
+Requires: %{libspirv} = %{EVRD}
+
+%description -n %{devspirv}
+Library for bi-directional translation between SPIR-V and LLVM IR
+
+%files -n %{devspirv}
+%{_includedir}/LLVMSPIRVLib
+%{_libdir}/libLLVMSPIRVLib.so
+%{_libdir}/pkgconfig/LLVMSPIRVLib.pc
+
+%package -n spirv-tools
+Summary: Tools for working with SPIR-V, a language for running on GPUs
+Group: Development/Tools
+
+%description -n spirv-tools
+Tools for working with SPIR-V, a language for running on GPUs
+
+%files -n spirv-tools
+%{_bindir}/spirv-as
+%{_bindir}/spirv-cfg
+%{_bindir}/spirv-dis
+%{_bindir}/spirv-lesspipe.sh
+%{_bindir}/spirv-link
+%{_bindir}/spirv-opt
+%{_bindir}/spirv-reduce
+%{_bindir}/spirv-val
+
+%define libspirvtools %mklibname spirv-tools %{major1}
+%define devspirvtools %mklibname -d spirv-tools
+
+%package -n %{libspirvtools}
+Summary:	Libraries needed for SPIRV-Tools
+Group:		System/Libraries
+
+%description -n %{libspirvtools}
+Libraries needed for SPIRV-Tools
+
+%files -n %{libspirvtools}
+%{_libdir}/libSPIRV-Tools-shared.so.*
+
+%package -n %{devspirvtools}
+Summary:	Development files for SPIRV-Tools
+Group:		Development/C++ and C
+Requires:	%{libspirvtools} = %{EVRD}
+Requires:	spirv-tools = %{EVRD}
+
+%description -n %{devspirvtools}
+Development files for SPIRV-Tools
+
+%files -n %{devspirvtools}
+%{_includedir}/spirv-tools
+%{_libdir}/cmake/SPIRV-Tools*
+%{_libdir}/libSPIRV-Tools*.a
+%{_libdir}/libSPIRV-Tools*.so
+%{_libdir}/pkgconfig/SPIRV-Tools*.pc
+
+%if %{with compat32}
+%define lib32spirv libLLVMSPIRVLib%{major1}
+%define dev32spirv libLLVMSPIRVLib-devel
+%define lib32spirvtools %mklib32name spirv-tools %{major1}
+%define dev32spirvtools %mklib32name -d spirv-tools
+
+%package -n %{dev32spirv}
+Summary: Library for bi-directional translation between SPIR-V and LLVM IR (32-bit)
+Group: Development/Tools
+Requires: %{devspirv} = %{EVRD}
+Requires: %{lib32spirv} = %{EVRD}
+
+%description -n %{dev32spirv}
+Library for bi-directional translation between SPIR-V and LLVM IR (32-bit)
+
+%files -n %{dev32spirv}
+%{_prefix}/lib/libLLVMSPIRVLib.so
+%{_prefix}/lib/pkgconfig/LLVMSPIRVLib.pc
+
+%package -n %{lib32spirvtools}
+Summary:	Libraries needed for SPIRV-Tools (32-bit)
+Group:		System/Libraries
+
+%description -n %{lib32spirvtools}
+Libraries needed for SPIRV-Tools (32-bit)
+
+%files -n %{lib32spirvtools}
+%{_prefix}/lib/libSPIRV-Tools-shared.so.*
+
+%package -n %{dev32spirvtools}
+Summary:	Development files for SPIRV-Tools (32-bit)
+Group:		Development/C++ and C
+Requires:	%{devspirvtools} = %{EVRD}
+Requires:	%{lib32spirvtools} = %{EVRD}
+Provides:	libspirv-tools-devel = %{EVRD}
+
+%description -n %{dev32spirvtools}
+Development files for SPIRV-Tools
+
+%files -n %{dev32spirvtools}
+%{_prefix}/lib/cmake/SPIRV-Tools*
+%{_prefix}/lib/libSPIRV-Tools*.a
+%{_prefix}/lib/libSPIRV-Tools*.so
+%{_prefix}/lib/pkgconfig/SPIRV-Tools*.pc
+%endif
 
 %prep
 %if 0%{?date:1}
-%autosetup -p1 -n llvm-project-%{?is_main:main}%{!?is_main:release-%{major1}.x}
+%setup -n llvm-project-%{?is_main:main}%{!?is_main:release-%{major1}.x} -a 20 -a 21 -a 22
 %else
 %if %{with upstream_tarballs}
-%setup -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10 -a 11
+%setup -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10 -a 11 -a 20 -a 21 -a 22
 mv llvm-%{version}.src llvm
 mv cfe-%{version}.src clang
 mv clang-tools-extra-%{version}.src clang-tools-extra
@@ -1439,11 +1584,17 @@ mv lld-%{version}.src lld
 mv lldb-%{version}.src lldb
 mv openmp-%{version}.src openmp
 mv libclc-%{version}.src libclc
-%autopatch -p1
 %else
-%autosetup -p1 -n llvm-project-%{version}.src
+%setup -p1 -n llvm-project-%{version}.src -a 20 -a 21 -a 22
 %endif
 %endif
+mv SPIRV-LLVM-Translator-* llvm/projects/SPIRV-LLVM-Translator
+mv SPIRV-Headers-* llvm/projects/SPIRV-Headers
+mv SPIRV-Tools-* llvm/projects/SPIRV-Tools
+%autopatch -p1
+cd llvm/projects/SPIRV-Tools
+patch -p1 -b -z .91~ <%{S:91}
+cd -
 %if %{with default_compilerrt}
 patch -p1 -b -z .crt~ <%{S:62}
 %endif
@@ -1466,10 +1617,8 @@ find . -type d -exec chmod 0755 {} \;
 %config_update
 
 %build
-# Temporary workaround for compiling with lld that doesn't have patch 21
-#mkdir path-override
-#ln -s %{_bindir}/ld.gold path-override/ld
-#export PATH=$(pwd)/path-override:$PATH
+# Make sure libclc can find llvm-spirv
+export PATH=$(pwd)/build/bin:$PATH
 
 COMPONENTS="llvm"
 %if %{with clang}
@@ -1765,7 +1914,7 @@ export LD_LIBRARY_PATH=$(pwd)/build/%{_lib}:$LD_LIBRARY_PATH
 # libclc integration into the main build seems to be broken
 mkdir build-libclc
 cd build-libclc
-ln -sf %{_bindir}/llvm-spirv ../build/bin
+#ln -sf %{_bindir}/llvm-spirv ../build/bin
 cmake \
 	../libclc \
 	-G Ninja \

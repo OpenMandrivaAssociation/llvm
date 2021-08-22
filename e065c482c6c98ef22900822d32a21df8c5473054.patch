@@ -1,0 +1,1698 @@
+From e065c482c6c98ef22900822d32a21df8c5473054 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?K=C3=A9vin=20Petit?= <kpet@free.fr>
+Date: Wed, 23 Jun 2021 18:32:24 +0100
+Subject: [PATCH] Initial support for SPV_KHR_integer_dot_product (#4327)
+
+* Initial support for SPV_KHR_integer_dot_product
+
+- Adds new operand types for packed-vector-format
+- Moves ray tracing enums to the end
+
+- PackedVectorFormat is a new optional operand type, so it requires
+  special handling in grammar table generation.
+
+- Add SPV_KHR_integer_dot_product to optimizer whitelists.
+
+- Pass-through validation: valid cases pass validation
+  Validation errors are not checked.
+
+- Update SPIRV-Headers
+
+Patch by David Neto <dneto@google.com>
+Rebase and minor tweaks by Kevin Petit <kevin.petit@arm.com>
+
+Signed-off-by: David Neto <dneto@google.com>
+Signed-off-by: Kevin Petit <kevin.petit@arm.com>
+Change-Id: Icb41741cb7f0f1063e5541ce25e5ba6c02266d2c
+
+* format fixes
+
+Change-Id: I35c82ec27bded3d1b62373fa6daec3ffd91105a3
+---
+ DEPS                                          |    2 +-
+ include/spirv-tools/libspirv.h                |   30 +-
+ source/binary.cpp                             |    6 +-
+ source/disassemble.cpp                        |   12 +-
+ source/operand.cpp                            |    5 +
+ source/opt/aggressive_dead_code_elim_pass.cpp |    1 +
+ .../opt/local_access_chain_convert_pass.cpp   |    1 +
+ source/opt/local_single_block_elim_pass.cpp   |    1 +
+ source/opt/local_single_store_elim_pass.cpp   |    1 +
+ test/text_to_binary.extension_test.cpp        |   66 +
+ test/val/CMakeLists.txt                       |    1 +
+ ..._extension_spv_khr_integer_dot_product.cpp | 1330 +++++++++++++++++
+ utils/generate_grammar_tables.py              |   14 +-
+ 13 files changed, 1453 insertions(+), 17 deletions(-)
+ create mode 100644 test/val/val_extension_spv_khr_integer_dot_product.cpp
+
+diff --git a/DEPS b/DEPS
+index 0eaf1b9d49..5f64ecaaa1 100644
+--- a/DEPS
++++ b/DEPS
+@@ -6,7 +6,7 @@ vars = {
+   'effcee_revision': '2ec8f8738118cc483b67c04a759fee53496c5659',
+   'googletest_revision': 'b7d472f1225c5a64943821d8483fecb469d3f382',
+   're2_revision': 'f8e389f3acdc2517562924239e2a188037393683',
+-  'spirv_headers_revision': '07f259e68af3a540038fa32df522554e74f53ed5',
++  'spirv_headers_revision': 'f95c3b3761ee1b1903f54ae69b526ed6f0edc3b9',
+ }
+ 
+ deps = {
+diff --git a/include/spirv-tools/libspirv.h b/include/spirv-tools/libspirv.h
+index 771567e5b5..039dab18ae 100644
+--- a/include/spirv-tools/libspirv.h
++++ b/include/spirv-tools/libspirv.h
+@@ -113,6 +113,9 @@ typedef enum spv_endianness_t {
+ // Sometimes we also need to be able to express the fact that an operand
+ // is a member of an optional tuple of values.  In that case the first member
+ // would be optional, and the subsequent members would be required.
++//
++// NOTE: Although we don't promise binary compatibility, as a courtesy, please
++// add new enum values at the end.
+ typedef enum spv_operand_type_t {
+   // A sentinel value.
+   SPV_OPERAND_TYPE_NONE = 0,
+@@ -167,12 +170,8 @@ typedef enum spv_operand_type_t {
+   SPV_OPERAND_TYPE_KERNEL_ENQ_FLAGS,              // SPIR-V Sec 3.29
+   SPV_OPERAND_TYPE_KERNEL_PROFILING_INFO,         // SPIR-V Sec 3.30
+   SPV_OPERAND_TYPE_CAPABILITY,                    // SPIR-V Sec 3.31
+-  SPV_OPERAND_TYPE_RAY_FLAGS,                     // SPIR-V Sec 3.RF
+-  SPV_OPERAND_TYPE_RAY_QUERY_INTERSECTION,        // SPIR-V Sec 3.RQIntersection
+-  SPV_OPERAND_TYPE_RAY_QUERY_COMMITTED_INTERSECTION_TYPE,  // SPIR-V Sec
+-                                                           // 3.RQCommitted
+-  SPV_OPERAND_TYPE_RAY_QUERY_CANDIDATE_INTERSECTION_TYPE,  // SPIR-V Sec
+-                                                           // 3.RQCandidate
++
++  // NOTE: New concrete enum values should be added at the end.
+ 
+   // Set 5:  Operands that are a single word bitmask.
+   // Sometimes a set bit indicates the instruction requires still more operands.
+@@ -184,7 +183,10 @@ typedef enum spv_operand_type_t {
+   SPV_OPERAND_TYPE_MEMORY_ACCESS,          // SPIR-V Sec 3.26
+   SPV_OPERAND_TYPE_FRAGMENT_SHADING_RATE,  // SPIR-V Sec 3.FSR
+ 
+-// The remaining operand types are only used internally by the assembler.
++// NOTE: New concrete enum values should be added at the end.
++
++// The "optional" and "variable"  operand types are only used internally by
++// the assembler and the binary parser.
+ // There are two categories:
+ //    Optional : expands to 0 or 1 operand, like ? in regular expressions.
+ //    Variable : expands to 0, 1 or many operands or pairs of operands.
+@@ -269,6 +271,20 @@ typedef enum spv_operand_type_t {
+   // A value enum from https://github.com/KhronosGroup/SPIRV-Headers/pull/177
+   SPV_OPERAND_TYPE_OVERFLOW_MODES,
+ 
++  // Concrete operand types for the provisional Vulkan ray tracing feature.
++  SPV_OPERAND_TYPE_RAY_FLAGS,               // SPIR-V Sec 3.RF
++  SPV_OPERAND_TYPE_RAY_QUERY_INTERSECTION,  // SPIR-V Sec 3.RQIntersection
++  SPV_OPERAND_TYPE_RAY_QUERY_COMMITTED_INTERSECTION_TYPE,  // SPIR-V Sec
++                                                           // 3.RQCommitted
++  SPV_OPERAND_TYPE_RAY_QUERY_CANDIDATE_INTERSECTION_TYPE,  // SPIR-V Sec
++                                                           // 3.RQCandidate
++
++  // Concrete operand types for integer dot product.
++  // Packed vector format
++  SPV_OPERAND_TYPE_PACKED_VECTOR_FORMAT,  // SPIR-V Sec 3.x
++  // An optional packed vector format
++  SPV_OPERAND_TYPE_OPTIONAL_PACKED_VECTOR_FORMAT,
++
+   // This is a sentinel value, and does not represent an operand type.
+   // It should come last.
+   SPV_OPERAND_TYPE_NUM_OPERAND_TYPES,
+diff --git a/source/binary.cpp b/source/binary.cpp
+index 93f3cd72ea..090cccfecd 100644
+--- a/source/binary.cpp
++++ b/source/binary.cpp
+@@ -659,12 +659,16 @@ spv_result_t Parser::parseOperand(size_t inst_offset,
+     case SPV_OPERAND_TYPE_FPDENORM_MODE:
+     case SPV_OPERAND_TYPE_FPOPERATION_MODE:
+     case SPV_OPERAND_TYPE_QUANTIZATION_MODES:
+-    case SPV_OPERAND_TYPE_OVERFLOW_MODES: {
++    case SPV_OPERAND_TYPE_OVERFLOW_MODES:
++    case SPV_OPERAND_TYPE_PACKED_VECTOR_FORMAT:
++    case SPV_OPERAND_TYPE_OPTIONAL_PACKED_VECTOR_FORMAT: {
+       // A single word that is a plain enum value.
+ 
+       // Map an optional operand type to its corresponding concrete type.
+       if (type == SPV_OPERAND_TYPE_OPTIONAL_ACCESS_QUALIFIER)
+         parsed_operand.type = SPV_OPERAND_TYPE_ACCESS_QUALIFIER;
++      if (type == SPV_OPERAND_TYPE_OPTIONAL_PACKED_VECTOR_FORMAT)
++        parsed_operand.type = SPV_OPERAND_TYPE_PACKED_VECTOR_FORMAT;
+ 
+       spv_operand_desc entry;
+       if (grammar_.lookupOperand(type, word, &entry)) {
+diff --git a/source/disassemble.cpp b/source/disassemble.cpp
+index 7aa08ea5ae..c553988f38 100644
+--- a/source/disassemble.cpp
++++ b/source/disassemble.cpp
+@@ -347,7 +347,17 @@ void Disassembler::EmitOperand(const spv_parsed_instruction_t& inst,
+       EmitMaskOperand(operand.type, word);
+       break;
+     default:
+-      assert(false && "unhandled or invalid case");
++      if (spvOperandIsConcreteMask(operand.type)) {
++        EmitMaskOperand(operand.type, word);
++      } else if (spvOperandIsConcrete(operand.type)) {
++        spv_operand_desc entry;
++        if (grammar_.lookupOperand(operand.type, word, &entry))
++          assert(false && "should have caught this earlier");
++        stream_ << entry->name;
++      } else {
++        assert(false && "unhandled or invalid case");
++      }
++      break;
+   }
+   ResetColor();
+ }
+diff --git a/source/operand.cpp b/source/operand.cpp
+index 3e0719bd23..c00c9b64ed 100644
+--- a/source/operand.cpp
++++ b/source/operand.cpp
+@@ -229,6 +229,9 @@ const char* spvOperandTypeStr(spv_operand_type_t type) {
+       return "ray query committed intersection type";
+     case SPV_OPERAND_TYPE_RAY_QUERY_CANDIDATE_INTERSECTION_TYPE:
+       return "ray query candidate intersection type";
++    case SPV_OPERAND_TYPE_PACKED_VECTOR_FORMAT:
++    case SPV_OPERAND_TYPE_OPTIONAL_PACKED_VECTOR_FORMAT:
++      return "packed vector format";
+     case SPV_OPERAND_TYPE_IMAGE:
+     case SPV_OPERAND_TYPE_OPTIONAL_IMAGE:
+       return "image";
+@@ -361,6 +364,7 @@ bool spvOperandIsConcrete(spv_operand_type_t type) {
+     case SPV_OPERAND_TYPE_FPOPERATION_MODE:
+     case SPV_OPERAND_TYPE_QUANTIZATION_MODES:
+     case SPV_OPERAND_TYPE_OVERFLOW_MODES:
++    case SPV_OPERAND_TYPE_PACKED_VECTOR_FORMAT:
+       return true;
+     default:
+       break;
+@@ -396,6 +400,7 @@ bool spvOperandIsOptional(spv_operand_type_t type) {
+     case SPV_OPERAND_TYPE_OPTIONAL_TYPED_LITERAL_INTEGER:
+     case SPV_OPERAND_TYPE_OPTIONAL_LITERAL_STRING:
+     case SPV_OPERAND_TYPE_OPTIONAL_ACCESS_QUALIFIER:
++    case SPV_OPERAND_TYPE_OPTIONAL_PACKED_VECTOR_FORMAT:
+     case SPV_OPERAND_TYPE_OPTIONAL_CIV:
+       return true;
+     default:
+diff --git a/source/opt/aggressive_dead_code_elim_pass.cpp b/source/opt/aggressive_dead_code_elim_pass.cpp
+index 83f61c19ab..7cffff5700 100644
+--- a/source/opt/aggressive_dead_code_elim_pass.cpp
++++ b/source/opt/aggressive_dead_code_elim_pass.cpp
+@@ -998,6 +998,7 @@ void AggressiveDCEPass::InitExtensions() {
+       "SPV_KHR_shader_clock",
+       "SPV_KHR_vulkan_memory_model",
+       "SPV_KHR_subgroup_uniform_control_flow",
++      "SPV_KHR_integer_dot_product",
+   });
+ }
+ 
+diff --git a/source/opt/local_access_chain_convert_pass.cpp b/source/opt/local_access_chain_convert_pass.cpp
+index 43770e54e7..5c10ecec78 100644
+--- a/source/opt/local_access_chain_convert_pass.cpp
++++ b/source/opt/local_access_chain_convert_pass.cpp
+@@ -419,6 +419,7 @@ void LocalAccessChainConvertPass::InitExtensions() {
+       "SPV_EXT_fragment_invocation_density",
+       "SPV_KHR_terminate_invocation",
+       "SPV_KHR_subgroup_uniform_control_flow",
++      "SPV_KHR_integer_dot_product",
+   });
+ }
+ 
+diff --git a/source/opt/local_single_block_elim_pass.cpp b/source/opt/local_single_block_elim_pass.cpp
+index 50476dc404..05ed28ae8a 100644
+--- a/source/opt/local_single_block_elim_pass.cpp
++++ b/source/opt/local_single_block_elim_pass.cpp
+@@ -271,6 +271,7 @@ void LocalSingleBlockLoadStoreElimPass::InitExtensions() {
+       "SPV_EXT_physical_storage_buffer",
+       "SPV_KHR_terminate_invocation",
+       "SPV_KHR_subgroup_uniform_control_flow",
++      "SPV_KHR_integer_dot_product",
+   });
+ }
+ 
+diff --git a/source/opt/local_single_store_elim_pass.cpp b/source/opt/local_single_store_elim_pass.cpp
+index 286888e592..7eb4b1fda9 100644
+--- a/source/opt/local_single_store_elim_pass.cpp
++++ b/source/opt/local_single_store_elim_pass.cpp
+@@ -124,6 +124,7 @@ void LocalSingleStoreElimPass::InitExtensionAllowList() {
+       "SPV_EXT_physical_storage_buffer",
+       "SPV_KHR_terminate_invocation",
+       "SPV_KHR_subgroup_uniform_control_flow",
++      "SPV_KHR_integer_dot_product",
+   });
+ }
+ bool LocalSingleStoreElimPass::ProcessVariable(Instruction* var_inst) {
+diff --git a/test/text_to_binary.extension_test.cpp b/test/text_to_binary.extension_test.cpp
+index 8bfdf28dd6..0857984343 100644
+--- a/test/text_to_binary.extension_test.cpp
++++ b/test/text_to_binary.extension_test.cpp
+@@ -952,5 +952,71 @@ INSTANTIATE_TEST_SUITE_P(
+                      {1, SpvExecutionModeSubgroupUniformControlFlowKHR})},
+             })));
+ 
++// SPV_KHR_integer_dot_product
++
++INSTANTIATE_TEST_SUITE_P(
++    SPV_KHR_integer_dot_product, ExtensionRoundTripTest,
++    Combine(
++        Values(SPV_ENV_UNIVERSAL_1_0, SPV_ENV_UNIVERSAL_1_5, SPV_ENV_VULKAN_1_0,
++               SPV_ENV_VULKAN_1_1, SPV_ENV_VULKAN_1_2),
++        ValuesIn(std::vector<AssemblyCase>{
++            {"OpExtension \"SPV_KHR_integer_dot_product\"\n",
++             MakeInstruction(SpvOpExtension,
++                             MakeVector("SPV_KHR_integer_dot_product"))},
++            {"OpCapability DotProductInputAllKHR\n",
++             MakeInstruction(SpvOpCapability,
++                             {SpvCapabilityDotProductInputAllKHR})},
++            {"OpCapability DotProductInput4x8BitKHR\n",
++             MakeInstruction(SpvOpCapability,
++                             {SpvCapabilityDotProductInput4x8BitKHR})},
++            {"OpCapability DotProductInput4x8BitPackedKHR\n",
++             MakeInstruction(SpvOpCapability,
++                             {SpvCapabilityDotProductInput4x8BitPackedKHR})},
++            {"OpCapability DotProductKHR\n",
++             MakeInstruction(SpvOpCapability, {SpvCapabilityDotProductKHR})},
++            {"%2 = OpSDotKHR %1 %3 %4\n",
++             MakeInstruction(SpvOpSDotKHR, {1, 2, 3, 4})},
++            {"%2 = OpSDotKHR %1 %3 %4 PackedVectorFormat4x8BitKHR\n",
++             MakeInstruction(
++                 SpvOpSDotKHR,
++                 {1, 2, 3, 4,
++                  SpvPackedVectorFormatPackedVectorFormat4x8BitKHR})},
++            {"%2 = OpUDotKHR %1 %3 %4\n",
++             MakeInstruction(SpvOpUDotKHR, {1, 2, 3, 4})},
++            {"%2 = OpUDotKHR %1 %3 %4 PackedVectorFormat4x8BitKHR\n",
++             MakeInstruction(
++                 SpvOpUDotKHR,
++                 {1, 2, 3, 4,
++                  SpvPackedVectorFormatPackedVectorFormat4x8BitKHR})},
++            {"%2 = OpSUDotKHR %1 %3 %4\n",
++             MakeInstruction(SpvOpSUDotKHR, {1, 2, 3, 4})},
++            {"%2 = OpSUDotKHR %1 %3 %4 PackedVectorFormat4x8BitKHR\n",
++             MakeInstruction(
++                 SpvOpSUDotKHR,
++                 {1, 2, 3, 4,
++                  SpvPackedVectorFormatPackedVectorFormat4x8BitKHR})},
++            {"%2 = OpSDotAccSatKHR %1 %3 %4 %5\n",
++             MakeInstruction(SpvOpSDotAccSatKHR, {1, 2, 3, 4, 5})},
++            {"%2 = OpSDotAccSatKHR %1 %3 %4 %5 PackedVectorFormat4x8BitKHR\n",
++             MakeInstruction(
++                 SpvOpSDotAccSatKHR,
++                 {1, 2, 3, 4, 5,
++                  SpvPackedVectorFormatPackedVectorFormat4x8BitKHR})},
++            {"%2 = OpUDotAccSatKHR %1 %3 %4 %5\n",
++             MakeInstruction(SpvOpUDotAccSatKHR, {1, 2, 3, 4, 5})},
++            {"%2 = OpUDotAccSatKHR %1 %3 %4 %5 PackedVectorFormat4x8BitKHR\n",
++             MakeInstruction(
++                 SpvOpUDotAccSatKHR,
++                 {1, 2, 3, 4, 5,
++                  SpvPackedVectorFormatPackedVectorFormat4x8BitKHR})},
++            {"%2 = OpSUDotAccSatKHR %1 %3 %4 %5\n",
++             MakeInstruction(SpvOpSUDotAccSatKHR, {1, 2, 3, 4, 5})},
++            {"%2 = OpSUDotAccSatKHR %1 %3 %4 %5 PackedVectorFormat4x8BitKHR\n",
++             MakeInstruction(
++                 SpvOpSUDotAccSatKHR,
++                 {1, 2, 3, 4, 5,
++                  SpvPackedVectorFormatPackedVectorFormat4x8BitKHR})},
++        })));
++
+ }  // namespace
+ }  // namespace spvtools
+diff --git a/test/val/CMakeLists.txt b/test/val/CMakeLists.txt
+index 7792b4fbb5..83249641ef 100644
+--- a/test/val/CMakeLists.txt
++++ b/test/val/CMakeLists.txt
+@@ -41,6 +41,7 @@ add_spvtools_unittest(TARGET val_abcde
+        val_extension_spv_khr_expect_assume.cpp
+        val_extension_spv_khr_linkonce_odr.cpp
+        val_extension_spv_khr_subgroup_uniform_control_flow.cpp
++       val_extension_spv_khr_integer_dot_product.cpp
+        val_extension_spv_khr_terminate_invocation.cpp
+        val_ext_inst_test.cpp
+        ${VAL_TEST_COMMON_SRCS}
+diff --git a/test/val/val_extension_spv_khr_integer_dot_product.cpp b/test/val/val_extension_spv_khr_integer_dot_product.cpp
+new file mode 100644
+index 0000000000..e0e6896c90
+--- /dev/null
++++ b/test/val/val_extension_spv_khr_integer_dot_product.cpp
+@@ -0,0 +1,1330 @@
++// Copyright (c) 2020 Google Inc.
++// Copyright (c) 2021 Arm Ltd.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++#include <ostream>
++#include <sstream>
++#include <string>
++#include <vector>
++
++#include "gmock/gmock.h"
++#include "source/enum_string_mapping.h"
++#include "source/extensions.h"
++#include "source/spirv_target_env.h"
++#include "test/test_fixture.h"
++#include "test/unit_spirv.h"
++#include "test/val/val_fixtures.h"
++
++namespace spvtools {
++namespace val {
++namespace {
++
++using ::testing::HasSubstr;
++using ::testing::Values;
++
++struct Case {
++  std::vector<std::string> caps;
++  std::string inst;
++  std::string result_type;
++  std::string op0_type;
++  std::string op1_type;
++  std::string acc_type;  // can be empty
++  bool packed;
++  std::string expected_error;  // empty for no error.
++};
++
++inline std::ostream& operator<<(std::ostream& out, Case c) {
++  out << "\nSPV_KHR_integer_dot_product Case{{";
++  bool first = true;
++  for (const auto& cap : c.caps) {
++    if (!first) {
++      out << " ";
++    }
++    first = false;
++    out << cap;
++  }
++  out << "} ";
++  out << c.inst << " ";
++  out << c.result_type << " ";
++  out << c.op0_type << " ";
++  out << c.op1_type << " ";
++  out << "'" << c.acc_type << "' ";
++  out << (c.packed ? "packed " : "unpacked ");
++  out << "err'" << c.expected_error << "'";
++  return out;
++}
++
++std::string AssemblyForCase(const Case& c) {
++  std::ostringstream ss;
++  ss << "OpCapability Shader\n";
++  for (auto& cap : c.caps) {
++    ss << "OpCapability " << cap << "\n";
++  }
++  ss << R"(
++  OpExtension "SPV_KHR_integer_dot_product"
++  OpMemoryModel Logical Simple
++  OpEntryPoint GLCompute %main "main"
++  OpExecutionMode %main LocalSize 1 1 1
++
++  %void = OpTypeVoid
++  %voidfn = OpTypeFunction %void
++  %uint = OpTypeInt 32 0
++  %int = OpTypeInt 32 1
++
++  %v2uint = OpTypeVector %uint 2
++  %v3uint = OpTypeVector %uint 3
++  %v4uint = OpTypeVector %uint 4
++  %v2int = OpTypeVector %int 2
++  %v3int = OpTypeVector %int 3
++  %v4int = OpTypeVector %int 4
++
++  %uint_0 = OpConstant %uint 0
++  %uint_1 = OpConstant %uint 1
++  %int_0 = OpConstant %int 0
++  %int_1 = OpConstant %int 1
++
++  %v2uint_0 = OpConstantComposite %v2uint %uint_0 %uint_0
++  %v2uint_1 = OpConstantComposite %v2uint %uint_1 %uint_1
++  %v3uint_0 = OpConstantComposite %v3uint %uint_0 %uint_0 %uint_0
++  %v3uint_1 = OpConstantComposite %v3uint %uint_1 %uint_1 %uint_1
++  %v4uint_0 = OpConstantComposite %v4uint %uint_0 %uint_0 %uint_0 %uint_0
++  %v4uint_1 = OpConstantComposite %v4uint %uint_1 %uint_1 %uint_1 %uint_1
++
++  %v2int_0 = OpConstantComposite %v2int %int_0 %int_0
++  %v2int_1 = OpConstantComposite %v2int %int_1 %int_1
++  %v3int_0 = OpConstantComposite %v3int %int_0 %int_0 %int_0
++  %v3int_1 = OpConstantComposite %v3int %int_1 %int_1 %int_1
++  %v4int_0 = OpConstantComposite %v4int %int_0 %int_0 %int_0 %int_0
++  %v4int_1 = OpConstantComposite %v4int %int_1 %int_1 %int_1 %int_1
++)";
++
++  bool use8bit = false;
++  for (auto& cap : c.caps) {
++    if (cap == "DotProductInput4x8BitKHR") {
++      use8bit = true;
++    }
++    if (cap == "Int8") {
++      use8bit = true;
++    }
++  }
++  if (use8bit) {
++    ss << R"(
++         %uchar = OpTypeInt 8 0
++         %char = OpTypeInt 8 1
++
++         %v4uchar = OpTypeVector %uchar 4
++         %v4char = OpTypeVector %char 4
++
++         %uchar_0 = OpConstant %uchar 0
++         %uchar_1 = OpConstant %uchar 1
++         %char_0 = OpConstant %char 0
++         %char_1 = OpConstant %char 1
++
++         %v4uchar_0 = OpConstantComposite %v4uchar %uchar_0 %uint_0 %uchar_0 %uchar_0
++         %v4uchar_1 = OpConstantComposite %v4uchar %uchar_1 %uchar_1 %uchar_1 %uchar_1
++         %v4char_0 = OpConstantComposite %v4char %char_0 %char_0 %char_0 %char_0
++         %v4char_1 = OpConstantComposite %v4char %char_1 %char_1 %char_1 %char_1
++
++         )";
++  }
++
++  ss << R"(
++
++  %main = OpFunction %void None %voidfn
++  %entry = OpLabel
++  %result = )"
++     << c.inst << " " << c.result_type << " ";
++  ss << c.op0_type << "_0 ";
++  ss << c.op1_type << "_1 ";
++  if (!c.acc_type.empty()) {
++    ss << c.acc_type << "_0 ";
++  }
++  if (c.packed) {
++    ss << "PackedVectorFormat4x8BitKHR";
++  }
++  ss << "\nOpReturn\nOpFunctionEnd\n\n";
++  return ss.str();
++}
++
++using ValidateSpvKHRIntegerDotProduct = spvtest::ValidateBase<Case>;
++
++TEST_P(ValidateSpvKHRIntegerDotProduct, Valid) {
++  const auto& c = GetParam();
++  const auto& assembly = AssemblyForCase(c);
++  CompileSuccessfully(assembly);
++  if (c.expected_error.empty()) {
++    EXPECT_EQ(SPV_SUCCESS, ValidateInstructions()) << getDiagnosticString();
++  } else {
++    EXPECT_NE(SPV_SUCCESS, ValidateInstructions());
++    EXPECT_THAT(getDiagnosticString(), HasSubstr(c.expected_error));
++  }
++}
++
++// UDot
++INSTANTIATE_TEST_SUITE_P(
++    Valid_UDot, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpUDotKHR",
++                           "%uint",
++                           "%v2uint",
++                           "%v2uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpUDotKHR",
++                           "%uint",
++                           "%v3uint",
++                           "%v3uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpUDotKHR",
++                           "%uint",
++                           "%v4uint",
++                           "%v4uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpUDotKHR",
++                           "%uchar",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpUDotKHR",
++                           "%uint",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpUDotKHR",
++                           "%uchar",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpUDotKHR",
++                           "%uint",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpUDotKHR",
++                           "%uchar",  // matches packed component type
++                           "%uint",
++                           "%uint",
++                           "",
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpUDotKHR",
++                           "%uint",
++                           "%uint",
++                           "%uint",
++                           "",
++                           true,
++                           ""}));
++
++// SDot result signed args signed signed
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SDot_signed_signed_signed, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotKHR",
++                           "%int",
++                           "%v2int",
++                           "%v2int",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotKHR",
++                           "%int",
++                           "%v3int",
++                           "%v3int",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotKHR",
++                           "%int",
++                           "%v4int",
++                           "%v4int",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4char",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4char",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4char",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4char",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSDotKHR",
++                           "%char",  // matches packed component type
++                           "%int",
++                           "%int",
++                           "",
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSDotKHR",
++                           "%int",
++                           "%int",
++                           "%int",
++                           "",
++                           true,
++                           ""}));
++
++// SDot result unsigned args signed unsigned
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SDot_unsigned_signed_unsigned, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotKHR",
++                           "%uint",
++                           "%v2int",
++                           "%v2uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotKHR",
++                           "%uint",
++                           "%v3int",
++                           "%v3uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotKHR",
++                           "%uint",
++                           "%v4int",
++                           "%v4uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotKHR",
++                           "%uchar",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotKHR",
++                           "%uint",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotKHR",
++                           "%uchar",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotKHR",
++                           "%uint",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSDotKHR",
++                           "%uchar",  // matches packed component type
++                           "%int",
++                           "%uint",
++                           "",
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSDotKHR",
++                           "%uint",
++                           "%int",
++                           "%uint",
++                           "",
++                           true,
++                           ""}));
++
++// SDot result signed args signed unsigned
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SDot_signed_signed_unsigned, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotKHR",
++                           "%int",
++                           "%v2int",
++                           "%v2uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotKHR",
++                           "%int",
++                           "%v3int",
++                           "%v3uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotKHR",
++                           "%int",
++                           "%v4int",
++                           "%v4uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSDotKHR",
++                           "%char",  // matches packed component type
++                           "%int",
++                           "%uint",
++                           "",
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSDotKHR",
++                           "%int",
++                           "%int",
++                           "%uint",
++                           "",
++                           true,
++                           ""}));
++
++// SUDot result signed args unsigned unsigned
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SUDot_signed_unsigned_unsigned, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotKHR",
++                           "%int",
++                           "%v2uint",
++                           "%v2uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotKHR",
++                           "%int",
++                           "%v3uint",
++                           "%v3uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotKHR",
++                           "%int",
++                           "%v4uint",
++                           "%v4uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotKHR",
++                           "%char",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotKHR",
++                           "%int",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotKHR",
++                           "%char",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotKHR",
++                           "%int",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSUDotKHR",
++                           "%char",  // matches packed component type
++                           "%uint",
++                           "%uint",
++                           "",
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSUDotKHR",
++                           "%int",
++                           "%uint",
++                           "%uint",
++                           "",
++                           true,
++                           ""}));
++
++// SUDot result signed args signed unsigned
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SUDot_signed_signed_unsigned, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotKHR",
++                           "%int",
++                           "%v2int",
++                           "%v2uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotKHR",
++                           "%int",
++                           "%v3int",
++                           "%v3uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotKHR",
++                           "%int",
++                           "%v4int",
++                           "%v4uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSUDotKHR",
++                           "%char",  // matches packed component type
++                           "%int",
++                           "%uint",
++                           "",
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSUDotKHR",
++                           "%int",
++                           "%int",
++                           "%uint",
++                           "",
++                           true,
++                           ""}));
++
++// SUDot result unsigned args unsigned unsigned
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SUDot_unsigned_unsigned_unsigned, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotKHR",
++                           "%uint",
++                           "%v2uint",
++                           "%v2uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotKHR",
++                           "%uint",
++                           "%v3uint",
++                           "%v3uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotKHR",
++                           "%uint",
++                           "%v4uint",
++                           "%v4uint",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotKHR",
++                           "%uchar",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotKHR",
++                           "%uint",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotKHR",
++                           "%uchar",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotKHR",
++                           "%uint",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSUDotKHR",
++                           "%uchar",  // matches packed component type
++                           "%uint",
++                           "%uint",
++                           "",
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSUDotKHR",
++                           "%uint",
++                           "%uint",
++                           "%uint",
++                           "",
++                           true,
++                           ""}));
++
++// UDotAccSat
++INSTANTIATE_TEST_SUITE_P(
++    Valid_UDotAccSat, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpUDotAccSatKHR",
++                           "%uint",
++                           "%v2uint",
++                           "%v2uint",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpUDotAccSatKHR",
++                           "%uint",
++                           "%v3uint",
++                           "%v3uint",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpUDotAccSatKHR",
++                           "%uint",
++                           "%v4uint",
++                           "%v4uint",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpUDotAccSatKHR",
++                           "%uchar",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpUDotAccSatKHR",
++                           "%uint",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpUDotAccSatKHR",
++                           "%uchar",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%uchar",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpUDotAccSatKHR",
++                           "%uint",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpUDotAccSatKHR",
++                           "%uchar",  // matches packed component type
++                           "%uint",
++                           "%uint",
++                           "%uchar",
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpUDotAccSatKHR",
++                           "%uint",
++                           "%uint",
++                           "%uint",
++                           "%uint",
++                           true,
++                           ""}));
++
++// SDotAccSat result signed args signed signed
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SDotAccSat_signed_signed_signed, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotAccSatKHR",
++                           "%int",
++                           "%v2int",
++                           "%v2int",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotAccSatKHR",
++                           "%int",
++                           "%v3int",
++                           "%v3int",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotAccSatKHR",
++                           "%int",
++                           "%v4int",
++                           "%v4int",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotAccSatKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4char",
++                           "%char",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotAccSatKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4char",
++                           "%int",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotAccSatKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4char",
++                           "%char",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotAccSatKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4char",
++                           "%int",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSDotAccSatKHR",
++                           "%char",  // matches packed component type
++                           "%int",
++                           "%int",
++                           "%char",  // matches packed component type
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSDotAccSatKHR",
++                           "%int",
++                           "%int",
++                           "%int",
++                           "%int",
++                           true,
++                           ""}));
++
++// SDotAccSat result unsigned args signed unsigned
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SDotAccSat_unsigned_signed_unsigned, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotAccSatKHR",
++                           "%uint",
++                           "%v2int",
++                           "%v2uint",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotAccSatKHR",
++                           "%uint",
++                           "%v3int",
++                           "%v3uint",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotAccSatKHR",
++                           "%uint",
++                           "%v4int",
++                           "%v4uint",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotAccSatKHR",
++                           "%uchar",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "%uchar",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotAccSatKHR",
++                           "%uint",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "%uint",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotAccSatKHR",
++                           "%uchar",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "%uchar",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotAccSatKHR",
++                           "%uint",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "%uint",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSDotAccSatKHR",
++                           "%uchar",  // matches packed component type
++                           "%int",
++                           "%uint",
++                           "%uchar",  // matches packed component type
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSDotAccSatKHR",
++                           "%uint",
++                           "%int",
++                           "%uint",
++                           "%uint",
++                           true,
++                           ""}));
++
++// SDotAccSat result signed args signed unsigned
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SDotAccSat_signed_signed_unsigned, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotAccSatKHR",
++                           "%int",
++                           "%v2int",
++                           "%v2uint",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotAccSatKHR",
++                           "%int",
++                           "%v3int",
++                           "%v3uint",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSDotAccSatKHR",
++                           "%int",
++                           "%v4int",
++                           "%v4uint",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotAccSatKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "%char",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSDotAccSatKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "%int",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotAccSatKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "%char",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSDotAccSatKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "%int",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSDotAccSatKHR",
++                           "%char",  // matches packed component type
++                           "%int",
++                           "%uint",
++                           "%char",  // matches packed component type
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSDotAccSatKHR",
++                           "%int",
++                           "%int",
++                           "%uint",
++                           "%int",
++                           true,
++                           ""}));
++
++// SUDotAccSat result signed args unsigned unsigned
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SUDotAccSat_signed_unsigned_unsigned, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%int",
++                           "%v2uint",
++                           "%v2uint",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%int",
++                           "%v3uint",
++                           "%v3uint",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%int",
++                           "%v4uint",
++                           "%v4uint",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotAccSatKHR",
++                           "%char",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%char",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotAccSatKHR",
++                           "%int",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%int",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%char",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%char",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%int",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%int",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSUDotAccSatKHR",
++                           "%char",  // matches packed component type
++                           "%uint",
++                           "%uint",
++                           "%char",  // matches packed component type
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%int",
++                           "%uint",
++                           "%uint",
++                           "%int",
++                           true,
++                           ""}));
++
++// SUDotAccSat result signed args signed unsigned
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SUDotAccSat_signed_signed_unsigned, ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%int",
++                           "%v2int",
++                           "%v2uint",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%int",
++                           "%v3int",
++                           "%v3uint",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%int",
++                           "%v4int",
++                           "%v4uint",
++                           "%int",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotAccSatKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "%char",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotAccSatKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "%int",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%char",  // match width
++                           "%v4char",
++                           "%v4uchar",
++                           "%char",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%int",  // wider width
++                           "%v4char",
++                           "%v4uchar",
++                           "%int",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSUDotAccSatKHR",
++                           "%char",  // matches packed component type
++                           "%int",
++                           "%uint",
++                           "%char",  // matches packed component type
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%int",
++                           "%int",
++                           "%uint",
++                           "%int",
++                           true,
++                           ""}));
++
++// SUDotAccSat result unsigned args unsigned unsigned
++INSTANTIATE_TEST_SUITE_P(
++    Valid_SUDotAccSat_unsigned_unsigned_unsigned,
++    ValidateSpvKHRIntegerDotProduct,
++    ::testing::Values(Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%uint",
++                           "%v2uint",
++                           "%v2uint",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%uint",
++                           "%v3uint",
++                           "%v3uint",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%uint",
++                           "%v4uint",
++                           "%v4uint",
++                           "%uint",
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotAccSatKHR",
++                           "%uchar",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%uchar",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInputAllKHR", "Int8"},
++                           "OpSUDotAccSatKHR",
++                           "%uint",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%uint",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%uchar",  // match width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%uchar",  // match width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%uint",  // wider width
++                           "%v4uchar",
++                           "%v4uchar",
++                           "%uint",  // wider width
++                           false,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR",
++                            "Int8"},
++                           "OpSUDotAccSatKHR",
++                           "%uchar",  // matches packed component type
++                           "%uint",
++                           "%uint",
++                           "%uchar",  // matches packed component type
++                           true,
++                           ""},
++                      Case{{"DotProductKHR", "DotProductInput4x8BitPackedKHR"},
++                           "OpSUDotAccSatKHR",
++                           "%uint",
++                           "%uint",
++                           "%uint",
++                           "%uint",
++                           true,
++                           ""}));
++
++using ValidateSpvKHRIntegerDotProductSimple = ::testing::Test;
++
++TEST(ValidateSpvKHRIntegerDotProductSimple, DISABLED_RequiresExtension) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple, DISABLED_Invalid_ResultTooNarrow) {
++  // Test across all the instructions.
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_UDot_OperandTypesMatch) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_SDot_OperandTypesMatchExceptSignedness) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_SUDot_OperandTypesMatchExceptSignedness) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_UDotAccSat_OperandTypesMatch) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_SDotAccSat_OperandTypesMatchExceptSignedness) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_SUDotAccSat_OperandTypesMatchExceptSignedness) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_UDot_RequiresUnsigned) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_SUDot_RequiresUnsignedSecondArg) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_UDotAccSat_RequiresUnsigned) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_SUDotAccSat_RequiresUnsignedSecondArg) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_VectorOperandsDisallowPackedFormat) {
++  FAIL();
++}
++
++TEST(ValidateSpvKHRIntegerDotProductSimple,
++     DISABLED_Invalid_ScalarOperandsRequirePackedFormat) {
++  FAIL();
++}
++
++// TODO(dneto): Test valid cases with other scalar integer types
++// TODO(dneto): Test valid cases of length-8 vectors
++// TODO(dneto): Test valid cases of length-16 vectors
++
++}  // namespace
++}  // namespace val
++}  // namespace spvtools
+diff --git a/utils/generate_grammar_tables.py b/utils/generate_grammar_tables.py
+index c4ed180ad1..9ccf410b9f 100755
+--- a/utils/generate_grammar_tables.py
++++ b/utils/generate_grammar_tables.py
+@@ -523,17 +523,17 @@ def generate_operand_kind_table(enums):
+     enums = [generate_enum_operand_kind(e, exts) for e in enums]
+     exts_arrays = generate_extension_arrays(exts)
+ 
+-    # We have three operand kinds that requires their optional counterpart to
++    # We have a few operand kinds that require their optional counterpart to
+     # exist in the operand info table.
+-    three_optional_enums = ['ImageOperands', 'AccessQualifier', 'MemoryAccess']
+-    three_optional_enums = [e for e in enums if e[0] in three_optional_enums]
+-    enums.extend(three_optional_enums)
++    optional_enums = ['ImageOperands', 'AccessQualifier', 'MemoryAccess', 'PackedVectorFormat']
++    optional_enums = [e for e in enums if e[0] in optional_enums]
++    enums.extend(optional_enums)
+ 
+     enum_kinds, enum_names, enum_entries = zip(*enums)
+-    # Mark the last three as optional ones.
+-    enum_quantifiers = [''] * (len(enums) - 3) + ['?'] * 3
++    # Mark the last few as optional ones.
++    enum_quantifiers = [''] * (len(enums) - len(optional_enums)) + ['?'] * len(optional_enums)
+     # And we don't want redefinition of them.
+-    enum_entries = enum_entries[:-3]
++    enum_entries = enum_entries[:-len(optional_enums)]
+     enum_kinds = [convert_operand_kind(e)
+                   for e in zip(enum_kinds, enum_quantifiers)]
+     table_entries = zip(enum_kinds, enum_names, enum_names)

@@ -1,0 +1,152 @@
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/CMakeLists.txt.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/CMakeLists.txt
+--- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/CMakeLists.txt.omv~	2021-08-20 18:10:02.484473152 +0200
++++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/CMakeLists.txt	2021-08-20 18:10:09.480485189 +0200
+@@ -31,7 +31,7 @@ set(SPIRV_TOOLS "SPIRV-Tools")
+ include(GNUInstallDirs)
+ 
+ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+-set(CMAKE_CXX_STANDARD 11)
++set(CMAKE_CXX_STANDARD 17)
+ 
+ option(SPIRV_ALLOW_TIMERS "Allow timers via clock_gettime on supported platforms" ON)
+ 
+@@ -177,7 +177,7 @@ function(spvtools_default_compile_option
+ 
+   if (${COMPILER_IS_LIKE_GNU})
+     target_compile_options(${TARGET} PRIVATE
+-      -std=c++11 -fno-exceptions -fno-rtti)
++      -std=c++17 -fno-exceptions -fno-rtti)
+     target_compile_options(${TARGET} PRIVATE
+       -Wall -Wextra -Wno-long-long -Wshadow -Wundef -Wconversion
+       -Wno-sign-conversion)
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/spirv_target_env.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/spirv_target_env.cpp
+--- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/spirv_target_env.cpp.omv~	2021-08-20 18:10:51.237556972 +0200
++++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/spirv_target_env.cpp	2021-08-20 18:11:13.965595994 +0200
+@@ -307,8 +307,8 @@ std::string spvLogStringForEnv(spv_targe
+     }
+     case SPV_ENV_VULKAN_1_0:
+     case SPV_ENV_VULKAN_1_1:
+-    case SPV_ENV_VULKAN_1_1_SPIRV_1_4: {
+-      case SPV_ENV_VULKAN_1_2:
++    case SPV_ENV_VULKAN_1_1_SPIRV_1_4:
++    case SPV_ENV_VULKAN_1_2: {
+         return "Vulkan";
+     }
+     case SPV_ENV_UNIVERSAL_1_0:
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/text_handler.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/text_handler.cpp
+--- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/text_handler.cpp.omv~	2021-08-20 18:06:50.966142066 +0200
++++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/text_handler.cpp	2021-08-20 18:07:00.577158761 +0200
+@@ -121,6 +121,7 @@ spv_result_t getWord(spv_text text, spv_
+         case '\r':
+           if (escaping || quoting) break;
+         // Fall through.
++	  [[fallthrough]];
+         case '\0': {  // NOTE: End of word found!
+           word->assign(text->str + start_index, text->str + position->index);
+           return SPV_SUCCESS;
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_builtins.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_builtins.cpp
+--- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_builtins.cpp.omv~	2021-08-20 17:44:08.288489280 +0200
++++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_builtins.cpp	2021-08-20 17:44:32.130546925 +0200
+@@ -4190,6 +4190,7 @@ spv_result_t BuiltInsValidator::Validate
+     case SpvBuiltInMeshViewIndicesNV:
+     case SpvBuiltInBaryCoordNV:
+     case SpvBuiltInBaryCoordNoPerspNV:
++    case SpvBuiltInCurrentRayTimeNV:
+       // No validation rules (for the moment).
+       break;
+ 
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_extensions.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_extensions.cpp
+--- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_extensions.cpp.omv~	2021-08-20 18:07:20.454193258 +0200
++++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_extensions.cpp	2021-08-20 18:07:50.926246073 +0200
+@@ -3112,6 +3112,7 @@ spv_result_t ValidateExtInst(ValidationS
+       case OpenCLDebugInfo100DebugMacroDef:
+       case OpenCLDebugInfo100DebugMacroUndef:
+       case OpenCLDebugInfo100DebugImportedEntity:
++      case OpenCLDebugInfo100DebugModuleINTEL:
+         break;
+       case OpenCLDebugInfo100InstructionsMax:
+         assert(0);
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp
+--- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.omv~	2021-08-20 18:08:05.575271427 +0200
++++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp	2021-08-20 18:08:24.453304078 +0200
+@@ -192,6 +192,7 @@ bool ContainsInvalidBool(ValidationState
+         auto member_type = _.FindDef(member_type_id);
+         if (ContainsInvalidBool(_, member_type, skip_builtin)) return true;
+       }
++      break;
+     default:
+       break;
+   }
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp
+--- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.omv~	2021-08-20 18:08:45.819340991 +0200
++++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp	2021-08-20 18:08:58.451362802 +0200
+@@ -453,6 +453,7 @@ spv_result_t ValidateExecutionMode(Valid
+                     "execution model.";
+         }
+       }
++      break;
+     default:
+       break;
+   }
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp
+--- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.omv~	2021-08-20 18:09:11.712385679 +0200
++++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp	2021-08-20 18:09:23.662406286 +0200
+@@ -63,6 +63,7 @@ spv_result_t PrimitivesPass(ValidationSt
+                << ": expected Stream to be constant instruction";
+       }
+     }
++    break;
+ 
+     default:
+       break;
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/types.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/types.cpp
+--- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/types.cpp.omv~	2021-08-21 01:31:46.154981467 +0200
++++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/types.cpp	2021-08-21 01:33:30.175162024 +0200
+@@ -130,8 +130,10 @@ std::unique_ptr<Type> Type::Clone() cons
+     DeclareKindCase(CooperativeMatrixNV);
+     DeclareKindCase(RayQueryKHR);
+ #undef DeclareKindCase
++#if 0
+     default:
+       assert(false && "Unhandled type");
++#endif
+   }
+   return type;
+ }
+@@ -176,9 +178,11 @@ bool Type::operator==(const Type& other)
+     DeclareKindCase(CooperativeMatrixNV);
+     DeclareKindCase(RayQueryKHR);
+ #undef DeclareKindCase
++#if 0
+     default:
+       assert(false && "Unhandled type");
+       return false;
++#endif
+   }
+ }
+ 
+@@ -227,9 +231,11 @@ void Type::GetHashWords(std::vector<uint
+     DeclareKindCase(CooperativeMatrixNV);
+     DeclareKindCase(RayQueryKHR);
+ #undef DeclareKindCase
++#if 0
+     default:
+       assert(false && "Unhandled type");
+       break;
++#endif
+   }
+ 
+   seen->erase(this);
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/CMakeLists.txt.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/CMakeLists.txt
+diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/CMakeLists.txt.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/CMakeLists.txt
+--- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/CMakeLists.txt.omv~	2021-08-22 16:28:22.436051751 +0200
++++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/CMakeLists.txt	2021-08-22 16:31:02.279571018 +0200
+@@ -366,7 +366,7 @@ endfunction()
+ # unlike the other SPIRV_TOOLS target, defaults to hidden symbol visibility.
+ add_library(${SPIRV_TOOLS}-shared SHARED ${SPIRV_SOURCES})
+ spirv_tools_default_target_options(${SPIRV_TOOLS}-shared)
+-set_target_properties(${SPIRV_TOOLS}-shared PROPERTIES CXX_VISIBILITY_PRESET hidden)
++set_target_properties(${SPIRV_TOOLS}-shared PROPERTIES CXX_VISIBILITY_PRESET hidden VERSION "${LLVM_VERSION_MAJOR}${LLVM_VERSION_SUFFIX}" SOVERSION "${LLVM_VERSION_MAJOR}${LLVM_VERSION_SUFFIX}")
+ target_compile_definitions(${SPIRV_TOOLS}-shared
+   PRIVATE SPIRV_TOOLS_IMPLEMENTATION
+   PUBLIC SPIRV_TOOLS_SHAREDLIB
