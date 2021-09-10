@@ -472,18 +472,18 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/yaml-bench
 %{_bindir}/not
 
-%{_mandir}/man1/FileCheck.1*
-%{_mandir}/man1/bugpoint.1*
+%doc %{_mandir}/man1/FileCheck.1*
+%doc %{_mandir}/man1/bugpoint.1*
 
-%{_mandir}/man1/dsymutil.1*
-%{_mandir}/man1/lit.1*
-%{_mandir}/man1/llc.1*
-%{_mandir}/man1/lli.1*
-%{_mandir}/man1/llvm-*.1*
-%{_mandir}/man1/opt.1*
+%doc %{_mandir}/man1/dsymutil.1*
+%doc %{_mandir}/man1/lit.1*
+%doc %{_mandir}/man1/llc.1*
+%doc %{_mandir}/man1/lli.1*
+%doc %{_mandir}/man1/llvm-*.1*
+%doc %{_mandir}/man1/opt.1*
 
-%{_mandir}/man1/tblgen.1*
-%{_mandir}/man1/mlir-tblgen.1*
+%doc %{_mandir}/man1/tblgen.1*
+%doc %{_mandir}/man1/mlir-tblgen.1*
 
 #-----------------------------------------------------------
 %define LLVMLibs LLVMAArch64AsmParser LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitstreamReader LLVMBitWriter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo Remarks LLVMRISCVAsmParser LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVDisassembler LLVMRISCVInfo LLVMDebugInfoGSYM LLVMJITLink LLVMCFGuard LLVMDWARFLinker LLVMFrontendOpenMP LLVMAVRAsmParser LLVMAVRCodeGen LLVMAVRDesc LLVMAVRDisassembler LLVMAVRInfo LLVMExtensions LLVMFrontendOpenACC LLVMFileCheck LLVMInterfaceStub LLVMOrcShared LLVMOrcTargetProcess Polly LLVMCFIVerify LLVMDWP LLVMExegesis LLVMExegesisAArch64 LLVMExegesisMips LLVMExegesisPowerPC LLVMExegesisX86 LLVMMCACustomBehaviourAMDGPU LLVMTableGenGlobalISel LLVMWebAssemblyUtils LLVMSPIRVLib
@@ -766,7 +766,7 @@ Shared libraries for LLVM OpenMP support.
 %endif
 # FIXME why isn't this in %{_libdir}?
 %{_prefix}/lib/libomptarget.rtl.amdgpu.so
-%{_mandir}/man1/llvmopenmp.1*
+%doc %{_mandir}/man1/llvmopenmp.1*
 %{_libdir}/libomptarget-*.bc
 %endif
 
@@ -811,7 +811,7 @@ short vector instructions as well as dedicated accelerators.
 # Unversioned library, not -devel file
 %{_libdir}/libPollyISL.so
 %{_libdir}/libPollyPPCG.so
-%{_mandir}/man1/polly.1*
+%doc %{_mandir}/man1/polly.1*
 
 #-----------------------------------------------------------
 %package polly-devel
@@ -897,7 +897,7 @@ as libraries and designed to be loosely-coupled and extensible.
 %{_bindir}/c99
 %{_bindir}/c++
 %endif
-%{_mandir}/man1/clang.1*
+%doc %{_mandir}/man1/clang.1*
 
 #-----------------------------------------------------------
 
@@ -934,8 +934,8 @@ A various tools for LLVM/clang.
 %{_bindir}/hmaptool
 %{_bindir}/modularize
 %{_bindir}/pp-trace
-%{_mandir}/man1/diagtool.1*
-%{_mandir}/man1/extraclangtools.1*
+%doc %{_mandir}/man1/diagtool.1*
+%doc %{_mandir}/man1/extraclangtools.1*
 
 %define devclang %mklibname -d clang
 
@@ -960,7 +960,7 @@ libclang.
 %{_libdir}/libclang*.so
 %{_libdir}/cmake/clang
 %{_libdir}/cmake/openmp/FindOpenMPTarget.cmake
-%{_mandir}/man1/clang-tblgen.1*
+%doc %{_mandir}/man1/clang-tblgen.1*
 
 %package -n clang-analyzer
 Summary:	A source code analysis framework
@@ -994,7 +994,7 @@ intended to run in tandem with a build of a project or code base.
 %{_libexecdir}/intercept-cc
 %{_datadir}/scan-build
 %{_datadir}/scan-view
-%{_mandir}/man1/scan-build.1*
+%doc %{_mandir}/man1/scan-build.1*
 
 %package -n clang-doc
 Summary:	Documentation for Clang
@@ -1073,9 +1073,9 @@ Debugger from the LLVM toolchain.
 %files -n lldb
 %{_bindir}/lldb*
 %{_libdir}/python*/site-packages/lldb
-%{_mandir}/man1/lldb.1*
-%{_mandir}/man1/lldb-server.1*
-%{_mandir}/man1/lldb-tblgen.1*
+%doc %{_mandir}/man1/lldb.1*
+%doc %{_mandir}/man1/lldb-server.1*
+%doc %{_mandir}/man1/lldb-tblgen.1*
 %doc %{_docdir}/lldb
 
 %define lldbdev %mklibname -d lldb
@@ -1125,7 +1125,7 @@ The linker from the LLVM project.
 %{_bindir}/lld-link
 %{_bindir}/llvm-dlltool
 %{_bindir}/llvm-mt
-%{_mandir}/man1/ld.lld.1*
+%doc %{_mandir}/man1/ld.lld.1*
 
 #-----------------------------------------------------------
 
