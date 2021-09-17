@@ -11,7 +11,8 @@
 %endif
 
 # (tpg) set snapshot date
-%define date 20210822
+# 20210914 is 13.0.0-rc3
+%define date 20210916
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -40,11 +41,11 @@
 # uploading to ABF...
 %bcond_with apidox
 %bcond_without clang
-# flang needs MLIR, MLIR is broken in 13.0.0-rc1
+# flang needs MLIR, MLIR is broken in 13.0.0-rc3
 %bcond_with flang
-# libc is broken in 13.0.0-rc1 (doesn't compile)
+# libc is broken in 13.0.0-rc3 (doesn't compile)
 %bcond_with libc
-# MLIR is broken in 13.0.0-rc1 (doesn't compile)
+# MLIR is broken in 13.0.0-rc3 (doesn't compile)
 %bcond_with mlir
 %ifarch armv7hnl riscv64
 # RISC-V and armv7 don't have a working ocaml compiler yet
@@ -151,9 +152,9 @@ Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{versio
 %endif
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_130.tar.gz
-# HEAD as of 2021/08/22
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/449bc986ba6f4c5e10e32828783f9daef2a77644.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2021.2.tar.gz
+# HEAD as of 2021/09/16
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/635049b5e1451d846d5d307def8c78328aaeb342.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2021.3.tar.gz
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
@@ -1448,6 +1449,7 @@ according to their version.
 %{_includedir}/spirv
 %dir %{_datadir}/cmake/SPIRV-Headers
 %{_datadir}/cmake/SPIRV-Headers/*.cmake
+%{_datadir}/pkgconfig/SPIRV-Headers.pc
 
 %package -n spirv-llvm-translator
 Summary: Library for bi-directional translation between SPIR-V and LLVM IR
@@ -1487,6 +1489,7 @@ Tools for working with SPIR-V, a language for running on GPUs
 %{_bindir}/spirv-dis
 %{_bindir}/spirv-lesspipe.sh
 %{_bindir}/spirv-link
+%{_bindir}/spirv-lint
 %{_bindir}/spirv-opt
 %{_bindir}/spirv-reduce
 %{_bindir}/spirv-val
@@ -1593,7 +1596,7 @@ mv SPIRV-Headers-* llvm/projects/SPIRV-Headers
 mv SPIRV-Tools-* llvm/projects/SPIRV-Tools
 %autopatch -p1
 cd llvm/projects/SPIRV-Tools
-patch -p1 -b -z .91~ <%{S:91}
+#patch -p1 -b -z .91~ <%{S:91}
 cd -
 %if %{with default_compilerrt}
 patch -p1 -b -z .crt~ <%{S:62}
