@@ -21,8 +21,8 @@
 %define _disable_ld_no_undefined 1
 %define _disable_lto 1
 # (tpg) optimize it a bit
-%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Wl,-Bsymbolic -Qunused-arguments
-%global build_ldflags %{build_ldflags} -fno-semantic-interposition -Wl,-Bsymbolic
+%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Qunused-arguments -Wl,-Bsymbolic-functions
+%global build_ldflags %{build_ldflags} -fno-semantic-interposition -Wl,-Bsymbolic-functions
 
 %ifarch %{riscv}
 # Workaround for broken previous version
@@ -42,11 +42,11 @@
 %bcond_with apidox
 %bcond_without clang
 # flang needs MLIR, MLIR is broken in 13.0.0-rc3
-%bcond_with flang
+%bcond_without flang
 # libc is broken in 13.0.0-rc3 (doesn't compile)
 %bcond_with libc
 # MLIR is broken in 13.0.0-rc3 (doesn't compile)
-%bcond_with mlir
+%bcond_without mlir
 %ifarch armv7hnl riscv64
 # RISC-V and armv7 don't have a working ocaml compiler yet
 %bcond_with ocaml
@@ -495,10 +495,10 @@ for effective implementation, proper tail calls or garbage collection.
 
 %define Clang64Libs clangApplyReplacements clangChangeNamespace clangDaemon clangDaemonTweaks clangDoc clangIncludeFixer clangIncludeFixerPlugin clangMove clangQuery clangReorderFields clangTidy clangTidyPlugin clangTidyAbseilModule clangTidyAndroidModule clangTidyBoostModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyDarwinModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyLinuxKernelModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyOpenMPModule clangTidyPortabilityModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyZirconModule clangTidyUtils clangTidyLLVMLibcModule clangTidyMain clangdRemoteIndex clangdSupport clangTidyAlteraModule clangTidyConcurrencyModule
 
-%define FlangLibs FIROptimizer FortranCommon FortranDecimal FortranEvaluate FortranLower FortranParser FortranRuntime FortranSemantics
+%define FlangLibs FIROptimizer FortranCommon FortranDecimal FortranEvaluate FortranLower FortranParser FortranRuntime FortranSemantics flangFrontend flangFrontendTool
 
 %if %{with mlir}
-%define MLIRLibs MLIRAffine MLIRArmNeon MLIRArmNeonToLLVM MLIRArmSVE MLIRArmSVEToLLVM MLIRAsync MLIRAsyncToLLVM MLIRAsyncTransforms MLIRAVX512 MLIRAVX512ToLLVM MLIRAffineEDSC MLIRAffineToStandard MLIRAffineTransforms MLIRAffineTransformsTestPasses MLIRAffineUtils MLIRAnalysis MLIRCAPIIR MLIRCAPILinalg MLIRCAPIRegistration MLIRCAPISCF MLIRCAPIShape MLIRCAPIStandard MLIRCAPITensor MLIRCAPITransforms MLIRCastInterfaces MLIRCallInterfaces MLIRComplex MLIRComplexToLLVM MLIRControlFlowInterfaces MLIRCopyOpInterface MLIRDerivedAttributeOpInterface MLIRDialect MLIREDSC MLIRExecutionEngine MLIRGPU MLIRGPUToGPURuntimeTransforms MLIRGPUToNVVMTransforms MLIRGPUToROCDLTransforms MLIRGPUToSPIRV MLIRLLVMArmNeon MLIRLLVMArmSVE MLIRLinalg MLIRGPUToVulkanTransforms MLIRIR MLIRInferTypeOpInterface MLIRJitRunner MLIRLLVMAVX512 MLIRLLVMIR MLIRLLVMIRTransforms MLIRLinalgAnalysis MLIRLinalgEDSC MLIRLinalgToLLVM MLIRLinalgToSPIRV MLIRLinalgToStandard MLIRLinalgTransforms MLIRLinalgUtils MLIRLoopAnalysis MLIRLoopLikeInterface MLIRMlirOptMain MLIRNVVMIR MLIROpenACC MLIROpenMP MLIROpenMPToLLVM MLIROptLib MLIRParser MLIRPass MLIRPresburger MLIRQuant MLIRROCDLIR MLIRReduce MLIRSCF MLIRSCFToGPU MLIRSCFToOpenMP MLIRSCFToSPIRV MLIRSCFToStandard MLIRSCFTransforms MLIRSDBM MLIRSPIRV MLIRSPIRVSerialization MLIRSPIRVTestPasses MLIRSPIRVToLLVM MLIRSPIRVTransforms MLIRShape MLIRShapeOpsTransforms MLIRShapeToStandard MLIRSideEffectInterfaces MLIRStandardOpsTransforms MLIRStandardToLLVM MLIRStandardToSPIRV MLIRSupport MLIRSupportIndentedOstream MLIRTargetArmNeon MLIRTargetArmSVE MLIRTargetAVX512 MLIRTargetLLVMIR MLIRTargetLLVMIRModuleTranslation MLIRTargetNVVMIR MLIRTargetROCDLIR MLIRTestDialect MLIRTestIR MLIRTestPass MLIRTestReducer MLIRTestRewrite MLIRTestTransforms MLIRTransformUtils MLIRTransforms MLIRTranslation MLIRVector MLIRVectorInterfaces MLIRVectorToLLVM MLIRVectorToROCDL MLIRVectorToSCF MLIRVectorToSPIRV MLIRViewLikeInterface mlir_async_runtime mlir_c_runner_utils mlir_c_runner_utils_static mlir_runner_utils mlir_test_cblas mlir_test_cblas_interface MLIRPDL MLIRPDLInterp MLIRPDLToPDLInterp MLIRPublicAPI MLIRRewrite MLIRSPIRVBinaryUtils MLIRSPIRVConversion MLIRSPIRVDeserialization MLIRSPIRVModuleCombiner MLIRSPIRVTranslateRegistration MLIRSPIRVUtils MLIRShapeTestPasses MLIRStandard MLIRTensor MLIRTensorTransforms MLIRTosa MLIRTosaTestPasses MLIRTosaToLinalg MLIRTosaTransforms
+%define MLIRLibs MLIRAffine MLIRAffineToStandard MLIRAffineTransforms MLIRAffineTransformsTestPasses MLIRAffineUtils MLIRAMX MLIRAMXToLLVMIRTranslation MLIRAMXTransforms MLIRAnalysis MLIRArmNeon2dToIntr MLIRArmNeon MLIRArmNeonToLLVMIRTranslation MLIRArmSVE MLIRArmSVEToLLVMIRTranslation MLIRArmSVETransforms MLIRAsync MLIRAsyncToLLVM MLIRAsyncTransforms MLIRCallInterfaces MLIRCAPIAsync MLIRCAPIConversion MLIRCAPIDebug MLIRCAPIGPU MLIRCAPIIR MLIRCAPILinalg MLIRCAPILLVM MLIRCAPIRegistration MLIRCAPISCF MLIRCAPIShape MLIRCAPISparseTensor MLIRCAPIStandard MLIRCAPITensor MLIRCAPITransforms MLIRCastInterfaces MLIRCEXECUTIONENGINE MLIRComplex MLIRComplexToLLVM MLIRComplexToStandard MLIRControlFlowInterfaces MLIRCopyOpInterface MLIRDataLayoutInterfaces MLIRDerivedAttributeOpInterface MLIRDialect MLIRDialectUtils MLIRDLTI MLIRDLTITestPasses MLIREmitC MLIRExecutionEngine MLIRGPUOps MLIRGPUTestPasses MLIRGPUToGPURuntimeTransforms MLIRGPUToNVVMTransforms MLIRGPUToROCDLTransforms MLIRGPUToSPIRV MLIRGPUToVulkanTransforms MLIRGPUTransforms MLIRInferTypeOpInterface MLIRIR MLIRJitRunner MLIRLinalgAnalysis MLIRLinalg MLIRLinalgTestPasses MLIRLinalgToLLVM MLIRLinalgToSPIRV MLIRLinalgToStandard MLIRLinalgTransforms MLIRLinalgUtils MLIRLLVMCommonConversion MLIRLLVMIR MLIRLLVMIRTransforms MLIRLLVMToLLVMIRTranslation MLIRLoopAnalysis MLIRLoopLikeInterface MLIRLspServerLib MLIRMath MLIRMathTestPasses MLIRMathToLibm MLIRMathToLLVM MLIRMathTransforms MLIRMemRef MLIRMemRefToLLVM MLIRMemRefTransforms MLIRMemRefUtils MLIRMlirOptMain MLIRNVVMIR MLIRNVVMToLLVMIRTranslation MLIROpenACC MLIROpenACCToLLVMIRTranslation MLIROpenACCToLLVM MLIROpenACCToSCF MLIROpenMP MLIROpenMPToLLVMIRTranslation MLIROpenMPToLLVM MLIROptLib MLIRParser MLIRPass MLIRPDLInterp MLIRPDL MLIRPDLToPDLInterp MLIRPresburger MLIRQuant MLIRReduceLib MLIRReduce MLIRRewrite MLIRROCDLIR MLIRROCDLToLLVMIRTranslation MLIRSCF MLIRSCFTestPasses MLIRSCFToGPU MLIRSCFToOpenMP MLIRSCFToSPIRV MLIRSCFToStandard MLIRSCFTransforms MLIRShapeOpsTransforms MLIRShape MLIRShapeTestPasses MLIRShapeToStandard MLIRSideEffectInterfaces MLIRSparseTensor MLIRSparseTensorTransforms MLIRSparseTensorUtils MLIRSPIRVBinaryUtils MLIRSPIRVConversion MLIRSPIRVDeserialization MLIRSPIRVModuleCombiner MLIRSPIRVSerialization MLIRSPIRV MLIRSPIRVTestPasses MLIRSPIRVToLLVM MLIRSPIRVTransforms MLIRSPIRVTranslateRegistration MLIRSPIRVUtils MLIRStandardOpsTestPasses MLIRStandardOpsTransforms MLIRStandard MLIRStandardToLLVM MLIRStandardToSPIRV MLIRSupportIndentedOstream MLIRSupport MLIRTargetLLVMIRExport MLIRTargetLLVMIRImport MLIRTensor MLIRTensorTransforms MLIRTestAnalysis MLIRTestDialect MLIRTestIR MLIRTestPass MLIRTestReducer MLIRTestRewrite MLIRTestStandardToLLVM MLIRTestTransforms MLIRToLLVMIRTranslationRegistration MLIRTosa MLIRTosaTestPasses MLIRTosaToLinalg MLIRTosaToSCF MLIRTosaToStandard MLIRTosaTransforms MLIRTransforms MLIRTransformUtils MLIRTranslation MLIRVectorInterfaces MLIRVector MLIRVectorTestPasses MLIRVectorToGPU MLIRVectorToLLVM MLIRVectorToROCDL MLIRVectorToSCF MLIRVectorToSPIRV MLIRViewLikeInterface MLIRX86Vector MLIRX86VectorToLLVMIRTranslation MLIRX86VectorTransforms mlir_async_runtime mlir_c_runner_utils mlir_runner_utils
 %else
 %define MLIRLibs %{nil}
 %endif
@@ -1041,6 +1041,8 @@ A Fortran language front-end for LLVM
 
 %files -n flang
 %{_bindir}/flang
+%{_bindir}/flang-new
+%{_bindir}/fir-opt
 %{_bindir}/f18
 %{_bindir}/f18-parse-demo
 %{_bindir}/tco
@@ -1786,10 +1788,16 @@ done
 	../llvm
 
 if ! %ninja_build; then
-    # With many threads, there's a chance of libc++ being built
-    # before libc++abi, causing linkage to fail. Simply trying
-    # again "fixes" it.
-    %ninja_build
+	# With many threads, there's a chance of libc++ being built
+	# before libc++abi, causing linkage to fail. Simply trying
+	# again "fixes" it.
+	# flang also seems to have SMP build issues
+	for i in `seq 1 30`; do
+		if %ninja_build; then
+			break
+		fi
+	done
+	%ninja_build -j1
 fi
 
 cd ..
