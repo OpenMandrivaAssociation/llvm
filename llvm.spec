@@ -12,7 +12,7 @@
 
 # (tpg) set snapshot date
 # 20210914 is 13.0.0-rc3
-%define date 20210916
+%define date 20210922
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
