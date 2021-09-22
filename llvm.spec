@@ -130,7 +130,7 @@ Url:		http://llvm.org/
 %if 0%{?date:1}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
-Release:	0.%{date}.1
+Release:	0.%{date}.2
 %else
 Release:	1
 %if %{with upstream_tarballs}
@@ -671,8 +671,6 @@ Requires:	pkgconfig(zlib)
 %if %{with mlir}
 # Required because of references in LLVMExports.cmake
 Requires:	llvm-mlir-tools = %{EVRD}
-Requires:	%{_lib}mlir_test_cblas%{major1} = %{EVRD}
-Requires:	%{_lib}mlir_test_cblas_interface%{major1} = %{EVRD}
 %endif
 # Back to regular dependencies
 %if %{with openmp}
