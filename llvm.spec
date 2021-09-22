@@ -925,8 +925,7 @@ A various tools for LLVM/clang.
 %{_bindir}/clang-query
 %{_bindir}/clang-refactor
 %{_bindir}/clang-rename
-# Seems to exist on aarch64 only
-%optional %{_bindir}/clang-repl
+%{_bindir}/clang-repl
 %{_bindir}/clang-reorder-fields
 %{_bindir}/clang-scan-deps
 %{_bindir}/clang-tidy
