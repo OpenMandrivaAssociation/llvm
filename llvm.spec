@@ -12,7 +12,7 @@
 
 # (tpg) set snapshot date
 # 20210914 is 13.0.0-rc3
-%define date 20210922
+%undefine date
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -20,6 +20,7 @@
 %define build_lto 1
 %define _disable_ld_no_undefined 1
 %define _disable_lto 1
+
 # (tpg) optimize it a bit
 %global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Qunused-arguments -Wl,-Bsymbolic-functions
 %global build_ldflags %{build_ldflags} -fno-semantic-interposition -Wl,-Bsymbolic-functions
@@ -1589,7 +1590,7 @@ mv lldb-%{version}.src lldb
 mv openmp-%{version}.src openmp
 mv libclc-%{version}.src libclc
 %else
-%setup -p1 -n llvm-project-%{version}.src -a 20 -a 21 -a 22
+%setup -n llvm-project-%{version}.src -a 20 -a 21 -a 22
 %endif
 %endif
 mv SPIRV-LLVM-Translator-* llvm/projects/SPIRV-LLVM-Translator
