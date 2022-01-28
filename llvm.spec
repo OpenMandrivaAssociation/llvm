@@ -11,8 +11,7 @@
 %endif
 
 # (tpg) set snapshot date
-# 20210914 is 13.0.0-rc3
-%undefine date
+%define date 20220128
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -42,6 +41,7 @@
 # uploading to ABF...
 %bcond_with apidox
 %bcond_without clang
+%bcond_without bolt
 # flang needs MLIR, MLIR is broken in 13.0.0-rc3
 %bcond_without flang
 # libc is broken in 13.0.0-rc3 (doesn't compile)
@@ -107,7 +107,7 @@
 
 %define major %(echo %{version} |cut -d. -f1-2)  
 %define major1 %(echo %{version} |cut -d. -f1)
-#define is_main 1
+%define is_main 1
 
 %bcond_without crosscrt
 
@@ -124,14 +124,14 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	13.0.0
+Version:	14.0.0
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
 %if 0%{?date:1}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
-Release:	0.%{date}.2
+Release:	0.%{date}.1
 %else
 Release:	1
 %if %{with upstream_tarballs}
@@ -152,15 +152,15 @@ Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{versio
 %endif
 %endif
 # llvm-spirv-translator and friends
-Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_130.tar.gz
-# HEAD as of 2021/09/16
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/635049b5e1451d846d5d307def8c78328aaeb342.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2021.3.tar.gz
+Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/master.tar.gz#/spirv-llvm-translator-%{date}.tar.gz
+# HEAD as of 2022/01/20
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b8047fbe45f426f5918fadc67e8408f5b108c3c9.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2021.4.tar.gz
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
 # Adjust search paths to match the OS
-Patch1:		0000-clang-mandriva.patch
+Patch1:		0000-clang-openmandriva-triples.patch
 # ARM hardfloat hack
 # see http://llvm.org/bugs/show_bug.cgi?id=15557
 # and https://bugzilla.redhat.com/show_bug.cgi?id=803433
@@ -214,7 +214,6 @@ Patch46:	llvm-4.0.1-libomp-versioning.patch
 # Fix mcount name for arm and armv8
 # https://llvm.org/bugs/show_bug.cgi?id=27248
 Patch48:	llvm-3.8.0-mcount-name.patch
-Patch49:	llvm-9.0-riscv.patch
 # Show more information when aborting because posix_spawn failed
 # (happened in some qemu aarch64 chroots)
 Patch51:	llvm-4.0.1-debug-posix_spawn.patch
@@ -232,14 +231,9 @@ Patch59:	llvm-12.0-ppc64-elfv2-abi.patch
 Source62:	llvm-10-default-compiler-rt.patch
 # Another patch, applied conditionally
 Source63:	llvm-riscv-needs-libatomic-linkage.patch
-# RISC-V improvements
-# ===================
-# Linker relaxation support for LLD
-# https://reviews.llvm.org/D100835
-Patch70:	https://reviews.llvm.org/file/data/uxcqagnbvcinly5c7tmp/PHID-FILE-sjeuqpsqsxwbjengaxdp/D100835.diff
 # SPIR-V fixes
-Patch90:	spirv-tools-compile.patch
-Source91:	https://github.com/KhronosGroup/SPIRV-Tools/commit/e065c482c6c98ef22900822d32a21df8c5473054.patch
+Patch90:	spirv-fix-warnings.patch
+Patch91:	SPRIV-Tools-soname.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -436,6 +430,8 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-jitlink-executor
 %{_bindir}/llvm-libtool-darwin
 %{_bindir}/llvm-profgen
+%{_bindir}/llvm-debuginfod-find
+%{_bindir}/llvm-tli-checker
 %{_bindir}/split-file
 %{_bindir}/llvm-pdbutil
 %{_bindir}/llvm-ranlib
@@ -488,27 +484,33 @@ for effective implementation, proper tail calls or garbage collection.
 %doc %{_mandir}/man1/mlir-tblgen.1*
 
 #-----------------------------------------------------------
-%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitstreamReader LLVMBitWriter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo Remarks LLVMRISCVAsmParser LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVDisassembler LLVMRISCVInfo LLVMDebugInfoGSYM LLVMJITLink LLVMCFGuard LLVMDWARFLinker LLVMFrontendOpenMP LLVMAVRAsmParser LLVMAVRCodeGen LLVMAVRDesc LLVMAVRDisassembler LLVMAVRInfo LLVMExtensions LLVMFrontendOpenACC LLVMFileCheck LLVMInterfaceStub LLVMOrcShared LLVMOrcTargetProcess Polly LLVMCFIVerify LLVMDWP LLVMExegesis LLVMExegesisAArch64 LLVMExegesisMips LLVMExegesisPowerPC LLVMExegesisX86 LLVMMCACustomBehaviourAMDGPU LLVMTableGenGlobalISel LLVMWebAssemblyUtils LLVMSPIRVLib
+%define LLVMLibs LLVMAArch64AsmParser LLVMAArch64CodeGen LLVMAArch64Desc LLVMAArch64Disassembler LLVMAArch64Info LLVMAArch64Utils LLVMAggressiveInstCombine LLVMARMAsmParser LLVMARMCodeGen LLVMARMDesc LLVMARMDisassembler LLVMARMInfo LLVMARMUtils LLVMAnalysis LLVMAsmParser LLVMAsmPrinter LLVMBPFAsmParser LLVMBitReader LLVMBitstreamReader LLVMBitWriter LLVMBPFCodeGen LLVMBPFDesc LLVMBPFDisassembler LLVMBPFInfo LLVMBinaryFormat LLVMCodeGen LLVMCore LLVMDebugInfoCodeView LLVMCoroutines LLVMDebugInfoDWARF LLVMDebugInfoMSF LLVMDebugInfoPDB LLVMDemangle LLVMDlltoolDriver LLVMExecutionEngine LLVMFuzzMutate LLVMHexagonAsmParser LLVMHexagonCodeGen LLVMHexagonDesc LLVMHexagonDisassembler LLVMHexagonInfo LLVMIRReader LLVMInstCombine LLVMInstrumentation LLVMInterpreter LLVMLanaiAsmParser LLVMLanaiCodeGen LLVMLanaiDesc LLVMLanaiDisassembler LLVMLanaiInfo LLVMLTO LLVMLibDriver LLVMLineEditor LLVMLinker LLVMMC LLVMMCDisassembler LLVMMCJIT LLVMMCParser LLVMMIRParser LLVMMSP430CodeGen LLVMMSP430Desc LLVMMSP430Info LLVMMipsAsmParser LLVMMipsCodeGen LLVMMipsDesc LLVMMipsDisassembler LLVMMipsInfo LLVMNVPTXCodeGen LLVMNVPTXDesc LLVMNVPTXInfo LLVMObjCARCOpts LLVMObject LLVMOption LLVMOrcJIT LLVMPasses LLVMPowerPCAsmParser LLVMPowerPCCodeGen LLVMPowerPCDesc LLVMPowerPCDisassembler LLVMPowerPCInfo LLVMProfileData LLVMAMDGPUAsmParser LLVMAMDGPUCodeGen LLVMAMDGPUDesc LLVMAMDGPUDisassembler LLVMAMDGPUInfo LLVMAMDGPUUtils LLVMRuntimeDyld LLVMScalarOpts LLVMSelectionDAG LLVMSparcAsmParser LLVMSparcCodeGen LLVMSparcDesc LLVMSparcDisassembler LLVMSparcInfo LLVMSupport LLVMSymbolize LLVMSystemZAsmParser LLVMSystemZCodeGen LLVMSystemZDesc LLVMSystemZDisassembler LLVMSystemZInfo LLVMTableGen LLVMTarget LLVMTransformUtils LLVMVectorize LLVMWindowsManifest LLVMX86AsmParser LLVMX86CodeGen LLVMX86Desc LLVMX86Disassembler LLVMX86Info LLVMXCoreCodeGen LLVMXCoreDesc LLVMXCoreDisassembler LLVMXCoreInfo LLVMXRay LLVMipo LLVMCoverage LLVMGlobalISel LLVMObjectYAML LLVMMCA LLVMMSP430AsmParser LLVMMSP430Disassembler LLVMRemarks LLVMTextAPI LLVMWebAssemblyAsmParser LLVMWebAssemblyCodeGen LLVMWebAssemblyDesc LLVMWebAssemblyDisassembler LLVMWebAssemblyInfo Remarks LLVMRISCVAsmParser LLVMRISCVCodeGen LLVMRISCVDesc LLVMRISCVDisassembler LLVMRISCVInfo LLVMDebugInfoGSYM LLVMJITLink LLVMCFGuard LLVMDWARFLinker LLVMFrontendOpenMP LLVMAVRAsmParser LLVMAVRCodeGen LLVMAVRDesc LLVMAVRDisassembler LLVMAVRInfo LLVMExtensions LLVMFrontendOpenACC LLVMFileCheck LLVMInterfaceStub LLVMOrcShared LLVMOrcTargetProcess Polly LLVMCFIVerify LLVMDWP LLVMExegesis LLVMExegesisAArch64 LLVMExegesisMips LLVMExegesisPowerPC LLVMExegesisX86 LLVMTableGenGlobalISel LLVMWebAssemblyUtils LLVMSPIRVLib LLVMAMDGPUTargetMCA LLVMDebuginfod LLVMDiff LLVMVEAsmParser LLVMVECodeGen LLVMVEDesc LLVMVEDisassembler LLVMVEInfo LLVMX86TargetMCA
+# Removed in 14: LLVMMCACustomBehaviourAMDGPU
 
 %define LLVM64Libs findAllSymbols
 
-%define ClangLibs LTO clang clangARCMigrate clangAST clangASTMatchers clangAnalysis clangBasic clangCodeGen clangCrossTU clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangIndex clangLex clangParse clangRewrite clangRewriteFrontend clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTooling clangToolingASTDiff clangToolingCore clangHandleLLVM clangToolingInclusions clangDependencyScanning clangToolingRefactoring clangToolingSyntax clang-cpp clangDirectoryWatcher clangTransformer clangTesting clangAPINotes clangIndexSerialization clangInterpreter
+%define ClangLibs LTO clang clang-cpp clangAnalysisFlowSensitive clangAnalysis clangAPINotes clangARCMigrate clangASTMatchers clangAST clangBasic clangCodeGen clangCrossTU clangDependencyScanning clangDirectoryWatcher clangDriver clangDynamicASTMatchers clangEdit clangFormat clangFrontend clangFrontendTool clangHandleCXX clangHandleLLVM clangIndexSerialization clangIndex clangInterpreter clangLex clangParse clangRewriteFrontend clangRewrite clangSema clangSerialization clangStaticAnalyzerCheckers clangStaticAnalyzerCore clangStaticAnalyzerFrontend clangTesting clangToolingASTDiff clangToolingCore clangToolingInclusions clangToolingRefactoring clangTooling clangToolingSyntax clangTransformer
 
-%define Clang64Libs clangApplyReplacements clangChangeNamespace clangDaemon clangDaemonTweaks clangDoc clangIncludeFixer clangIncludeFixerPlugin clangMove clangQuery clangReorderFields clangTidy clangTidyPlugin clangTidyAbseilModule clangTidyAndroidModule clangTidyBoostModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyDarwinModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyLinuxKernelModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyOpenMPModule clangTidyPortabilityModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyZirconModule clangTidyUtils clangTidyLLVMLibcModule clangTidyMain clangdRemoteIndex clangdSupport clangTidyAlteraModule clangTidyConcurrencyModule
+%define Clang64Libs clangApplyReplacements clangChangeNamespace clangDaemon clangDaemonTweaks clangDoc clangIncludeFixer clangIncludeFixerPlugin clangMove clangQuery clangReorderFields clangTidy clangTidyPlugin clangTidyAbseilModule clangTidyAlteraModule clangTidyAndroidModule clangTidyBoostModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyConcurrencyModule clangTidyDarwinModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyLinuxKernelModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyOpenMPModule clangTidyPortabilityModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyZirconModule clangTidyUtils clangTidyLLVMLibcModule clangTidyMain clangdRemoteIndex clangdSupport
 
-%define FlangLibs FIROptimizer FortranCommon FortranDecimal FortranEvaluate FortranLower FortranParser FortranRuntime FortranSemantics flangFrontend flangFrontendTool
+%define FlangLibs FIRBuilder FIRCodeGen FIRDialect FIRSupport FIRTransforms FortranCommon FortranDecimal FortranEvaluate FortranLower FortranParser FortranRuntime FortranSemantics flangFrontend flangFrontendTool
+# Removed in 14: FIROptimizer
+
+%define BOLTLibs Core Passes Profile Rewrite RuntimeLibs TargetAArch64 TargetX86 Utils
 
 %if %{with mlir}
-%define MLIRLibs MLIRAffine MLIRAffineToStandard MLIRAffineTransforms MLIRAffineTransformsTestPasses MLIRAffineUtils MLIRAMX MLIRAMXToLLVMIRTranslation MLIRAMXTransforms MLIRAnalysis MLIRArmNeon2dToIntr MLIRArmNeon MLIRArmNeonToLLVMIRTranslation MLIRArmSVE MLIRArmSVEToLLVMIRTranslation MLIRArmSVETransforms MLIRAsync MLIRAsyncToLLVM MLIRAsyncTransforms MLIRCallInterfaces MLIRCAPIAsync MLIRCAPIConversion MLIRCAPIDebug MLIRCAPIGPU MLIRCAPIIR MLIRCAPILinalg MLIRCAPILLVM MLIRCAPIRegistration MLIRCAPISCF MLIRCAPIShape MLIRCAPISparseTensor MLIRCAPIStandard MLIRCAPITensor MLIRCAPITransforms MLIRCastInterfaces MLIRCEXECUTIONENGINE MLIRComplex MLIRComplexToLLVM MLIRComplexToStandard MLIRControlFlowInterfaces MLIRCopyOpInterface MLIRDataLayoutInterfaces MLIRDerivedAttributeOpInterface MLIRDialect MLIRDialectUtils MLIRDLTI MLIRDLTITestPasses MLIREmitC MLIRExecutionEngine MLIRGPUOps MLIRGPUTestPasses MLIRGPUToGPURuntimeTransforms MLIRGPUToNVVMTransforms MLIRGPUToROCDLTransforms MLIRGPUToSPIRV MLIRGPUToVulkanTransforms MLIRGPUTransforms MLIRInferTypeOpInterface MLIRIR MLIRJitRunner MLIRLinalgAnalysis MLIRLinalg MLIRLinalgTestPasses MLIRLinalgToLLVM MLIRLinalgToSPIRV MLIRLinalgToStandard MLIRLinalgTransforms MLIRLinalgUtils MLIRLLVMCommonConversion MLIRLLVMIR MLIRLLVMIRTransforms MLIRLLVMToLLVMIRTranslation MLIRLoopAnalysis MLIRLoopLikeInterface MLIRLspServerLib MLIRMath MLIRMathTestPasses MLIRMathToLibm MLIRMathToLLVM MLIRMathTransforms MLIRMemRef MLIRMemRefToLLVM MLIRMemRefTransforms MLIRMemRefUtils MLIRMlirOptMain MLIRNVVMIR MLIRNVVMToLLVMIRTranslation MLIROpenACC MLIROpenACCToLLVMIRTranslation MLIROpenACCToLLVM MLIROpenACCToSCF MLIROpenMP MLIROpenMPToLLVMIRTranslation MLIROpenMPToLLVM MLIROptLib MLIRParser MLIRPass MLIRPDLInterp MLIRPDL MLIRPDLToPDLInterp MLIRPresburger MLIRQuant MLIRReduceLib MLIRReduce MLIRRewrite MLIRROCDLIR MLIRROCDLToLLVMIRTranslation MLIRSCF MLIRSCFTestPasses MLIRSCFToGPU MLIRSCFToOpenMP MLIRSCFToSPIRV MLIRSCFToStandard MLIRSCFTransforms MLIRShapeOpsTransforms MLIRShape MLIRShapeTestPasses MLIRShapeToStandard MLIRSideEffectInterfaces MLIRSparseTensor MLIRSparseTensorTransforms MLIRSparseTensorUtils MLIRSPIRVBinaryUtils MLIRSPIRVConversion MLIRSPIRVDeserialization MLIRSPIRVModuleCombiner MLIRSPIRVSerialization MLIRSPIRV MLIRSPIRVTestPasses MLIRSPIRVToLLVM MLIRSPIRVTransforms MLIRSPIRVTranslateRegistration MLIRSPIRVUtils MLIRStandardOpsTestPasses MLIRStandardOpsTransforms MLIRStandard MLIRStandardToLLVM MLIRStandardToSPIRV MLIRSupportIndentedOstream MLIRSupport MLIRTargetLLVMIRExport MLIRTargetLLVMIRImport MLIRTensor MLIRTensorTransforms MLIRTestAnalysis MLIRTestDialect MLIRTestIR MLIRTestPass MLIRTestReducer MLIRTestRewrite MLIRTestStandardToLLVM MLIRTestTransforms MLIRToLLVMIRTranslationRegistration MLIRTosa MLIRTosaTestPasses MLIRTosaToLinalg MLIRTosaToSCF MLIRTosaToStandard MLIRTosaTransforms MLIRTransforms MLIRTransformUtils MLIRTranslation MLIRVectorInterfaces MLIRVector MLIRVectorTestPasses MLIRVectorToGPU MLIRVectorToLLVM MLIRVectorToROCDL MLIRVectorToSCF MLIRVectorToSPIRV MLIRViewLikeInterface MLIRX86Vector MLIRX86VectorToLLVMIRTranslation MLIRX86VectorTransforms mlir_async_runtime mlir_c_runner_utils mlir_runner_utils
+%define MLIRLibs MLIRAffineAnalysis MLIRAffineBufferizableOpInterfaceImpl MLIRAffine MLIRAffineToStandard MLIRAffineTransforms MLIRAffineTransformsTestPasses MLIRAffineUtils MLIRAMX MLIRAMXToLLVMIRTranslation MLIRAMXTransforms MLIRAnalysis MLIRArithmetic MLIRArithmeticToLLVM MLIRArithmeticToSPIRV MLIRArithmeticTransforms MLIRArmNeon2dToIntr MLIRArmNeon MLIRArmNeonToLLVMIRTranslation MLIRArmSVE MLIRArmSVEToLLVMIRTranslation MLIRArmSVETransforms MLIRAsync MLIRAsyncToLLVM MLIRAsyncTransforms MLIRBufferization MLIRBufferizationToMemRef MLIRBufferizationTransforms MLIRCallInterfaces MLIRCAPIAsync MLIRCAPIConversion MLIRCAPIDebug MLIRCAPIExecutionEngine MLIRCAPIGPU MLIRCAPIInterfaces MLIRCAPIIR MLIRCAPILinalg MLIRCAPILLVM MLIRCAPIPDL MLIRCAPIQuant MLIRCAPIRegistration MLIRCAPISCF MLIRCAPIShape MLIRCAPISparseTensor MLIRCAPIStandard MLIRCAPITensor MLIRCAPITransforms MLIRCastInterfaces MLIRComplex MLIRComplexToLLVM MLIRComplexToStandard MLIRControlFlowInterfaces MLIRCopyOpInterface MLIRDataLayoutInterfaces MLIRDerivedAttributeOpInterface MLIRDialect MLIRDialectUtils MLIRDLTI MLIRDLTITestPasses MLIREmitC MLIRExecutionEngine MLIRGPUOps MLIRGPUTestPasses MLIRGPUToGPURuntimeTransforms MLIRGPUToNVVMTransforms MLIRGPUToROCDLTransforms MLIRGPUToSPIRV MLIRGPUToVulkanTransforms MLIRGPUTransforms MLIRInferTypeOpInterface MLIRIR MLIRJitRunner MLIRLinalgAnalysis MLIRLinalgBufferizableOpInterfaceImpl MLIRLinalg MLIRLinalgTestPasses MLIRLinalgToLLVM MLIRLinalgToSPIRV MLIRLinalgToStandard MLIRLinalgTransforms MLIRLinalgUtils MLIRLLVMCommonConversion MLIRLLVMIR MLIRLLVMIRTransforms MLIRLLVMToLLVMIRTranslation MLIRLoopLikeInterface MLIRLspServerLib MLIRMath MLIRMathTestPasses MLIRMathToLibm MLIRMathToLLVM MLIRMathToSPIRV MLIRMathTransforms MLIRMemRef MLIRMemRefToLLVM MLIRMemRefToSPIRV MLIRMemRefTransforms MLIRMemRefUtils MLIRMlirOptMain MLIRNVVMIR MLIRNVVMToLLVMIRTranslation MLIROpenACC MLIROpenACCToLLVMIRTranslation MLIROpenACCToLLVM MLIROpenACCToSCF MLIROpenMP MLIROpenMPToLLVMIRTranslation MLIROpenMPToLLVM MLIROptLib MLIRParser MLIRPass MLIRPDLInterp MLIRPDLLAST MLIRPDLLParser MLIRPDL MLIRPDLToPDLInterp MLIRPresburger MLIRQuant MLIRReconcileUnrealizedCasts MLIRReduceLib MLIRReduce MLIRRewrite MLIRROCDLIR MLIRROCDLToLLVMIRTranslation MLIRSCFBufferizableOpInterfaceImpl MLIRSCF MLIRSCFTestPasses MLIRSCFToGPU MLIRSCFToOpenMP MLIRSCFToSPIRV MLIRSCFToStandard MLIRSCFTransforms MLIRShapeOpsTransforms MLIRShape MLIRShapeTestPasses MLIRShapeToStandard MLIRSideEffectInterfaces MLIRSparseTensor MLIRSparseTensorTransforms MLIRSparseTensorUtils MLIRSPIRVBinaryUtils MLIRSPIRVConversion MLIRSPIRVDeserialization MLIRSPIRVModuleCombiner MLIRSPIRVSerialization MLIRSPIRV MLIRSPIRVTestPasses MLIRSPIRVToLLVM MLIRSPIRVTransforms MLIRSPIRVTranslateRegistration MLIRSPIRVUtils MLIRStandardOpsTestPasses MLIRStandardOpsTransforms MLIRStandard MLIRStandardToLLVM MLIRStandardToSPIRV MLIRStdBufferizableOpInterfaceImpl MLIRSupportIndentedOstream MLIRSupport MLIRTargetCpp MLIRTargetLLVMIRExport MLIRTargetLLVMIRImport MLIRTensorInferTypeOpInterfaceImpl MLIRTensor MLIRTensorTransforms MLIRTestAnalysis MLIRTestDialect MLIRTestIR MLIRTestPass MLIRTestReducer MLIRTestRewrite MLIRTestStandardToLLVM MLIRTestTransforms MLIRTilingInterface MLIRToLLVMIRTranslationRegistration MLIRTosa MLIRTosaTestPasses MLIRTosaToLinalg MLIRTosaToSCF MLIRTosaToStandard MLIRTosaTransforms MLIRTransforms MLIRTransformUtils MLIRTranslation MLIRVectorBufferizableOpInterfaceImpl MLIRVectorInterfaces MLIRVector MLIRVectorTestPasses MLIRVectorToGPU MLIRVectorToLLVM MLIRVectorToROCDL MLIRVectorToSCF MLIRVectorToSPIRV MLIRViewLikeInterface MLIRX86Vector MLIRX86VectorToLLVMIRTranslation MLIRX86VectorTransforms mlir_async_runtime mlir_c_runner_utils mlir_runner_utils MLIRModuleBufferization MLIRTensorTilingInterfaceImpl MLIRTensorUtils MLIRMemRefTestPasses MLIRSCFUtils
+# Removed in 14: MLIRLoopAnalysis
 %else
 %define MLIRLibs %{nil}
 %endif
 
 %if %{with lld}
-%define LLDLibs lldCOFF lldCommon lldCore lldDriver lldELF lldMachO lldMachO2 lldMinGW lldReaderWriter lldWasm lldYAML
+%define LLDLibs lldCOFF lldCommon lldELF lldMachO lldMinGW lldWasm
 %else
 %define LLDLibs %{nil}
 %endif
+# Removed as of 14: lldCore lldDriver lldMachO2 lldReaderWriter lldYAML
 
 %if %{with lldb}
 %define LLDBLibs lldb lldbIntelFeatures
@@ -516,10 +518,14 @@ for effective implementation, proper tail calls or garbage collection.
 %define LLDBLibs %{nil}
 %endif
 
-%{expand:%(for i in %{LLVMLibs} %{LLVM64Libs} %{ClangLibs} %{Clang64Libs} %{LLDLibs} %{LLDBLibs} %{MLIRLibs}; do echo %%libpackage $i %{major1}; done)}
+%{expand:%(for i in %{LLVMLibs} %{LLVM64Libs} %{ClangLibs} %{Clang64Libs} %{LLDLibs} %{LLDBLibs} %{MLIRLibs}; do echo %%libpackage $i %{major1}; [ "$i" = "clang" ] && echo "%{_libdir}/libclang.so.13"; done)}
 
 %if %{with flang}
 %{expand:%(for i in %{FlangLibs}; do echo %%libpackage $i %{major1}; done)}
+%endif
+
+%if %{with bolt}
+%{expand:%(for i in %{BOLTLibs}; do echo %%libpackage LLVMBOLT$i %{major1}; done)}
 %endif
 
 %if %{with compat32}
@@ -534,6 +540,7 @@ Group: Development/C
 %%files -n lib${i}%{major1}
 %%{_prefix}/lib/lib${i}.so.%{major1}*
 EOF
+[ "$i" = "clang" ] && echo %{_prefix}/lib/libclang.so.13
 done)}
 %endif
 
@@ -550,7 +557,6 @@ Group:		System/Libraries
 The unwind library, a part of llvm.
 
 %files -n %{libunwind}
-%doc %{_docdir}/libunwind
 %{_libdir}/libunwind.so.%{libunwind_major}
 %{_libdir}/libunwind.so.1
 
@@ -563,6 +569,7 @@ Requires:	%{libunwind} = %{EVRD}
 Development files for libunwind.
 
 %files -n %{devunwind}
+%doc %{_docdir}/LLVM/libunwind
 %{_libdir}/libunwind.a
 %{_libdir}/libunwind.so
 %if %{with default_compilerrt}
@@ -596,7 +603,7 @@ Provides:	c++-devel = %{EVRD}
 Development files for libc++, an alternative implementation of the STL.
 
 %files -n %{cxxdevname}
-%doc %{_docdir}/libcxx
+%doc %{_docdir}/LLVM/libcxx
 %{_includedir}/c++
 %{_includedir}/__pstl*
 %{_includedir}/pstl
@@ -754,12 +761,12 @@ Provides:	libomp.so(VERSION)
 Shared libraries for LLVM OpenMP support.
 
 %files -n %{ompname}
+%doc %{_docdir}/LLVM/openmp
 # (Slightly) nonstandard behavior: We package the .so
 # file in the library package.
 # This is because upstream doesn't assign sonames, and
 # by keeping the .so we can keep compatible with binaries
 # built against upstream libomp
-%doc %{_docdir}/openmp
 %{_libdir}/libomp.so*
 %ifnarch armv7hnl
 %{_includedir}/ompt-multiplex.h
@@ -783,7 +790,8 @@ Obsoletes:	llvm-doc-devel < 6.0.0
 Documentation for the LLVM compiler infrastructure.
 
 %files doc
-%doc %{_docdir}/llvm
+%doc %dir %{_docdir}/LLVM
+%doc %{_docdir}/LLVM/llvm
 
 #-----------------------------------------------------------
 %package polly
@@ -835,7 +843,7 @@ parallelism that takes advantage of multi-cores, cache hierarchies,
 short vector instructions as well as dedicated accelerators.
 
 %files polly-devel
-%doc %{_docdir}/polly
+%doc %{_docdir}/LLVM/polly
 %{_includedir}/polly
 %{_libdir}/cmake/polly
 %{_libdir}/libPolly.so
@@ -880,6 +888,7 @@ as libraries and designed to be loosely-coupled and extensible.
 
 %files -n clang
 %{_bindir}/clang
+%{_bindir}/clang-nvlink-wrapper
 %{_bindir}/clang++
 %{_bindir}/clang-%{major1}
 
@@ -898,6 +907,35 @@ as libraries and designed to be loosely-coupled and extensible.
 %{_bindir}/c++
 %endif
 %doc %{_mandir}/man1/clang.1*
+
+#-----------------------------------------------------------
+
+%if %{with bolt}
+%package bolt
+Summary:	Binary optimizer for LLVM
+License:	NCSA
+Group:		Development/Other
+%{expand:%(for i in %{BOLTLibs}; do echo Requires:	%%{mklibname LLVMBOLT$i %{major1}} = %{EVRD}; done)}
+
+%description bolt
+Binary Optimization and Layout Tool - A linux command-line utility used for
+optimizing performance of binaries
+
+%files bolt
+%doc %{_docdir}/LLVM/bolt
+%{_bindir}/llvm-bolt
+%{_bindir}/llvm-bolt-heatmap
+%{_bindir}/llvm-boltdiff
+%{_bindir}/merge-fdata
+%{_bindir}/perf2bolt
+# FIXME shouldn't those be in %{_libdir}?
+# They're definitely 64 bit
+# And is the _osx.a one useful on a real OS at all?
+%{_prefix}/lib/libbolt_rt_hugify.a
+%{_prefix}/lib/libbolt_rt_instr.a
+%{_prefix}/lib/libbolt_rt_instr_osx.a
+#doc %{_docdir}/bolt
+%endif
 
 #-----------------------------------------------------------
 
@@ -1007,8 +1045,8 @@ Requires:	%{name} = %{EVRD}
 Documentation for the Clang compiler front-end.
 
 %files -n clang-doc
-%doc %{_docdir}/clang-tools
-%doc %{_docdir}/clang
+%doc %{_docdir}/LLVM/clang-tools
+%doc %{_docdir}/LLVM/clang
 %endif
 
 %if %{with ocaml}
@@ -1043,7 +1081,6 @@ A Fortran language front-end for LLVM
 %{_bindir}/flang
 %{_bindir}/flang-new
 %{_bindir}/fir-opt
-%{_bindir}/f18
 %{_bindir}/f18-parse-demo
 %{_bindir}/tco
 
@@ -1079,7 +1116,7 @@ Debugger from the LLVM toolchain.
 %doc %{_mandir}/man1/lldb.1*
 %doc %{_mandir}/man1/lldb-server.1*
 %doc %{_mandir}/man1/lldb-tblgen.1*
-%doc %{_docdir}/lldb
+%doc %{_docdir}/LLVM/lldb
 
 %define lldbdev %mklibname -d lldb
 
@@ -1119,11 +1156,9 @@ Obsoletes:	%{mklibname lldConfig 5} < %{EVRD}
 The linker from the LLVM project.
 
 %files -n lld
-%doc %{_docdir}/lld
+#doc %{_docdir}/lld
 %{_bindir}/ld.lld
 %{_bindir}/ld64.lld
-%{_bindir}/ld64.lld.darwinold
-%{_bindir}/ld64.lld.darwinnew
 %{_bindir}/lld
 %{_bindir}/lld-link
 %{_bindir}/llvm-dlltool
@@ -1144,6 +1179,7 @@ This package contains header files and libraries needed for
 writing lld plugins.
 
 %files -n %{devlld}
+%doc %{_docdir}/LLVM/lld
 %{_includedir}/lld
 %{_libdir}/cmake/lld
 %endif
@@ -1226,7 +1262,8 @@ Group:		System/Libraries
 
 %files -n libomp1
 %{_prefix}/lib/libomp.so.1*
-%{_prefix}/lib/libomptarget-*.bc
+# FIXME does this need a SOVERSION?
+%{_prefix}/lib/libompd.so
 
 %package -n libomp-devel
 Summary:	Development files for the 32-bit OpenMP runtime
@@ -1413,6 +1450,7 @@ Nvidia PTX backend for the libclc OpenCL library.
 # Should this be a separate package? It's an
 # OpenCL to Vulkan compute shader compiler.
 %{_datadir}/clc/clspv--.bc
+%{_datadir}/clc/clspv64--.bc
 
 %files -n libclc-spirv
 %{_datadir}/clc/spirv*
@@ -1597,9 +1635,6 @@ mv SPIRV-LLVM-Translator-* llvm/projects/SPIRV-LLVM-Translator
 mv SPIRV-Headers-* llvm/projects/SPIRV-Headers
 mv SPIRV-Tools-* llvm/projects/SPIRV-Tools
 %autopatch -p1
-cd llvm/projects/SPIRV-Tools
-#patch -p1 -b -z .91~ <%{S:91}
-cd -
 %if %{with default_compilerrt}
 patch -p1 -b -z .crt~ <%{S:62}
 %endif
@@ -1625,7 +1660,18 @@ find . -type d -exec chmod 0755 {} \;
 # Make sure libclc can find llvm-spirv
 export PATH=$(pwd)/build/bin:$PATH
 
+# FIXME do we need to enable cross-project-tests anywhere?
 COMPONENTS="llvm"
+%if %{with bolt}
+COMPONENTS="$COMPONENTS;bolt"
+if [ -e bolt/docs/conf.py ]; then
+	echo "Bolt config has been fixed, remove this workaround"
+	exit 1
+else
+	sed -i -e 's,clang,bolt,g;s,Clang,Bolt,g' clang/docs/conf.py >bolt/docs/conf.py
+	sed -e 's,^/// ,,' bolt/docs/doxygen-mainpage.dox >bolt/docs/index.rst
+fi
+%endif
 %if %{with clang}
 COMPONENTS="$COMPONENTS;clang;clang-tools-extra;polly;compiler-rt"
 %endif
@@ -1648,7 +1694,7 @@ COMPONENTS="$COMPONENTS;lld"
 COMPONENTS="$COMPONENTS;openmp"
 %endif
 %if %{with libcxx}
-COMPONENTS="$COMPONENTS;libcxx;libcxxabi;pstl;parallel-libs"
+COMPONENTS="$COMPONENTS;libcxx;libcxxabi;pstl"
 %endif
 %if %{with libc}
 COMPONENTS="$COMPONENTS;libc"
@@ -1836,7 +1882,7 @@ EOF
 	-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
 	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
 	-DLLVM_CONFIG_PATH=$(pwd)/../build/bin/llvm-config \
-	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;parallel-libs;polly" \
+	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;polly" \
 	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
 %if %{with default_compilerrt}
@@ -2159,3 +2205,9 @@ sed -e 's,@LIBDIR@,%{_prefix}/lib,g;s,@VERSION@,%{version},g' %{S:50} >%{buildro
 mv %{buildroot}%{_prefix}/docs/html/html %{buildroot}%{_docdir}/llvm/doxygen-polly
 rm -rf %{buildroot}%{_prefix}/docs
 %endif
+
+# This seems to be a build system glitch
+rm -rf %{buildroot}%{_mandir}/man1/python.1*
+# Not equally sure about this one... Are those object files installed on purpose?
+# Let's see if anything doesn't work if we don't package them...
+rm -rf %{buildroot}%{_libdir}/objects-Rel*

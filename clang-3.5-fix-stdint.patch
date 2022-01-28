@@ -1,6 +1,6 @@
-diff -up llvm-9.0.0-20190625/clang/lib/Headers/stdint.h.22~ llvm-9.0.0-20190625/clang/lib/Headers/stdint.h
---- llvm-9.0.0-20190625/clang/lib/Headers/stdint.h.22~	2019-06-25 12:51:15.000000000 +0200
-+++ llvm-9.0.0-20190625/clang/lib/Headers/stdint.h	2019-06-25 13:33:00.785137372 +0200
+diff -up llvm-project-main/clang/lib/Headers/stdint.h.20~ llvm-project-main/clang/lib/Headers/stdint.h
+--- llvm-project-main/clang/lib/Headers/stdint.h.20~	2022-01-18 18:01:52.000000000 +0100
++++ llvm-project-main/clang/lib/Headers/stdint.h	2022-01-18 18:40:57.214876195 +0100
 @@ -6,14 +6,6 @@
   *
  \*===----------------------------------------------------------------------===*/
@@ -25,9 +25,9 @@ diff -up llvm-9.0.0-20190625/clang/lib/Headers/stdint.h.22~ llvm-9.0.0-20190625/
  
  /* C99 7.18.1.1 Exact-width integer types.
   * C99 7.18.1.2 Minimum-width integer types.
-@@ -689,5 +683,5 @@ typedef __UINTMAX_TYPE__ uintmax_t;
- #define  INTMAX_C(v) __int_c(v,  __INTMAX_C_SUFFIX__)
- #define UINTMAX_C(v) __int_c(v, __UINTMAX_C_SUFFIX__)
+@@ -857,5 +851,5 @@ typedef __UINTMAX_TYPE__ uintmax_t;
+ #define WINT_WIDTH       __WINT_WIDTH__
+ #endif
  
 -#endif /* __STDC_HOSTED__ */
  #endif /* __CLANG_STDINT_H */

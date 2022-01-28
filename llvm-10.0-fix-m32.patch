@@ -1,15 +1,15 @@
-diff -up llvm-project-release-11.x/clang/lib/Driver/ToolChains/Linux.cpp.14~ llvm-project-release-11.x/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-project-release-11.x/clang/lib/Driver/ToolChains/Linux.cpp.14~	2020-08-02 22:37:51.308096369 +0200
-+++ llvm-project-release-11.x/clang/lib/Driver/ToolChains/Linux.cpp	2020-08-02 22:53:44.560839887 +0200
-@@ -331,6 +331,7 @@ Linux::Linux(const Driver &D, const llvm
-                     Paths);
+diff -up llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.11~ llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.11~	2022-01-18 18:35:58.520171110 +0100
++++ llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp	2022-01-18 18:36:57.473519242 +0100
+@@ -286,6 +286,7 @@ Linux::Linux(const Driver &D, const llvm
+         Paths);
    }
  
-+  addPathIfExists(D, SysRoot + "/usr/" + MultiarchTriple + "/lib", Paths); // OMV 5.x
++  addPathIfExists(D, SysRoot + "/usr/" + MultiarchTriple + "/lib", Paths); // OMV 5.x+
    addPathIfExists(D, SysRoot + "/usr/lib/" + MultiarchTriple, Paths);
    // 64-bit OpenEmbedded sysroots may not have a /usr/lib dir. So they cannot
    // find /usr/lib64 as it is referenced as /usr/lib/../lib64. So we handle
-@@ -346,7 +347,12 @@ Linux::Linux(const Driver &D, const llvm
+@@ -301,7 +302,12 @@ Linux::Linux(const Driver &D, const llvm
      addPathIfExists(D, SysRoot + "/usr/" + OSLibDir + "/" + ABIName, Paths);
    }
  

@@ -1,11 +1,9 @@
-diff -up llvm-project-release-10.x/openmp/CMakeLists.txt.omv~ llvm-project-release-10.x/openmp/CMakeLists.txt
-diff -up llvm-project-release-10.x/openmp/runtime/CMakeLists.txt.omv~ llvm-project-release-10.x/openmp/runtime/CMakeLists.txt
-diff -up llvm-project-release-10.x/openmp/runtime/src/CMakeLists.txt.omv~ llvm-project-release-10.x/openmp/runtime/src/CMakeLists.txt
---- llvm-project-release-10.x/openmp/runtime/src/CMakeLists.txt.omv~	2020-05-19 04:28:39.241145984 +0200
-+++ llvm-project-release-10.x/openmp/runtime/src/CMakeLists.txt	2020-05-19 04:29:31.548897314 +0200
-@@ -148,6 +148,8 @@ set_target_properties(omp PROPERTIES
-   LINKER_LANGUAGE ${LIBOMP_LINKER_LANGUAGE}
- )
+diff -up llvm-project-main/openmp/runtime/src/CMakeLists.txt.27~ llvm-project-main/openmp/runtime/src/CMakeLists.txt
+--- llvm-project-main/openmp/runtime/src/CMakeLists.txt.27~	2022-01-18 19:06:22.748384295 +0100
++++ llvm-project-main/openmp/runtime/src/CMakeLists.txt	2022-01-18 19:06:47.685525511 +0100
+@@ -194,6 +194,8 @@ else()
+   )
+ endif()
  
 +target_link_libraries(omp m)
 +

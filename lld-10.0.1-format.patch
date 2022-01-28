@@ -1,7 +1,7 @@
-diff -up llvm-project-llvmorg-10.0.1/lld/ELF/Driver.cpp.omv~ llvm-project-llvmorg-10.0.1/lld/ELF/Driver.cpp
---- llvm-project-llvmorg-10.0.1/lld/ELF/Driver.cpp.omv~        2020-07-21 21:40:01.687046083 +0200
-+++ llvm-project-llvmorg-10.0.1/lld/ELF/Driver.cpp     2020-07-21 21:45:23.190212533 +0200
-@@ -1172,7 +1172,10 @@ static void setConfigs(opt::InputArgList
+diff -up llvm-project-main/lld/ELF/Driver.cpp.8~ llvm-project-main/lld/ELF/Driver.cpp
+--- llvm-project-main/lld/ELF/Driver.cpp.8~	2022-01-18 18:33:45.929360656 +0100
++++ llvm-project-main/lld/ELF/Driver.cpp	2022-01-18 18:34:59.342814459 +0100
+@@ -1475,7 +1475,10 @@ static void setConfigs(opt::InputArgList
  static bool isFormatBinary(StringRef s) {
    if (s == "binary")
      return true;
@@ -11,5 +11,5 @@ diff -up llvm-project-llvmorg-10.0.1/lld/ELF/Driver.cpp.omv~ llvm-project-llvmor
 +  // things like elf64-x86-64). Relied on by e.g. fpc
 +  if (s.startswith_insensitive("elf") || s == "default")
      return false;
-   error("unknown -format value: " + s +
+   error("unknown --format value: " + s +
          " (supported formats: elf, default, binary)");

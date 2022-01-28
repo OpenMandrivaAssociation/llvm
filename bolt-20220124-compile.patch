@@ -1,0 +1,11 @@
+diff -up llvm-project-main/bolt/include/bolt/RuntimeLibs/InstrumentationRuntimeLibrary.h.omv~ llvm-project-main/bolt/include/bolt/RuntimeLibs/InstrumentationRuntimeLibrary.h
+--- llvm-project-main/bolt/include/bolt/RuntimeLibs/InstrumentationRuntimeLibrary.h.omv~	2022-01-24 16:43:05.228763586 +0100
++++ llvm-project-main/bolt/include/bolt/RuntimeLibs/InstrumentationRuntimeLibrary.h	2022-01-24 16:43:10.995851013 +0100
+@@ -16,6 +16,7 @@
+ 
+ #include "bolt/Passes/InstrumentationSummary.h"
+ #include "bolt/RuntimeLibs/RuntimeLibrary.h"
++#include <memory>
+ 
+ namespace llvm {
+ namespace bolt {

@@ -1,12 +1,12 @@
-diff -up llvm-project-master/compiler-rt/cmake/Modules/AddCompilerRT.cmake.omv~ llvm-project-master/compiler-rt/cmake/Modules/AddCompilerRT.cmake
---- llvm-project-master/compiler-rt/cmake/Modules/AddCompilerRT.cmake.omv~	2020-06-21 20:58:42.253973767 +0200
-+++ llvm-project-master/compiler-rt/cmake/Modules/AddCompilerRT.cmake	2020-06-21 20:59:22.754304385 +0200
-@@ -239,7 +239,7 @@ function(add_compiler_rt_runtime name ty
+diff -up llvm-project-main/compiler-rt/cmake/Modules/AddCompilerRT.cmake.5~ llvm-project-main/compiler-rt/cmake/Modules/AddCompilerRT.cmake
+--- llvm-project-main/compiler-rt/cmake/Modules/AddCompilerRT.cmake.5~	2022-01-18 18:30:00.414866693 +0100
++++ llvm-project-main/compiler-rt/cmake/Modules/AddCompilerRT.cmake	2022-01-18 18:30:38.671132675 +0100
+@@ -262,7 +262,7 @@ function(add_compiler_rt_runtime name ty
          get_compiler_rt_target(${arch} target)
-         find_compiler_rt_library(builtins ${target} builtins_${libname})
+         find_compiler_rt_library(builtins builtins_${libname} TARGET ${target})
          if(builtins_${libname} STREQUAL "NOTFOUND")
 -          message(FATAL_ERROR "Cannot find builtins library for the target architecture")
-+          message(FATAL_ERROR "Cannot find builtins library for the target architecture arch: ${arch} target: ${target} libname: ${libname}")
++          message(FATAL_ERROR "Cannot find builtins library for the target architecture: arch: ${arch} target: ${target} libname: ${libname}")
          endif()
        endif()
        set(sources_${libname} ${LIB_SOURCES})

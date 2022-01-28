@@ -1,10 +1,10 @@
-diff -up llvm-project-release-12.x/openmp/runtime/src/CMakeLists.txt.26~ llvm-project-release-12.x/openmp/runtime/src/CMakeLists.txt
---- llvm-project-release-12.x/openmp/runtime/src/CMakeLists.txt.26~	2021-02-08 19:40:43.752267225 +0100
-+++ llvm-project-release-12.x/openmp/runtime/src/CMakeLists.txt	2021-02-08 19:44:06.137304517 +0100
-@@ -155,6 +155,13 @@ else()
-   # libomp must be a C++ library such that it can link libLLVMSupport
+diff -up llvm-project-main/openmp/runtime/src/CMakeLists.txt.23~ llvm-project-main/openmp/runtime/src/CMakeLists.txt
+--- llvm-project-main/openmp/runtime/src/CMakeLists.txt.23~	2022-01-18 18:42:17.410313634 +0100
++++ llvm-project-main/openmp/runtime/src/CMakeLists.txt	2022-01-18 18:43:27.943693120 +0100
+@@ -158,6 +158,14 @@ else()
    set(LIBOMP_LINKER_LANGUAGE CXX)
  endif()
+ 
 +if (UNIX)
 +  if (NOT APPLE)
 +    set_target_properties(omp PROPERTIES
@@ -12,6 +12,7 @@ diff -up llvm-project-release-12.x/openmp/runtime/src/CMakeLists.txt.26~ llvm-pr
 +			      VERSION 1.${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}${LLVM_VERSION_SUFFIX})
 +  endif()
 +endif()
- 
- set_target_properties(omp PROPERTIES
-   PREFIX "" SUFFIX "" OUTPUT_NAME "${LIBOMP_LIB_FILE}"
++
+ if(OPENMP_MSVC_NAME_SCHEME)
+   if(uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+     set(LIBOMP_PDB_NAME ${LIBOMP_DEFAULT_LIB_NAME}${MSVC_TOOLS_VERSION}d.${LIBOMP_ARCH})
