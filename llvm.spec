@@ -329,10 +329,10 @@ BuildRequires:	devel(libMesaOpenCL)
 BuildRequires:	libunwind-devel
 %endif
 
-Obsoletes: %{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
-Obsoletes: %{mklibname LLVMRISCVDesc 5} < %{EVRD}
-Obsoletes: %{mklibname LLVMRISCVInfo 5} < %{EVRD}
-Obsoletes: %{mklibname lldConfig 5} < %{EVRD}
+Obsoletes:	%{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
+Obsoletes:	%{mklibname LLVMRISCVDesc 5} < %{EVRD}
+Obsoletes:	%{mklibname LLVMRISCVInfo 5} < %{EVRD}
+Obsoletes:	%{mklibname lldConfig 5} < %{EVRD}
 
 %if %{with crosscrt}
 %ifnarch %{aarch64}
@@ -657,8 +657,8 @@ Obsoletes:	%{mklibname LLVMX86AsmPrinter 9} < %{EVRD}
 Obsoletes:	%{mklibname LLVMXCoreAsmPrinter 9} < %{EVRD}
 Obsoletes:	%{mklibname LLVMWebAssemblyAsmPrinter 9} < %{EVRD}
 Obsoletes:	%{mklibname LLVMRISCVAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMLTO 11} < %{EVRD}
-Obsoletes:	%{mklibname clangCodeGen 11} < %{EVRD}
+%rename		%{mklibname LLVMLTO 11}
+%rename		%{mklibname clangCodeGen 11}
 Obsoletes:	%{mklibname clang-cpp 11} < %{EVRD}
 Obsoletes:	%{mklibname LLVMExtensions 11} < %{EVRD}
 
@@ -938,12 +938,14 @@ optimizing performance of binaries
 %{_bindir}/llvm-boltdiff
 %{_bindir}/merge-fdata
 %{_bindir}/perf2bolt
+%ifarch %{x86_64}
 # FIXME shouldn't those be in %{_libdir}?
 # They're definitely 64 bit
 # And is the _osx.a one useful on a real OS at all?
 %{_prefix}/lib/libbolt_rt_hugify.a
 %{_prefix}/lib/libbolt_rt_instr.a
 %{_prefix}/lib/libbolt_rt_instr_osx.a
+%endif
 #doc %{_docdir}/bolt
 %endif
 
@@ -1395,7 +1397,7 @@ existing compilers together.
 %define mlirdev %{mklibname -d mlir}
 %package -n %{mlirdev}
 Summary:	Development files for MLIR
-Group:	Development/C
+Group:		Development/C
 
 %description -n %{mlirdev}
 Development files for MLIR
@@ -1478,9 +1480,9 @@ Nvidia PTX backend for the libclc OpenCL library.
 %endif
 
 %package -n spirv-headers
-Summary: Headers for working with SPIR-V, a language for running on GPUs
-Group: Development/Tools
-BuildArch: noarch
+Summary:	Headers for working with SPIR-V, a language for running on GPUs
+Group:		Development/Tools
+BuildArch:	noarch
 
 %description -n spirv-headers
 This package contains machine-readable files for the SPIR-V Registry.
@@ -1504,10 +1506,11 @@ according to their version.
 %{_datadir}/pkgconfig/SPIRV-Headers.pc
 
 %package -n spirv-llvm-translator
-Summary: Library for bi-directional translation between SPIR-V and LLVM IR
+Summary:	Library for bi-directional translation between SPIR-V and LLVM IR
+Group:		Development/Tools
 
 %description -n spirv-llvm-translator
-Library for bi-directional translation between SPIR-V and LLVM IR
+Library for bi-directional translation between SPIR-V and LLVM IR.
 
 %files -n spirv-llvm-translator
 %{_bindir}/llvm-spirv
@@ -1516,12 +1519,12 @@ Library for bi-directional translation between SPIR-V and LLVM IR
 %define devspirv %mklibname -d LLVMSPIRVLib
 
 %package -n %{devspirv}
-Summary: Library for bi-directional translation between SPIR-V and LLVM IR
-Group: Development/Tools
-Requires: %{libspirv} = %{EVRD}
+Summary:	Library for bi-directional translation between SPIR-V and LLVM IR
+Group:		Development/Tools
+Requires:	%{libspirv} = %{EVRD}
 
 %description -n %{devspirv}
-Library for bi-directional translation between SPIR-V and LLVM IR
+Library for bi-directional translation between SPIR-V and LLVM IR.
 
 %files -n %{devspirv}
 %{_includedir}/LLVMSPIRVLib
@@ -1529,11 +1532,11 @@ Library for bi-directional translation between SPIR-V and LLVM IR
 %{_libdir}/pkgconfig/LLVMSPIRVLib.pc
 
 %package -n spirv-tools
-Summary: Tools for working with SPIR-V, a language for running on GPUs
-Group: Development/Tools
+Summary:	Tools for working with SPIR-V, a language for running on GPUs
+Group:		Development/Tools
 
 %description -n spirv-tools
-Tools for working with SPIR-V, a language for running on GPUs
+Tools for working with SPIR-V, a language for running on GPUs.
 
 %files -n spirv-tools
 %{_bindir}/spirv-as
@@ -1554,7 +1557,7 @@ Summary:	Libraries needed for SPIRV-Tools
 Group:		System/Libraries
 
 %description -n %{libspirvtools}
-Libraries needed for SPIRV-Tools
+Libraries needed for SPIRV-Tools.
 
 %files -n %{libspirvtools}
 %{_libdir}/libSPIRV-Tools-shared.so.*
@@ -1566,7 +1569,7 @@ Requires:	%{libspirvtools} = %{EVRD}
 Requires:	spirv-tools = %{EVRD}
 
 %description -n %{devspirvtools}
-Development files for SPIRV-Tools
+Development files for SPIRV-Tools.
 
 %files -n %{devspirvtools}
 %{_includedir}/spirv-tools
@@ -1582,13 +1585,13 @@ Development files for SPIRV-Tools
 %define dev32spirvtools %mklib32name -d spirv-tools
 
 %package -n %{dev32spirv}
-Summary: Library for bi-directional translation between SPIR-V and LLVM IR (32-bit)
-Group: Development/Tools
-Requires: %{devspirv} = %{EVRD}
-Requires: %{lib32spirv} = %{EVRD}
+Summary:	Library for bi-directional translation between SPIR-V and LLVM IR (32-bit)
+Group:		Development/Tools
+Requires:	%{devspirv} = %{EVRD}
+Requires:	%{lib32spirv} = %{EVRD}
 
 %description -n %{dev32spirv}
-Library for bi-directional translation between SPIR-V and LLVM IR (32-bit)
+Library for bi-directional translation between SPIR-V and LLVM IR (32-bit).
 
 %files -n %{dev32spirv}
 %{_prefix}/lib/libLLVMSPIRVLib.so
@@ -1599,7 +1602,7 @@ Summary:	Libraries needed for SPIRV-Tools (32-bit)
 Group:		System/Libraries
 
 %description -n %{lib32spirvtools}
-Libraries needed for SPIRV-Tools (32-bit)
+Libraries needed for SPIRV-Tools (32-bit).
 
 %files -n %{lib32spirvtools}
 %{_prefix}/lib/libSPIRV-Tools-shared.so.*
@@ -1612,7 +1615,7 @@ Requires:	%{lib32spirvtools} = %{EVRD}
 Provides:	libspirv-tools-devel = %{EVRD}
 
 %description -n %{dev32spirvtools}
-Development files for SPIRV-Tools
+Development files for SPIRV-Tools.
 
 %files -n %{dev32spirvtools}
 %{_prefix}/lib/cmake/SPIRV-Tools*
