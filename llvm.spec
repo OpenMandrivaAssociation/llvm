@@ -106,7 +106,7 @@
 
 %bcond_with upstream_tarballs
 
-%define major %(echo %{version} |cut -d. -f1-2)  
+%define major %(echo %{version} |cut -d. -f1-2)
 %define major1 %(echo %{version} |cut -d. -f1)
 #define is_main 1
 
@@ -260,7 +260,11 @@ BuildRequires:	python-sphinx-automodapi
 BuildRequires:	python-setuptools
 BuildRequires:	python-requests
 %if %{with ocaml}
-BuildRequires:	ocaml-compiler ocaml-compiler-libs ocaml-camlp4 ocaml-findlib >= 1.5.5-2 ocaml-ctypes
+BuildRequires:	ocaml-compiler
+BuildRequires:	ocaml-compiler-libs
+BuildRequires:	ocaml-camlp4
+BuildRequires:	ocaml-findlib >= 1.5.5-2
+BuildRequires:	ocaml-ctypes
 %endif
 BuildRequires:	tcl
 BuildRequires:	sed
@@ -287,7 +291,7 @@ BuildRequires:	ninja
 %if %{with apidox}
 BuildRequires:	doxygen
 %endif
-Obsoletes:	llvm-ocaml
+Obsoletes:	llvm-ocaml < 14.0.0
 # Some cmake files try to look up the commit hash
 BuildRequires:	git-core
 # For lldb
@@ -295,10 +299,8 @@ BuildRequires:	swig
 BuildRequires:	pkgconfig(python3)
 BuildRequires:	gcc
 BuildRequires:	pkgconfig(libtirpc)
-%if %mdvver > 3000000
 %if !%{with lld}
 BuildRequires:	lld < %{EVRD}
-%endif
 %endif
 %if %{with openmp}
 Requires:	%{ompname} = %{EVRD}
@@ -540,11 +542,11 @@ for effective implementation, proper tail calls or garbage collection.
 %if %{with compat32}
 %{expand:%(for i in %{LLVMLibs} %{ClangLibs}; do cat <<EOF
 %%package -n lib${i}%{major1}
-Summary: 32-bit LLVM ${i} library
-Group: Development/C
+Summary:	32-bit LLVM ${i} library
+Group:		Development/C
 
 %%description -n lib${i}%{major1}
-32-bit LLVM ${i} library
+32-bit LLVM ${i} library.
 
 %%files -n lib${i}%{major1}
 %%{_prefix}/lib/lib${i}.so.%{major1}*
@@ -638,29 +640,29 @@ Static library for libc++'s C++ ABI library.
 Summary:	LLVM shared libraries
 Group:		System/Libraries
 Conflicts:	llvm < 3.0-4
-Obsoletes:	%{mklibname %{name} 3.5.0}
-Obsoletes:	%{mklibname %{name} 3.6.0}
+Obsoletes:	%{mklibname %{name} 3.5.0} < 14.0.0
+Obsoletes:	%{mklibname %{name} 3.6.0} < 14.0.0
 %{expand:%(for i in %{LLVMLibs} %{LLVM64Libs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
-Obsoletes:	%{mklibname LLVMCppBackendCodeGen 3} < %{EVRD}
-Obsoletes:	%{mklibname LLVMCppBackendInfo 3} < %{EVRD}
-Obsoletes:	%{mklibname LLVMAArch64AsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMARMAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMLanaiAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMMSP430AsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMMipsAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMNVPTXAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMPowerPCAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMAMDGPUAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMSparcAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMSystemZAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMX86AsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMXCoreAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMWebAssemblyAsmPrinter 9} < %{EVRD}
-Obsoletes:	%{mklibname LLVMRISCVAsmPrinter 9} < %{EVRD}
+Obsoletes:	%{mklibname LLVMCppBackendCodeGen 3} < 14.0.0
+Obsoletes:	%{mklibname LLVMCppBackendInfo 3} < 14.0.0
+Obsoletes:	%{mklibname LLVMAArch64AsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMARMAsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMLanaiAsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMMSP430AsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMMipsAsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMNVPTXAsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMPowerPCAsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMAMDGPUAsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMSparcAsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMSystemZAsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMX86AsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMXCoreAsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMWebAssemblyAsmPrinter 9} < 14.0.0
+Obsoletes:	%{mklibname LLVMRISCVAsmPrinter 9} < 14.0.0
 %rename		%{mklibname LLVMLTO 11}
 %rename		%{mklibname clangCodeGen 11}
-Obsoletes:	%{mklibname clang-cpp 11} < %{EVRD}
-Obsoletes:	%{mklibname LLVMExtensions 11} < %{EVRD}
+Obsoletes:	%{mklibname clang-cpp 11} < 14.0.0
+Obsoletes:	%{mklibname LLVMExtensions 11} < 14.0.0
 
 %description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
@@ -881,8 +883,8 @@ BuildRequires:	pkgconfig(libunwind-llvm)
 %endif
 %endif
 %endif
-Obsoletes:	%{mklibname clang 3.7.0}
-Obsoletes:	%{mklibname clang_shared 9}
+Obsoletes:	%{mklibname clang 3.7.0} < 14.0.0
+Obsoletes:	%{mklibname clang_shared 9} < 14.0.0
 %{expand:%(for i in %{ClangLibs} %{Clang64Libs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 
 %description -n clang
@@ -1154,17 +1156,17 @@ License:	NCSA
 Group:		Development/Other
 %{expand:%(for i in %{LLDLibs}; do echo Requires:	%%{mklibname $i %{major1}} = %{EVRD}; done)}
 # Stuff from lld 3.8 that has been removed in 3.9
-Obsoletes:	%{mklibname lldAArch64ELFTarget 3} < %{EVRD}
-Obsoletes:	%{mklibname lldARMELFTarget 3} < %{EVRD}
-Obsoletes:	%{mklibname lldELF2 3} < %{EVRD}
-Obsoletes:	%{mklibname lldExampleSubTarget 3} < %{EVRD}
-Obsoletes:	%{mklibname lldHexagonELFTarget 3} < %{EVRD}
-Obsoletes:	%{mklibname lldMipsELFTarget 3} < %{EVRD}
-Obsoletes:	%{mklibname lldX86ELFTarget 3} < %{EVRD}
-Obsoletes:	%{mklibname lldX86_64ELFTarget 3} < %{EVRD}
+Obsoletes:	%{mklibname lldAArch64ELFTarget 3} < 14.0.0
+Obsoletes:	%{mklibname lldARMELFTarget 3} < 14.0.0
+Obsoletes:	%{mklibname lldELF2 3} < 14.0.0
+Obsoletes:	%{mklibname lldExampleSubTarget 3} < 14.0.0
+Obsoletes:	%{mklibname lldHexagonELFTarget 3} < 14.0.0
+Obsoletes:	%{mklibname lldMipsELFTarget 3} < 14.0.0
+Obsoletes:	%{mklibname lldX86ELFTarget 3} < 14.0.0
+Obsoletes:	%{mklibname lldX86_64ELFTarget 3} < 14.0.0
 # Stuff from lld 5.0 that has been removed in 6.0
-Obsoletes:	%{mklibname lldELF 5} < %{EVRD}
-Obsoletes:	%{mklibname lldConfig 5} < %{EVRD}
+Obsoletes:	%{mklibname lldELF 5} < 14.0.0
+Obsoletes:	%{mklibname lldConfig 5} < 14.0.0
 
 %description -n lld
 The linker from the LLVM project.
@@ -1626,10 +1628,10 @@ Development files for SPIRV-Tools.
 
 %prep
 %if 0%{?date:1}
-%setup -n llvm-project-%{?is_main:main}%{!?is_main:release-%{major1}.x} -a 20 -a 21 -a 22
+%setup -q -n llvm-project-%{?is_main:main}%{!?is_main:release-%{major1}.x} -a 20 -a 21 -a 22
 %else
 %if %{with upstream_tarballs}
-%setup -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10 -a 11 -a 20 -a 21 -a 22
+%setup -q -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10 -a 11 -a 20 -a 21 -a 22
 mv llvm-%{version}.src llvm
 mv cfe-%{version}.src clang
 mv clang-tools-extra-%{version}.src clang-tools-extra
@@ -1643,7 +1645,7 @@ mv lldb-%{version}.src lldb
 mv openmp-%{version}.src openmp
 mv libclc-%{version}.src libclc
 %else
-%setup -n llvm-project-%{version}.src -a 20 -a 21 -a 22
+%setup -q -n llvm-project-%{version}.src -a 20 -a 21 -a 22
 %endif
 %endif
 mv SPIRV-LLVM-Translator-* llvm/projects/SPIRV-LLVM-Translator
@@ -1676,45 +1678,47 @@ find . -type d -exec chmod 0755 {} \;
 export PATH=$(pwd)/build/bin:$PATH
 
 # FIXME do we need to enable cross-project-tests anywhere?
-COMPONENTS="llvm"
+PROJECTS="llvm"
 %if %{with bolt}
-COMPONENTS="$COMPONENTS;bolt"
+PROJECTS="$PROJECTS;bolt"
 if [ -e bolt/docs/conf.py ]; then
-	echo "Bolt config has been fixed, remove this workaround"
-	exit 1
+    echo "Bolt config has been fixed, remove this workaround"
+    exit 1
 else
-	sed -i -e 's,clang,bolt,g;s,Clang,Bolt,g' clang/docs/conf.py >bolt/docs/conf.py
-	sed -e 's,^/// ,,' bolt/docs/doxygen-mainpage.dox >bolt/docs/index.rst
+    sed -i -e 's,clang,bolt,g;s,Clang,Bolt,g' clang/docs/conf.py >bolt/docs/conf.py
+    sed -e 's,^/// ,,' bolt/docs/doxygen-mainpage.dox >bolt/docs/index.rst
 fi
 %endif
 %if %{with clang}
-COMPONENTS="$COMPONENTS;clang;clang-tools-extra;polly;compiler-rt"
+PROJECTS="$PROJECTS;clang;clang-tools-extra;polly;compiler-rt"
 %endif
 %if %{with mlir}
-COMPONENTS="$COMPONENTS;mlir"
+PROJECTS="$PROJECTS;mlir"
 %endif
 %if %{with flang}
-COMPONENTS="$COMPONENTS;flang"
+PROJECTS="$PROJECTS;flang"
 %endif
 %if %{with unwind}
-COMPONENTS="$COMPONENTS;libunwind"
+RUNTIMES="$RUNTIMES;libunwind"
 %endif
 %if %{with lldb}
-COMPONENTS="$COMPONENTS;lldb"
+PROJECTS="$PROJECTS;lldb"
 %endif
 %if %{with lld}
-COMPONENTS="$COMPONENTS;lld"
+PROJECTS="$PROJECTS;lld"
 %endif
 %if %{with openmp}
-COMPONENTS="$COMPONENTS;openmp"
+RUNTIMES="$RUNTIMES;openmp"
 %endif
 %if %{with libcxx}
-COMPONENTS="$COMPONENTS;libcxx;libcxxabi;pstl"
+PROJECTS="$PROJECTS;pstl"
+RUNTIMES="$RUNTIMES;libcxx;libcxxabi"
 %endif
 %if %{with libc}
-COMPONENTS="$COMPONENTS;libc"
+PROJECTS="$PROJECTS;libc"
+RUNTIMES="$RUNTIMES;libc"
 %endif
-COMPONENTS="$COMPONENTS;libclc"
+PROJECTS="$PROJECTS;libclc"
 
 %if %{with bootstrap_gcc}
 export CC=gcc
@@ -1765,12 +1769,21 @@ done
 # at some point - but right now, builds are broken
 #
 %cmake \
+	-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+%ifarch %{armx} %{riscv}
+	-DLLVM_PARALLEL_LINK_JOBS=1 \
+	-DLLVM_PARALLEL_COMPILE_JOBS=1 \
+%else
+	-DLLVM_PARALLEL_LINK_JOBS=2 \
+	-DLLVM_PARALLEL_COMPILE_JOBS=2 \
+%endif
 	-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
-	-DLLVM_ENABLE_PROJECTS="$COMPONENTS" \
+	-DLLVM_ENABLE_PROJECTS="$PROJECTS" \
+	-DLLVM_ENABLE_RUNTIMES="$RUNTIMES" \
 	-DCLANG_VENDOR="OpenMandriva %{version}-%{release}" \
 	-DLLD_VENDOR="OpenMandriva %{version}-%{release}" \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
-	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
+	-DLLVM_ENABLE_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
 	-DCLANG_DEFAULT_LINKER=lld \
 	-DCLANG_DEFAULT_OBJCOPY=llvm-objcopy \
@@ -1805,7 +1818,7 @@ done
 	-DOCAMLFIND=NOTFOUND \
 	-DLLVM_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
 	-DCLANG_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
-	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \
+	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=OFF \
 %ifarch %{arm}
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{product_arch}-%{_vendor}-%{_os}%{_gnu} \
 %endif
@@ -1849,16 +1862,16 @@ done
 	../llvm
 
 if ! %ninja_build; then
-	# With many threads, there's a chance of libc++ being built
-	# before libc++abi, causing linkage to fail. Simply trying
-	# again "fixes" it.
-	# flang also seems to have SMP build issues
-	for i in `seq 1 30`; do
-		if %ninja_build; then
-			break
-		fi
-	done
-	%ninja_build -j1
+# With many threads, there's a chance of libc++ being built
+# before libc++abi, causing linkage to fail. Simply trying
+# again "fixes" it.
+# flang also seems to have SMP build issues
+    for i in $(seq 1 30); do
+	if %ninja_build; then
+	    break
+	fi
+    done
+    %ninja_build -j1
 fi
 
 cd ..
@@ -1894,11 +1907,15 @@ EOF
 
 %if %{with compat32}
 %cmake32 \
+	-DCMAKE_BUILD_TYPE=MinSizeRel \
+	-DLLVM_PARALLEL_LINK_JOBS=2 \
+	-DLLVM_PARALLEL_COMPILE_JOBS=2 \
 	-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
 	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
 	-DLLVM_CONFIG_PATH=$(pwd)/../build/bin/llvm-config \
-	-DLLVM_ENABLE_PROJECTS="llvm;clang;libunwind;compiler-rt;openmp;polly" \
-	-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER:BOOL=ON \
+	-DLLVM_ENABLE_PROJECTS="llvm;clang;polly;compiler-rt" \
+	-DLLVM_ENABLE_RUNTIMES="libc;libunwind;openmp" \
+	-DLLVM_ENABLE_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
 %if %{with default_compilerrt}
 	-DCLANG_DEFAULT_RTLIB=compiler-rt \
@@ -1926,7 +1943,7 @@ EOF
 	-DCOMPILER_RT_BUILD_CRT:BOOL=ON \
 	-DENABLE_LINKER_BUILD_ID:BOOL=ON \
 	-DOCAMLFIND=NOTFOUND \
-	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \
+	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=OFF \
 	-DLLVM_DEFAULT_TARGET_TRIPLE=i686-%{_vendor}-%{_os}%{_gnu} \
 	-DPOLLY_ENABLE_GPGPU_CODEGEN:BOOL=ON \
 	-DWITH_POLLY:BOOL=ON \
@@ -2043,15 +2060,15 @@ if [ -n "$XCRTARCHES" ]; then
 		cmake \
 			../compiler-rt \
 			-G Ninja \
+			-DCMAKE_BUILD_TYPE=MinSizeRel \
+			-DLLVM_PARALLEL_LINK_JOBS=1 \
+			-DLLVM_PARALLEL_COMPILE_JOBS=1 \
 			-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
 			-DCMAKE_CROSSCOMPILING:BOOL=ON \
 			-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{version} \
 			-DCMAKE_AR=${BINDIR}/llvm-ar \
 			-DCMAKE_NM=${BINDIR}/llvm-nm \
 			-DCMAKE_RANLIB=${BINDIR}/llvm-ranlib \
-%if 0
-			-DLLVM_CONFIG_PATH=${BINDIR}/llvm-config \
-%endif
 			-DCMAKE_ASM_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
 			-DCMAKE_C_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
 			-DCMAKE_CXX_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
@@ -2088,9 +2105,9 @@ fi
 # Get rid of compat32 stuff that isn't needed in a 64-bit
 # environment
 rm -rf \
-	%{buildroot}%{_prefix}/lib/LLVMgold.so \
-	%{buildroot}%{_prefix}/lib/clang \
-	%{buildroot}%{_bindir}
+    %{buildroot}%{_prefix}/lib/LLVMgold.so \
+    %{buildroot}%{_prefix}/lib/clang \
+    %{buildroot}%{_bindir}
 %endif
 
 %ninja_install -C build
