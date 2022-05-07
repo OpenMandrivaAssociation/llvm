@@ -11,7 +11,8 @@
 %endif
 
 # (tpg) set snapshot date
-%define date 20220207
+# 20220327 should be identical to 14.0.0 final
+#define date 20220327
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -104,8 +105,6 @@
 %define ompmajor 1
 %define ompname %mklibname omp %{ompmajor}
 
-%bcond_with upstream_tarballs
-
 %define major %(echo %{version} |cut -d. -f1-2)
 %define major1 %(echo %{version} |cut -d. -f1)
 #define is_main 1
@@ -125,38 +124,28 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	14.0.0
+Version:	14.0.3
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
 %if 0%{?date:1}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
-Release:	0.%{date}.1
-%else
-Release:	1
-%if %{with upstream_tarballs}
-Source0:	http://llvm.org/releases/%{version}/llvm-%{version}.src.tar.xz
-Source1:	http://llvm.org/releases/%{version}/cfe-%{version}.src.tar.xz
-Source2:	http://llvm.org/releases/%{version}/clang-tools-extra-%{version}.src.tar.xz
-Source3:	http://llvm.org/releases/%{version}/polly-%{version}.src.tar.xz
-Source4:	http://llvm.org/releases/%{version}/compiler-rt-%{version}.src.tar.xz
-Source5:	http://llvm.org/releases/%{version}/libcxx-%{version}.src.tar.xz
-Source6:	http://llvm.org/releases/%{version}/libcxxabi-%{version}.src.tar.xz
-Source7:	http://llvm.org/releases/%{version}/libunwind-%{version}.src.tar.xz
-Source8:	http://llvm.org/releases/%{version}/lldb-%{version}.src.tar.xz
-Source9:	http://llvm.org/releases/%{version}/lld-%{version}.src.tar.xz
-Source10:	http://llvm.org/releases/%{version}/openmp-%{version}.src.tar.xz
-Source11:	http://llvm.org/releases/%{version}/libclc-%{version}.src.tar.xz
-%else
-Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
-%endif
-%endif
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/master.tar.gz#/spirv-llvm-translator-%{date}.tar.gz
 # HEAD as of 2022/01/20
 Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b8047fbe45f426f5918fadc67e8408f5b108c3c9.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2021.4.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
+Release:	0.%{date}.1
+%else
+Release:	1
+Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
+# llvm-spirv-translator and friends
+Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_140.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
+# HEAD as of 2022/04/13
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/9c3fd01c8a91761b6e4be97ff4f13de76e779128.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
+%endif
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
@@ -284,6 +273,12 @@ BuildRequires:	atomic-devel
 BuildRequires:	python >= 3.4
 BuildRequires:	python3dist(pyyaml)
 BuildRequires:	python3dist(pygments)
+BuildRequires:	python3dist(matplotlib-inline)
+BuildRequires:	python3dist(backcall)
+BuildRequires:	python3dist(prompt-toolkit)
+BuildRequires:	python3dist(pickleshare)
+BuildRequires:	python3dist(jedi)
+BuildRequires:	python3dist(ptyprocess)
 # Make sure lld doesn't install its own copy
 BuildRequires:	python-six
 BuildRequires:	cmake
@@ -568,8 +563,8 @@ Group:		System/Libraries
 The unwind library, a part of llvm.
 
 %files -n %{libunwind}
-%{_libdir}/libunwind.so.%{libunwind_major}
-%{_libdir}/libunwind.so.1
+%{_libdir}/*/libunwind.so.%{libunwind_major}
+%{_libdir}/*/libunwind.so.1
 
 %package -n %{devunwind}
 Summary:	Development files for libunwind
@@ -580,9 +575,8 @@ Requires:	%{libunwind} = %{EVRD}
 Development files for libunwind.
 
 %files -n %{devunwind}
-%doc %{_docdir}/LLVM/libunwind
-%{_libdir}/libunwind.a
-%{_libdir}/libunwind.so
+%{_libdir}/*/libunwind.a
+%{_libdir}/*/libunwind.so
 %if %{with default_compilerrt}
 %{_libdir}/pkgconfig/libunwind.pc
 %else
@@ -595,10 +589,27 @@ Development files for libunwind.
 
 #-----------------------------------------------------------
 %if %{with libcxx}
-%libpackage c++ 1
-%libpackage c++abi 1
-%{_libdir}/libc++abi.so
-%{_libdir}/libc++.a
+%package -n %{mklibname c++}
+Summary: The libc++ library, an implementation of the C++ STL
+Group: System/Libraries
+%rename %{mklibname c++ 1}
+
+%description -n %{mklibname c++}
+The libc++ library, an implementation of the C++ STL
+
+%files -n %{mklibname c++}
+%{_libdir}/*/libc++.so.1*
+
+%package -n %{mklibname c++abi}
+Summary: Low level implementation of the C++ ABI
+Group: System/Libraries
+%rename %{mklibname c++abi 1}
+
+%description -n %{mklibname c++abi}
+The libc++ library, an implementation of the C++ STL
+
+%files -n %{mklibname c++abi}
+%{_libdir}/*/libc++abi.so.1*
 
 %define cxxdevname %mklibname c++ -d
 %define cxxabistatic %mklibname c++abi -d -s
@@ -614,12 +625,15 @@ Provides:	c++-devel = %{EVRD}
 Development files for libc++, an alternative implementation of the STL.
 
 %files -n %{cxxdevname}
-%doc %{_docdir}/LLVM/libcxx
 %{_includedir}/c++
+%{_includedir}/*/c++/v1
 %{_includedir}/__pstl*
 %{_includedir}/pstl
 %{_prefix}/lib/cmake/ParallelSTL
-%{_libdir}/libc++experimental.a
+%{_libdir}/*/libc++experimental.a
+%{_libdir}/*/libc++abi.so
+%{_libdir}/*/libc++.so
+%{_libdir}/*/libc++.a
 
 %package -n %{cxxabistatic}
 Summary:	Static library for libc++ C++ ABI support
@@ -630,7 +644,7 @@ Requires:	%{cxxdevname} = %{EVRD}
 Static library for libc++'s C++ ABI library.
 
 %files -n %{cxxabistatic}
-%{_libdir}/libc++abi.a
+%{_libdir}/*/libc++abi.a
 %endif
 
 #-----------------------------------------------------------
@@ -727,7 +741,7 @@ This package contains the development files for LLVM.
 %exclude %{_libdir}/libomp.so
 %endif
 %if %{with libcxx}
-%exclude %{_libdir}/libc++abi.so
+%exclude %{_libdir}/*/libc++abi.so
 %endif
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
@@ -772,7 +786,6 @@ Provides:	libomp.so(VERSION)
 Shared libraries for LLVM OpenMP support.
 
 %files -n %{ompname}
-%doc %{_docdir}/LLVM/openmp
 # (Slightly) nonstandard behavior: We package the .so
 # file in the library package.
 # This is because upstream doesn't assign sonames, and
@@ -782,10 +795,12 @@ Shared libraries for LLVM OpenMP support.
 %ifnarch armv7hnl
 %{_includedir}/ompt-multiplex.h
 %endif
-# FIXME why isn't this in %{_libdir}?
-%{_prefix}/lib/libomptarget.rtl.amdgpu.so
-%doc %{_mandir}/man1/llvmopenmp.1*
 %{_libdir}/libomptarget-*.bc
+# FIXME why isn't this in %{_libdir}?
+%{_prefix}/lib/libomptarget.rtl.*.so
+%if "%{_libdir}" != "%{_prefix}/lib"
+%{_prefix}/lib/libomptarget-*.bc
+%endif
 %endif
 
 #-----------------------------------------------------------
@@ -1128,7 +1143,6 @@ Debugger from the LLVM toolchain.
 %files -n lldb
 %{_bindir}/lldb*
 %{_libdir}/python*/site-packages/lldb
-%{_prefix}/lib/lua/*/lldb.so
 %doc %{_mandir}/man1/lldb.1*
 %doc %{_mandir}/man1/lldb-server.1*
 %doc %{_mandir}/man1/lldb-tblgen.1*
@@ -1289,7 +1303,6 @@ Group:		Development/C
 Development files for the 32-bit OpenMP runtime.
 
 %files -n libomp-devel
-%{_prefix}/lib/libgomp.so
 %{_prefix}/lib/libiomp5.so
 %{_prefix}/lib/libomp.so
 %{_prefix}/lib/libomptarget.so
@@ -1355,8 +1368,8 @@ Group:		System/Libraries
 The unwind library, a part of llvm.
 
 %files -n %{lib32unwind}
-%{_prefix}/lib/libunwind.so.%{libunwind_major}
-%{_prefix}/lib/libunwind.so.1
+%{_prefix}/lib/i686*/libunwind.so.%{libunwind_major}
+%{_prefix}/lib/i686*/libunwind.so.1
 
 %package -n %{dev32unwind}
 Summary:	Development files for libunwind (32-bit)
@@ -1368,8 +1381,8 @@ Requires:	%{devunwind} = %{EVRD}
 Development files for libunwind.
 
 %files -n %{dev32unwind}
-%{_prefix}/lib/libunwind.a
-%{_prefix}/lib/libunwind.so
+%{_prefix}/lib/i686*/libunwind.a
+%{_prefix}/lib/i686*/libunwind.so
 %if %{with default_compilerrt}
 %{_prefix}/lib/pkgconfig/libunwind.pc
 %else
@@ -1557,6 +1570,7 @@ Tools for working with SPIR-V, a language for running on GPUs.
 %package -n %{libspirvtools}
 Summary:	Libraries needed for SPIRV-Tools
 Group:		System/Libraries
+%rename %{_lib}spirv-tools0
 
 %description -n %{libspirvtools}
 Libraries needed for SPIRV-Tools.
@@ -1602,6 +1616,7 @@ Library for bi-directional translation between SPIR-V and LLVM IR (32-bit).
 %package -n %{lib32spirvtools}
 Summary:	Libraries needed for SPIRV-Tools (32-bit)
 Group:		System/Libraries
+%rename libspirv-tools0
 
 %description -n %{lib32spirvtools}
 Libraries needed for SPIRV-Tools (32-bit).
@@ -1630,23 +1645,7 @@ Development files for SPIRV-Tools.
 %if 0%{?date:1}
 %setup -q -n llvm-project-%{?is_main:main}%{!?is_main:release-%{major1}.x} -a 20 -a 21 -a 22
 %else
-%if %{with upstream_tarballs}
-%setup -q -n %{name}-%{version}.src -c 0 -a 1 -a 2 -a 3 -a 4 -a 5 -a 6 -a 7 -a 8 -a 9 -a 10 -a 11 -a 20 -a 21 -a 22
-mv llvm-%{version}.src llvm
-mv cfe-%{version}.src clang
-mv clang-tools-extra-%{version}.src clang-tools-extra
-mv polly-%{version}.src polly
-mv compiler-rt-%{version}.src compiler-rt
-mv libcxx-%{version}.src libcxx
-mv libcxxabi-%{version}.src libcxxabi
-mv libunwind-%{version}.src libunwind
-mv lld-%{version}.src lld
-mv lldb-%{version}.src lldb
-mv openmp-%{version}.src openmp
-mv libclc-%{version}.src libclc
-%else
 %setup -q -n llvm-project-%{version}.src -a 20 -a 21 -a 22
-%endif
 %endif
 mv SPIRV-LLVM-Translator-* llvm/projects/SPIRV-LLVM-Translator
 mv SPIRV-Headers-* llvm/projects/SPIRV-Headers
@@ -1719,6 +1718,9 @@ PROJECTS="$PROJECTS;libc"
 RUNTIMES="$RUNTIMES;libc"
 %endif
 PROJECTS="$PROJECTS;libclc"
+
+[ `echo $RUNTIMES |cut -b1` = ';' ] && RUNTIMES="`echo $RUNTIMES |cut -b2-`"
+[ `echo $PROJECTS |cut -b1` = ';' ] && PROJECTS="`echo $PROJECTS |cut -b2-`"
 
 %if %{with bootstrap_gcc}
 export CC=gcc
@@ -1906,6 +1908,7 @@ EOF
 %endif
 
 %if %{with compat32}
+# FIXME libc in LLVM_ENABLE_RUNTIMES breaks the build
 %cmake32 \
 	-DCMAKE_BUILD_TYPE=MinSizeRel \
 	-DLLVM_PARALLEL_LINK_JOBS=2 \
@@ -1914,7 +1917,7 @@ EOF
 	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
 	-DLLVM_CONFIG_PATH=$(pwd)/../build/bin/llvm-config \
 	-DLLVM_ENABLE_PROJECTS="llvm;clang;polly;compiler-rt" \
-	-DLLVM_ENABLE_RUNTIMES="libc;libunwind;openmp" \
+	-DLLVM_ENABLE_RUNTIMES="libunwind;openmp" \
 	-DLLVM_ENABLE_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
 %if %{with default_compilerrt}
@@ -1925,6 +1928,9 @@ EOF
 %else
 	-DCLANG_DEFAULT_RTLIB=libgcc \
 %endif
+	-DLIBOMPTARGET_DEP_LIBFFI_LIBRARIES:FILEPATH=%{_prefix}/lib/libffi.so \
+	-Dpkgcfg_lib_LIBOMPTARGET_SEARCH_LIBFFI_ffi:FILEPATH=%{_prefix}/lib/libffi.so \
+	-DLIBXML2_LIBRARY:FILEPATH=%{_prefix}/lib/libxml2.so \
 	-DBUILD_SHARED_LIBS:BOOL=ON \
 	-DLLVM_ENABLE_FFI:BOOL=ON \
 	-DLLVM_TARGETS_TO_BUILD=all \
@@ -2204,6 +2210,7 @@ rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
 
 # We get libgomp from gcc, so don't symlink libomp to it
 rm -f %{buildroot}%{_libdir}/libgomp.so
+rm -f %{buildroot}%{_prefix}/lib/libgomp.so
 
 # Fix bogus pointers to incorrect locations
 %if "%{_lib}" != "lib"
