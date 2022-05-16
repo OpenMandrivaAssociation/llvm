@@ -233,6 +233,7 @@ BuildRequires:	pkgconfig(libelf)
 BuildRequires:	pkgconfig(lua)
 # libclc
 BuildRequires:	vulkan-headers
+BuildRequires:	pkgconfig(vulkan)
 %if %{without bootstrap}
 BuildRequires:	graphviz
 # Without this, generating man pages fails
