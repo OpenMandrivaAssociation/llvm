@@ -1,0 +1,11 @@
+diff -up llvm-project-14.0.3.src/bolt/tools/driver/CMakeLists.txt.omv~ llvm-project-14.0.3.src/bolt/tools/driver/CMakeLists.txt
+--- llvm-project-14.0.3.src/bolt/tools/driver/CMakeLists.txt.omv~	2022-05-13 08:40:52.871206658 +0200
++++ llvm-project-14.0.3.src/bolt/tools/driver/CMakeLists.txt	2022-05-13 11:58:12.845062991 +0200
+@@ -20,6 +20,7 @@ add_llvm_tool(llvm-bolt
+   DEPENDS
+   ${BOLT_DRIVER_DEPS}
+   )
++target_link_libraries(llvm-bolt PRIVATE LLVMBOLTCore LLVMBOLTUtils LLVMBOLTProfile LLVMBOLTRewrite LLVMBOLTTargetX86 LLVMBOLTTargetAArch64 LLVMBOLTPasses LLVMBOLTRuntimeLibs LLVMAArch64Desc)
+ 
+ add_llvm_tool_symlink(perf2bolt llvm-bolt)
+ add_llvm_tool_symlink(llvm-boltdiff llvm-bolt)

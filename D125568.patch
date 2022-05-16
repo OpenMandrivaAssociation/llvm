@@ -1,0 +1,173 @@
+diff -up llvm-project-14.0.3.src/bolt/lib/Core/CMakeLists.txt.10~ llvm-project-14.0.3.src/bolt/lib/Core/CMakeLists.txt
+--- llvm-project-14.0.3.src/bolt/lib/Core/CMakeLists.txt.10~	2022-04-29 02:10:18.000000000 +0200
++++ llvm-project-14.0.3.src/bolt/lib/Core/CMakeLists.txt	2022-05-13 20:53:20.140214929 +0200
+@@ -1,5 +1,4 @@
+ set(LLVM_LINK_COMPONENTS
+-  BOLTUtils
+   DebugInfoDWARF
+   Demangle
+   MC
+@@ -26,3 +25,8 @@ add_llvm_library(LLVMBOLTCore
+   LINK_LIBS
+   ${LLVM_PTHREAD_LIB}
+   )
++
++target_link_libraries(LLVMBOLTCore
++  PRIVATE
++  LLVMBOLTUtils
++  )
+diff -up llvm-project-14.0.3.src/bolt/lib/Passes/CMakeLists.txt.10~ llvm-project-14.0.3.src/bolt/lib/Passes/CMakeLists.txt
+--- llvm-project-14.0.3.src/bolt/lib/Passes/CMakeLists.txt.10~	2022-04-29 02:10:18.000000000 +0200
++++ llvm-project-14.0.3.src/bolt/lib/Passes/CMakeLists.txt	2022-05-13 20:53:20.140214929 +0200
+@@ -50,8 +50,12 @@ add_llvm_library(LLVMBOLTPasses
+ 
+   LINK_COMPONENTS
+   AsmPrinter
+-  BOLTCore
+-  BOLTUtils
+   MC
+   Support
+   )
++
++target_link_libraries(LLVMBOLTPasses
++  PRIVATE
++  LLVMBOLTCore
++  LLVMBOLTUtils
++  )
+diff -up llvm-project-14.0.3.src/bolt/lib/Profile/CMakeLists.txt.10~ llvm-project-14.0.3.src/bolt/lib/Profile/CMakeLists.txt
+--- llvm-project-14.0.3.src/bolt/lib/Profile/CMakeLists.txt.10~	2022-04-29 02:10:18.000000000 +0200
++++ llvm-project-14.0.3.src/bolt/lib/Profile/CMakeLists.txt	2022-05-13 20:53:20.140214929 +0200
+@@ -8,8 +8,12 @@ add_llvm_library(LLVMBOLTProfile
+   YAMLProfileWriter.cpp
+ 
+   LINK_COMPONENTS
+-  BOLTCore
+-  BOLTPasses
+-  BOLTUtils
+   Support
+   )
++
++target_link_libraries(LLVMBOLTProfile
++  PRIVATE
++  LLVMBOLTCore
++  LLVMBOLTPasses
++  LLVMBOLTUtils
++  )
+diff -up llvm-project-14.0.3.src/bolt/lib/Rewrite/CMakeLists.txt.10~ llvm-project-14.0.3.src/bolt/lib/Rewrite/CMakeLists.txt
+--- llvm-project-14.0.3.src/bolt/lib/Rewrite/CMakeLists.txt.10~	2022-04-29 02:10:18.000000000 +0200
++++ llvm-project-14.0.3.src/bolt/lib/Rewrite/CMakeLists.txt	2022-05-13 20:53:20.140214929 +0200
+@@ -1,9 +1,4 @@
+ set(LLVM_LINK_COMPONENTS
+-  BOLTCore
+-  BOLTPasses
+-  BOLTProfile
+-  BOLTRuntimeLibs
+-  BOLTUtils
+   DebugInfoDWARF
+   DWP
+   ExecutionEngine
+@@ -12,13 +7,21 @@ set(LLVM_LINK_COMPONENTS
+   Support
+   )
+ 
++set(TARGET_LINK_LIBRARIES
++  LLVMBOLTCore
++  LLVMBOLTPasses
++  LLVMBOLTProfile
++  LLVMBOLTRuntimeLibs
++  LLVMBOLTUtils
++  )
++
+ if ("AArch64" IN_LIST LLVM_TARGETS_TO_BUILD)
+-  list(APPEND LLVM_LINK_COMPONENTS BOLTTargetAArch64)
++  list(APPEND TARGET_LINK_LIBRARIES LLVMBOLTTargetAArch64)
+   set(BOLT_AArch64 On)
+ endif()
+ 
+ if ("X86" IN_LIST LLVM_TARGETS_TO_BUILD)
+-  list(APPEND LLVM_LINK_COMPONENTS BOLTTargetX86)
++  list(APPEND TARGET_LINK_LIBRARIES LLVMBOLTTargetX86)
+   set(BOLT_X64 On)
+ endif()
+ 
+@@ -34,6 +37,11 @@ add_llvm_library(LLVMBOLTRewrite
+   ${LLVM_PTHREAD_LIB}
+   )
+ 
++target_link_libraries(LLVMBOLTRewrite
++  PRIVATE
++  ${TARGET_LINK_LIBRARIES}
++  )
++
+ if (DEFINED BOLT_AArch64)
+   target_compile_definitions(LLVMBOLTRewrite PRIVATE AARCH64_AVAILABLE)
+ endif()
+diff -up llvm-project-14.0.3.src/bolt/lib/RuntimeLibs/CMakeLists.txt.10~ llvm-project-14.0.3.src/bolt/lib/RuntimeLibs/CMakeLists.txt
+--- llvm-project-14.0.3.src/bolt/lib/RuntimeLibs/CMakeLists.txt.10~	2022-04-29 02:10:18.000000000 +0200
++++ llvm-project-14.0.3.src/bolt/lib/RuntimeLibs/CMakeLists.txt	2022-05-13 20:53:20.140214929 +0200
+@@ -1,7 +1,4 @@
+ set(LLVM_LINK_COMPONENTS
+-  BOLTCore
+-  BOLTPasses
+-  BOLTUtils
+   BinaryFormat
+   MC
+   Object
+@@ -14,3 +11,10 @@ add_llvm_library(LLVMBOLTRuntimeLibs
+   HugifyRuntimeLibrary.cpp
+   InstrumentationRuntimeLibrary.cpp
+   )
++
++target_link_libraries(LLVMBOLTRuntimeLibs
++  PRIVATE
++  LLVMBOLTCore
++  LLVMBOLTPasses
++  LLVMBOLTUtils
++  )
+diff -up llvm-project-14.0.3.src/bolt/tools/driver/CMakeLists.txt.10~ llvm-project-14.0.3.src/bolt/tools/driver/CMakeLists.txt
+--- llvm-project-14.0.3.src/bolt/tools/driver/CMakeLists.txt.10~	2022-04-29 02:10:18.000000000 +0200
++++ llvm-project-14.0.3.src/bolt/tools/driver/CMakeLists.txt	2022-05-13 20:54:15.188462963 +0200
+@@ -1,8 +1,5 @@
+ set(LLVM_LINK_COMPONENTS
+   ${LLVM_TARGETS_TO_BUILD}
+-  BOLTProfile
+-  BOLTRewrite
+-  BOLTUtils
+   MC
+   Object
+   Support
+@@ -21,6 +18,14 @@ add_llvm_tool(llvm-bolt
+   ${BOLT_DRIVER_DEPS}
+   )
+ 
++target_link_libraries(llvm-bolt
++  PRIVATE
++  LLVMBOLTProfile
++  LLVMBOLTRewrite
++  LLVMBOLTUtils
++  LLVMAArch64Desc
++  )
++
+ add_llvm_tool_symlink(perf2bolt llvm-bolt)
+ add_llvm_tool_symlink(llvm-boltdiff llvm-bolt)
+ add_llvm_tool_symlink(llvm-bolt-heatmap llvm-bolt)
+diff -up llvm-project-14.0.3.src/bolt/unittests/Core/CMakeLists.txt.10~ llvm-project-14.0.3.src/bolt/unittests/Core/CMakeLists.txt
+--- llvm-project-14.0.3.src/bolt/unittests/Core/CMakeLists.txt.10~	2022-04-29 02:10:18.000000000 +0200
++++ llvm-project-14.0.3.src/bolt/unittests/Core/CMakeLists.txt	2022-05-13 20:54:52.260630386 +0200
+@@ -1,11 +1,12 @@
+-set(LLVM_LINK_COMPONENTS
+-  BOLTRewrite
+-  )
+-
+ add_bolt_unittest(CoreTests
+   MCPlusBuilder.cpp
+   )
+ 
++target_link_libraries(CoreTests
++  PRIVATE
++  LLVMBOLTRewrite
++  )
++
+ string(FIND "${LLVM_TARGETS_TO_BUILD}" "AArch64" POSITION)
+ if (NOT ${POSITION} EQUAL -1)
+   include_directories(
