@@ -231,6 +231,8 @@ BuildRequires:	flex
 BuildRequires:	pkgconfig(libedit)
 BuildRequires:	pkgconfig(libelf)
 BuildRequires:	pkgconfig(lua)
+# libclc
+BuildRequires:	vulkan-headers
 %if %{without bootstrap}
 BuildRequires:	graphviz
 # Without this, generating man pages fails
