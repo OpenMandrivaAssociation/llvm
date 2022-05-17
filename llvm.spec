@@ -1854,7 +1854,9 @@ done
 PROCESSES="$(getconf _NPROCESSORS_ONLN)"
 # We reduce the number of processors to use a bit because
 # building LLVM is VERY RAM intensive
-#[ "$PROCESSES" -gt 16 ] && PROCESSES=16
+%ifarch %{aarch64}
+[ "$PROCESSES" -gt 4 ] && PROCESSES=4
+%endif
 
 # The "%if 1" below is just a quick way to get rid of the real
 # 64-bit build to debug 32-bit build issues. No need to do a
