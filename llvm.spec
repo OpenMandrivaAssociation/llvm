@@ -813,8 +813,10 @@ Shared libraries for LLVM OpenMP support.
 %{_libdir}/libomptarget-*.bc
 # FIXME why isn't this in %{_libdir}?
 %{_prefix}/lib/libomptarget.rtl.*.so
+%if %{with compat32}
 %if "%{_libdir}" != "%{_prefix}/lib"
 %{_prefix}/lib/libomptarget-*.bc
+%endif
 %endif
 %endif
 
