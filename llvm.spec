@@ -2348,6 +2348,9 @@ mv %{buildroot}%{_libdir}/x86_64-*/* %{buildroot}%{_libdir}/
 rmdir %{buildroot}%{_libdir}/x86_64-*
 mv %{buildroot}%{_prefix}/lib/i686-*/* %{buildroot}%{_prefix}/lib/
 rmdir %{buildroot}%{_prefix}/lib/i686-*
+%else
+mv %{buildroot}%{_libdir}/*-linux-*/* %{buildroot}%{_libdir}/
+rmdir %{buildroot}%{_libdir}/*-linux-*
 %endif
 
 %if %{with unwind}
