@@ -1478,6 +1478,7 @@ existing compilers together.
 
 %files mlir-tools
 %{_bindir}/mlir-*
+
 #-----------------------------------------------------------
 %define mlirlib %{mklibname mlir}
 %package -n %{mlirlib}
@@ -1503,6 +1504,7 @@ existing compilers together.
 %{_libdir}/libmlir_c_runner_utils.so.*
 %{_libdir}/libmlir_runner_utils.so.*
 %{_libdir}/libmlir_test_spirv_cpu_runner_c_wrappers.so.*
+%{_libdir}/libvulkan-runtime-wrappers.so.*
 
 %define mlirdev %{mklibname -d mlir}
 %package -n %{mlirdev}
@@ -1572,7 +1574,6 @@ Nvidia PTX backend for the libclc OpenCL library.
 %{_includedir}/clc
 %dir %{_datadir}/clc
 %{_datadir}/pkgconfig/libclc.pc
-%{_libdir}/libvulkan-runtime-wrappers.so.*
 # Should this be a separate package? It's an
 # OpenCL to Vulkan compute shader compiler.
 %{_datadir}/clc/clspv--.bc
