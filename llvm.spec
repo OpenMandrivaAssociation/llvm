@@ -49,7 +49,7 @@
 %bcond_with libc
 # MLIR is broken in 13.0.0-rc3 (doesn't compile)
 %bcond_without mlir
-%ifarch %{arm} %{riscv} aarch64
+%ifarch %{arm} %{riscv}
 %ifarch %{arm} %{riscv}
 # RISC-V and armv7 don't have a working ocaml compiler yet
 %bcond_with ocaml
