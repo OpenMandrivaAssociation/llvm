@@ -322,8 +322,8 @@ BuildRequires:	libunwind-devel
 %endif
 # for libGPURuntime in Polly
 %ifnarch %{riscv}
-BuildRequires:	pkgconfig(OpenCL)
-BuildRequires:	mesa-opencl-devel
+#BuildRequires:	pkgconfig(OpenCL)
+#BuildRequires:	mesa-opencl-devel
 %endif
 %if %{with compat32} && ! %{with bootstrap32}
 BuildRequires:	devel(libOpenCL)
