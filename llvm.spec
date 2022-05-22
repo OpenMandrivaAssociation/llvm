@@ -321,7 +321,7 @@ BuildRequires:	libunwind-devel
 %endif
 %endif
 # for libGPURuntime in Polly
-%ifnarch %{riscv} %{aarch64}
+%ifnarch %{riscv}
 BuildRequires:	pkgconfig(OpenCL)
 BuildRequires:	mesa-opencl-devel
 %endif
@@ -749,7 +749,7 @@ This package contains the development files for LLVM.
 %exclude %{_libdir}/libLLVM-*.so
 # FIXME this needs a real soname
 %exclude %{_libdir}/libSPIRV-Tools-shared.so
-%ifnarch %{riscv} %{aarch64}
+%ifnarch %{riscv}
 %exclude %{_libdir}/libGPURuntime.so
 %endif
 %ifnarch %{arm}
@@ -1268,7 +1268,7 @@ Group:		System/Libraries
 %description -n %{_lib}gpuruntime
 GPU runtime library.
 
-%ifnarch %{riscv} %{aarch64}
+%ifnarch %{riscv}
 %files -n %{_lib}gpuruntime
 %{_libdir}/libGPURuntime.so
 %endif
@@ -1349,7 +1349,7 @@ Group:		System/Libraries
 %description -n libgpuruntime
 32-bit GPU runtime library.
 
-%ifnarch %{riscv} %{aarch64}
+%ifnarch %{riscv}
 %if ! %{with bootstrap32}
 %files -n libgpuruntime
 %{_prefix}/lib/libGPURuntime.so
