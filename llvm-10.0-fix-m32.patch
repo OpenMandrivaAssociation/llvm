@@ -1,6 +1,6 @@
-diff -up llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.11~ llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.11~	2022-01-18 18:35:58.520171110 +0100
-+++ llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp	2022-01-18 18:36:57.473519242 +0100
+diff -up llvm-project-14.0.4.src/clang/lib/Driver/ToolChains/Linux.cpp.12~ llvm-project-14.0.4.src/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-14.0.4.src/clang/lib/Driver/ToolChains/Linux.cpp.12~	2022-05-25 13:35:17.607955532 +0200
++++ llvm-project-14.0.4.src/clang/lib/Driver/ToolChains/Linux.cpp	2022-05-25 14:55:03.855345073 +0200
 @@ -286,6 +286,7 @@ Linux::Linux(const Driver &D, const llvm
          Paths);
    }
@@ -20,5 +20,5 @@ diff -up llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.11~ llvm-projec
    Generic_GCC::AddMultiarchPaths(D, SysRoot, OSLibDir, Paths);
 +#endif
  
-   // Similar to the logic for GCC above, if we are currently running Clang
-   // inside of the requested system root, add its parent library path to those
+   // The deprecated -DLLVM_ENABLE_PROJECTS=libcxx configuration installs
+   // libc++.so in D.Dir+"/../lib/". Detect this path.

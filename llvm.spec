@@ -125,7 +125,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	14.0.3
+Version:	14.0.4
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -134,17 +134,17 @@ Url:		http://llvm.org/
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/master.tar.gz#/spirv-llvm-translator-%{date}.tar.gz
-# HEAD as of 2022/01/20
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b8047fbe45f426f5918fadc67e8408f5b108c3c9.tar.gz
+# HEAD as of 2022/05/25
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b765c355f488837ca4c77980ba69484f3ff277f5.tar.gz
 Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
 Release:	0.%{date}.1
 %else
-Release:	2
+Release:	1
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_140.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
-# HEAD as of 2022/04/13
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/9c3fd01c8a91761b6e4be97ff4f13de76e779128.tar.gz
+# HEAD as of 2022/05/25
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b765c355f488837ca4c77980ba69484f3ff277f5.tar.gz
 Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
 %endif
 # For compatibility with the nongnu.org libunwind
@@ -226,6 +226,7 @@ Source63:	llvm-riscv-needs-libatomic-linkage.patch
 # SPIR-V fixes
 Patch90:	spirv-fix-warnings.patch
 Patch91:	SPRIV-Tools-soname.patch
+Patch92:	spirv-tools-adapt-to-newer-headers.patch
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath

@@ -1,0 +1,11 @@
+diff -up llvm-project-14.0.4.src/llvm/projects/SPIRV-Tools/source/val/validate_builtins.cpp.omv~ llvm-project-14.0.4.src/llvm/projects/SPIRV-Tools/source/val/validate_builtins.cpp
+--- llvm-project-14.0.4.src/llvm/projects/SPIRV-Tools/source/val/validate_builtins.cpp.omv~	2022-05-25 21:09:40.573246335 +0200
++++ llvm-project-14.0.4.src/llvm/projects/SPIRV-Tools/source/val/validate_builtins.cpp	2022-05-25 21:10:07.128194758 +0200
+@@ -4185,6 +4185,7 @@ spv_result_t BuiltInsValidator::Validate
+     case SpvBuiltInBaryCoordNV:
+     case SpvBuiltInBaryCoordNoPerspNV:
+     case SpvBuiltInCurrentRayTimeNV:
++    case SpvBuiltInCullMaskKHR:
+       // No validation rules (for the moment).
+       break;
+ 
