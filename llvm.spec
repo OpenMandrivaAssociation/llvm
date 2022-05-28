@@ -748,6 +748,7 @@ This package contains the development files for LLVM.
 %{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
 %exclude %{_libdir}/libLLVM-*.so
+%exclude %{_libdir}/libomptarget.so
 # FIXME this needs a real soname
 %exclude %{_libdir}/libSPIRV-Tools-shared.so
 %ifnarch %{riscv}
@@ -808,6 +809,7 @@ Shared libraries for LLVM OpenMP support.
 # by keeping the .so we can keep compatible with binaries
 # built against upstream libomp
 %{_libdir}/libomp.so*
+%{_libdir}/libomptarget.so
 %ifnarch armv7hnl
 %{_includedir}/ompt-multiplex.h
 %endif
