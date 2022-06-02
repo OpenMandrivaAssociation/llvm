@@ -2138,6 +2138,8 @@ export LD_LIBRARY_PATH=$(pwd)/build/%{_lib}:$LD_LIBRARY_PATH
 mkdir build-libclc
 cd build-libclc
 #ln -sf %{_bindir}/llvm-spirv ../build/bin
+which llvm-spirv
+ls -l $(which llvm-spirv)
 cmake \
 	../libclc \
 	-G Ninja \
@@ -2146,9 +2148,14 @@ cmake \
 	-DCMAKE_AR=${BINDIR}/llvm-ar \
 	-DCMAKE_NM=${BINDIR}/llvm-nm \
 	-DCMAKE_RANLIB=${BINDIR}/llvm-ranlib \
+	-DCMAKE_LINKER=${BINDIR}/ld.lld \
 	-DLLVM_CONFIG=${BINDIR}/llvm-config \
-	-DCMAKE_C_COMPILER=${BINDIR}/clang
-%ninja_build
+	-DCMAKE_C_COMPILER=${BINDIR}/clang \
+	-DCMAKE_CXX_COMPILER=${BINDIR}/clang++
+# FIXME "|| ninja" below shouldn't be necessary, seems
+# to work around a weird build system bug hitting minor
+# updates
+%ninja_build || ninja
 cd ..
 %endif
 
@@ -2354,8 +2361,10 @@ rm -rf %{buildroot}%{_includedir}/*-*-*
 %ifarch %{x86_64}
 mv %{buildroot}%{_libdir}/x86_64-*/* %{buildroot}%{_libdir}/
 rmdir %{buildroot}%{_libdir}/x86_64-*
+%if %{with compat32}
 mv %{buildroot}%{_prefix}/lib/i686-*/* %{buildroot}%{_prefix}/lib/
 rmdir %{buildroot}%{_prefix}/lib/i686-*
+%endif
 %else
 mv %{buildroot}%{_libdir}/*-linux-*/* %{buildroot}%{_libdir}/
 rmdir %{buildroot}%{_libdir}/*-linux-*
