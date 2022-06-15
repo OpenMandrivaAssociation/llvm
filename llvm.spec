@@ -139,7 +139,7 @@ Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b765c355f488837c
 Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
 Release:	0.%{date}.1
 %else
-Release:	1
+Release:	2
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_140.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
@@ -766,6 +766,23 @@ This package contains the development files for LLVM.
 # Stuff from clang
 %exclude %{_libdir}/libclang*.so
 %exclude %{_libdir}/libLTO.so
+
+#-----------------------------------------------------------
+%define staticname %mklibname -d -s %{name}
+
+%package -n %{staticname}
+Summary:	Static library files for LLVM
+Group:		Development/Other
+Provides:	llvm-static-devel = %{EVRD}
+Requires:	%{devname} = %{EVRD}
+%{expand:%(for i in %{LLVMLibs} %{LLVM64Libs} %{ClangLibs} %{Clang64Libs} %{LLDLibs} %{MLIRLibs} %{FlangLibs} %{BOLTLibs}; do
+	echo "Requires: %%{mklibname -d -s $i} = %{EVRD}"
+done)}
+
+%description -n %{staticname}
+Static library files for LLVM
+
+%files -n %{staticname}
 
 #-----------------------------------------------------------
 %if %{with openmp}
