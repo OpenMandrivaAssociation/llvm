@@ -1189,6 +1189,7 @@ Debugger from the LLVM toolchain.
 %{_libdir}/python*/site-packages/lldb
 %{_libdir}/liblldb.so.*
 %{_libdir}/liblldbIntelFeatures.so.*
+%{_libdir}/lua/*/lldb.so
 %doc %{_mandir}/man1/lldb.1*
 %doc %{_mandir}/man1/lldb-server.1*
 %doc %{_mandir}/man1/lldb-tblgen.1*
@@ -1786,8 +1787,7 @@ git commit --quiet -am "Fake commit to make cmake files happy"
 # Fix bogus permissions
 find . -type d -exec chmod 0755 {} \;
 
-# Let's see if upstream is just paranoid about requiring exactly
-# lua 5.3 instead of lua 5.3 or later...
+# lldb pretends it requires exactly lua 5.3 -- but works fine with 5.4
 LUAVER="$(pkg-config --variable=V lua)"
 sed -i -e "s,5\.3,$LUAVER,g" lldb/test/API/lua_api/TestLuaAPI.py lldb/CMakeLists.txt lldb/cmake/modules/FindLuaAndSwig.cmake
 
@@ -2031,6 +2031,12 @@ if ! %ninja_build; then
 fi
 
 cd ..
+
+%if "%{_lib}" != "lib"
+# FIXME this should be fixed properly, in the CMake files...
+# lldb's lua plugin gets installed to the wrong place.
+mv %{buildroot}%{_prefix}/lib/lua %{buildroot}%{_libdir}
+%endif
 %endif
 
 %if %{with compat32}
