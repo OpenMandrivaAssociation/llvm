@@ -2031,12 +2031,6 @@ if ! %ninja_build; then
 fi
 
 cd ..
-
-%if "%{_lib}" != "lib"
-# FIXME this should be fixed properly, in the CMake files...
-# lldb's lua plugin gets installed to the wrong place.
-mv %{buildroot}%{_prefix}/lib/lua %{buildroot}%{_libdir}
-%endif
 %endif
 
 %if %{with compat32}
@@ -2316,6 +2310,12 @@ if [ -n "$XCRTARCHES" ]; then
 	%ninja_install -C xbuild-crt-${arch}
     done
 fi
+%endif
+
+%if "%{_lib}" != "lib"
+# FIXME this should be fixed properly, in the CMake files...
+# lldb's lua plugin gets installed to the wrong place.
+mv %{buildroot}%{_prefix}/lib/lua %{buildroot}%{_libdir}
 %endif
 
 # Nuke the internal copy, we have system python-six
