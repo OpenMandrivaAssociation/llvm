@@ -104,7 +104,8 @@
 %define __requires_exclude 'devel.*'
 
 %define ompmajor 1
-%define ompname %mklibname omp %{ompmajor}
+%define ompname %mklibname omp
+%define oldompname %mklibname omp %{ompmajor}
 
 %define major %(echo %{version} |cut -d. -f1-2)
 %define major1 %(echo %{version} |cut -d. -f1)
@@ -125,7 +126,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	14.0.5
+Version:	14.0.6
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -134,17 +135,17 @@ Url:		http://llvm.org/
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/master.tar.gz#/spirv-llvm-translator-%{date}.tar.gz
-# HEAD as of 2022/05/25
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b765c355f488837ca4c77980ba69484f3ff277f5.tar.gz
+# HEAD as of 2022/06/26
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/36c0c1596225e728bd49abb7ef56a3953e7ed468.tar.gz
 Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
 Release:	0.%{date}.1
 %else
-Release:	2
+Release:	1
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_140.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
-# HEAD as of 2022/05/25
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b765c355f488837ca4c77980ba69484f3ff277f5.tar.gz
+# HEAD as of 2022/06/26
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/36c0c1596225e728bd49abb7ef56a3953e7ed468.tar.gz
 Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
 %endif
 # For compatibility with the nongnu.org libunwind
@@ -789,6 +790,7 @@ Static library files for LLVM
 %package -n %{ompname}
 Summary:	LLVM OpenMP shared libraries
 Group:		System/Libraries
+%rename %{oldompname}
 # For libomp.so compatibility (see comment in file list)
 %if "%{_lib}" == "lib64"
 Provides:	libomp.so()(64bit)
@@ -831,13 +833,7 @@ Shared libraries for LLVM OpenMP support.
 %{_includedir}/ompt-multiplex.h
 %endif
 %{_libdir}/libomptarget-*.bc
-# FIXME why isn't this in %{_libdir}?
-%{_prefix}/lib/libomptarget.rtl.*.so
-%if %{with compat32}
-%if "%{_libdir}" != "%{_prefix}/lib"
-%{_prefix}/lib/libomptarget-*.bc
-%endif
-%endif
+%{_libdir}/libomptarget.rtl.*.so
 %endif
 
 #-----------------------------------------------------------
@@ -1376,17 +1372,21 @@ Group:		System/Libraries
 %endif
 %endif
 
-%package -n libomp1
+%package -n libomp
 Summary:	32-bit OpenMP runtime
 Group:		System/Libraries
+%rename libomp1
 
-%description -n libomp1
+%description -n libomp
 32-bit OpenMP runtime.
 
-%files -n libomp1
+%files -n libomp
 %{_prefix}/lib/libomp.so.1*
 # FIXME does this need a SOVERSION?
 %{_prefix}/lib/libompd.so
+%{_prefix}/lib/libomptarget.so
+%{_prefix}/lib/libomptarget.rtl.*.so
+%{_prefix}/lib/libomptarget-*.bc
 
 %package -n libomp-devel
 Summary:	Development files for the 32-bit OpenMP runtime
@@ -1786,6 +1786,11 @@ git commit --quiet -am "Fake commit to make cmake files happy"
 # Fix bogus permissions
 find . -type d -exec chmod 0755 {} \;
 
+# Let's see if upstream is just paranoid about requiring exactly
+# lua 5.3 instead of lua 5.3 or later...
+LUAVER="$(pkg-config --variable=V lua)"
+sed -i -e "s,5\.3,$LUAVER,g" lldb/test/API/lua_api/TestLuaAPI.py lldb/CMakeLists.txt lldb/cmake/modules/FindLuaAndSwig.cmake
+
 # LLVM doesn't use autoconf, but it uses autoconf's config.guess
 # to find target arch and friends (hidden away in cmake/).
 # Let's make sure we replace its outdated copy (which doesn't
@@ -1873,11 +1878,15 @@ EOF
 done
 
 PROCESSES="$(getconf _NPROCESSORS_ONLN)"
-# We reduce the number of processors to use a bit because
-# building LLVM is VERY RAM intensive
-%ifarch %{aarch64}
-[ "$PROCESSES" -gt 4 ] && PROCESSES=4
-%endif
+CPROCESSES="$PROCESSES"
+# Linking LLVM with LTO enabled is VERY RAM intensive
+# and breaks boxes that have loads of CPU cores but no
+# terabytes of RAM...
+if [ "$PROCESSES" -gt 2 ]; then
+	LPROCESSES=2
+else
+	LPROCESSES=$PROCESSES
+fi
 
 # The "%if 1" below is just a quick way to get rid of the real
 # 64-bit build to debug 32-bit build issues. No need to do a
@@ -1902,8 +1911,8 @@ PROCESSES="$(getconf _NPROCESSORS_ONLN)"
 	-DLLVM_PARALLEL_LINK_JOBS=1 \
 	-DLLVM_PARALLEL_COMPILE_JOBS=1 \
 %else
-	-DLLVM_PARALLEL_LINK_JOBS=$PROCESSES \
-	-DLLVM_PARALLEL_COMPILE_JOBS=$PROCESSES \
+	-DLLVM_PARALLEL_LINK_JOBS=$LPROCESSES \
+	-DLLVM_PARALLEL_COMPILE_JOBS=$CPROCESSES \
 %endif
 	-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
 	-DLLVM_ENABLE_PROJECTS="$PROJECTS" \
@@ -1951,6 +1960,8 @@ PROCESSES="$(getconf _NPROCESSORS_ONLN)"
 	-DOCAMLFIND=NOTFOUND \
 	-DLLVM_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
 	-DCLANG_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
+	-DOPENMP_LIBDIR_SUFFIX=$(echo %{_lib} |sed -e 's,^lib,,') \
+	-DOPENMP_INSTALL_LIBDIR=%{_lib} \
 	-DLLVM_OPTIMIZED_TABLEGEN:BOOL=ON \
 %ifarch %{arm}
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{product_arch}-%{_vendor}-%{_os}%{_gnu} \
@@ -2054,8 +2065,8 @@ EOF
 # FIXME libc in LLVM_ENABLE_RUNTIMES breaks the build
 %cmake32 \
 	-DCMAKE_BUILD_TYPE=MinSizeRel \
-	-DLLVM_PARALLEL_LINK_JOBS=$PROCESSES \
-	-DLLVM_PARALLEL_COMPILE_JOBS=$PROCESSES \
+	-DLLVM_PARALLEL_LINK_JOBS=$LPROCESSES \
+	-DLLVM_PARALLEL_COMPILE_JOBS=$CPROCESSES \
 	-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
 	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
 	-DLLVM_CONFIG_PATH=$(pwd)/../build/bin/llvm-config \
@@ -2219,8 +2230,8 @@ if [ -n "$XCRTARCHES" ]; then
 			../compiler-rt \
 			-G Ninja \
 			-DCMAKE_BUILD_TYPE=MinSizeRel \
-			-DLLVM_PARALLEL_LINK_JOBS=$PROCESSES \
-			-DLLVM_PARALLEL_COMPILE_JOBS=$PROCESSES \
+			-DLLVM_PARALLEL_LINK_JOBS=$LPROCESSES \
+			-DLLVM_PARALLEL_COMPILE_JOBS=$CPROCESSES \
 			-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
 			-DCMAKE_CROSSCOMPILING:BOOL=ON \
 			-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{version} \
