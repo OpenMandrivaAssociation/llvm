@@ -2318,9 +2318,6 @@ fi
 mv %{buildroot}%{_prefix}/lib/lua %{buildroot}%{_libdir}
 %endif
 
-# Nuke the internal copy, we have system python-six
-#rm -f %{buildroot}%{_libdir}/python*/site-packages/six.py
-
 # https://bugs.llvm.org/show_bug.cgi?id=42455
 cp lld/docs/ld.lld.1 %{buildroot}%{_mandir}/man1/
 
