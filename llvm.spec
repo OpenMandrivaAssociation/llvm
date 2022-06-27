@@ -308,6 +308,7 @@ BuildRequires:	lld < %{EVRD}
 Requires:	%{ompname} = %{EVRD}
 %endif
 %if %{with compat32}
+BuildRequires:	libc6
 BuildRequires:	devel(libffi)
 BuildRequires:	devel(libxml2)
 BuildRequires:	devel(libelf)
