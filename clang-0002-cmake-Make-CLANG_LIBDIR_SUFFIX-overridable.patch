@@ -1,12 +1,12 @@
-diff -up llvm-9.0.0-20190707/clang/CMakeLists.txt.29~ llvm-9.0.0-20190707/clang/CMakeLists.txt
---- llvm-9.0.0-20190707/clang/CMakeLists.txt.29~	2019-07-07 16:29:47.012528828 +0200
-+++ llvm-9.0.0-20190707/clang/CMakeLists.txt	2019-07-07 16:30:39.589532038 +0200
-@@ -332,7 +332,7 @@ if (NOT LLVM_LINK_LLVM_DYLIB AND CLANG_L
+diff -up llvm-project-release-15.x/clang/CMakeLists.txt.20~ llvm-project-release-15.x/clang/CMakeLists.txt
+--- llvm-project-release-15.x/clang/CMakeLists.txt.20~	2022-07-31 13:12:17.249816158 +0200
++++ llvm-project-release-15.x/clang/CMakeLists.txt	2022-07-31 13:21:00.054974790 +0200
+@@ -364,7 +364,7 @@ if (NOT LLVM_LINK_LLVM_DYLIB AND CLANG_L
  endif()
  
  # The libdir suffix must exactly match whatever LLVM's configuration used.
 -set(CLANG_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}")
 +set(CLANG_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}" CACHE STRING "")
  
- set(CLANG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
- set(CLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+ set(CLANG_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH
+     "Path for binary subdirectory (defaults to '${CMAKE_INSTALL_BINDIR}')")

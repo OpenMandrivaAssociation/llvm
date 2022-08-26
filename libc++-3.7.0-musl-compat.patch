@@ -1,9 +1,9 @@
-diff -up llvm-project-release-13.x/libcxx/include/__config.21~ llvm-project-release-13.x/libcxx/include/__config
---- llvm-project-release-13.x/libcxx/include/__config.21~	2021-08-02 22:28:58.851830387 +0200
-+++ llvm-project-release-13.x/libcxx/include/__config	2021-08-02 22:30:03.342154641 +0200
+diff -up llvm-project-release-15.x/libcxx/include/__config.19~ llvm-project-release-15.x/libcxx/include/__config
+--- llvm-project-release-15.x/libcxx/include/__config.19~	2022-07-31 13:01:43.076445612 +0200
++++ llvm-project-release-15.x/libcxx/include/__config	2022-07-31 13:10:06.889916043 +0200
 @@ -10,6 +10,13 @@
- #ifndef _LIBCPP_CONFIG
- #define _LIBCPP_CONFIG
+ #ifndef _LIBCPP___CONFIG
+ #define _LIBCPP___CONFIG
  
 +#include <features.h>
 +#if defined(__linux__) && !defined(__ANDROID__) && !defined(__GLIBC__)

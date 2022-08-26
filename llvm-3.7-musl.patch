@@ -1,7 +1,7 @@
-diff -up llvm-project-master/llvm/include/llvm/Analysis/TargetLibraryInfo.h.15~ llvm-project-master/llvm/include/llvm/Analysis/TargetLibraryInfo.h
---- llvm-project-master/llvm/include/llvm/Analysis/TargetLibraryInfo.h.15~	2020-06-21 19:57:56.204244940 +0200
-+++ llvm-project-master/llvm/include/llvm/Analysis/TargetLibraryInfo.h	2020-06-21 19:58:43.362816675 +0200
-@@ -18,6 +18,17 @@
+diff -up llvm-project-release-15.x/llvm/include/llvm/Analysis/TargetLibraryInfo.h.14~ llvm-project-release-15.x/llvm/include/llvm/Analysis/TargetLibraryInfo.h
+--- llvm-project-release-15.x/llvm/include/llvm/Analysis/TargetLibraryInfo.h.14~	2022-07-31 12:22:49.303487017 +0200
++++ llvm-project-release-15.x/llvm/include/llvm/Analysis/TargetLibraryInfo.h	2022-07-31 12:53:39.560141831 +0200
+@@ -16,6 +16,17 @@
  #include "llvm/IR/PassManager.h"
  #include "llvm/Pass.h"
  
@@ -17,12 +17,12 @@ diff -up llvm-project-master/llvm/include/llvm/Analysis/TargetLibraryInfo.h.15~ 
 +#endif
 +
  namespace llvm {
+ 
  template <typename T> class ArrayRef;
- class Triple;
-diff -up llvm-project-master/llvm/lib/Support/Unix/Signals.inc.15~ llvm-project-master/llvm/lib/Support/Unix/Signals.inc
---- llvm-project-master/llvm/lib/Support/Unix/Signals.inc.15~	2020-06-21 19:00:42.000000000 +0200
-+++ llvm-project-master/llvm/lib/Support/Unix/Signals.inc	2020-06-21 19:57:56.204244940 +0200
-@@ -460,7 +460,7 @@ void llvm::sys::AddSignalHandler(sys::Si
+diff -up llvm-project-release-15.x/llvm/lib/Support/Unix/Signals.inc.14~ llvm-project-release-15.x/llvm/lib/Support/Unix/Signals.inc
+--- llvm-project-release-15.x/llvm/lib/Support/Unix/Signals.inc.14~	2022-07-30 07:12:16.000000000 +0200
++++ llvm-project-release-15.x/llvm/lib/Support/Unix/Signals.inc	2022-07-31 12:22:49.306487038 +0200
+@@ -465,7 +465,7 @@ void llvm::sys::AddSignalHandler(sys::Si
    RegisterHandlers();
  }
  

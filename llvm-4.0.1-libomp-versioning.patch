@@ -1,8 +1,8 @@
-diff -up llvm-project-main/openmp/runtime/src/CMakeLists.txt.23~ llvm-project-main/openmp/runtime/src/CMakeLists.txt
---- llvm-project-main/openmp/runtime/src/CMakeLists.txt.23~	2022-01-18 18:42:17.410313634 +0100
-+++ llvm-project-main/openmp/runtime/src/CMakeLists.txt	2022-01-18 18:43:27.943693120 +0100
-@@ -158,6 +158,14 @@ else()
-   set(LIBOMP_LINKER_LANGUAGE CXX)
+diff -up llvm-project-release-15.x/openmp/runtime/src/CMakeLists.txt.21~ llvm-project-release-15.x/openmp/runtime/src/CMakeLists.txt
+--- llvm-project-release-15.x/openmp/runtime/src/CMakeLists.txt.21~	2022-07-31 13:23:05.253988443 +0200
++++ llvm-project-release-15.x/openmp/runtime/src/CMakeLists.txt	2022-07-31 13:24:05.930470239 +0200
+@@ -172,6 +172,14 @@ else()
+   )
  endif()
  
 +if (UNIX)

@@ -1,16 +1,16 @@
-diff -up llvm-project-main/clang/include/clang/Driver/Distro.h.1~ llvm-project-main/clang/include/clang/Driver/Distro.h
---- llvm-project-main/clang/include/clang/Driver/Distro.h.1~	2022-01-18 18:01:52.000000000 +0100
-+++ llvm-project-main/clang/include/clang/Driver/Distro.h	2022-01-18 18:27:04.332556612 +0100
-@@ -74,6 +74,8 @@ public:
-     UbuntuHirsute,
+diff -up llvm-project-release-15.x/clang/include/clang/Driver/Distro.h.1~ llvm-project-release-15.x/clang/include/clang/Driver/Distro.h
+--- llvm-project-release-15.x/clang/include/clang/Driver/Distro.h.1~	2022-07-30 07:12:16.000000000 +0200
++++ llvm-project-release-15.x/clang/include/clang/Driver/Distro.h	2022-07-31 02:46:39.957713087 +0200
+@@ -76,6 +76,8 @@ public:
      UbuntuImpish,
      UbuntuJammy,
+     UbuntuKinetic,
 +    OpenMandriva,
 +    ROSA,
      UnknownDistro
    };
  
-@@ -132,6 +134,8 @@ public:
+@@ -134,6 +136,8 @@ public:
  
    bool IsGentoo() const { return DistroVal == Gentoo; }
  
@@ -19,9 +19,9 @@ diff -up llvm-project-main/clang/include/clang/Driver/Distro.h.1~ llvm-project-m
    /// @}
  };
  
-diff -up llvm-project-main/clang/lib/Driver/Distro.cpp.1~ llvm-project-main/clang/lib/Driver/Distro.cpp
---- llvm-project-main/clang/lib/Driver/Distro.cpp.1~	2022-01-18 18:01:52.000000000 +0100
-+++ llvm-project-main/clang/lib/Driver/Distro.cpp	2022-01-18 18:09:35.030467879 +0100
+diff -up llvm-project-release-15.x/clang/lib/Driver/Distro.cpp.1~ llvm-project-release-15.x/clang/lib/Driver/Distro.cpp
+--- llvm-project-release-15.x/clang/lib/Driver/Distro.cpp.1~	2022-07-30 07:12:16.000000000 +0200
++++ llvm-project-release-15.x/clang/lib/Driver/Distro.cpp	2022-07-30 23:14:15.295159837 +0200
 @@ -33,7 +33,7 @@ static Distro::DistroType DetectOsReleas
    Distro::DistroType Version = Distro::UnknownDistro;
  
@@ -47,10 +47,10 @@ diff -up llvm-project-main/clang/lib/Driver/Distro.cpp.1~ llvm-project-main/clan
    return Version;
  }
  
-diff -up llvm-project-main/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-main/clang/lib/Driver/ToolChains/Gnu.cpp
---- llvm-project-main/clang/lib/Driver/ToolChains/Gnu.cpp.1~	2022-01-18 18:09:35.031467883 +0100
-+++ llvm-project-main/clang/lib/Driver/ToolChains/Gnu.cpp	2022-01-18 18:26:56.701496154 +0100
-@@ -2073,7 +2073,8 @@ void Generic_GCC::GCCInstallationDetecto
+diff -up llvm-project-release-15.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-release-15.x/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-project-release-15.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~	2022-07-30 07:12:16.000000000 +0200
++++ llvm-project-release-15.x/clang/lib/Driver/ToolChains/Gnu.cpp	2022-07-30 23:14:15.297159852 +0200
+@@ -2178,7 +2178,8 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
        "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-redhat-linux",
@@ -60,7 +60,7 @@ diff -up llvm-project-main/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-m
    static const char *const AArch64beLibDirs[] = {"/lib"};
    static const char *const AArch64beTriples[] = {"aarch64_be-none-linux-gnu",
                                                   "aarch64_be-linux-gnu"};
-@@ -2083,7 +2084,28 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2188,7 +2189,28 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const ARMHFTriples[] = {"arm-linux-gnueabihf",
                                               "armv7hl-redhat-linux-gnueabi",
                                               "armv6hl-suse-linux-gnueabi",
@@ -90,7 +90,7 @@ diff -up llvm-project-main/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-m
    static const char *const ARMebLibDirs[] = {"/lib"};
    static const char *const ARMebTriples[] = {"armeb-linux-gnueabi"};
    static const char *const ARMebHFTriples[] = {
-@@ -2099,15 +2121,20 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2208,15 +2230,20 @@ void Generic_GCC::GCCInstallationDetecto
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-linux-gnu",
        "x86_64-slackware-linux", "x86_64-unknown-linux",
@@ -113,7 +113,7 @@ diff -up llvm-project-main/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-m
    };
  
    static const char *const M68kLibDirs[] = {"/lib"};
-@@ -2157,21 +2184,29 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2266,21 +2293,29 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const PPC64LibDirs[] = {"/lib64", "/lib"};
    static const char *const PPC64Triples[] = {
        "powerpc64-linux-gnu", "powerpc64-unknown-linux-gnu",
@@ -147,10 +147,10 @@ diff -up llvm-project-main/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-m
  
    static const char *const SPARCv8LibDirs[] = {"/lib32", "/lib"};
    static const char *const SPARCv8Triples[] = {"sparc-linux-gnu",
-diff -up llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.1~	2022-01-18 18:01:52.000000000 +0100
-+++ llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp	2022-01-18 18:28:13.302088197 +0100
-@@ -134,7 +134,7 @@ std::string Linux::getMultiarchTriple(co
+diff -up llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp.1~	2022-07-30 07:12:16.000000000 +0200
++++ llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp	2022-07-30 23:14:15.299159867 +0200
+@@ -136,7 +136,7 @@ std::string Linux::getMultiarchTriple(co
    return TargetTriple.str();
  }
  
@@ -159,7 +159,7 @@ diff -up llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project
    if (Triple.isMIPS()) {
      if (Triple.isAndroid()) {
        StringRef CPUName;
-@@ -162,14 +162,15 @@ static StringRef getOSLibDir(const llvm:
+@@ -164,14 +164,15 @@ static StringRef getOSLibDir(const llvm:
    // FIXME: This is a bit of a hack. We should really unify this code for
    // reasoning about oslibdir spellings with the lib dir spellings in the
    // GCCInstallationDetector, but that is a more significant refactoring.
@@ -178,7 +178,7 @@ diff -up llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project
      return "lib32";
  
    return Triple.isArch32Bit() ? "lib" : "lib64";
-@@ -194,7 +195,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -196,7 +197,7 @@ Linux::Linux(const Driver &D, const llvm
    }
  
    if (Distro.IsOpenSUSE() || Distro.IsUbuntu() || Distro.IsAlpineLinux() ||
@@ -187,7 +187,7 @@ diff -up llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project
      ExtraOpts.push_back("-z");
      ExtraOpts.push_back("relro");
    }
-@@ -233,6 +234,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -239,6 +240,7 @@ Linux::Linux(const Driver &D, const llvm
    // Hexagon linker/loader does not support .gnu.hash
    if (!IsMips && !IsHexagon) {
      if (Distro.IsRedhat() || Distro.IsOpenSUSE() || Distro.IsAlpineLinux() ||
@@ -195,7 +195,7 @@ diff -up llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project
          (Distro.IsUbuntu() && Distro >= Distro::UbuntuMaverick) ||
          (IsAndroid && !Triple.isAndroidVersionLT(23)))
        ExtraOpts.push_back("--hash-style=gnu");
-@@ -248,7 +250,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -254,7 +256,7 @@ Linux::Linux(const Driver &D, const llvm
    ExtraOpts.push_back("--build-id");
  #endif
  
@@ -204,7 +204,7 @@ diff -up llvm-project-main/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project
      ExtraOpts.push_back("--enable-new-dtags");
  
    // The selection of paths to try here is designed to match the patterns which
-@@ -258,7 +260,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -264,7 +266,7 @@ Linux::Linux(const Driver &D, const llvm
    // to the link paths.
    path_list &Paths = getFilePaths();
  

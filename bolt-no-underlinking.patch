@@ -1,0 +1,24 @@
+diff -up llvm-project-release-15.x/bolt/tools/driver/CMakeLists.txt.omv~ llvm-project-release-15.x/bolt/tools/driver/CMakeLists.txt
+--- llvm-project-release-15.x/bolt/tools/driver/CMakeLists.txt.omv~	2022-08-03 10:51:31.124095026 +0200
++++ llvm-project-release-15.x/bolt/tools/driver/CMakeLists.txt	2022-08-03 10:51:42.282138486 +0200
+@@ -23,6 +23,8 @@ target_link_libraries(llvm-bolt
+   LLVMBOLTProfile
+   LLVMBOLTRewrite
+   LLVMBOLTUtils
++  LLVMX86CodeGen
++  LLVMAArch64CodeGen
+   )
+ 
+ add_bolt_tool_symlink(perf2bolt llvm-bolt)
+diff -up llvm-project-release-15.x/bolt/tools/heatmap/CMakeLists.txt.omv~ llvm-project-release-15.x/bolt/tools/heatmap/CMakeLists.txt
+--- llvm-project-release-15.x/bolt/tools/heatmap/CMakeLists.txt.omv~	2022-08-03 10:38:10.784951130 +0200
++++ llvm-project-release-15.x/bolt/tools/heatmap/CMakeLists.txt	2022-08-03 10:44:06.623357471 +0200
+@@ -14,6 +14,8 @@ target_link_libraries(llvm-bolt-heatmap
+   LLVMBOLTProfile
+   LLVMBOLTRewrite
+   LLVMBOLTUtils
++  LLVMX86CodeGen
++  LLVMAArch64CodeGen
+   )
+ 
+ set_target_properties(llvm-bolt-heatmap PROPERTIES FOLDER "BOLT")
