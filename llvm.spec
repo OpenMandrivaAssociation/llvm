@@ -850,9 +850,7 @@ Shared libraries for LLVM OpenMP support.
 %{_libdir}/libomptarget.rtl.*.so
 %endif
 %{_libdir}/libomptarget.devicertl.a
-%{_libdir}/libomptarget.rtl.amdgpu.so.%{major1}
-%{_libdir}/libomptarget.rtl.cuda.so.%{major1}
-%{_libdir}/libomptarget.rtl.x86_64.so.%{major1}
+%{_libdir}/libomptarget.rtl.*.so.%{major1}
 %{_libdir}/libomptarget.so.%{major1}
 
 #-----------------------------------------------------------
