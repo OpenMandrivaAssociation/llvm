@@ -11,8 +11,8 @@
 %endif
 
 # (tpg) set snapshot date
-# 20220826 is close to 15.0.0-rc3
-%define date 20220826
+# 20220902 is slightly past 15.0.0-rc3
+%define date 20220902
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -180,6 +180,9 @@ Patch11:	bolt-no-underlinking.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
 Patch14:	llvm-10.0-fix-m32.patch
+# https://github.com/llvm/llvm-project/issues/57336
+# https://github.com/llvm/llvm-project/issues/57511
+Patch15:	https://github.com/llvm/llvm-project/commit/c37b1a5f764380f83ba08ae0cebca2b162123eb6.patch
 Patch16:	clang-rename-fix-linkage.patch
 #Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
 # Enable --no-undefined, --as-needed, --enable-new-dtags,
