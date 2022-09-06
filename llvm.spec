@@ -12,7 +12,7 @@
 
 # (tpg) set snapshot date
 # 20220902 is slightly past 15.0.0-rc3
-%define date 20220902
+#define date 20220902
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -134,19 +134,16 @@ Url:		http://llvm.org/
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?is_main:master}%{!?is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{date}.tar.gz
-# HEAD as of 2022/08/07
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/0bcc624926a25a2a273d07877fd25a6ff5ba1cfb.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
 Release:	0.%{date}.1
 %else
-Release:	1
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_150.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
-# HEAD as of 2022/06/26
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/36c0c1596225e728bd49abb7ef56a3953e7ed468.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
+Release:	1
 %endif
+# HEAD as of 2022/08/07
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/0bcc624926a25a2a273d07877fd25a6ff5ba1cfb.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
@@ -180,9 +177,6 @@ Patch11:	bolt-no-underlinking.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
 Patch14:	llvm-10.0-fix-m32.patch
-# https://github.com/llvm/llvm-project/issues/57336
-# https://github.com/llvm/llvm-project/issues/57511
-Patch15:	https://github.com/llvm/llvm-project/commit/c37b1a5f764380f83ba08ae0cebca2b162123eb6.patch
 Patch16:	clang-rename-fix-linkage.patch
 #Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
 # Enable --no-undefined, --as-needed, --enable-new-dtags,
