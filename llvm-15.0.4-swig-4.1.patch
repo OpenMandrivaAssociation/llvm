@@ -1,0 +1,32 @@
+diff -up llvm-project-15.0.4.src/lldb/bindings/interface/SBValueList.i.omv~ llvm-project-15.0.4.src/lldb/bindings/interface/SBValueList.i
+--- llvm-project-15.0.4.src/lldb/bindings/interface/SBValueList.i.omv~	2022-11-03 01:44:45.398463661 +0100
++++ llvm-project-15.0.4.src/lldb/bindings/interface/SBValueList.i	2022-11-03 01:44:52.383516610 +0100
+@@ -103,7 +103,6 @@ public:
+     GetFirstValueByName (const char* name) const;
+ 
+     %extend {
+-       %nothreadallow;
+        std::string lldb::SBValueList::__str__ (){
+            lldb::SBStream description;
+            const size_t n = $self->GetSize();
+@@ -122,7 +121,6 @@ public:
+                --desc_len;
+            return std::string(desc, desc_len);
+        }
+-       %clearnothreadallow;
+     }
+ 
+ #ifdef SWIGPYTHON
+diff -up llvm-project-15.0.4.src/lldb/bindings/interfaces.swig.omv~ llvm-project-15.0.4.src/lldb/bindings/interfaces.swig
+--- llvm-project-15.0.4.src/lldb/bindings/interfaces.swig.omv~	2022-11-03 01:42:48.886582776 +0100
++++ llvm-project-15.0.4.src/lldb/bindings/interfaces.swig	2022-11-03 01:42:58.095652229 +0100
+@@ -2,7 +2,9 @@
+ #define __extension__ /* Undefine GCC keyword to make Swig happy when processing glibc's stdint.h. */
+ /* The ISO C99 standard specifies that in C++ implementations limit macros such
+    as INT32_MAX should only be defined if __STDC_LIMIT_MACROS is. */
++#ifndef __STDC_LIMIT_MACROS
+ #define __STDC_LIMIT_MACROS
++#endif
+ %include "stdint.i"
+ 
+ %include "lldb/lldb-defines.h"
