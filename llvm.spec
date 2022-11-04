@@ -173,7 +173,6 @@ Patch8:		clang-fuse-ld.patch
 Patch9:		lld-10.0.1-format.patch
 Patch10:	lldb-9.0.0-swig-compile.patch
 Patch11:	bolt-no-underlinking.patch
-#Patch12:	llvm-3.8.0-sonames.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
 Patch14:	llvm-10.0-fix-m32.patch
@@ -190,7 +189,8 @@ Patch22:	lld-9.0-error-on-option-conflict.patch
 #Patch24:	llvm-11-flang-missing-docs.patch
 #Patch25:	llvm-7.0-compiler-rt-arches.patch
 Patch26:	llvm-15.0.4-swig-4.1.patch
-Patch27:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
+Patch27:	https://reviews.llvm.org/rGf0a25fe0b746f56295d5c02116ba28d2f965c175?diff=1#/lldb-swig-4.1.patch
+Patch28:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
 # breaks exception handling -- removes gcc_eh
 Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch

@@ -1,0 +1,12 @@
+diff -up llvm-project-15.0.4.src/lldb/bindings/python/python-typemaps.swig.19~ llvm-project-15.0.4.src/lldb/bindings/python/python-typemaps.swig
+--- llvm-project-15.0.4.src/lldb/bindings/python/python-typemaps.swig.19~	2022-11-04 15:08:32.433869998 +0100
++++ llvm-project-15.0.4.src/lldb/bindings/python/python-typemaps.swig	2022-11-04 15:09:51.780379779 +0100
+@@ -435,7 +435,7 @@ template <> bool SetNumberFromPyObject<d
+ 
+ %typemap(out) lldb::FileSP {
+   $result = nullptr;
+-  lldb::FileSP &sp = $1;
++  const lldb::FileSP &sp = $1;
+   if (sp) {
+     PythonFile pyfile = unwrapOrSetPythonException(PythonFile::FromFile(*sp));
+     if (!pyfile.IsValid())
