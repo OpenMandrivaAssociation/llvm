@@ -190,10 +190,11 @@ Patch22:	lld-9.0-error-on-option-conflict.patch
 #Patch25:	llvm-7.0-compiler-rt-arches.patch
 Patch26:	llvm-15.0.4-swig-4.1.patch
 Patch27:	https://reviews.llvm.org/rGf0a25fe0b746f56295d5c02116ba28d2f965c175?diff=1#/lldb-swig-4.1.patch
-Patch28:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
+Patch28:	lldb-lua-swig-4.1.patch
+Patch29:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
 # breaks exception handling -- removes gcc_eh
-Patch29:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
+Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
 Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
 Patch40:	libc++-3.7.0-musl-compat.patch
 # Make it possible to override CLANG_LIBDIR_SUFFIX
