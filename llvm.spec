@@ -125,7 +125,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	15.0.4
+Version:	15.0.5
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -189,7 +189,6 @@ Patch22:	lld-9.0-error-on-option-conflict.patch
 #Patch24:	llvm-11-flang-missing-docs.patch
 #Patch25:	llvm-7.0-compiler-rt-arches.patch
 Patch26:	llvm-15.0.4-swig-4.1.patch
-Patch27:	https://reviews.llvm.org/rGf0a25fe0b746f56295d5c02116ba28d2f965c175?diff=1#/lldb-swig-4.1.patch
 Patch28:	lldb-lua-swig-4.1.patch
 Patch29:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
