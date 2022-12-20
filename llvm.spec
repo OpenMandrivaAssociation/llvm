@@ -139,11 +139,11 @@ Release:	0.%{date}.1
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_150.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
-Release:	1
+Release:	2
 %endif
-# HEAD as of 2022/08/07
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/0bcc624926a25a2a273d07877fd25a6ff5ba1cfb.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/v2022.2.tar.gz
+# HEAD as of 2022/12/20 also take a look here https://github.com/KhronosGroup/glslang/blob/master/known_good.json
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/SPIRV-Headers-1d31a100405cf8783ca7a31e31cdd727c9fc54c3.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/SPIRV-Tools-2022.4.tar.gz
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
@@ -226,7 +226,7 @@ Source63:	llvm-riscv-needs-libatomic-linkage.patch
 # SPIR-V fixes
 Patch90:	spirv-fix-warnings.patch
 Patch91:	SPRIV-Tools-soname.patch
-Patch92:	spirv-tools-adapt-to-newer-headers.patch
+
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -1859,8 +1859,8 @@ RUNTIMES="$RUNTIMES;libc"
 %endif
 RUNTIMES="$RUNTIMES;libclc"
 
-[ `echo $RUNTIMES |cut -b1` = ';' ] && RUNTIMES="`echo $RUNTIMES |cut -b2-`"
-[ `echo $PROJECTS |cut -b1` = ';' ] && PROJECTS="`echo $PROJECTS |cut -b2-`"
+[ $(echo $RUNTIMES |cut -b1) = ';' ] && RUNTIMES="$(echo $RUNTIMES |cut -b2-)"
+[ $(echo $PROJECTS |cut -b1) = ';' ] && PROJECTS="$(echo $PROJECTS |cut -b2-)"
 
 %if %{with bootstrap_gcc}
 export CC=gcc
