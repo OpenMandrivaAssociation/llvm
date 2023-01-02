@@ -1,42 +1,42 @@
-diff -up llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.29~ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp
---- llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.29~	2022-04-07 21:21:52.000000000 +0200
-+++ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp	2022-04-13 12:14:20.067548247 +0200
-@@ -21,6 +21,8 @@
+diff -Naur llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp
+--- llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp	2022-12-05 20:31:01.000000000 +0000
++++ llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp	2023-01-05 12:25:26.022464350 +0000
+@@ -20,6 +20,8 @@
+ #include "source/opt/function.h"
  #include "source/opt/instruction.h"
- #include "spirv/unified1/spirv.h"
  
 +#pragma GCC diagnostic ignored "-Wcovered-switch-default"
 +
  namespace spvtools {
  namespace lint {
  
-diff -up llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp.29~ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp
---- llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp.29~	2022-04-07 21:21:52.000000000 +0200
-+++ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp	2022-04-13 12:14:20.067548247 +0200
-@@ -232,6 +232,7 @@ void ConvertToSampledImagePass::FindUses
-       case SpvOpImageQuerySamples:
-       case SpvOpImageSparseFetch:
+diff -Naur llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp
+--- llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp	2022-12-05 20:31:01.000000000 +0000
++++ llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp	2023-01-05 12:26:21.162253757 +0000
+@@ -233,6 +233,7 @@
+       case spv::Op::OpImageQuerySamples:
+       case spv::Op::OpImageSparseFetch:
          uses->push_back(user);
-+	break;
++        break;
        default:
          break;
      }
-diff -up llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/opt/types.cpp.29~ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/opt/types.cpp
---- llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/opt/types.cpp.29~	2022-04-07 21:21:52.000000000 +0200
-+++ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/opt/types.cpp	2022-04-13 12:14:20.067548247 +0200
+diff -Naur llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/opt/types.cpp llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/opt/types.cpp
+--- llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/opt/types.cpp	2022-12-05 20:31:01.000000000 +0000
++++ llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/opt/types.cpp	2023-01-05 12:26:43.022170214 +0000
 @@ -25,6 +25,8 @@
+ #include "source/util/hash_combine.h"
  #include "source/util/make_unique.h"
- #include "spirv/unified1/spirv.h"
  
 +#pragma GCC diagnostic ignored "-Wcovered-switch-default"
 +
  namespace spvtools {
  namespace opt {
  namespace analysis {
-diff -up llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.29~ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp
---- llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.29~	2022-04-07 21:21:52.000000000 +0200
-+++ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp	2022-04-13 12:14:20.069548241 +0200
-@@ -192,6 +192,7 @@ bool ContainsInvalidBool(ValidationState
+diff -Naur llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp
+--- llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp	2022-12-05 20:31:01.000000000 +0000
++++ llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp	2023-01-05 12:27:25.722006946 +0000
+@@ -190,6 +190,7 @@
          auto member_type = _.FindDef(member_type_id);
          if (ContainsInvalidBool(_, member_type, skip_builtin)) return true;
        }
@@ -44,10 +44,10 @@ diff -up llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_m
      default:
        break;
    }
-diff -up llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.29~ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp
---- llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.29~	2022-04-07 21:21:52.000000000 +0200
-+++ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp	2022-04-13 12:14:20.069548241 +0200
-@@ -464,6 +464,7 @@ spv_result_t ValidateExecutionMode(Valid
+diff -Naur llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp
+--- llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp	2022-12-05 20:31:01.000000000 +0000
++++ llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp	2023-01-05 12:30:05.381395635 +0000
+@@ -572,6 +572,7 @@
                      "execution model.";
          }
        }
@@ -55,10 +55,10 @@ diff -up llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_m
      default:
        break;
    }
-diff -up llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.29~ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp
---- llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.29~	2022-04-07 21:21:52.000000000 +0200
-+++ llvm-project-14.0.1.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp	2022-04-13 12:14:20.069548241 +0200
-@@ -62,6 +62,7 @@ spv_result_t PrimitivesPass(ValidationSt
+diff -Naur llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp
+--- llvm-project-15.0.6.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp	2022-12-05 20:31:01.000000000 +0000
++++ llvm-project-15.0.6.src.tpg/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp	2023-01-05 12:53:45.955855818 +0000
+@@ -62,6 +62,7 @@
                 << spvOpcodeString(opcode)
                 << ": expected Stream to be constant instruction";
        }

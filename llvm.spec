@@ -139,11 +139,11 @@ Release:	0.%{date}.1
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_150.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
-Release:	2
+Release:	3
 %endif
 # HEAD as of 2022/12/20 also take a look here https://github.com/KhronosGroup/glslang/blob/master/known_good.json
 Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/SPIRV-Headers-1d31a100405cf8783ca7a31e31cdd727c9fc54c3.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/SPIRV-Tools-2022.4.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/SPIRV-Tools-40f5bf59c6acb4754a0bffd3c53a715732883a12.tar.gz
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
