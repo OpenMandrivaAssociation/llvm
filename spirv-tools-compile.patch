@@ -1,72 +1,32 @@
-diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp
---- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.omv~	2021-09-16 17:39:27.685883345 +0200
-+++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp	2021-09-16 17:40:01.331256452 +0200
-@@ -227,6 +227,10 @@ void DivergenceAnalysis::Setup(opt::Func
-       });
+diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp
+--- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.omv~	2023-01-12 20:22:29.085438581 +0100
++++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp	2023-01-12 20:22:53.995578641 +0100
+@@ -237,8 +237,8 @@ std::ostream& operator<<(std::ostream& o
+       return os << "partially uniform";
+     case DivergenceAnalysis::DivergenceLevel::kDivergent:
+       return os << "divergent";
+-    default:
+-      return os << "<invalid divergence level>";
++/*    default:
++      return os << "<invalid divergence level>"; */
+   }
  }
  
-+// BUG? Override -Werror because we seem to be getting a
-+// false positive on -Wcovered-switch-default below with clang 13
-+#pragma GCC diagnostic warning "-Wcovered-switch-default"
-+
- std::ostream& operator<<(std::ostream& os,
-                          DivergenceAnalysis::DivergenceLevel level) {
-   switch (level) {
-diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp
---- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp.omv~	2021-09-16 17:35:18.404119780 +0200
-+++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp	2021-09-16 17:35:26.188164257 +0200
-@@ -232,6 +232,7 @@ void ConvertToSampledImagePass::FindUses
-       case SpvOpImageQuerySamples:
-       case SpvOpImageSparseFetch:
+diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp
+--- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp.omv~	2023-01-12 19:45:59.651556828 +0100
++++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp	2023-01-12 19:46:04.871594686 +0100
+@@ -233,6 +233,7 @@ void ConvertToSampledImagePass::FindUses
+       case spv::Op::OpImageQuerySamples:
+       case spv::Op::OpImageSparseFetch:
          uses->push_back(user);
 +	break;
        default:
          break;
      }
-diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/types.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/types.cpp
---- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/types.cpp.omv~	2021-09-16 17:36:02.626372293 +0200
-+++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/opt/types.cpp	2021-09-16 17:38:29.937216997 +0200
-@@ -96,6 +96,10 @@ bool Type::IsUniqueType(bool allowVariab
-   }
- }
- 
-+// BUG? Override -Werror because we seem to be getting a
-+// false positive on -Wcovered-switch-default below with clang 13
-+#pragma GCC diagnostic warning "-Wcovered-switch-default"
-+
- std::unique_ptr<Type> Type::Clone() const {
-   std::unique_ptr<Type> type;
-   switch (kind_) {
-diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/spirv_target_env.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/spirv_target_env.cpp
---- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/spirv_target_env.cpp.omv~	2021-09-16 17:19:08.671370318 +0200
-+++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/spirv_target_env.cpp	2021-09-16 17:19:32.675521760 +0200
-@@ -307,8 +307,8 @@ std::string spvLogStringForEnv(spv_targe
-     }
-     case SPV_ENV_VULKAN_1_0:
-     case SPV_ENV_VULKAN_1_1:
--    case SPV_ENV_VULKAN_1_1_SPIRV_1_4: {
--      case SPV_ENV_VULKAN_1_2:
-+    case SPV_ENV_VULKAN_1_1_SPIRV_1_4:
-+    case SPV_ENV_VULKAN_1_2: {
-         return "Vulkan";
-     }
-     case SPV_ENV_UNIVERSAL_1_0:
-diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/text_handler.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/text_handler.cpp
---- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/text_handler.cpp.omv~	2021-09-16 16:55:30.985077747 +0200
-+++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/text_handler.cpp	2021-09-16 16:55:42.051132347 +0200
-@@ -120,7 +120,7 @@ spv_result_t getWord(spv_text text, spv_
-         case '\n':
-         case '\r':
-           if (escaping || quoting) break;
--        // Fall through.
-+          [[clang::fallthrough]];
-         case '\0': {  // NOTE: End of word found!
-           word->assign(text->str + start_index, text->str + position->index);
-           return SPV_SUCCESS;
-diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp
---- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.omv~	2021-09-16 17:34:21.369793491 +0200
-+++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp	2021-09-16 17:34:37.160883906 +0200
-@@ -192,6 +192,7 @@ bool ContainsInvalidBool(ValidationState
+diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp
+--- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.omv~	2023-01-12 19:18:30.549949586 +0100
++++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp	2023-01-12 19:18:40.143354597 +0100
+@@ -190,6 +190,7 @@ bool ContainsInvalidBool(ValidationState
          auto member_type = _.FindDef(member_type_id);
          if (ContainsInvalidBool(_, member_type, skip_builtin)) return true;
        }
@@ -74,10 +34,10 @@ diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate
      default:
        break;
    }
-diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp
---- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.omv~	2021-09-16 16:54:45.950855311 +0200
-+++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp	2021-09-16 16:54:55.620903109 +0200
-@@ -453,6 +453,7 @@ spv_result_t ValidateExecutionMode(Valid
+diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp
+--- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.omv~	2023-01-12 19:32:28.682444291 +0100
++++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp	2023-01-12 19:32:42.275867913 +0100
+@@ -572,6 +572,7 @@ spv_result_t ValidateExecutionMode(Valid
                      "execution model.";
          }
        }
@@ -85,26 +45,25 @@ diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate
      default:
        break;
    }
-diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp
---- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.omv~	2021-09-16 17:33:55.738646611 +0200
-+++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp	2021-09-16 17:34:09.525725637 +0200
-@@ -62,6 +62,7 @@ spv_result_t PrimitivesPass(ValidationSt
-                << spvOpcodeString(opcode)
+diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp
+--- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.omv~	2023-01-12 19:40:07.615571806 +0100
++++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp	2023-01-12 19:40:23.905699857 +0100
+@@ -63,6 +63,7 @@ spv_result_t PrimitivesPass(ValidationSt
                 << ": expected Stream to be constant instruction";
        }
-+      break;
      }
++    break;
  
      default:
-diff -up llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/CMakeLists.txt.omv~ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/CMakeLists.txt
---- llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/CMakeLists.txt.omv~	2021-09-16 20:33:07.787777602 +0200
-+++ llvm-project-release-13.x/llvm/projects/SPIRV-Tools/source/CMakeLists.txt	2021-09-16 20:33:40.876885086 +0200
-@@ -376,7 +376,7 @@ endfunction()
- # unlike the other SPIRV_TOOLS target, defaults to hidden symbol visibility.
- add_library(${SPIRV_TOOLS}-shared SHARED ${SPIRV_SOURCES})
- spirv_tools_default_target_options(${SPIRV_TOOLS}-shared)
--set_target_properties(${SPIRV_TOOLS}-shared PROPERTIES CXX_VISIBILITY_PRESET hidden)
-+set_target_properties(${SPIRV_TOOLS}-shared PROPERTIES CXX_VISIBILITY_PRESET hidden VERSION "${LLVM_VERSION_MAJOR}${LLVM_VERSION_SUFFIX}" SOVERSION "${LLVM_VERSION_MAJOR}${LLVM_VERSION_SUFFIX}")
- target_compile_definitions(${SPIRV_TOOLS}-shared
-   PRIVATE SPIRV_TOOLS_IMPLEMENTATION
-   PUBLIC SPIRV_TOOLS_SHAREDLIB
+       break;
+diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_ray_tracing_reorder.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_ray_tracing_reorder.cpp
+--- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_ray_tracing_reorder.cpp.omv~	2023-01-12 19:44:23.884189271 +0100
++++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_ray_tracing_reorder.cpp	2023-01-12 19:44:33.920929996 +0100
+@@ -615,6 +615,7 @@ spv_result_t RayReorderNVPass(Validation
+                << "bits must be a 32-bit int scalar";
+       }
+     }
++    break;
+ 
+     default:
+       break;

@@ -125,7 +125,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	15.0.6
+Version:	15.0.7
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -226,6 +226,7 @@ Source63:	llvm-riscv-needs-libatomic-linkage.patch
 # SPIR-V fixes
 #Patch90:	spirv-fix-warnings.patch
 Patch91:	SPRIV-Tools-soname.patch
+Patch92:	spirv-tools-compile.patch
 
 BuildRequires:	bison
 BuildRequires:	binutils-devel
