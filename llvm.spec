@@ -9,10 +9,16 @@
 %if %{with compat32}
 %bcond_with bootstrap32
 %endif
+# Never enable this in production builds.
+# On multiarch platforms, it skips the 64bit
+# builds for the sole purpose of debugging
+# problems with 32bit builds without having
+# to wait for the 64bit builds.
+%bcond_with skip64
 
 # (tpg) set snapshot date
-# 20220902 is slightly past 15.0.0-rc3
-#define date 20220902
+# 20230211 is close to 16.0.0-rc2
+%define date 20230211
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -109,6 +115,13 @@
 %define major %(echo %{version} |cut -d. -f1-2)
 %define major1 %(echo %{version} |cut -d. -f1)
 #define is_main 1
+%if 0%{?is_main:1}
+%define spirv_is_main 1
+%else
+# Separate because SPIRV_LLVM_Translator and friends frequently tag
+# llvm_release_XXX branches only after the release
+%define spirv_is_main 1
+%endif
 
 %bcond_without crosscrt
 
@@ -125,7 +138,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	15.0.7
+Version:	16.0.0
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -133,17 +146,19 @@ Url:		http://llvm.org/
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
 # llvm-spirv-translator and friends
-Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?is_main:master}%{!?is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{date}.tar.gz
+Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{date}.tar.gz
 Release:	0.%{date}.1
 %else
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 # llvm-spirv-translator and friends
-Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/llvm_release_150.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
-Release:	3
+Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
+Release:	1
 %endif
-# HEAD as of 2022/12/20 also take a look here https://github.com/KhronosGroup/glslang/blob/master/known_good.json
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/SPIRV-Headers-1d31a100405cf8783ca7a31e31cdd727c9fc54c3.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/SPIRV-Tools-40f5bf59c6acb4754a0bffd3c53a715732883a12.tar.gz
+# HEAD as of 2023/01/30 also take a look here https://github.com/KhronosGroup/glslang/blob/master/known_good.json
+#Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/SPIRV-Headers-1d31a100405cf8783ca7a31e31cdd727c9fc54c3.tar.gz
+#Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/SPIRV-Tools-40f5bf59c6acb4754a0bffd3c53a715732883a12.tar.gz
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.1.tar.gz
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
@@ -188,7 +203,6 @@ Patch22:	lld-9.0-error-on-option-conflict.patch
 #Patch23:	llvm-9.0-lld-workaround.patch
 #Patch24:	llvm-11-flang-missing-docs.patch
 #Patch25:	llvm-7.0-compiler-rt-arches.patch
-Patch26:	llvm-15.0.4-swig-4.1.patch
 Patch28:	lldb-lua-swig-4.1.patch
 Patch29:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
@@ -318,6 +332,7 @@ BuildRequires:	devel(libffi)
 BuildRequires:	devel(libxml2)
 BuildRequires:	devel(libelf)
 BuildRequires:	devel(libedit)
+BuildRequires:	devel(libpython%{py_ver})
 BuildRequires:	libzstd-static-devel
 # For Polly
 BuildRequires:	devel(libgmp)
@@ -532,9 +547,10 @@ for effective implementation, proper tail calls or garbage collection.
 %endif
 
 %if %{with mlir}
-%define MLIRLibs MLIRAffineAnalysis MLIRAffineToStandard MLIRAffineTransforms MLIRAffineTransformsTestPasses MLIRAffineUtils MLIRAMXToLLVMIRTranslation MLIRAMXTransforms MLIRAnalysis MLIRArithmeticToLLVM MLIRArithmeticToSPIRV MLIRArithmeticTransforms MLIRArmNeon2dToIntr MLIRArmNeonToLLVMIRTranslation MLIRArmSVEToLLVMIRTranslation MLIRArmSVETransforms MLIRAsyncToLLVM MLIRAsyncTransforms MLIRBufferizationToMemRef MLIRBufferizationTransforms MLIRCallInterfaces MLIRCAPIAsync MLIRCAPIConversion MLIRCAPIDebug MLIRCAPIExecutionEngine MLIRCAPIGPU MLIRCAPIInterfaces MLIRCAPIIR MLIRCAPILinalg MLIRCAPILLVM MLIRCAPIPDL MLIRCAPIQuant MLIRCAPISCF MLIRCAPIShape MLIRCAPISparseTensor MLIRCAPITensor MLIRCAPITransforms MLIRCastInterfaces MLIRComplexToLLVM MLIRComplexToStandard MLIRControlFlowInterfaces MLIRCopyOpInterface MLIRDataLayoutInterfaces MLIRDerivedAttributeOpInterface MLIRDialect MLIRDialectUtils MLIRDLTITestPasses MLIRExecutionEngine MLIRGPUOps MLIRGPUTestPasses MLIRGPUToGPURuntimeTransforms MLIRGPUToNVVMTransforms MLIRGPUToROCDLTransforms MLIRGPUToSPIRV MLIRGPUToVulkanTransforms MLIRGPUTransforms MLIRInferTypeOpInterface MLIRIR MLIRJitRunner MLIRLinalgAnalysis MLIRLinalgTestPasses MLIRLinalgToLLVM MLIRLinalgToSPIRV MLIRLinalgToStandard MLIRLinalgTransforms MLIRLinalgUtils MLIRLLVMCommonConversion MLIRLLVMIRTransforms MLIRLLVMToLLVMIRTranslation MLIRLoopLikeInterface MLIRLspServerLib MLIRMathTestPasses MLIRMathToLibm MLIRMathToLLVM MLIRMathToSPIRV MLIRMathTransforms MLIRMemRefToLLVM MLIRMemRefToSPIRV MLIRMemRefTransforms MLIRMemRefUtils MLIRMlirOptMain MLIRNVVMToLLVMIRTranslation MLIROpenACCToLLVMIRTranslation MLIROpenACCToLLVM MLIROpenACCToSCF MLIROpenMPToLLVMIRTranslation MLIROpenMPToLLVM MLIROptLib MLIRParser MLIRPass MLIRPDLLAST MLIRPDLToPDLInterp MLIRPresburger MLIRReconcileUnrealizedCasts MLIRReduceLib MLIRReduce MLIRRewrite MLIRROCDLToLLVMIRTranslation MLIRSCFTestPasses MLIRSCFToGPU MLIRSCFToOpenMP MLIRSCFToSPIRV MLIRSCFTransforms MLIRShapeOpsTransforms MLIRShapeTestPasses MLIRShapeToStandard MLIRSideEffectInterfaces MLIRSparseTensorTransforms MLIRSparseTensorUtils MLIRSPIRVBinaryUtils MLIRSPIRVConversion MLIRSPIRVDeserialization MLIRSPIRVModuleCombiner MLIRSPIRVSerialization MLIRSPIRVTestPasses MLIRSPIRVToLLVM MLIRSPIRVTransforms MLIRSPIRVTranslateRegistration MLIRSPIRVUtils MLIRSupportIndentedOstream MLIRSupport MLIRTargetCpp MLIRTargetLLVMIRExport MLIRTargetLLVMIRImport MLIRTensorInferTypeOpInterfaceImpl MLIRTensorTransforms MLIRTestAnalysis MLIRTestDialect MLIRTestIR MLIRTestPass MLIRTestReducer MLIRTestRewrite MLIRTestTransforms MLIRTilingInterface MLIRToLLVMIRTranslationRegistration MLIRTosaTestPasses MLIRTosaToLinalg MLIRTosaToSCF MLIRTosaTransforms MLIRTransforms MLIRTransformUtils MLIRVectorInterfaces MLIRVectorTestPasses MLIRVectorToGPU MLIRVectorToLLVM MLIRVectorToSCF MLIRVectorToSPIRV MLIRViewLikeInterface MLIRX86VectorToLLVMIRTranslation MLIRX86VectorTransforms MLIRTensorTilingInterfaceImpl MLIRTensorUtils MLIRMemRefTestPasses MLIRSCFUtils MLIRSparseTensorPipelines MLIRVectorTransforms MLIRVectorUtils MLIRAMDGPUDialect MLIRAMDGPUToROCDL MLIRAMXDialect MLIRAffineDialect MLIRArithmeticDialect MLIRArithmeticUtils MLIRArmNeonDialect MLIRArmSVEDialect MLIRAsmParser MLIRAsyncDialect MLIRBufferizationDialect MLIRBufferizationTransformOps MLIRCAPIControlFlow MLIRCAPIFunc MLIRCAPIRegisterEverything MLIRComplexDialect MLIRComplexToLibm MLIRControlFlowDialect MLIRControlFlowToLLVM MLIRControlFlowToSPIRV MLIRDLTIDialect MLIREmitCDialect MLIRExecutionEngineUtils MLIRFuncDialect MLIRFuncTestPasses MLIRFuncToLLVM MLIRFuncToSPIRV MLIRFuncTransforms MLIRInferIntRangeInterface MLIRLLVMDialect MLIRLinalgDialect MLIRLinalgTransformOps MLIRLspServerSupportLib MLIRMLProgramDialect MLIRMathDialect MLIRMemRefDialect MLIRNVGPUDialect MLIRNVGPUToNVVM MLIRNVGPUTransforms MLIRNVVMDialect MLIROpenACCDialect MLIROpenMPDialect MLIRPDLDialect MLIRPDLInterpDialect MLIRPDLLCodeGen MLIRPDLLODS MLIRParallelCombiningOpInterface MLIRQuantDialect MLIRQuantTransforms MLIRQuantUtils MLIRROCDLDialect MLIRSCFDialect MLIRSCFToControlFlow MLIRSCFTransformOps MLIRSPIRVDialect MLIRShapeDialect MLIRSparseTensorDialect MLIRTensorDialect MLIRTensorTestPasses MLIRTensorToLinalg MLIRTensorToSPIRV MLIRTestFuncToLLVM MLIRTestPDLL MLIRTestTransformDialect MLIRTilingInterfaceTestPasses MLIRTosaDialect MLIRTosaToArith MLIRTosaToTensor MLIRTransformDialect MLIRTransformDialectTransforms MLIRTranslateLib MLIRVectorDialect MLIRX86VectorDialect
+%define MLIRLibs MLIRAffineAnalysis MLIRAffineToStandard MLIRAffineTransforms MLIRAffineTransformsTestPasses MLIRAffineUtils MLIRAMXToLLVMIRTranslation MLIRAMXTransforms MLIRAnalysis MLIRArmNeon2dToIntr MLIRArmNeonToLLVMIRTranslation MLIRArmSVEToLLVMIRTranslation MLIRArmSVETransforms MLIRAsyncToLLVM MLIRAsyncTransforms MLIRBufferizationToMemRef MLIRBufferizationTransforms MLIRCallInterfaces MLIRCAPIAsync MLIRCAPIConversion MLIRCAPIDebug MLIRCAPIExecutionEngine MLIRCAPIGPU MLIRCAPIInterfaces MLIRCAPIIR MLIRCAPILinalg MLIRCAPILLVM MLIRCAPIPDL MLIRCAPIQuant MLIRCAPISCF MLIRCAPIShape MLIRCAPISparseTensor MLIRCAPITensor MLIRCAPITransforms MLIRCastInterfaces MLIRComplexToLLVM MLIRComplexToStandard MLIRControlFlowInterfaces MLIRCopyOpInterface MLIRDataLayoutInterfaces MLIRDerivedAttributeOpInterface MLIRDialect MLIRDialectUtils MLIRDLTITestPasses MLIRExecutionEngine MLIRGPUOps MLIRGPUTestPasses MLIRGPUToGPURuntimeTransforms MLIRGPUToNVVMTransforms MLIRGPUToROCDLTransforms MLIRGPUToSPIRV MLIRGPUToVulkanTransforms MLIRGPUTransforms MLIRInferTypeOpInterface MLIRIR MLIRJitRunner MLIRLinalgAnalysis MLIRLinalgTestPasses MLIRLinalgToLLVM MLIRLinalgToSPIRV MLIRLinalgToStandard MLIRLinalgTransforms MLIRLinalgUtils MLIRLLVMCommonConversion MLIRLLVMIRTransforms MLIRLLVMToLLVMIRTranslation MLIRLoopLikeInterface MLIRLspServerLib MLIRMathTestPasses MLIRMathToLibm MLIRMathToLLVM MLIRMathToSPIRV MLIRMathTransforms MLIRMemRefToLLVM MLIRMemRefToSPIRV MLIRMemRefTransforms MLIRMemRefUtils MLIRMlirOptMain MLIRNVVMToLLVMIRTranslation MLIROpenACCToLLVMIRTranslation MLIROpenACCToLLVM MLIROpenACCToSCF MLIROpenMPToLLVMIRTranslation MLIROpenMPToLLVM MLIROptLib MLIRParser MLIRPass MLIRPDLLAST MLIRPDLToPDLInterp MLIRPresburger MLIRReconcileUnrealizedCasts MLIRReduceLib MLIRReduce MLIRRewrite MLIRROCDLToLLVMIRTranslation MLIRSCFTestPasses MLIRSCFToGPU MLIRSCFToOpenMP MLIRSCFToSPIRV MLIRSCFTransforms MLIRShapeOpsTransforms MLIRShapeTestPasses MLIRShapeToStandard MLIRSideEffectInterfaces MLIRSparseTensorTransforms MLIRSparseTensorUtils MLIRSPIRVBinaryUtils MLIRSPIRVConversion MLIRSPIRVDeserialization MLIRSPIRVModuleCombiner MLIRSPIRVSerialization MLIRSPIRVTestPasses MLIRSPIRVToLLVM MLIRSPIRVTransforms MLIRSPIRVTranslateRegistration MLIRSPIRVUtils MLIRSupportIndentedOstream MLIRSupport MLIRTargetCpp MLIRTargetLLVMIRExport MLIRTargetLLVMIRImport MLIRTensorInferTypeOpInterfaceImpl MLIRTensorTransforms MLIRTestAnalysis MLIRTestDialect MLIRTestIR MLIRTestPass MLIRTestReducer MLIRTestRewrite MLIRTestTransforms MLIRTilingInterface MLIRToLLVMIRTranslationRegistration MLIRTosaTestPasses MLIRTosaToLinalg MLIRTosaToSCF MLIRTosaTransforms MLIRTransforms MLIRTransformUtils MLIRVectorInterfaces MLIRVectorTestPasses MLIRVectorToGPU MLIRVectorToLLVM MLIRVectorToSCF MLIRVectorToSPIRV MLIRViewLikeInterface MLIRX86VectorToLLVMIRTranslation MLIRX86VectorTransforms MLIRTensorTilingInterfaceImpl MLIRTensorUtils MLIRMemRefTestPasses MLIRSCFUtils MLIRSparseTensorPipelines MLIRVectorTransforms MLIRVectorUtils MLIRAMDGPUDialect MLIRAMDGPUToROCDL MLIRAMXDialect MLIRAffineDialect MLIRArithmeticDialect MLIRArithmeticUtils MLIRArmNeonDialect MLIRArmSVEDialect MLIRAsmParser MLIRAsyncDialect MLIRBufferizationDialect MLIRBufferizationTransformOps MLIRCAPIControlFlow MLIRCAPIFunc MLIRCAPIRegisterEverything MLIRComplexDialect MLIRComplexToLibm MLIRControlFlowDialect MLIRControlFlowToLLVM MLIRControlFlowToSPIRV MLIRDLTIDialect MLIREmitCDialect MLIRExecutionEngineUtils MLIRFuncDialect MLIRFuncTestPasses MLIRFuncToLLVM MLIRFuncToSPIRV MLIRFuncTransforms MLIRInferIntRangeInterface MLIRLLVMDialect MLIRLinalgDialect MLIRLinalgTransformOps MLIRLspServerSupportLib MLIRMLProgramDialect MLIRMathDialect MLIRMemRefDialect MLIRNVGPUDialect MLIRNVGPUToNVVM MLIRNVGPUTransforms MLIRNVVMDialect MLIROpenACCDialect MLIROpenMPDialect MLIRPDLDialect MLIRPDLInterpDialect MLIRPDLLCodeGen MLIRPDLLODS MLIRParallelCombiningOpInterface MLIRQuantDialect MLIRQuantTransforms MLIRQuantUtils MLIRROCDLDialect MLIRSCFDialect MLIRSCFToControlFlow MLIRSCFTransformOps MLIRSPIRVDialect MLIRShapeDialect MLIRSparseTensorDialect MLIRTensorDialect MLIRTensorTestPasses MLIRTensorToLinalg MLIRTensorToSPIRV MLIRTestFuncToLLVM MLIRTestPDLL MLIRTestTransformDialect MLIRTilingInterfaceTestPasses MLIRTosaDialect MLIRTosaToArith MLIRTosaToTensor MLIRTransformDialect MLIRTransformDialectTransforms MLIRTranslateLib MLIRVectorDialect MLIRX86VectorDialect
 
 # Removed in 14: MLIRLoopAnalysis
+# Removed in 16: MLIRArithmeticToLLVM MLIRArithmeticToSPIRV MLIRArithmeticTransform
 %else
 %define MLIRLibs %{nil}
 %endif
@@ -1815,23 +1831,13 @@ sed -i -e "s,5\.3,$LUAVER,g" lldb/test/API/lua_api/TestLuaAPI.py lldb/CMakeLists
 %config_update
 
 %build
-# Make sure libclc can find llvm-spirv
-export PATH=$(pwd)/build/bin:$PATH
-
 # FIXME do we need to enable cross-project-tests anywhere?
 PROJECTS="llvm"
 %if %{with bolt}
 PROJECTS="$PROJECTS;bolt"
-if [ -e bolt/docs/conf.py ]; then
-    echo "Bolt config has been fixed, remove this workaround"
-    exit 1
-else
-    sed -i -e 's,clang,bolt,g;s,Clang,Bolt,g' clang/docs/conf.py >bolt/docs/conf.py
-    sed -e 's,^/// ,,' bolt/docs/doxygen-mainpage.dox >bolt/docs/index.rst
-fi
 %endif
 %if %{with clang}
-PROJECTS="$PROJECTS;clang;clang-tools-extra;polly;compiler-rt"
+PROJECTS="$PROJECTS;clang;clang-tools-extra;polly"
 %endif
 %if %{with mlir}
 PROJECTS="$PROJECTS;mlir"
@@ -1858,7 +1864,9 @@ RUNTIMES="$RUNTIMES;pstl;libcxx;libcxxabi"
 PROJECTS="$PROJECTS;libc"
 RUNTIMES="$RUNTIMES;libc"
 %endif
-RUNTIMES="$RUNTIMES;libclc"
+PROJECTS="$PROJECTS;libclc"
+RUNTIMES="$RUNTIMES;compiler-rt"
+#RUNTIMES="$RUNTIMES;llvm-libgcc"
 
 [ $(echo $RUNTIMES |cut -b1) = ';' ] && RUNTIMES="$(echo $RUNTIMES |cut -b2-)"
 [ $(echo $PROJECTS |cut -b1) = ';' ] && PROJECTS="$(echo $PROJECTS |cut -b2-)"
@@ -1899,17 +1907,14 @@ CPROCESSES="$PROCESSES"
 # Linking LLVM with LTO enabled is VERY RAM intensive
 # and breaks boxes that have loads of CPU cores but no
 # terabytes of RAM...
-if [ "$PROCESSES" -gt 1 ]; then
-	LPROCESSES=1
-else
-	LPROCESSES=$PROCESSES
-fi
+[ "$PROCESSES" -gt 1 ] && LPROCESSES=1
+[ "$CPROCESSES" -gt 8 ] && CPROCESSES=8
 
 # The "%if 1" below is just a quick way to get rid of the real
 # 64-bit build to debug 32-bit build issues. No need to do a
 # proper define/with condition here, the switch is useless for
 # any regular use.
-%if 1
+%if ! %{with skip64}
 # We set an RPATH in CMAKE_EXE_LINKER_FLAGS to make sure the newly built
 # clang and friends use the just-built shared libraries -- there's no guarantee
 # that the ABI remains compatible between a snapshot libclang.so.11 and the
@@ -1928,6 +1933,7 @@ fi
 #
 %cmake \
 	-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+	-DLLVM_LIBGCC_EXPLICIT_OPT_IN=Yes \
 	-DFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON \
 	-DFETCHCONTENT_UPDATES_DISCONNECTED:BOOL=ON \
 %ifarch %{arm} %{riscv}
@@ -2059,6 +2065,9 @@ cd ..
 
 %if %{with compat32}
 TOP="$(pwd)"
+gccver="$(i686-openmandriva-linux-gnu-gcc --version |head -n1 |cut -d' ' -f3)"
+%if 0
+#! %{with skip64}
 cat >xc <<EOF
 #!/bin/sh
 %if %{with bootstrap32}
@@ -2067,7 +2076,6 @@ exec $TOP/build/bin/clang --rtlib=libgcc --unwindlib=libgcc -m32 "\$@"
 exec $TOP/build/bin/clang -m32 "\$@"
 %endif
 EOF
-gccver="$(i686-openmandriva-linux-gnu-gcc --version |head -n1 |cut -d' ' -f3)"
 cat >xc++ <<EOF
 #!/bin/sh
 %if %{with bootstrap32}
@@ -2076,6 +2084,24 @@ exec $TOP/build/bin/clang++ -std=gnu++17 --rtlib=libgcc --unwindlib=libgcc -m32 
 exec $TOP/build/bin/clang++ -std=gnu++17 -m32 -isystem %{_includedir}/c++/${gccver}/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
 %endif
 EOF
+%else
+cat >xc <<EOF
+#!/bin/sh
+%if %{with bootstrap32}
+exec %{_bindir}/clang --rtlib=libgcc --unwindlib=libgcc -m32 "\$@"
+%else
+exec %{_bindir}/clang -m32 "\$@"
+%endif
+EOF
+cat >xc++ <<EOF
+#!/bin/sh
+%if %{with bootstrap32}
+exec %{_bindir}/clang++ -std=gnu++17 --rtlib=libgcc --unwindlib=libgcc -m32 -isystem %{_includedir}/c++/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
+%else
+exec %{_bindir}/clang++ -std=gnu++17 -m32 -isystem %{_includedir}/c++/${gccver}/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
+%endif
+EOF
+%endif
 chmod +x xc xc++
 cat >cmake-i686.toolchain <<EOF
 set(CMAKE_SYSTEM_NAME Linux)
@@ -2090,6 +2116,7 @@ EOF
 # FIXME -DLIBUNWIND_USE_COMPILER_RT:BOOL=ON breaks the build (adds -lNOTFOUND)§
 %cmake32 \
 	-DCMAKE_BUILD_TYPE=MinSizeRel \
+	-DLLVM_LIBGCC_EXPLICIT_OPT_IN=Yes \
 	-DFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON \
 	-DFETCHCONTENT_UPDATES_DISCONNECTED:BOOL=ON \
 	-DLLVM_PARALLEL_LINK_JOBS=$LPROCESSES \
@@ -2097,8 +2124,8 @@ EOF
 	-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
 	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
 	-DLLVM_CONFIG_PATH=$(pwd)/../build/bin/llvm-config \
-	-DLLVM_ENABLE_PROJECTS="llvm;clang;polly;libunwind;openmp;compiler-rt" \
-	-DLLVM_ENABLE_RUNTIMES="" \
+	-DLLVM_ENABLE_PROJECTS="llvm;clang;polly;openmp" \
+	-DLLVM_ENABLE_RUNTIMES="libunwind;compiler-rt" \
 	-DLLVM_TOOL_PSTL_BUILD:BOOL=ON \
 	-DLLVM_TOOL_LIBUNWIND_BUILD:BOOL=ON \
 	-DLLVM_ENABLE_NEW_PASS_MANAGER:BOOL=ON \
@@ -2115,7 +2142,6 @@ EOF
 	-DLIBOMPTARGET_DEP_LIBFFI_LIBRARIES:FILEPATH=%{_prefix}/lib/libffi.so \
 	-Dpkgcfg_lib_LIBOMPTARGET_SEARCH_LIBFFI_ffi:FILEPATH=%{_prefix}/lib/libffi.so \
 	-DLIBXML2_LIBRARY:FILEPATH=%{_prefix}/lib/libxml2.so \
-	-DLLVM_EXTERNAL_LIBUNWIND_SOURCE_DIR:FILEPATH=$(pwd)/../libunwind \
 	-DLLVM_ENABLE_FFI:BOOL=ON \
 	-DLLVM_TARGETS_TO_BUILD=all \
 	-DLLVM_ENABLE_CXX1Y:BOOL=ON \
@@ -2189,6 +2215,9 @@ BINDIR=$(pwd)/build/bin
 export LD_LIBRARY_PATH=$(pwd)/build/%{_lib}:$LD_LIBRARY_PATH
 
 %if %{without bootstrap}
+# Make sure libclc can find llvm-spirv
+export PATH=$(pwd)/build/bin:$PATH
+
 # libclc integration into the main build seems to be broken
 mkdir build-libclc
 cd build-libclc
@@ -2261,7 +2290,7 @@ if [ -n "$XCRTARCHES" ]; then
 			-DLLVM_PARALLEL_COMPILE_JOBS=$CPROCESSES \
 			-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
 			-DCMAKE_CROSSCOMPILING:BOOL=ON \
-			-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{version} \
+			-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{major1} \
 			-DCMAKE_AR=${BINDIR}/llvm-ar \
 			-DCMAKE_NM=${BINDIR}/llvm-nm \
 			-DCMAKE_RANLIB=${BINDIR}/llvm-ranlib \
@@ -2271,8 +2300,8 @@ if [ -n "$XCRTARCHES" ]; then
 			-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=${arch}-openmandriva-linux-${LIBC} \
 			-DCMAKE_C_COMPILER=${BINDIR}/clang \
 			-DCMAKE_CXX_COMPILER=${BINDIR}/clang++ \
-			-DCMAKE_ASM_FLAGS="$FLAGS" \
-			-DCMAKE_C_FLAGS="$FLAGS" \
+			-DCMAKE_ASM_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
+			-DCMAKE_C_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
 			-DCMAKE_CXX_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
 			-DCMAKE_EXE_LINKER_FLAGS="$LFLAGS" \
 			-DCMAKE_MODULE_LINKER_FLAGS="$LFLAGS" \
@@ -2433,7 +2462,7 @@ rmdir %{buildroot}%{_libdir}/*-linux-*
 # unwinder instead of the traditional nongnu.org libunwind
 cp libunwind/include/libunwind.h libunwind/include/__libunwind_config.h %{buildroot}%{_includedir}/
 # And move unwind.h to where gcc can see it as well
-mv %{buildroot}%{_libdir}/clang/%{version}/include/unwind.h %{buildroot}%{_includedir}/
+mv %{buildroot}%{_libdir}/clang/%{major1}/include/unwind.h %{buildroot}%{_includedir}/
 mkdir -p %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_prefix}/lib/pkgconfig
 %if %{with default_compilerrt}
 sed -e 's,@LIBDIR@,%{_libdir},g;s,@VERSION@,%{version},g' %{S:50} >%{buildroot}%{_libdir}/pkgconfig/libunwind.pc

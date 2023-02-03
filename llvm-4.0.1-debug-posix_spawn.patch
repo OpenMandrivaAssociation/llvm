@@ -1,12 +1,12 @@
-diff -up llvm-7.0.0.src/llvm/lib/Support/Unix/Program.inc.posix_spawn~ llvm-7.0.0.src/lib/Support/Unix/Program.inc
---- llvm-7.0.0.src/llvm/lib/Support/Unix/Program.inc.posix_spawn~	2018-06-23 04:32:35.199362988 +0200
-+++ llvm-7.0.0.src/llvm/lib/Support/Unix/Program.inc	2018-06-23 04:36:12.525351012 +0200
-@@ -257,7 +257,7 @@ static bool Execute(ProcessInfo &PI, Str
+diff -up llvm-project-release-16.x/llvm/lib/Support/Unix/Program.inc.26~ llvm-project-release-16.x/llvm/lib/Support/Unix/Program.inc
+--- llvm-project-release-16.x/llvm/lib/Support/Unix/Program.inc.26~	2023-01-30 17:54:55.234917668 +0100
++++ llvm-project-release-16.x/llvm/lib/Support/Unix/Program.inc	2023-01-30 17:56:44.017525611 +0100
+@@ -261,7 +261,7 @@ static bool Execute(ProcessInfo &PI, Str
        posix_spawn_file_actions_destroy(FileActions);
  
      if (Err)
--     return !MakeErrMsg(ErrMsg, "posix_spawn failed", Err);
-+     return !MakeErrMsg(ErrMsg, "posix_spawn " + Program.str() + " failed", Err);
+-      return !MakeErrMsg(ErrMsg, "posix_spawn failed", Err);
++      return !MakeErrMsg(ErrMsg, "posix_spawn " + Program.str() + " failed", Err);
  
      PI.Pid = PID;
      PI.Process = PID;

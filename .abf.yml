@@ -1,5 +1,5 @@
 sources:
-  SPIRV-Tools-40f5bf59c6acb4754a0bffd3c53a715732883a12.tar.gz: 14cb83b66cf113f0940da904bcb269f0b8f3a391
-  SPIRV-Headers-1d31a100405cf8783ca7a31e31cdd727c9fc54c3.tar.gz: 67eacd56caf44dc237c7273b737a1a38cd54d3fd
-  spirv-llvm-translator-15.0.7.tar.gz: 85a16e570e8811199285d6aa57c4be4ac8938d02
-  llvm-project-15.0.7.src.tar.xz: bfda06ab090154d289013912266209595a2e3914
+  main.tar.gz: 15a5b423bec4aff6c081df58acb1375b939d7a52
+  llvm-16-20230130.tar.gz: aabdf9a27f99f6c0b27a8e5c8fcc63ef1a796d8b
+  spirv-llvm-translator-20230130.tar.gz: d150b427a061b18888406143da75a0994723d42c
+  v2023.1.tar.gz: f0478402e0cee638a70384d1873b0fd8b377255a

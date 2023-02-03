@@ -1,12 +1,12 @@
-diff -up llvm-project-15.0.4.src/lldb/bindings/lua/lua-typemaps.swig.omv~ llvm-project-15.0.4.src/lldb/bindings/lua/lua-typemaps.swig
---- llvm-project-15.0.4.src/lldb/bindings/lua/lua-typemaps.swig.omv~	2022-11-07 11:30:01.167562618 +0100
-+++ llvm-project-15.0.4.src/lldb/bindings/lua/lua-typemaps.swig	2022-11-07 11:30:10.175624269 +0100
+diff -up llvm-project-release-16.x/lldb/bindings/lua/lua-typemaps.swig.18~ llvm-project-release-16.x/lldb/bindings/lua/lua-typemaps.swig
+--- llvm-project-release-16.x/lldb/bindings/lua/lua-typemaps.swig.18~	2023-01-30 17:53:28.529485622 +0100
++++ llvm-project-release-16.x/lldb/bindings/lua/lua-typemaps.swig	2023-01-30 17:54:20.852746344 +0100
 @@ -247,7 +247,7 @@ LLDB_NUMBER_TYPEMAP(enum SWIGTYPE);
  // Typemap for file handles (e.g. used in SBDebugger::GetOutputFileHandle)
  
  %typemap(out) lldb::FileSP {
--  lldb::FileSP &sp = $1;
-+  const lldb::FileSP &sp = $1;
+-  lldb::FileSP sp = $1;
++  const lldb::FileSP sp = $1;
    if (sp && sp->IsValid()) {
      luaL_Stream *p = (luaL_Stream *)lua_newuserdata(L, sizeof(luaL_Stream));
      p->closef = &LLDBSwigLuaCloseFileHandle;

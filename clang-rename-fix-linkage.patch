@@ -1,11 +1,11 @@
-diff -up llvm-9.0.0-20190618/clang/tools/clang-rename/CMakeLists.txt.14~ llvm-9.0.0-20190618/clang/tools/clang-rename/CMakeLists.txt
---- llvm-9.0.0-20190618/clang/tools/clang-rename/CMakeLists.txt.14~	2019-06-18 21:00:35.855864148 +0200
-+++ llvm-9.0.0-20190618/clang/tools/clang-rename/CMakeLists.txt	2019-06-18 21:02:58.254173344 +0200
-@@ -16,6 +16,7 @@ target_link_libraries(clang-rename
+diff -up llvm-project-release-16.x/clang/tools/clang-rename/CMakeLists.txt.14~ llvm-project-release-16.x/clang/tools/clang-rename/CMakeLists.txt
+--- llvm-project-release-16.x/clang/tools/clang-rename/CMakeLists.txt.14~	2023-01-30 17:41:32.876919703 +0100
++++ llvm-project-release-16.x/clang/tools/clang-rename/CMakeLists.txt	2023-01-30 17:42:24.566177250 +0100
+@@ -16,6 +16,7 @@ clang_target_link_libraries(clang-rename
    clangTooling
    clangToolingCore
    clangToolingRefactoring
 +  LLVMSupport
    )
  
- install(PROGRAMS clang-rename.py
+ install(FILES clang-rename.py

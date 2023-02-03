@@ -1,7 +1,7 @@
-diff -up llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp.omv~ llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp.omv~	2022-08-26 18:21:44.671465853 +0200
-+++ llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp	2022-08-26 18:22:14.829637556 +0200
-@@ -253,7 +253,7 @@ Linux::Linux(const Driver &D, const llvm
+diff -up llvm-project-release-16.x/clang/lib/Driver/ToolChains/Linux.cpp.30~ llvm-project-release-16.x/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-release-16.x/clang/lib/Driver/ToolChains/Linux.cpp.30~	2023-01-30 17:57:19.390887117 +0100
++++ llvm-project-release-16.x/clang/lib/Driver/ToolChains/Linux.cpp	2023-01-30 18:12:33.024966634 +0100
+@@ -249,7 +249,7 @@ Linux::Linux(const Driver &D, const llvm
    }
  
  #ifdef ENABLE_LINKER_BUILD_ID
@@ -9,11 +9,11 @@ diff -up llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp.omv~ ll
 +  ExtraOpts.push_back("--build-id=sha1");
  #endif
  
-   if (IsAndroid || Distro.IsOpenSUSE() || Distro.IsOpenMandriva())
-diff -up llvm-project-release-15.x/lld/ELF/Driver.cpp.omv~ llvm-project-release-15.x/lld/ELF/Driver.cpp
---- llvm-project-release-15.x/lld/ELF/Driver.cpp.omv~	2022-08-26 18:20:46.778135709 +0200
-+++ llvm-project-release-15.x/lld/ELF/Driver.cpp	2022-08-26 18:21:07.660254877 +0200
-@@ -814,7 +814,7 @@ static std::pair<BuildIdKind, std::vecto
+   // The selection of paths to try here is designed to match the patterns which
+diff -up llvm-project-release-16.x/lld/ELF/Driver.cpp.30~ llvm-project-release-16.x/lld/ELF/Driver.cpp
+--- llvm-project-release-16.x/lld/ELF/Driver.cpp.30~	2023-01-30 17:57:19.266885869 +0100
++++ llvm-project-release-16.x/lld/ELF/Driver.cpp	2023-01-30 17:57:19.391887127 +0100
+@@ -842,7 +842,7 @@ static std::pair<BuildIdKind, SmallVecto
  getBuildId(opt::InputArgList &args) {
    auto *arg = args.getLastArg(OPT_build_id);
    if (!arg)
