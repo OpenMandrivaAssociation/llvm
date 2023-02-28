@@ -196,3 +196,44 @@ diff -up llvm-project-release-16.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm
    const std::string MultiarchTriple = getMultiarchTriple(D, Triple, SysRoot);
  
    // mips32: Debian multilib, we use /libo32, while in other case, /lib is
+diff -up llvm-project-release-16.x/llvm/include/llvm/TargetParser/Triple.h.omv~ llvm-project-release-16.x/llvm/include/llvm/TargetParser/Triple.h
+--- llvm-project-release-16.x/llvm/include/llvm/TargetParser/Triple.h.omv~	2023-02-22 17:32:27.240435721 +0100
++++ llvm-project-release-16.x/llvm/include/llvm/TargetParser/Triple.h	2023-02-22 17:34:18.431439114 +0100
+@@ -180,7 +180,8 @@ public:
+     Mesa,
+     SUSE,
+     OpenEmbedded,
+-    LastVendorType = OpenEmbedded
++    OpenMandriva,
++    LastVendorType = OpenMandriva
+   };
+   enum OSType {
+     UnknownOS,
+@@ -887,7 +888,7 @@ public:
+     return (getArch() == Triple::ppc64 &&
+             ((getOS() == Triple::FreeBSD &&
+             (getOSMajorVersion() >= 13 || getOSVersion().empty())) ||
+-            getOS() == Triple::OpenBSD || isMusl()));
++            getOS() == Triple::OpenBSD || isMusl() || getVendor() == VendorType::OpenMandriva));
+   }
+ 
+   /// Tests whether the target is 32-bit RISC-V.
+diff -up llvm-project-release-16.x/llvm/lib/TargetParser/Triple.cpp.omv~ llvm-project-release-16.x/llvm/lib/TargetParser/Triple.cpp
+--- llvm-project-release-16.x/llvm/lib/TargetParser/Triple.cpp.omv~	2023-02-22 17:32:48.837436380 +0100
++++ llvm-project-release-16.x/llvm/lib/TargetParser/Triple.cpp	2023-02-22 17:33:28.459437589 +0100
+@@ -193,6 +193,7 @@ StringRef Triple::getVendorTypeName(Vend
+   case Myriad: return "myriad";
+   case NVIDIA: return "nvidia";
+   case OpenEmbedded: return "oe";
++  case OpenMandriva: return "openmandriva";
+   case PC: return "pc";
+   case SCEI: return "scei";
+   case SUSE: return "suse";
+@@ -552,6 +553,7 @@ static Triple::VendorType parseVendor(St
+     .Case("mesa", Triple::Mesa)
+     .Case("suse", Triple::SUSE)
+     .Case("oe", Triple::OpenEmbedded)
++    .Case("openmandriva", Triple::OpenMandriva)
+     .Default(Triple::UnknownVendor);
+ }
+ 

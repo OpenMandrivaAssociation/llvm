@@ -1,0 +1,14 @@
+diff -up llvm-project-release-16.x/lld/ELF/Symbols.cpp.omv~ llvm-project-release-16.x/lld/ELF/Symbols.cpp
+--- llvm-project-release-16.x/lld/ELF/Symbols.cpp.omv~	2023-02-22 19:02:24.996600447 +0100
++++ llvm-project-release-16.x/lld/ELF/Symbols.cpp	2023-02-22 19:02:34.456600736 +0100
+@@ -258,8 +258,8 @@ void Symbol::parseSymbolVersion() {
+   // if the symbol has a local version as it won't be in the dynamic
+   // symbol table.
+   if (config->shared && versionId != VER_NDX_LOCAL)
+-    error(toString(file) + ": symbol " + s + " has undefined version " +
+-          verstr);
++    warn(toString(file) + ": symbol " + s + " has undefined version " +
++         verstr);
+ }
+ 
+ void Symbol::extract() const {
