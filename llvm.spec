@@ -1072,11 +1072,13 @@ optimizing performance of binaries
 %{_bindir}/llvm-boltdiff
 %{_bindir}/merge-fdata
 %{_bindir}/perf2bolt
+%ifarch %{x86_64}
 %{_libdir}/libbolt_rt_hugify.a
 %{_libdir}/libbolt_rt_instr.a
 # FIXME is this one actually useful, given we
 # don't target osx?
 %{_libdir}/libbolt_rt_instr_osx.a
+%endif
 #doc %{_docdir}/bolt
 %endif
 
