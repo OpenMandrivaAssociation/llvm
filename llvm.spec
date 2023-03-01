@@ -1172,8 +1172,6 @@ intended to run in tandem with a build of a project or code base.
 %{_bindir}/scan-build-py
 %{_libdir}/libear
 %{_libdir}/libscanbuild
-%{_prefix}/lib/libscanbuild
-%{_prefix}/lib/libear
 %{_bindir}/scan-view
 %{_libexecdir}/ccc-analyzer
 %{_libexecdir}/c++-analyzer
@@ -2381,6 +2379,8 @@ fi
 # Get rid of compat32 stuff that isn't needed in a 64-bit
 # environment
 rm -rf \
+    %{buildroot}%{_prefix}/lib/libear \
+    %{buildroot}%{_prefix}/lib/libscanbuild \
     %{buildroot}%{_prefix}/lib/LLVMgold.so \
     %{buildroot}%{_prefix}/lib/clang \
     %{buildroot}%{_bindir}
