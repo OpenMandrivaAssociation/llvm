@@ -1,0 +1,14 @@
+diff -up llvm-project-release-16.x/compiler-rt/lib/orc/CMakeLists.txt.omv~ llvm-project-release-16.x/compiler-rt/lib/orc/CMakeLists.txt
+--- llvm-project-release-16.x/compiler-rt/lib/orc/CMakeLists.txt.omv~	2023-03-11 22:48:15.005090461 +0100
++++ llvm-project-release-16.x/compiler-rt/lib/orc/CMakeLists.txt	2023-03-11 22:44:42.884368139 +0100
+@@ -72,7 +72,9 @@ set(ORC_LINK_LIBS
+ 
+ # Allow the ORC runtime to reference LLVM headers.
+ foreach (DIR ${LLVM_INCLUDE_DIR} ${LLVM_MAIN_INCLUDE_DIR})
+-  list(APPEND ORC_CFLAGS -I${DIR})
++  if(NOT ${DIR} MATCHES "/usr/include")
++    list(APPEND ORC_CFLAGS -I${DIR})
++  endif()
+ endforeach()
+ 
+ add_compiler_rt_component(orc)

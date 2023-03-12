@@ -17,8 +17,8 @@
 %bcond_with skip64
 
 # (tpg) set snapshot date
-# 20230228 is between to 16.0.0-rc3 and -rc4
-%define date 20230228
+# 20230311 is -rc4
+%define date 20230312
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -116,8 +116,6 @@
 %define major1 %(echo %{version} |cut -d. -f1)
 #define is_main 1
 %if 0%{?is_main:1}
-%define spirv_is_main 1
-%else
 # Separate because SPIRV_LLVM_Translator and friends frequently tag
 # llvm_release_XXX branches only after the release
 %define spirv_is_main 1
@@ -146,8 +144,7 @@ Url:		http://llvm.org/
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
 # llvm-spirv-translator and friends
-# 296cb645... is the last commit before switching the LLVM version to 17
-Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/296cb645e184864afd28136e453ca161a35728ae.tar.gz
+Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
 Release:	0.%{date}.1
 %else
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
@@ -233,6 +230,8 @@ Patch58:	llvm-10-omp-needs-libm.patch
 # but results in ALL symbols being unversioned
 #Patch59:	lld-16-compat-bug-60859.patch
 Patch60:	llvm-15-default-build-id-sha1.patch
+# Unbreak compiler-rt crosscompiles
+Patch61:	compiler-rt-no-Iusrinclude.patch
 # Really a patch -- but we want to apply it conditionally
 # and we use %%autosetup for other patches...
 Source62:	llvm-10-default-compiler-rt.patch
@@ -2338,6 +2337,7 @@ if [ -n "$XCRTARCHES" ]; then
 			-DLLVM_PARALLEL_LINK_JOBS=$LPROCESSES \
 			-DLLVM_PARALLEL_COMPILE_JOBS=$CPROCESSES \
 			-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
+			-DLLVM_INCLUDE_DIR="${TOP}/llvm/include/llvm" \
 			-DCMAKE_CROSSCOMPILING:BOOL=ON \
 			-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{major1} \
 			-DCMAKE_AR=${BINDIR}/llvm-ar \
