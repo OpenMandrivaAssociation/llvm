@@ -241,6 +241,7 @@ Source63:	llvm-riscv-needs-libatomic-linkage.patch
 #Patch90:	spirv-fix-warnings.patch
 Patch91:	SPRIV-Tools-soname.patch
 Patch92:	spirv-tools-compile.patch
+Patch93:	spirv-headers-install-even-if-not-toplevel.patch
 
 BuildRequires:	bison
 BuildRequires:	binutils-devel
