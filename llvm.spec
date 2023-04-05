@@ -136,7 +136,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	16.0.0
+Version:	16.0.1
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -156,7 +156,7 @@ Release:	1
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/SPIRV-Headers-1d31a100405cf8783ca7a31e31cdd727c9fc54c3.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/SPIRV-Tools-40f5bf59c6acb4754a0bffd3c53a715732883a12.tar.gz
 Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.1.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
