@@ -7,7 +7,7 @@ diff -up llvm-project-16.0.3.src/clang/lib/Driver/ToolChains/Gnu.cpp.121~ llvm-p
                                                 "riscv32-openmandriva-linux-musl",
 -                                               "riscv32-openmandriva-linux-uclibc"};
 +                                               "riscv32-openmandriva-linux-uclibc",
-+                                               "riscv32-esp-elf",};
++                                               "riscv32-esp-elf",
 +                                               "riscv32-esp-unknown-elf"};
    static const char *const RISCV64LibDirs[] = {"/lib64", "/lib"};
    static const char *const RISCV64Triples[] = {"riscv64-unknown-linux-gnu",

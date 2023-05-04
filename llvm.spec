@@ -28,8 +28,10 @@
 
 # (tpg) optimize it a bit
 # And reduce debug level to save some space
-%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Wl,-Bsymbolic-functions -g1
+%if ! %{cross_compiling}
+%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Qunused-arguments -Wl,-Bsymbolic-functions -g1
 %global build_ldflags %{build_ldflags} -fno-semantic-interposition -Wl,-Bsymbolic-functions
+%endif
 
 %ifarch %{riscv}
 # Workaround for broken previous version
