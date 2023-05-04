@@ -328,8 +328,10 @@ Patch1082:	0082-Xtensa-Use-B0-register-for-FP-cmp-operations.patch
 Patch1083:	0083-ci-add-.gitlab-ci.yml-to-support-CI-CD.patch
 Patch1084:	0084-Xtensa-Fix-inline-asm.patch
 Patch1085:	0085-Xtensa-Fix-handling-of-empty-fuse-ld-option-for.patch
+# REDIFFED, conflicts with OM triplet additions
 Patch1086:	0086-esp-Adds-support-for-vendor-Espressif-to-target.patch
 Patch1087:	0087-esp-riscv-Use-GCC-assembler-for-ESP-RISCV-chips.patch
+# REDIFFED, conflicts with OM triplet additions
 Patch1088:	0088-esp-riscv-Adds-support-for-riscv32-esp-elf-target.patch
 Patch1089:	0089-riscv-Add-default-multilib.patch
 Patch1090:	0090-esp-riscv-Add-multilib-support-for-riscv32-esp-elf.patch

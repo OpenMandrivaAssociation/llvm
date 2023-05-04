@@ -1,50 +1,7 @@
-From 4b7aa3e1855a4cf969256f07915ce25b9b72ccac Mon Sep 17 00:00:00 2001
-From: Andrei Safronov <safronov@espressif.com>
-Date: Wed, 5 Apr 2023 00:59:21 +0300
-Subject: [PATCH 086/140] esp: Adds support for vendor 'Espressif' to target
-
- triple
----
- clang/lib/Driver/ToolChains/Gnu.cpp           |   3 +-
- clang/lib/Driver/ToolChains/Xtensa.cpp        |  14 ++-
- .../bin/xtensa-esp32s2-elf-ld                 |   1 +
- .../bin/xtensa-esp32s3-elf-ld                 |   1 +
- .../gcc/xtensa-esp32s2-elf/8.4.0/crtbegin.o   |   0
- .../lib/gcc/xtensa-esp32s2-elf/8.4.0/crtend.o |   0
- .../8.4.0/no-rtti/crtbegin.o                  |   0
- .../xtensa-esp32s2-elf/8.4.0/no-rtti/crtend.o |   0
- .../gcc/xtensa-esp32s3-elf/8.4.0/crtbegin.o   |   0
- .../lib/gcc/xtensa-esp32s3-elf/8.4.0/crtend.o |   0
- .../8.4.0/no-rtti/crtbegin.o                  |   0
- .../xtensa-esp32s3-elf/8.4.0/no-rtti/crtend.o |   0
- .../xtensa-esp32s2-elf/lib/crt0.o             |   0
- .../xtensa-esp32s2-elf/lib/no-rtti/crt0.o     |   0
- .../xtensa-esp32s3-elf/lib/crt0.o             |   0
- .../xtensa-esp32s3-elf/lib/no-rtti/crt0.o     |   0
- clang/test/Driver/xtensa-toolchain.c          | 105 +++++++++++++-----
- llvm/include/llvm/TargetParser/Triple.h       |   1 +
- llvm/lib/TargetParser/Triple.cpp              |   2 +
- 19 files changed, 97 insertions(+), 30 deletions(-)
- create mode 100755 clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld
- create mode 100755 clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtbegin.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtend.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtbegin.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtend.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtbegin.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtend.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtbegin.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtend.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/crt0.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/no-rtti/crt0.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/crt0.o
- create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/no-rtti/crt0.o
-
-diff --git a/clang/lib/Driver/ToolChains/Gnu.cpp b/clang/lib/Driver/ToolChains/Gnu.cpp
-index 21ee62e94ecb..2aec52a41bed 100644
---- a/clang/lib/Driver/ToolChains/Gnu.cpp
-+++ b/clang/lib/Driver/ToolChains/Gnu.cpp
-@@ -2376,8 +2376,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
+diff -up llvm-project-16.0.3.src/clang/lib/Driver/ToolChains/Gnu.cpp.119~ llvm-project-16.0.3.src/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-project-16.0.3.src/clang/lib/Driver/ToolChains/Gnu.cpp.119~	2023-05-04 18:30:19.318103611 +0200
++++ llvm-project-16.0.3.src/clang/lib/Driver/ToolChains/Gnu.cpp	2023-05-04 18:30:19.353103891 +0200
+@@ -2411,8 +2411,7 @@ void Generic_GCC::GCCInstallationDetecto
  
    static const char *const XtensaLibDirs[] = {"/lib"};
    static const char *const XtensaTriples[] = {
@@ -54,11 +11,10 @@ index 21ee62e94ecb..2aec52a41bed 100644
  
    using std::begin;
    using std::end;
-diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
-index 87d569e9cde0..5f6b959af309 100644
---- a/clang/lib/Driver/ToolChains/Xtensa.cpp
-+++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
-@@ -36,8 +36,20 @@ XtensaToolChain::XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
+diff -up llvm-project-16.0.3.src/clang/lib/Driver/ToolChains/Xtensa.cpp.119~ llvm-project-16.0.3.src/clang/lib/Driver/ToolChains/Xtensa.cpp
+--- llvm-project-16.0.3.src/clang/lib/Driver/ToolChains/Xtensa.cpp.119~	2023-05-04 18:30:19.348103851 +0200
++++ llvm-project-16.0.3.src/clang/lib/Driver/ToolChains/Xtensa.cpp	2023-05-04 18:30:19.353103891 +0200
+@@ -36,8 +36,20 @@ XtensaToolChain::XtensaToolChain(const D
                                   const ArgList &Args)
      : Generic_ELF(D, Triple, Args) {
  
@@ -80,60 +36,31 @@ index 87d569e9cde0..5f6b959af309 100644
    if (!GCCInstallation.isValid()) {
      llvm_unreachable("Unexpected Xtensa GCC toolchain version");
    }
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld b/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld
-new file mode 100755
-index 000000000000..b23e55619b2f
---- /dev/null
-+++ b/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld
+--- llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld.119~	2023-05-04 18:30:19.353103891 +0200
++++ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld	2023-05-04 18:30:19.353103891 +0200
 @@ -0,0 +1 @@
 +#!/bin/true
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld b/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld
-new file mode 100755
-index 000000000000..b23e55619b2f
---- /dev/null
-+++ b/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld
+--- llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld.119~	2023-05-04 18:30:19.353103891 +0200
++++ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld	2023-05-04 18:30:19.353103891 +0200
 @@ -0,0 +1 @@
 +#!/bin/true
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtbegin.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtend.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtbegin.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtend.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtbegin.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtend.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtbegin.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtend.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/crt0.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/crt0.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/no-rtti/crt0.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/no-rtti/crt0.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/crt0.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/crt0.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/no-rtti/crt0.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/no-rtti/crt0.o
-new file mode 100644
-index 000000000000..e69de29bb2d1
-diff --git a/clang/test/Driver/xtensa-toolchain.c b/clang/test/Driver/xtensa-toolchain.c
-index 0570c1d0f0b5..aa753abcf636 100644
---- a/clang/test/Driver/xtensa-toolchain.c
-+++ b/clang/test/Driver/xtensa-toolchain.c
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtbegin.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtbegin.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtend.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtend.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtbegin.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtbegin.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtend.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtend.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtbegin.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtbegin.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtend.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtend.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtbegin.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtbegin.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtend.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtend.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/crt0.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/crt0.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/no-rtti/crt0.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/no-rtti/crt0.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/crt0.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/crt0.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/no-rtti/crt0.o.119~ llvm-project-16.0.3.src/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/no-rtti/crt0.o
+diff -up llvm-project-16.0.3.src/clang/test/Driver/xtensa-toolchain.c.119~ llvm-project-16.0.3.src/clang/test/Driver/xtensa-toolchain.c
+--- llvm-project-16.0.3.src/clang/test/Driver/xtensa-toolchain.c.119~	2023-05-04 18:30:19.329103699 +0200
++++ llvm-project-16.0.3.src/clang/test/Driver/xtensa-toolchain.c	2023-05-04 18:30:19.354103899 +0200
 @@ -1,42 +1,93 @@
  // A basic clang -cc1 command-line, and simple environment check.
  
@@ -255,23 +182,23 @@ index 0570c1d0f0b5..aa753abcf636 100644
 +// C-XTENSA-ESP32S3-BAREMETAL-RTTI: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32s3-elf-ld"
 +// C-XTENSA-ESP32S3-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32s3-elf{{/|\\\\}}8.4.0"
 +// C-XTENSA-ESP32S3-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32s3-elf{{/|\\\\}}lib"
-diff --git a/llvm/include/llvm/TargetParser/Triple.h b/llvm/include/llvm/TargetParser/Triple.h
-index 59513fa2f206..49f513f434d3 100644
---- a/llvm/include/llvm/TargetParser/Triple.h
-+++ b/llvm/include/llvm/TargetParser/Triple.h
-@@ -180,6 +180,7 @@ public:
-     Mesa,
+diff -up llvm-project-16.0.3.src/llvm/include/llvm/TargetParser/Triple.h.119~ llvm-project-16.0.3.src/llvm/include/llvm/TargetParser/Triple.h
+--- llvm-project-16.0.3.src/llvm/include/llvm/TargetParser/Triple.h.119~	2023-05-04 18:30:19.354103899 +0200
++++ llvm-project-16.0.3.src/llvm/include/llvm/TargetParser/Triple.h	2023-05-04 18:31:19.087581986 +0200
+@@ -181,7 +181,8 @@ public:
      SUSE,
      OpenEmbedded,
+     OpenMandriva,
+-    LastVendorType = OpenMandriva
 +    Espressif,
-     LastVendorType = OpenEmbedded
++    LastVendorType = Espressif
    };
    enum OSType {
-diff --git a/llvm/lib/TargetParser/Triple.cpp b/llvm/lib/TargetParser/Triple.cpp
-index a68035989a93..bcb015095e50 100644
---- a/llvm/lib/TargetParser/Triple.cpp
-+++ b/llvm/lib/TargetParser/Triple.cpp
-@@ -196,6 +196,7 @@ StringRef Triple::getVendorTypeName(VendorType Kind) {
+     UnknownOS,
+diff -up llvm-project-16.0.3.src/llvm/lib/TargetParser/Triple.cpp.119~ llvm-project-16.0.3.src/llvm/lib/TargetParser/Triple.cpp
+--- llvm-project-16.0.3.src/llvm/lib/TargetParser/Triple.cpp.119~	2023-05-04 18:30:18.712098763 +0200
++++ llvm-project-16.0.3.src/llvm/lib/TargetParser/Triple.cpp	2023-05-04 18:31:57.637890694 +0200
+@@ -197,6 +197,7 @@ StringRef Triple::getVendorTypeName(Vend
    case PC: return "pc";
    case SCEI: return "scei";
    case SUSE: return "suse";
@@ -279,14 +206,11 @@ index a68035989a93..bcb015095e50 100644
    }
  
    llvm_unreachable("Invalid VendorType!");
-@@ -552,6 +553,7 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
-     .Case("mesa", Triple::Mesa)
+@@ -554,6 +555,7 @@ static Triple::VendorType parseVendor(St
      .Case("suse", Triple::SUSE)
      .Case("oe", Triple::OpenEmbedded)
+     .Case("openmandriva", Triple::OpenMandriva)
 +    .Case("esp", Triple::Espressif)
      .Default(Triple::UnknownVendor);
  }
  
--- 
-2.40.1
-
