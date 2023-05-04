@@ -1,0 +1,63 @@
+From e073400ff2291de209938b899d1f9ba8b6e1cd22 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:19 +0300
+Subject: [PATCH 082/140] [Xtensa] Use B0 register for FP cmp operations.
+
+The virtual bool registers allocation from BR class may cause
+situation when we need to spill such 1-bit registers, this would cause
+performance degradation due to load/store operations of the 32-bit BR register.
+The performance improvement from using virtual bool registers is not
+significant. So, just use only B0 register for FP compare operations.
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 19 +++++++++----------
+ 1 file changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index a1c193690e24..778268c3699c 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -2052,15 +2052,15 @@ XtensaTargetLowering::emitSelectCC(MachineInstr &MI,
+       (MI.getOpcode() == Xtensa::SELECT_CC_FP_INT)) {
+     int BrKind = 0;
+     int CmpKind = 0;
+-    MachineFunction *MF = BB->getParent();
+-    MachineRegisterInfo &RegInfo = MF->getRegInfo();
+-    const TargetRegisterClass *RC = &Xtensa::BRRegClass;
+-    unsigned b = RegInfo.createVirtualRegister(RC);
++    unsigned b = Xtensa::B0;
++
+     GetFPBranchKind(Cond.getImm(), BrKind, CmpKind);
+     BuildMI(BB, DL, TII.get(CmpKind), b)
+         .addReg(LHS.getReg())
+         .addReg(RHS.getReg());
+-    BuildMI(BB, DL, TII.get(BrKind)).addReg(b).addMBB(sinkMBB);
++    BuildMI(BB, DL, TII.get(BrKind))
++        .addReg(b, RegState::Kill)
++        .addMBB(sinkMBB);
+   } else {
+     bool BrInv = false;
+     int BrKind = GetBranchKind(Cond.getImm(), BrInv);
+@@ -3115,16 +3115,15 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
+     MachineBasicBlock *TargetBB = MI.getOperand(3).getMBB();
+     int BrKind = 0;
+     int CmpKind = 0;
+-    MachineFunction *MF = MBB->getParent();
+-    MachineRegisterInfo &RegInfo = MF->getRegInfo();
+-    const TargetRegisterClass *RC = &Xtensa::BRRegClass;
++    unsigned RegB = Xtensa::B0;
+ 
+-    unsigned RegB = RegInfo.createVirtualRegister(RC);
+     GetFPBranchKind(Cond.getImm(), BrKind, CmpKind);
+     BuildMI(*MBB, MI, DL, TII.get(CmpKind), RegB)
+         .addReg(LHS.getReg())
+         .addReg(RHS.getReg());
+-    BuildMI(*MBB, MI, DL, TII.get(BrKind)).addReg(RegB).addMBB(TargetBB);
++    BuildMI(*MBB, MI, DL, TII.get(BrKind))
++        .addReg(RegB, RegState::Kill)
++        .addMBB(TargetBB);
+ 
+     MI.eraseFromParent();
+     return MBB;
+-- 
+2.40.1
+

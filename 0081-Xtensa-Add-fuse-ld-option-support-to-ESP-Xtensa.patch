@@ -1,0 +1,83 @@
+From f49890f93d7e118d16cda1ed70db8c0fffccba44 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:19 +0300
+Subject: [PATCH 081/140] [Xtensa]: Add '-fuse-ld' option support to ESP Xtensa
+
+ toolchain
+---
+ clang/lib/Driver/ToolChains/Xtensa.cpp | 11 ++++++++---
+ clang/test/Driver/xtensa-toolchain.c   |  8 ++++----
+ 2 files changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index f41b1db3c663..46acba842901 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -214,6 +214,7 @@ void xtensa::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+                                   const ArgList &Args,
+                                   const char *LinkingOutput) const {
+   ArgStringList CmdArgs;
++  SmallString<128> Linker;
+   bool WantCRTs =
+       !Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles);
+   const auto &ToolChain =
+@@ -222,9 +223,13 @@ void xtensa::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+   if (ToolChain.GCCToolchainName == "")
+     llvm_unreachable("Unable to find Xtensa GCC linker");
+ 
+-  SmallString<128> Linker(ToolChain.GCCToolchainDir);
+-  llvm::sys::path::append(Linker, "bin",
+-                          ToolChain.GCCToolchainName + "-" + getShortName());
++  if (Args.hasArg(options::OPT_fuse_ld_EQ)) {
++    Linker.assign(ToolChain.GetLinkerPath());
++  } else {
++    Linker.assign(ToolChain.GCCToolchainDir);
++    llvm::sys::path::append(Linker, "bin",
++                            ToolChain.GCCToolchainName + "-" + getShortName());
++  }
+ 
+   const char *crtbegin, *crtend;
+   auto RuntimeLib = ToolChain.GetRuntimeLibType(Args);
+diff --git a/clang/test/Driver/xtensa-toolchain.c b/clang/test/Driver/xtensa-toolchain.c
+index 245e09902f0f..0570c1d0f0b5 100644
+--- a/clang/test/Driver/xtensa-toolchain.c
++++ b/clang/test/Driver/xtensa-toolchain.c
+@@ -5,7 +5,7 @@
+ // RUN:   | FileCheck -check-prefix=CC1 %s
+ // CC1: clang{{.*}} "-cc1" "-triple" "xtensa"
+ 
+-// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN: %clang %s -### -no-canonical-prefixes \
+ // RUN:   -target xtensa --rtlib=platform \
+ // RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree 2>&1 \
+ // RUN:   | FileCheck -check-prefix=C-XTENSA-BAREMETAL %s
+@@ -14,7 +14,7 @@
+ // C-XTENSA-BAREMETAL: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0/no-rtti"
+ // C-XTENSA-BAREMETAL: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib/no-rtti"
+ 
+-// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN: %clang %s -### -no-canonical-prefixes \
+ // RUN:   -target xtensa --rtlib=platform \
+ // RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree -frtti 2>&1 \
+ // RUN:   | FileCheck -check-prefix=C-XTENSA-BAREMETAL-RTTI %s
+@@ -23,7 +23,7 @@
+ // C-XTENSA-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0"
+ // C-XTENSA-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib"
+ 
+-// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN: %clang %s -### -no-canonical-prefixes \
+ // RUN:   -target xtensa --rtlib=platform \
+ // RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree -mfix-esp32-psram-cache-issue 2>&1 \
+ // RUN:   | FileCheck -check-prefix=C-XTENSA-BAREMETAL-PSRAM %s
+@@ -32,7 +32,7 @@
+ // C-XTENSA-BAREMETAL-PSRAM: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0/esp32-psram/no-rtti"
+ // C-XTENSA-BAREMETAL-PSRAM: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib/esp32-psram/no-rtti"
+ 
+-// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN: %clang %s -### -no-canonical-prefixes \
+ // RUN:   -target xtensa --rtlib=platform \
+ // RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree -mfix-esp32-psram-cache-issue -frtti 2>&1 \
+ // RUN:   | FileCheck -check-prefix=C-XTENSA-BAREMETAL-PSRAM-RTTI %s
+-- 
+2.40.1
+

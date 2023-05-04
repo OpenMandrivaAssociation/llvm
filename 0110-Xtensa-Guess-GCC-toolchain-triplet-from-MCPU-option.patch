@@ -1,0 +1,48 @@
+From 4723aad9e49d2bd9e8a6285ad766afe616b94b4c Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:33 +0300
+Subject: [PATCH 110/140] [Xtensa] Guess GCC toolchain triplet from MCPU option
+
+---
+ clang/lib/Driver/ToolChains/Xtensa.cpp | 25 +++++++++++++++++--------
+ 1 file changed, 17 insertions(+), 8 deletions(-)
+
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index 362f2bc2382f..7d0725b3d027 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -38,14 +38,23 @@ XtensaToolChain::XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
+ 
+   std::vector<std::string> ExtraAliases;
+ 
+-  if (Triple.getVendor() == llvm::Triple::Espressif) {
+-    std::string ESPCpuName = "esp32";
+-    if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
+-      ESPCpuName = A->getValue();
+-    }
+-    ExtraAliases = {std::string("xtensa-") + ESPCpuName + "-elf"};
+-    if (Args.hasArg(options::OPT_v)) {
+-      llvm::errs() << "Use GCC target extra alias: " << ExtraAliases[0] << "\n";
++  if (Triple.getVendor() == llvm::Triple::Espressif ||
++      Triple.getVendor() == llvm::Triple::UnknownVendor) {
++    Arg *mcpuArg = Args.getLastArg(options::OPT_mcpu_EQ);
++    SmallString<128> CpuName;
++    if (mcpuArg)
++      CpuName = mcpuArg->getValue();
++    else if (Triple.getVendor() == llvm::Triple::Espressif)
++      // 'esp32' is default for 'xtensa-esp-xxx' targets,
++      // for generic 'xtensa' target CPU should be always specified explicitly with '-mcpu'
++      CpuName = "esp32";
++    if (CpuName.startswith("esp")) {
++      // ESP Xtensa GCC toolchain uses shorten triple "xtensa-<cpu>-elf", so add it as an alias
++      // to help Clang detect GCC installation properly
++      ExtraAliases = {std::string("xtensa-") + CpuName.c_str() + "-elf"};
++      if (Args.hasArg(options::OPT_v)) {
++        llvm::errs() << "Use GCC target extra alias: " << ExtraAliases[0] << "\n";
++      }
+     }
+   }
+ 
+-- 
+2.40.1
+

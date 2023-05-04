@@ -1,0 +1,109 @@
+From 08ed4e398e60a57442ad52aeddc562b3f6b1407c Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:37 +0300
+Subject: [PATCH 118/140] esp/ci: Adds MacOS binaries signing stage
+
+---
+ .gitlab-ci.yml                   |  1 +
+ .universal-toolchain-release.yml | 59 +++++++++++++++++++++++++++++---
+ 2 files changed, 56 insertions(+), 4 deletions(-)
+
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index d4a2c816f97e..e152a1c90a6e 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -1,6 +1,7 @@
+ stages:
+   - build
+   - pack
++  - sign
+   - private_deploy
+   - test
+   - public_deploy
+diff --git a/.universal-toolchain-release.yml b/.universal-toolchain-release.yml
+index baf00964c243..3f15eb9637a3 100644
+--- a/.universal-toolchain-release.yml
++++ b/.universal-toolchain-release.yml
+@@ -349,6 +349,57 @@ test_x86_64-linux-gnu:
+     # run testsuite for esp32
+     - ./run_esp32_tests.sh
+ 
++.macos_codesign: &macos_codesign
++  stage: sign
++  tags: [ "darwin", "amd64" ]
++  resource_group: macos_codesign
++  artifacts:
++    paths:
++      - ${DIST_DIR}/
++    when: always
++    expire_in: 3 day
++  variables:
++    KEYCHAIN_NAME: "llvm.keychain"
++    ARCHIVE_TOOL: "${ARCHIVE_TOOL_MACOS}"
++    UNARCHIVE_TOOL: "${UNARCHIVE_TOOL_MACOS}"
++    ARCHIVE_EXT: "${ARCHIVE_EXT_MACOS}"
++  script:
++    - *get_release_name
++    - ${UNARCHIVE_TOOL} ${DIST_DIR}/${ARCHIVE_NAME}
++    - rm -rf ${DIST_DIR}
++    - TOOLCHAIN_PATH=$PWD/esp-clang
++    - echo $MACOS_CERTIFICATE | base64 --decode > $PWD/certificate.p12
++    - security create-keychain -p $KEYCHAIN_PWD $KEYCHAIN_NAME || true
++    - security import $PWD/certificate.p12 -k $KEYCHAIN_NAME -P $MACOS_CERTIFICATE_PWD -T /usr/bin/codesign
++    - security set-key-partition-list -S apple-tool:,apple:,codesign -s -k $KEYCHAIN_PWD $KEYCHAIN_NAME
++    - security list-keychains -d user -s ~/Library/Keychains/$KEYCHAIN_NAME
++    - security find-identity -v -p codesigning
++    - security unlock-keychain -p $KEYCHAIN_PWD $KEYCHAIN_NAME
++    - /usr/bin/codesign -v --force --options runtime -s $IDENTITY_ID $TOOLCHAIN_PATH/bin/* $TOOLCHAIN_PATH/lib/*.dylib
++    - security delete-keychain $KEYCHAIN_NAME
++    - codesign -dvv $TOOLCHAIN_PATH/bin/*
++    - DISTRO_DIR=$PWD/${DIST_DIR}
++    - *package_toolchain
++    - *package_libs
++  after_script:
++    - security find-identity -v
++    - security delete-keychain $KEYCHAIN_NAME
++    - security find-identity -v
++
++sign_x86_64-apple-darwin:
++  extends: .macos_codesign
++  needs:
++    - pack_x86_64-apple-darwin
++  variables:
++    PLATFORM_NAME: "${PLATFORM_NAME_MACOS}"
++
++sign_aarch64-apple-darwin:
++  extends: .macos_codesign
++  needs:
++    - pack_aarch64-apple-darwin
++  variables:
++    PLATFORM_NAME: "${PLATFORM_NAME_MACOS_ARM64}"
++
+ upload_to_http:
+   stage: private_deploy
+   when: manual
+@@ -362,8 +413,8 @@ upload_to_http:
+     - job: pack_arm-linux-gnueabihf
+     - job: pack_aarch64-linux-gnu
+     - job: pack_x86_64-w64-mingw32
+-    - job: pack_x86_64-apple-darwin
+-    - job: pack_aarch64-apple-darwin
++    - job: sign_x86_64-apple-darwin
++    - job: sign_aarch64-apple-darwin
+   before_script:
+     - !reference [.use_ci_tools, script]
+   script:
+@@ -394,8 +445,8 @@ upload_to_github:
+     - job: pack_arm-linux-gnueabihf
+     - job: pack_aarch64-linux-gnu
+     - job: pack_x86_64-w64-mingw32
+-    - job: pack_x86_64-apple-darwin
+-    - job: pack_aarch64-apple-darwin
++    - job: sign_x86_64-apple-darwin
++    - job: sign_aarch64-apple-darwin
+   before_script: []
+   script:
+     - ls -l dist*/
+-- 
+2.40.1
+

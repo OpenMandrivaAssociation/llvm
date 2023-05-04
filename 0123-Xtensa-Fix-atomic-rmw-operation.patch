@@ -1,0 +1,37 @@
+From 90df9cd95e676927f18c7d80809fdb285d4d2466 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:39 +0300
+Subject: [PATCH 123/140] [Xtensa] Fix atomic rmw operation.
+
+Fix register liveness in emitAtomicRMW function.
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 5d7c5d3cdf8b..aec13f1ba5a3 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -2538,7 +2538,9 @@ MachineBasicBlock *XtensaTargetLowering::emitAtomicRMW(MachineInstr &MI,
+   const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+ 
+   unsigned R1 = MRI.createVirtualRegister(RC);
+-  BuildMI(*BB, MI, DL, TII.get(Xtensa::L32I), R1).add(AtomicValAddr).addImm(0);
++  BuildMI(*BB, MI, DL, TII.get(Xtensa::L32I), R1)
++      .addReg(AtomicValAddr.getReg())
++      .addImm(0);
+ 
+   BB = BBLoop;
+ 
+@@ -2602,7 +2604,7 @@ MachineBasicBlock *XtensaTargetLowering::emitAtomicRMW(MachineInstr &MI,
+   BuildMI(BB, DL, TII.get(Xtensa::WSR), Xtensa::SCOMPARE1).addReg(AtomicValPhi);
+   BuildMI(BB, DL, TII.get(Xtensa::S32C1I), R4)
+       .addReg(R2)
+-      .addReg(AtomicValAddr.getReg())
++      .addReg(AtomicValAddr.getReg(), getKillRegState(AtomicValAddr.isDead()))
+       .addImm(0);
+ 
+   BuildMI(BB, DL, TII.get(Xtensa::MOV_N), AtomicValLoop).addReg(R4);
+-- 
+2.40.1
+

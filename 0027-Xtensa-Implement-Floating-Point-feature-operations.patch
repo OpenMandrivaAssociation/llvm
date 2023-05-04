@@ -1,0 +1,498 @@
+From 4a40bcc98b135578b32491654d6e4a0dd7c94097 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:48 +0300
+Subject: [PATCH 027/140] [Xtensa] Implement Floating-Point feature operations.
+
+Also implement User Registers class.
+---
+ .../Disassembler/XtensaDisassembler.cpp       |  38 ++++
+ .../MCTargetDesc/XtensaMCCodeEmitter.cpp      |   2 +
+ llvm/lib/Target/Xtensa/Xtensa.td              |   5 +
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp |  10 +
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  15 ++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp    |   3 +
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     | 198 ++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaOperators.td     |  15 ++
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.td  |  44 ++++
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp    |   1 +
+ llvm/lib/Target/Xtensa/XtensaSubtarget.h      |   5 +
+ 11 files changed, 336 insertions(+)
+
+diff --git a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+index 4e5cee6870cc..8dbefb16318a 100644
+--- a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
++++ b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+@@ -75,6 +75,22 @@ static DecodeStatus DecodeARRegisterClass(MCInst &Inst, uint64_t RegNo,
+   return MCDisassembler::Success;
+ }
+ 
++static const unsigned FPRDecoderTable[] = {
++    Xtensa::F0,  Xtensa::F1,  Xtensa::F2,  Xtensa::F3, Xtensa::F4,  Xtensa::F5,
++    Xtensa::F6,  Xtensa::F7,  Xtensa::F8,  Xtensa::F9, Xtensa::F10, Xtensa::F11,
++    Xtensa::F12, Xtensa::F13, Xtensa::F14, Xtensa::F15};
++
++static DecodeStatus DecodeFPRRegisterClass(MCInst &Inst, uint64_t RegNo,
++                                           uint64_t Address,
++                                           const void *Decoder) {
++  if (RegNo >= std::size(FPRDecoderTable))
++    return MCDisassembler::Fail;
++
++  unsigned Reg = FPRDecoderTable[RegNo];
++  Inst.addOperand(MCOperand::createReg(Reg));
++  return MCDisassembler::Success;
++}
++
+ static const unsigned BRDecoderTable[] = {
+     Xtensa::B0,  Xtensa::B1,  Xtensa::B2,  Xtensa::B3, Xtensa::B4,  Xtensa::B5,
+     Xtensa::B6,  Xtensa::B7,  Xtensa::B8,  Xtensa::B9, Xtensa::B10, Xtensa::B11,
+@@ -112,6 +128,28 @@ static DecodeStatus DecodeSRRegisterClass(MCInst &Inst, uint64_t RegNo,
+   return MCDisassembler::Fail;
+ }
+ 
++static const unsigned URDecoderTable[] = {Xtensa::FCR, 232, Xtensa::FSR, 233};
++
++static DecodeStatus DecodeURRegisterClass(MCInst &Inst, uint64_t RegNo,
++                                          uint64_t Address,
++                                          const void *Decoder) {
++  const llvm::MCSubtargetInfo STI =
++      ((const MCDisassembler *)Decoder)->getSubtargetInfo();
++
++  if (RegNo > 255)
++    return MCDisassembler::Fail;
++
++  for (unsigned i = 0; i < std::size(URDecoderTable); i += 2) {
++    if (URDecoderTable[i + 1] == RegNo) {
++      unsigned Reg = URDecoderTable[i];
++      Inst.addOperand(MCOperand::createReg(Reg));
++      return MCDisassembler::Success;
++    }
++  }
++
++  return MCDisassembler::Fail;
++}
++
+ static bool tryAddingSymbolicOperand(int64_t Value, bool isBranch,
+                                      uint64_t Address, uint64_t Offset,
+                                      uint64_t InstSize, MCInst &MI,
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+index d5b61985d09d..379783761f58 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+@@ -276,6 +276,8 @@ XtensaMCCodeEmitter::getMemRegEncoding(const MCInst &MI, unsigned OpNo,
+   case Xtensa::L32I:
+   case Xtensa::S32I_N:
+   case Xtensa::L32I_N:
++  case Xtensa::S32F:
++  case Xtensa::L32F:
+     if (Res & 0x3) {
+       report_fatal_error("Unexpected operand value!");
+     }
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.td b/llvm/lib/Target/Xtensa/Xtensa.td
+index 8e3532dac415..a4ed90783fdc 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.td
++++ b/llvm/lib/Target/Xtensa/Xtensa.td
+@@ -22,6 +22,11 @@ def FeatureDensity : SubtargetFeature<"density", "HasDensity", "true",
+ def HasDensity : Predicate<"Subtarget->hasDensity()">,
+                      AssemblerPredicate<(all_of FeatureDensity)>;
+ 
++def FeatureSingleFloat      : SubtargetFeature<"fp", "HasSingleFloat", "true",
++                                               "Enable Xtensa Single FP instructions">;
++def HasSingleFloat          : Predicate<"Subtarget->hasSingleFloat()">,
++                                        AssemblerPredicate<(all_of FeatureSingleFloat)>;
++
+ def FeatureWindowed         : SubtargetFeature<"windowed", "HasWindowed", "true",
+                                                "Enable Xtensa Windowed Register option">;
+ def HasWindowed             : Predicate<"Subtarget->hasWindowed()">,
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 52c73a735774..0d0582487f55 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -1336,6 +1336,16 @@ const char *XtensaTargetLowering::getTargetNodeName(unsigned Opcode) const {
+     OPCODE(SELECT);
+     OPCODE(SELECT_CC);
+     OPCODE(BR_JT);
++    OPCODE(CMPUO);
++    OPCODE(CMPUEQ);
++    OPCODE(CMPULE);
++    OPCODE(CMPULT);
++    OPCODE(CMPOEQ);
++    OPCODE(CMPOLE);
++    OPCODE(CMPOLT);
++    OPCODE(MADD);
++    OPCODE(MSUB);
++    OPCODE(MOVS);
+     OPCODE(MOVSP);
+     OPCODE(SHL);
+     OPCODE(SRA);
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index 562d59abf64d..fe0cf6abd09b 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -34,6 +34,21 @@ enum {
+   // WinABI Call version
+   CALLW,
+ 
++  // Floating point unordered compare conditions
++  CMPUEQ,
++  CMPULE,
++  CMPULT,
++  CMPUO,
++  // Floating point compare conditions
++  CMPOEQ,
++  CMPOLE,
++  CMPOLT,
++  // FP multipy-add/sub
++  MADD,
++  MSUB,
++  // FP move
++  MOVS,
++
+   MOVSP,
+ 
+   // Wraps a TargetGlobalAddress that should be loaded using PC-relative
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+index a43dabd4b800..e1130dd4a324 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+@@ -130,6 +130,9 @@ void XtensaInstrInfo::getLoadStoreOpcodes(const TargetRegisterClass *RC,
+   if (RC == &Xtensa::ARRegClass) {
+     LoadOpcode = Xtensa::L32I;
+     StoreOpcode = Xtensa::S32I;
++  } else if (RC == &Xtensa::FPRRegClass) {
++    LoadOpcode = Xtensa::L32F;
++    StoreOpcode = Xtensa::S32F;
+   } else
+     llvm_unreachable("Unsupported regclass to load or store");
+ }
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 560f50b59cc9..e827167ee098 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -903,3 +903,201 @@ def ORBC : RRR_Inst<0x00, 0x02, 0x03, (outs BR:$r), (ins BR:$s, BR:$t),
+                    "orbc\t$r, $s, $t", []>, Requires<[HasBoolean]>;
+ def XORB : RRR_Inst<0x00, 0x02, 0x04, (outs BR:$r), (ins BR:$s, BR:$t),
+                    "xorb\t$r, $s, $t", []>, Requires<[HasBoolean]>;
++
++//===----------------------------------------------------------------------===//
++// Floating-Point Instructions
++//===----------------------------------------------------------------------===//
++
++class FPArith_RRR<bits<4> oper2, bits<4> oper1, string instrAsm,
++                 SDPatternOperator opNode, bit isComm = 0>
++  : RRR_Inst<0x00, oper1, oper2, (outs FPR:$r), (ins FPR:$s, FPR:$t),
++             instrAsm#"\t$r, $s, $t",
++            [(set FPR:$r, (opNode FPR:$s, FPR:$t))]> {
++  let isCommutable = isComm;
++  let isReMaterializable = 0;
++  let Predicates = [HasSingleFloat];
++}
++
++def ADD_S : FPArith_RRR<0x00, 0x0A, "add.s", fadd, 1>;
++def SUB_S : FPArith_RRR<0x01, 0x0A, "sub.s", fsub>;
++def MUL_S : FPArith_RRR<0x02, 0x0A, "mul.s", fmul, 1>;
++
++def ABS_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                    "abs.s\t$r, $s",
++                    [(set FPR:$r, (fabs FPR:$s))]> {
++  let t = 0x01;
++}
++
++def NEG_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                    "neg.s\t$r, $s",
++                    [(set FPR:$r, (fneg FPR:$s))]> {
++  let t = 0x06;
++}
++
++def TRUNC_S : RRR_Inst<0x00, 0x0A, 0x09, (outs AR:$r), (ins FPR:$s),
++                      "trunc.s\t$r, $s, 0",
++                      [(set AR:$r, (fp_to_sint FPR:$s))]> {
++  let t = 0x00;
++}
++
++def UTRUNC_S : RRR_Inst<0x00, 0x0A, 0x0e, (outs AR:$r), (ins FPR:$s),
++                       "utrunc.s\t$r, $s, 0",
++                       [(set AR:$r, (fp_to_uint FPR:$s))]> {
++  let t = 0x00;
++}
++
++def FLOAT_S : RRR_Inst<0x00, 0x0A, 0x0c, (outs FPR:$r), (ins AR:$s),
++                      "float.s\t$r, $s, 0",
++                      [(set FPR:$r, (sint_to_fp AR:$s))]> {
++  let t = 0x00;
++}
++
++def UFLOAT_S : RRR_Inst<0x00, 0x0A, 0x0D, (outs FPR:$r), (ins AR:$s),
++                       "ufloat.s\t$r, $s, 0",
++                       [(set FPR:$r, (uint_to_fp AR:$s))]> {
++  let t = 0x00;
++}
++
++def RFR : RRR_Inst<0x00, 0x0A, 0x0f, (outs AR:$r), (ins FPR:$s),
++                  "rfr\t$r, $s",
++                  [(set AR:$r, (bitconvert FPR:$s))]> {
++  let t = 0x04;
++}
++
++def WFR : RRR_Inst<0x00, 0x0A, 0x0f, (outs FPR:$r), (ins AR:$s),
++                  "wfr\t$r, $s",
++                  [(set FPR:$r, (bitconvert AR:$s))]> {
++  let t = 0x05;
++}
++
++// FP load instructions
++let mayLoad = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
++  class LoadF_RRI8<bits<4> oper, string instrAsm, SDPatternOperator opNode,
++                  ComplexPattern addrOp,Operand memOp>: RRI8_Inst<0x03, (outs FPR:$t), (ins memOp:$addr),
++                   instrAsm#"\t$t, $addr",
++                  [(set FPR:$t, (opNode addrOp:$addr))]> {
++    bits<12> addr;
++
++    let r = oper;
++    let imm8{7-0} = addr{11-4};
++    let s{3-0} = addr{3-0};
++  }
++}
++
++def L32F : LoadF_RRI8<0x00, "lsi", load, addr_ish4, mem32>, Requires<[]>;
++
++// FP store instructions
++let mayStore = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
++  class StoreF_RRI8<bits<4> oper, string instrAsm, SDPatternOperator opNode,
++                   ComplexPattern addrOp, Operand memOp>: RRI8_Inst<0x03, (outs), (ins FPR:$t, memOp:$addr),
++                    instrAsm#"\t$t, $addr",
++                   [(opNode FPR:$t, addrOp:$addr)]> {
++    bits<12> addr;
++
++    let r = oper;
++    let imm8{7-0} = addr{11-4};
++    let s{3-0} = addr{3-0};
++  }
++}
++
++def S32F : StoreF_RRI8<0x04, "ssi", store, addr_ish4, mem32>;
++
++// FP compare instructions
++let isCompare = 1, Predicates = [HasSingleFloat] in {
++  class FCompare <bits<4> oper2, bits<4> oper1, string instrAsm,
++                 SDPatternOperator opNode, bit isComm = 0>
++    : RRR_Inst<0x00, oper1, oper2, (outs BR:$r), (ins FPR:$s, FPR:$t),
++               instrAsm#"\t$r, $s, $t",
++              [(set BR:$r, (opNode FPR:$s, FPR:$t))]> {
++    let isCommutable = isComm;
++    let isReMaterializable = 0;
++    let Predicates = [HasSingleFloat];
++  }
++}
++
++def OEQ_S :  FCompare<0x02, 0x0b, "oeq.s", Xtensa_cmpoeq, 1>;
++def OLT_S :  FCompare<0x04, 0x0b, "olt.s", Xtensa_cmpolt, 0>;
++def OLE_S :  FCompare<0x06, 0x0b, "ole.s", Xtensa_cmpole, 0>;
++
++def UEQ_S :  FCompare<0x03, 0x0b, "ueq.s", Xtensa_cmpueq, 1>;
++def ULT_S :  FCompare<0x05, 0x0b, "ult.s", Xtensa_cmpult, 0>;
++def ULE_S :  FCompare<0x07, 0x0b, "ule.s", Xtensa_cmpule, 0>;
++def UN_S  :  FCompare<0x01, 0x0b, "un.s",  Xtensa_cmpuo, 1>;
++
++//FP complex operations
++def MADD_S : RRR_Inst<0x00, 0x0A, 0x04, (outs FPR:$r), (ins FPR:$a, FPR:$s, FPR:$t),
++                     "madd.s\t$r, $s, $t",
++                     [(set FPR:$r, (Xtensa_madd FPR:$a, FPR:$s, FPR:$t))]>, 
++                     Requires<[HasSingleFloat]> {
++  let isCommutable = 0;
++  let isReMaterializable = 0;
++  let Constraints = "$r = $a";
++}
++
++def MSUB_S : RRR_Inst<0x00, 0x0A, 0x05, (outs FPR:$r), (ins FPR:$a, FPR:$s, FPR:$t),
++                     "msub.s\t$r, $s, $t",
++                     [(set FPR:$r, (Xtensa_msub FPR:$a, FPR:$s, FPR:$t))]>, 
++                     Requires<[HasSingleFloat]> {
++  let isCommutable = 0;
++  let isReMaterializable = 0;
++  let Constraints = "$r = $a";
++}
++
++//FP move operations
++def MOV_S : RRR_Inst<0x00, 0x0A, 0x0f, (outs FPR:$r), (ins FPR:$s),
++                    "mov.s\t$r, $s",
++                    [(set FPR:$r, (Xtensa_movs FPR:$s))]>, Requires<[HasSingleFloat]>
++{
++  let t = 0x00;
++}
++
++def CONST_S : RRR_Inst<0x00, 0x0a, 0x0f, (outs FPR:$r), (ins uimm4:$imm),
++                      "const.s\t$r, $imm", []>, Requires<[HasSingleFloat]> {
++  bits<4> imm;
++
++  let t = 0x03;
++  let s = imm{3-0};
++}
++
++def DIV0_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                     "div0.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x7;
++}
++
++def MADDN_S : RRR_Inst<0x00, 0x0A, 0x06, (outs FPR:$r), (ins FPR:$s, FPR:$t),
++                      "maddn.s\t$r, $s, $t", []>, Requires<[HasSingleFloat]> {
++  let isCommutable = 0;
++}
++
++def MKDADJ_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                       "mkdadj.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x0D;
++}
++
++def MKSADJ_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                       "mksadj.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x0C;
++}
++
++def ADDEXP_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                       "addexp.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x0E;
++}
++
++def ADDEXPM_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                        "addexpm.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x0F;
++}
++
++def DIVN_S : RRR_Inst<0x00, 0x0A, 0x07, (outs FPR:$r), (ins FPR:$s, FPR:$t),
++                     "divn.s\t$r, $s, $t", []>, Requires<[HasSingleFloat]>;
++
++def NEXP01_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                       "nexp01.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x0B;
++}
++
++def SQRT0_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                      "sqrt0.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x09;
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperators.td b/llvm/lib/Target/Xtensa/XtensaOperators.td
+index 41b2f9d72a64..975d6820802d 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperators.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperators.td
+@@ -25,6 +25,9 @@ def SDT_XtensaSelectCC            : SDTypeProfile<1, 5,
+                                                   SDTCisVT<5, i32>]>;
+ 
+ def SDT_XtensaMOVSP               : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>, SDTCisVT<0, i32>]>;
++def SDT_XtensaCmp                 : SDTypeProfile<1, 2, [SDTCisVT<0, i1>, SDTCisVT<1, f32>, SDTCisVT<2, f32>]>;
++def SDT_XtensaMADD                : SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisSameAs<0, 3>, SDTCisVT<0, f32>]>;
++def SDT_XtensaMOVS                : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>, SDTCisVT<0, f32>]>;
+ def SDT_XtensaBrJT                : SDTypeProfile<0, 2,
+                                                  [SDTCisPtrTy<0>, SDTCisVT<1, i32>]>;
+ 
+@@ -63,6 +66,18 @@ def Xtensa_select_cc: SDNode<"XtensaISD::SELECT_CC", SDT_XtensaSelectCC,
+ def Xtensa_movsp: SDNode<"XtensaISD::MOVSP", SDT_XtensaMOVSP,
+                             [SDNPInGlue]>;
+ 
++def Xtensa_cmpoeq     : SDNode<"XtensaISD::CMPOEQ", SDT_XtensaCmp, [SDNPOutGlue]>;
++def Xtensa_cmpolt     : SDNode<"XtensaISD::CMPOLT", SDT_XtensaCmp, [SDNPOutGlue]>;
++def Xtensa_cmpole     : SDNode<"XtensaISD::CMPOLE", SDT_XtensaCmp, [SDNPOutGlue]>;
++def Xtensa_cmpueq     : SDNode<"XtensaISD::CMPUEQ", SDT_XtensaCmp, [SDNPOutGlue]>;
++def Xtensa_cmpult     : SDNode<"XtensaISD::CMPULT", SDT_XtensaCmp, [SDNPOutGlue]>;
++def Xtensa_cmpule     : SDNode<"XtensaISD::CMPULE", SDT_XtensaCmp, [SDNPOutGlue]>;
++def Xtensa_cmpuo      : SDNode<"XtensaISD::CMPUO", SDT_XtensaCmp, [SDNPOutGlue]>;
++
++def Xtensa_madd: SDNode<"XtensaISD::MADD", SDT_XtensaMADD, [SDNPInGlue]>;
++def Xtensa_msub: SDNode<"XtensaISD::MSUB", SDT_XtensaMADD, [SDNPInGlue]>;
++def Xtensa_movs: SDNode<"XtensaISD::MOVS", SDT_XtensaMOVS, [SDNPInGlue]>; 
++
+ def Xtensa_shl: SDNode<"XtensaISD::SHL", SDT_XtensaSHL, [SDNPInGlue]>;
+ def Xtensa_sra: SDNode<"XtensaISD::SRA", SDT_XtensaSRA, [SDNPInGlue]>;
+ def Xtensa_srl: SDNode<"XtensaISD::SRL", SDT_XtensaSRL, [SDNPInGlue]>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+index 5b87a83786ac..18341287347d 100644
+--- a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+@@ -83,6 +83,50 @@ def WINDOWSTART : SRReg<73, "windowstart", ["WINDOWSTART", "73"]>;
+ def SR :  RegisterClass<"Xtensa", [i32], 32, (add SAR,
+  BREG, WINDOWBASE, WINDOWSTART)>;
+ 
++//===----------------------------------------------------------------------===//
++// USER registers
++//===----------------------------------------------------------------------===//
++class URReg<bits<8> num, string n, list<string> alt = []> : XtensaReg<n> {
++  let HWEncoding{7-0} = num;
++  let AltNames = alt;
++}
++
++def FCR : URReg<232, "fcr", ["FCR"]>;
++def FSR : URReg<233, "fsr", ["FSR"]>;
++
++def UR :  RegisterClass<"Xtensa", [i32], 32, (add FCR, FSR)>;
++
++//===----------------------------------------------------------------------===//
++// Floating-Point registers
++//===----------------------------------------------------------------------===//
++
++// Xtensa Floating-Point regs
++class FPReg<bits<4> num, string n> : XtensaReg<n> {
++  let HWEncoding{3-0} = num;
++}
++
++def F0 : FPReg<0, "f0">, DwarfRegNum<[19]>;
++def F1 : FPReg<1, "f1">, DwarfRegNum<[20]>;
++def F2 : FPReg<2, "f2">, DwarfRegNum<[21]>;
++def F3 : FPReg<3, "f3">, DwarfRegNum<[22]>;
++def F4 : FPReg<4, "f4">, DwarfRegNum<[23]>;
++def F5 : FPReg<5, "f5">, DwarfRegNum<[24]>;
++def F6 : FPReg<6, "f6">, DwarfRegNum<[25]>;
++def F7 : FPReg<7, "f7">, DwarfRegNum<[26]>;
++def F8 : FPReg<8, "f8">, DwarfRegNum<[27]>;
++def F9 : FPReg<9, "f9">, DwarfRegNum<[28]>;
++def F10 : FPReg<10, "f10">, DwarfRegNum<[29]>;
++def F11 : FPReg<11, "f11">, DwarfRegNum<[30]>;
++def F12 : FPReg<12, "f12">, DwarfRegNum<[31]>;
++def F13 : FPReg<13, "f13">, DwarfRegNum<[32]>;
++def F14 : FPReg<14, "f14">, DwarfRegNum<[33]>;
++def F15 : FPReg<15, "f15">, DwarfRegNum<[34]>;
++
++// Floating-Point register class with allocation order
++def FPR : RegisterClass<"Xtensa", [f32], 32, (add
++  F8, F9, F10, F11, F12, F13, F14, F15,
++  F7, F6, F5, F4, F3, F2, F1, F0)>;
++
+ //===----------------------------------------------------------------------===//
+ // Boolean registers
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+index df8e248dbfdf..a878477726da 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -33,6 +33,7 @@ XtensaSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
+   }
+ 
+   HasDensity = false;
++  HasSingleFloat = false;
+   HasWindowed = false;
+   HasBoolean = false;
+ 
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.h b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+index cf014f5371d1..3e2cbbee972f 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.h
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+@@ -41,6 +41,9 @@ private:
+   // Enabled Xtensa Density extension
+   bool HasDensity;
+ 
++  // Enabled Xtensa Single FP instructions
++  bool HasSingleFloat;
++
+   // Enabled Xtensa Windowed Register option
+   bool HasWindowed;
+ 
+@@ -66,6 +69,8 @@ public:
+ 
+   bool hasDensity() const { return HasDensity; }
+ 
++  bool hasSingleFloat() const { return HasSingleFloat; }
++
+   bool hasWindowed() const { return HasWindowed; }
+ 
+   bool hasBoolean() const { return HasBoolean; }
+-- 
+2.40.1
+

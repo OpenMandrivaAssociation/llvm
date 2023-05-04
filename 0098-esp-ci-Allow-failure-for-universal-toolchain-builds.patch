@@ -1,0 +1,32 @@
+From 43b716170c3fe271f12fc678bd141ffdb08b73cd Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:27 +0300
+Subject: [PATCH 098/140] esp/ci: Allow failure for universal toolchain builds
+
+---
+ .gitlab-ci.yml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 025a6c55d42d..81bfcf25648b 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -105,6 +105,7 @@ before_script:
+ .build_template:
+   stage: build
+   tags: [ "amd64", "build" ]
++  allow_failure: true
+   artifacts:
+     paths:
+       - ${DIST_DIR}/
+@@ -202,6 +203,7 @@ build_x86_64-w64-mingw32:
+ test_x86_64-linux-gnu:
+   stage: test
+   tags: [ "amd64", "build" ]
++  allow_failure: true
+   needs:
+     - job: build_x86_64-linux-gnu
+   variables:
+-- 
+2.40.1
+

@@ -1,0 +1,149 @@
+From 71dad0fe7757da5cf1b0a190000f04a8e01cfc84 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:42 +0300
+Subject: [PATCH 128/140] [Xtensa] Add emit constant pool option.
+
+---
+ clang/include/clang/Driver/Options.td       |  1 +
+ clang/lib/Driver/ToolChains/Clang.cpp       |  5 ++++
+ llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp | 32 ++++++++++++++-------
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp  |  8 ++++++
+ llvm/lib/Target/Xtensa/XtensaSubtarget.h    |  2 ++
+ 5 files changed, 38 insertions(+), 10 deletions(-)
+
+diff --git a/clang/include/clang/Driver/Options.td b/clang/include/clang/Driver/Options.td
+index 56bf1babc835..c6e539bc4e99 100644
+--- a/clang/include/clang/Driver/Options.td
++++ b/clang/include/clang/Driver/Options.td
+@@ -4808,6 +4808,7 @@ def mfix_esp32_psram_cache_strategy_EQ : Joined<["-"], "mfix-esp32-psram-cache-s
+     HelpText<" Psram cache fix strategies : memw, nops">,
+     Values<"memw, nops">;
+ def mlongcalls : Flag<["-"], "mlongcalls">, Group<m_xtensa_Features_Group>;
++def mtext_section_literals : Flag<["-"], "mtext-section-literals">, Group<m_xtensa_Features_Group>;
+ 
+ // These are legacy user-facing driver-level option spellings. They are always
+ // aliases for options that are spelled using the more common Unix / GNU flag
+diff --git a/clang/lib/Driver/ToolChains/Clang.cpp b/clang/lib/Driver/ToolChains/Clang.cpp
+index d8396e1d071e..4b5981272d29 100644
+--- a/clang/lib/Driver/ToolChains/Clang.cpp
++++ b/clang/lib/Driver/ToolChains/Clang.cpp
+@@ -2339,6 +2339,11 @@ void Clang::AddXtensaTargetArgs(const ArgList &Args,
+       }
+     }
+   }
++
++  if (Args.getLastArg(options::OPT_mtext_section_literals) != nullptr) {
++    CmdArgs.push_back("-mllvm");
++    CmdArgs.push_back("-mtext-section-literals");
++  }
+ }
+ 
+ void Clang::DumpCompilationDatabase(Compilation &C, StringRef Filename,
+diff --git a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+index 18f87c250a33..f0f5b67cdcb2 100644
+--- a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+@@ -14,6 +14,7 @@
+ //===----------------------------------------------------------------------===//
+ 
+ #include "XtensaAsmPrinter.h"
++#include "XtensaSubtarget.h"
+ #include "MCTargetDesc/XtensaInstPrinter.h"
+ #include "XtensaConstantPoolValue.h"
+ #include "XtensaMCInstLower.h"
+@@ -69,6 +70,8 @@ void XtensaAsmPrinter::emitConstantPool() {
+   const Function &F = MF->getFunction();
+   const MachineConstantPool *MCP = MF->getConstantPool();
+   const std::vector<MachineConstantPoolEntry> &CP = MCP->getConstants();
++  const XtensaSubtarget *Subtarget = &MF->getSubtarget<XtensaSubtarget>();
++
+   if (CP.empty())
+     return;
+ 
+@@ -84,18 +87,23 @@ void XtensaAsmPrinter::emitConstantPool() {
+         MCSectionELF *CS =
+             (MCSectionELF *)getObjFileLowering().SectionForGlobal(&F, TM);
+         std::string CSectionName = CS->getName().str();
+-        std::size_t Pos = CSectionName.find(".text");
+         std::string SectionName;
+-        if (Pos != std::string::npos) {
+-          if (Pos > 0)
+-            SectionName = CSectionName.substr(0, Pos + 5);
+-          else
+-            SectionName = "";
+-          SectionName += ".literal";
+-          SectionName += CSectionName.substr(Pos + 5);
++
++        if (Subtarget->useTextSectionLiterals()) {
++            SectionName = CSectionName;
+         } else {
+-          SectionName = CSectionName;
+-          SectionName += ".literal";
++          std::size_t Pos = CSectionName.find(".text");
++          if (Pos != std::string::npos) {
++            if (Pos > 0)
++              SectionName = CSectionName.substr(0, Pos + 5);
++            else
++              SectionName = "";
++            SectionName += ".literal";
++            SectionName += CSectionName.substr(Pos + 5);
++          } else {
++            SectionName = CSectionName;
++            SectionName += ".literal";
++          }
+         }
+ 
+         MCSectionELF *S =
+@@ -151,6 +159,8 @@ void XtensaAsmPrinter::emitConstantPool() {
+ 
+         OutStreamer->emitRawText(StringRef(str));
+       } else {
++        OutStreamer->emitCodeAlignment(
++            4, OutStreamer->getContext().getSubtargetInfo());
+         OutStreamer->emitLabel(LblSym);
+         emitGlobalConstant(getDataLayout(), CPE.Val.ConstVal);
+       }
+@@ -214,6 +224,8 @@ void XtensaAsmPrinter::emitMachineConstantPoolValue(
+ 
+     const MCExpr *Expr = MCSymbolRefExpr::create(MCSym, VK, OutContext);
+     uint64_t Size = getDataLayout().getTypeAllocSize(ACPV->getType());
++    OutStreamer->emitCodeAlignment(
++        4, OutStreamer->getContext().getSubtargetInfo());
+     OutStreamer->emitLabel(LblSym);
+     OutStreamer->emitValue(Expr, Size);
+   }
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+index e164da998b5e..0fd2a2582611 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -24,6 +24,14 @@
+ 
+ using namespace llvm;
+ 
++static cl::opt<bool> TextSectionLiterals("mtext-section-literals",
++                                         cl::init(false), cl::Hidden);
++
++bool XtensaSubtarget::useTextSectionLiterals() const
++{
++  return TextSectionLiterals;
++}
++
+ XtensaSubtarget &
+ XtensaSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
+   StringRef CPUName = CPU;
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.h b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+index b4fac0b65eb1..a6647b520961 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.h
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+@@ -205,6 +205,8 @@ public:
+ 
+   bool hasESP32S3Ops() const { return HasESP32S3Ops; }
+ 
++  bool useTextSectionLiterals() const;
++
+   // Automatically generated by tblgen.
+   void ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
+ };
+-- 
+2.40.1
+

@@ -1,0 +1,110 @@
+From d2e7c6d7b817e9dc36abf044dc359e29adf6bebf Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:04 +0300
+Subject: [PATCH 052/140] [Xtensa] Implement lowering llvm intrinsics
+
+ fshr/fshl.
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 27 +++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  1 +
+ llvm/test/CodeGen/Xtensa/funnel-shift.ll      | 24 +++++++++++++++++
+ 3 files changed, 52 insertions(+)
+ create mode 100644 llvm/test/CodeGen/Xtensa/funnel-shift.ll
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index f057b49e7a6e..a45cb71ad11c 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -188,6 +188,10 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   setOperationAction(ISD::SRA_PARTS, MVT::i32, Custom);
+   setOperationAction(ISD::SRL_PARTS, MVT::i32, Custom);
+ 
++  // Funnel shifts
++  setOperationAction(ISD::FSHR, MVT::i32, Custom);
++  setOperationAction(ISD::FSHL, MVT::i32, Custom);
++
+   // Bit Manipulation
+   setOperationAction(ISD::BSWAP, MVT::i32, Expand);
+   setOperationAction(ISD::BSWAP, MVT::i64, Expand);
+@@ -1681,6 +1685,26 @@ SDValue XtensaTargetLowering::LowerShiftRightParts(SDValue Op,
+   return DAG.getMergeValues(Ops, DL);
+ }
+ 
++SDValue XtensaTargetLowering::LowerFunnelShift(SDValue Op,
++                                               SelectionDAG &DAG) const {
++  SDLoc DL(Op);
++  SDValue Op0 = Op.getOperand(0);
++  SDValue Op1 = Op.getOperand(1);
++  SDValue Shamt = Op.getOperand(2);
++  MVT VT = Op.getSimpleValueType();
++
++  bool IsFSHR = Op.getOpcode() == ISD::FSHR;
++  assert((VT == MVT::i32) && "Unexpected funnel shift type!");
++
++  if (!IsFSHR) {
++    Shamt = DAG.getNode(ISD::SUB, DL, MVT::i32,
++                        DAG.getConstant(32, DL, MVT::i32), Shamt);
++  }
++  SDValue SetSAR = DAG.getNode(XtensaISD::SSR, DL,
++                               MVT::Glue, Shamt);
++  return DAG.getNode(XtensaISD::SRC, DL, VT, Op0, Op1, SetSAR);
++} 
++
+ SDValue XtensaTargetLowering::LowerATOMIC_FENCE(SDValue Op,
+                                                 SelectionDAG &DAG) const {
+   SDLoc DL(Op);
+@@ -1735,6 +1759,9 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+     return LowerShiftRightParts(Op, DAG, true);
+   case ISD::SRL_PARTS:
+     return LowerShiftRightParts(Op, DAG, false);
++  case ISD::FSHL:
++  case ISD::FSHR:
++    return LowerFunnelShift(Op, DAG);
+   default:
+     llvm_unreachable("Unexpected node to lower");
+   }
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index c1db77548308..d2b61cd4ed73 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -193,6 +193,7 @@ private:
+ 
+   SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
++  SDValue LowerFunnelShift(SDValue Op, SelectionDAG &DAG) const;
+ 
+   SDValue LowerATOMIC_FENCE(SDValue Op, SelectionDAG &DAG) const;
+ 
+diff --git a/llvm/test/CodeGen/Xtensa/funnel-shift.ll b/llvm/test/CodeGen/Xtensa/funnel-shift.ll
+new file mode 100644
+index 000000000000..09bf081be373
+--- /dev/null
++++ b/llvm/test/CodeGen/Xtensa/funnel-shift.ll
+@@ -0,0 +1,24 @@
++; RUN: llc -O1 -mtriple=xtensa -mcpu=esp32 %s -o - | FileCheck %s
++
++define dso_local i32 @test_fshr(i32 %value1, i32 %value2, i32 %shift) nounwind {
++; CHECK-LABEL: @test_fshr
++; CHECK: ssr a4
++; CHECK: src a2, a2, a3
++entry:
++  %0 = tail call i32 @llvm.fshr.i32(i32 %value1, i32 %value2, i32 %shift)
++  ret i32 %0
++}
++
++define dso_local i32 @test_fshl(i32 %value1, i32 %value2, i32 %shift) nounwind {
++; CHECK-LABEL: @test_fshl
++; CHECK: movi.n a8, 32
++; CHECK: sub a8, a8, a4
++; CHECK: ssr a8
++; CHECK: src a2, a2, a3
++entry:
++  %0 = tail call i32 @llvm.fshl.i32(i32 %value1, i32 %value2, i32 %shift)
++  ret i32 %0
++}
++
++declare i32 @llvm.fshr.i32(i32, i32, i32) nounwind
++declare i32 @llvm.fshl.i32(i32, i32, i32) nounwind
+-- 
+2.40.1
+

@@ -1,0 +1,59 @@
+From e2645c68dd8ab10b06f464ae086983d22e124cc3 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:59 +0300
+Subject: [PATCH 042/140] [Xtensa] Lowering Exception Selector and Pointer
+
+ Registers.
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 14 ++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  9 +++++++++
+ 2 files changed, 23 insertions(+)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index d848823dd758..4fd119ea7f05 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -326,6 +326,20 @@ bool XtensaTargetLowering::isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+  return false;
+ }
+ 
++/// If a physical register, this returns the register that receives the
++/// exception address on entry to an EH pad.
++Register XtensaTargetLowering::getExceptionPointerRegister(
++    const Constant *PersonalityFn) const {
++  return Xtensa::A2;
++}
++
++/// If a physical register, this returns the register that receives the
++/// exception typeid on entry to a landing pad.
++Register XtensaTargetLowering::getExceptionSelectorRegister(
++    const Constant *PersonalityFn) const {
++  return Xtensa::A3;
++}
++
+ bool XtensaTargetLowering::isOffsetFoldingLegal(
+     const GlobalAddressSDNode *GA) const {
+   // The Xtensa target isn't yet aware of offsets.
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index 3f9929b9da2f..222a07611334 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -102,6 +102,15 @@ public:
+   bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                   EVT VT) const override;
+ 
++  /// If a physical register, this returns the register that receives the
++  /// exception address on entry to an EH pad.
++  Register
++  getExceptionPointerRegister(const Constant *PersonalityFn) const override;
++  /// If a physical register, this returns the register that receives the
++  /// exception typeid on entry to a landing pad.
++  Register
++  getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
++
+   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
+   bool isFPImmLegal(const APFloat &Imm, EVT VT,
+                     bool ForCodeSize) const override;
+-- 
+2.40.1
+

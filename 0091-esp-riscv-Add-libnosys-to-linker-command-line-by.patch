@@ -1,0 +1,38 @@
+From f76cc67aaa01134d2e18f19294933bafda45e17a Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:24 +0300
+Subject: [PATCH 091/140] esp/riscv: Add 'libnosys' to linker command line by
+
+ default
+
+Necessary to avoid build failures when build system (e.g. cmake) tries to
+make simple compiler checks at configuration stage.
+---
+ clang/lib/Driver/ToolChains/RISCVToolchain.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/clang/lib/Driver/ToolChains/RISCVToolchain.cpp b/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
+index 27fc03fcf5ea..0c65e8df79ee 100644
+--- a/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
++++ b/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
+@@ -8,7 +8,6 @@
+ 
+ #include "RISCVToolchain.h"
+ #include "CommonArgs.h"
+-#include "Arch/RISCV.h"
+ #include "clang/Driver/Compilation.h"
+ #include "clang/Driver/InputInfo.h"
+ #include "clang/Driver/Options.h"
+@@ -210,6 +209,9 @@ void RISCV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+     CmdArgs.push_back("--start-group");
+     CmdArgs.push_back("-lc");
+     CmdArgs.push_back("-lgloss");
++    if (ToolChain.getTriple().getVendor() == llvm::Triple::Espressif) {
++      CmdArgs.push_back("-lnosys");
++    }
+     CmdArgs.push_back("--end-group");
+     AddRunTimeLibs(ToolChain, ToolChain.getDriver(), CmdArgs, Args);
+   }
+-- 
+2.40.1
+

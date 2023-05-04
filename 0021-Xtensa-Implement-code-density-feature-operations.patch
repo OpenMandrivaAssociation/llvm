@@ -1,0 +1,398 @@
+From a04ee393fe0dc03b75da11191c90133029525963 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:45 +0300
+Subject: [PATCH 021/140] [Xtensa] Implement code density feature operations
+
+---
+ .../Xtensa/AsmParser/XtensaAsmParser.cpp      | 10 +++
+ .../Disassembler/XtensaDisassembler.cpp       | 62 +++++++++++++++++
+ .../Xtensa/MCTargetDesc/XtensaInstPrinter.cpp | 22 ++++++
+ .../Xtensa/MCTargetDesc/XtensaInstPrinter.h   |  2 +
+ .../MCTargetDesc/XtensaMCCodeEmitter.cpp      | 48 ++++++++++++-
+ llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp |  3 +-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp |  4 +-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     | 68 +++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaOperands.td      | 14 ++++
+ 9 files changed, 230 insertions(+), 3 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+index 1bf2f3cbc284..8b1eaadd56fa 100644
+--- a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
++++ b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+@@ -182,6 +182,10 @@ public:
+ 
+   bool isImm1_16() const { return isImm(1, 16); }
+ 
++  bool isImm1n_15() const { return (isImm(1, 15) || isImm(-1, -1)); }
++
++  bool isImm32n_95() const { return isImm(-32, 95); }
++
+   bool isB4const() const {
+     if (Kind != Immediate)
+       return false;
+@@ -405,6 +409,12 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
+   case Match_InvalidImm1_16:
+     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                  "expected immediate in range [1, 16]");
++  case Match_InvalidImm1n_15:
++    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
++                 "expected immediate in range [-1, 15] except 0");
++  case Match_InvalidImm32n_95:
++    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
++                 "expected immediate in range [-32, 95] except 0");
+   case Match_InvalidShimm1_31:
+     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                  "expected immediate in range [1, 31]");
+diff --git a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+index 3e68a955daa4..17f17bc6b8a0 100644
+--- a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
++++ b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+@@ -190,6 +190,28 @@ static DecodeStatus decodeImm1_16Operand(MCInst &Inst, uint64_t Imm,
+   return MCDisassembler::Success;
+ }
+ 
++static DecodeStatus decodeImm1n_15Operand(MCInst &Inst, uint64_t Imm,
++                                          int64_t Address,
++                                          const void *Decoder) {
++  assert(isUInt<4>(Imm) && "Invalid immediate");
++  if (!Imm)
++    Inst.addOperand(MCOperand::createImm(-1));
++  else
++    Inst.addOperand(MCOperand::createImm(Imm));
++  return MCDisassembler::Success;
++}
++
++static DecodeStatus decodeImm32n_95Operand(MCInst &Inst, uint64_t Imm,
++                                           int64_t Address,
++                                           const void *Decoder) {
++  assert(isUInt<7>(Imm) && "Invalid immediate");
++  if ((Imm & 0x60) == 0x60)
++    Inst.addOperand(MCOperand::createImm((~0x1f) | Imm));
++  else
++    Inst.addOperand(MCOperand::createImm(Imm));
++  return MCDisassembler::Success;
++}
++
+ static DecodeStatus decodeShimm1_31Operand(MCInst &Inst, uint64_t Imm,
+                                            int64_t Address,
+                                            const void *Decoder) {
+@@ -243,6 +265,34 @@ static DecodeStatus decodeMem32Operand(MCInst &Inst, uint64_t Imm,
+   return MCDisassembler::Success;
+ }
+ 
++static DecodeStatus decodeMem32nOperand(MCInst &Inst, uint64_t Imm,
++                                        int64_t Address, const void *Decoder) {
++  assert(isUInt<8>(Imm) && "Invalid immediate");
++  DecodeARRegisterClass(Inst, Imm & 0xf, Address, Decoder);
++  Inst.addOperand(MCOperand::createImm((Imm >> 2) & 0x3c));
++  return MCDisassembler::Success;
++}
++
++/// Read two bytes from the ArrayRef and return 16 bit data sorted
++/// according to the given endianness.
++static DecodeStatus readInstruction16(ArrayRef<uint8_t> Bytes, uint64_t Address,
++                                      uint64_t &Size, uint32_t &Insn,
++                                      bool IsLittleEndian) {
++  // We want to read exactly 2 Bytes of data.
++  if (Bytes.size() < 2) {
++    Size = 0;
++    return MCDisassembler::Fail;
++  }
++
++  if (!IsLittleEndian) {
++    llvm_unreachable("Big-endian mode currently is not supported!");
++  } else {
++    Insn = (Bytes[1] << 8) | Bytes[0];
++  }
++
++  return MCDisassembler::Success;
++}
++
+ /// Read three bytes from the ArrayRef and return 24 bit data
+ static DecodeStatus readInstruction24(ArrayRef<uint8_t> Bytes, uint64_t Address,
+                                       uint64_t &Size, uint32_t &Insn,
+@@ -272,6 +322,18 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
+   uint32_t Insn;
+   DecodeStatus Result;
+ 
++  if (hasDensity()) {
++    Result = readInstruction16(Bytes, Address, Size, Insn, IsLittleEndian);
++    if (Result == MCDisassembler::Fail)
++      return MCDisassembler::Fail;
++    LLVM_DEBUG(dbgs() << "Trying Xtensa 16-bit instruction table :\n");
++    Result = decodeInstruction(DecoderTable16, MI, Insn, Address, this, STI);
++    if (Result != MCDisassembler::Fail) {
++      Size = 2;
++      return Result;
++    }
++  }
++
+   Result = readInstruction24(Bytes, Address, Size, Insn, IsLittleEndian);
+   if (Result == MCDisassembler::Fail)
+     return MCDisassembler::Fail;
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
+index 10becc9e8c83..d6175eb80ead 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
+@@ -251,6 +251,28 @@ void XtensaInstPrinter::printImm1_16_AsmOperand(const MCInst *MI, int OpNum,
+     printOperand(MI, OpNum, O);
+ }
+ 
++void XtensaInstPrinter::printImm1n_15_AsmOperand(const MCInst *MI, int OpNum,
++                                                 raw_ostream &O) {
++  if (MI->getOperand(OpNum).isImm()) {
++    int64_t Value = MI->getOperand(OpNum).getImm();
++    assert((Value >= -1 && (Value != 0) && Value <= 15) &&
++           "Invalid argument, value must be in ranges <-1,-1> or <1,15>");
++    O << Value;
++  } else
++    printOperand(MI, OpNum, O);
++}
++
++void XtensaInstPrinter::printImm32n_95_AsmOperand(const MCInst *MI, int OpNum,
++                                                  raw_ostream &O) {
++  if (MI->getOperand(OpNum).isImm()) {
++    int64_t Value = MI->getOperand(OpNum).getImm();
++    assert((Value >= -32 && Value <= 95) &&
++           "Invalid argument, value must be in ranges <-32,95>");
++    O << Value;
++  } else
++    printOperand(MI, OpNum, O);
++}
++
+ void XtensaInstPrinter::printOffset8m8_AsmOperand(const MCInst *MI, int OpNum,
+                                                   raw_ostream &O) {
+   if (MI->getOperand(OpNum).isImm()) {
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
+index 34d03569b9bc..ca87d79bfb67 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
+@@ -60,6 +60,8 @@ private:
+   void printUimm5_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printShimm1_31_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printImm1_16_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
++  void printImm1n_15_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
++  void printImm32n_95_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printOffset8m8_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printOffset8m16_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printOffset8m32_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+index 1ef5b110c927..7b8887e2059a 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+@@ -103,6 +103,14 @@ private:
+                              SmallVectorImpl<MCFixup> &Fixups,
+                              const MCSubtargetInfo &STI) const;
+ 
++  uint32_t getImm1n_15OpValue(const MCInst &MI, unsigned OpNo,
++                              SmallVectorImpl<MCFixup> &Fixups,
++                              const MCSubtargetInfo &STI) const;
++
++  uint32_t getImm32n_95OpValue(const MCInst &MI, unsigned OpNo,
++                               SmallVectorImpl<MCFixup> &Fixups,
++                               const MCSubtargetInfo &STI) const;
++
+   uint32_t getShimm1_31OpValue(const MCInst &MI, unsigned OpNo,
+                                SmallVectorImpl<MCFixup> &Fixups,
+                                const MCSubtargetInfo &STI) const;
+@@ -254,6 +262,8 @@ XtensaMCCodeEmitter::getMemRegEncoding(const MCInst &MI, unsigned OpNo,
+     break;
+   case Xtensa::S32I:
+   case Xtensa::L32I:
++  case Xtensa::S32I_N:
++  case Xtensa::L32I_N:
+     if (Res & 0x3) {
+       report_fatal_error("Unexpected operand value!");
+     }
+@@ -261,7 +271,15 @@ XtensaMCCodeEmitter::getMemRegEncoding(const MCInst &MI, unsigned OpNo,
+     break;
+   }
+   
+-  assert((isUInt<8>(Res)) && "Unexpected operand value!");
++  switch (MI.getOpcode()) {
++  case Xtensa::S32I_N:
++  case Xtensa::L32I_N:
++    assert((isUInt<4>(Res)) && "Unexpected operand value!");
++    break;
++  default:
++    assert((isUInt<8>(Res)) && "Unexpected operand value!");
++    break;
++  }
+ 
+   uint32_t OffBits = Res << 4;
+   uint32_t RegBits = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI);
+@@ -353,6 +371,34 @@ XtensaMCCodeEmitter::getImm1_16OpValue(const MCInst &MI, unsigned OpNo,
+   return (Res - 1);
+ }
+ 
++uint32_t
++XtensaMCCodeEmitter::getImm1n_15OpValue(const MCInst &MI, unsigned OpNo,
++                                        SmallVectorImpl<MCFixup> &Fixups,
++                                        const MCSubtargetInfo &STI) const {
++  const MCOperand &MO = MI.getOperand(OpNo);
++  int32_t Res = static_cast<int32_t>(MO.getImm());
++
++  assert(((Res >= -1) && (Res <= 15) && (Res != 0)) &&
++         "Unexpected operand value!");
++
++  if (Res < 0)
++    Res = 0;
++
++  return Res;
++}
++
++uint32_t
++XtensaMCCodeEmitter::getImm32n_95OpValue(const MCInst &MI, unsigned OpNo,
++                                         SmallVectorImpl<MCFixup> &Fixups,
++                                         const MCSubtargetInfo &STI) const {
++  const MCOperand &MO = MI.getOperand(OpNo);
++  int32_t Res = static_cast<int32_t>(MO.getImm());
++
++  assert(((Res >= -32) && (Res <= 95)) && "Unexpected operand value!");
++
++  return Res;
++}
++
+ uint32_t
+ XtensaMCCodeEmitter::getB4constOpValue(const MCInst &MI, unsigned OpNo,
+                                        SmallVectorImpl<MCFixup> &Fixups,
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp b/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp
+index 098265e1c07e..54ff45a93a29 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp
+@@ -27,11 +27,12 @@ using namespace llvm;
+ namespace {
+ 
+ class XtensaDAGToDAGISel : public SelectionDAGISel {
++  const XtensaSubtarget *Subtarget;
+ public:
+   static char ID;
+ 
+   XtensaDAGToDAGISel(XtensaTargetMachine &TM, CodeGenOpt::Level OptLevel)
+-      : SelectionDAGISel(ID, TM, OptLevel) {}
++      : SelectionDAGISel(ID, TM, OptLevel), Subtarget(TM.getSubtargetImpl()) {}
+ 
+   // Override MachineFunctionPass.
+   StringRef getPassName() const override {
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 5e5e542bcadd..5c0004848858 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -1490,10 +1490,12 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
+   case Xtensa::S8I:
+   case Xtensa::S16I:
+   case Xtensa::S32I:
++  case Xtensa::S32I_N:
+   case Xtensa::L8UI:
+   case Xtensa::L16SI:
+   case Xtensa::L16UI:
+-  case Xtensa::L32I: {
++  case Xtensa::L32I:
++  case Xtensa::L32I_N: {
+     const MachineMemOperand &MMO = **MI.memoperands_begin();
+     if (MMO.isVolatile()) {
+       BuildMI(*MBB, MI, DL, TII.get(Xtensa::MEMW));
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 316c660dfffb..573e0477fc8f 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -635,3 +635,71 @@ let usesCustomInserter = 1 in {
+                      "!select $dst, $lhs, $rhs, $t, $f, $cond",
+                      [(set AR:$dst, (Xtensa_select_cc AR:$lhs, AR:$rhs, AR:$t, AR:$f, imm:$cond))]>;
+ }
++
++//===----------------------------------------------------------------------===//
++// Code Density instructions
++//===----------------------------------------------------------------------===//
++
++class ArithLogic_RRRN<bits<4> oper0, string instrAsm, 
++      SDPatternOperator opNode, bit isComm = 0>
++  : RRRN_Inst<oper0, (outs AR:$r), (ins AR:$s, AR:$t),
++              instrAsm#"\t$r, $s, $t",
++             [(set AR:$r, (opNode AR:$s, AR:$t))]>, Requires<[HasDensity]> {
++  let isCommutable = isComm;
++  let isReMaterializable = 0;
++}
++
++def ADD_N : ArithLogic_RRRN<0x0a, "add.n", add, 1>;
++
++def ADDI_N : RRRN_Inst<0x0B, (outs AR:$r), (ins AR:$s, imm1n_15:$imm),
++                      "addi.n\t$r, $s, $imm",
++                      [(set AR:$r, (add AR:$s, imm1n_15:$imm))]>, Requires<[HasDensity]> {
++  bits<4> imm;
++
++  let t = imm;
++}
++
++def MOV_N : RRRN_Inst<0x0D, (outs AR:$t), (ins AR:$s),
++                     "mov.n\t$t, $s", []>, Requires<[HasDensity]> {
++  let r = 0;
++}
++
++def : InstAlias<"mov\t $t, $s", (OR AR:$t, AR:$s, AR:$s)>;
++
++def MOVI_N : RI7_Inst<0xc, 0x0, (outs AR:$s), (ins imm32n_95:$imm7),
++                     "movi.n\t$s, $imm7",
++                     [(set AR:$s, imm32n_95:$imm7)]>, Requires<[HasDensity]>;
++
++// Load instruction
++let mayLoad = 1, usesCustomInserter = 1 in {
++  def L32I_N : RRRN_Inst<0x8, (outs AR:$t), (ins mem32n:$addr), 
++                        "l32i.n\t$t, $addr", []>, Requires<[HasDensity]> {
++    bits<8> addr;
++
++    let r{3-0} = addr{7-4};
++    let s{3-0} = addr{3-0};
++  }
++}
++
++// Store instruction
++let mayStore = 1, usesCustomInserter = 1 in {
++  def S32I_N : RRRN_Inst<0x9, (outs), (ins  AR:$t, mem32n:$addr),
++                        "s32i.n\t$t, $addr", []>, Requires<[HasDensity]> {
++    bits<8> addr;
++
++    let r{3-0} = addr{7-4};
++    let s{3-0} = addr{3-0};
++  }
++}
++
++//Return instruction
++let isReturn = 1, isTerminator = 1,
++    isBarrier = 1, Uses = [A0] in {
++  def RET_N : RRRN_Inst<0x0D, (outs), (ins),
++                       "ret.n", [(Xtensa_retflag)]>,
++                       Requires<[HasDensity]> {
++    let r = 0x0F;
++    let s = 0;
++    let t = 0;
++  }
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperands.td b/llvm/lib/Target/Xtensa/XtensaOperands.td
+index 034aef55f763..a1db366e2425 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperands.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperands.td
+@@ -72,6 +72,20 @@ def imm1_16 : Immediate<i32, [{ return Imm >= 1 && Imm <= 16; }], "Imm1_16_AsmOp
+   let DecoderMethod = "decodeImm1_16Operand";
+ }
+ 
++// imm1n_15 predicate - Immediate in the range [-1,15], except 0
++def Imm1n_15_AsmOperand: ImmAsmOperand<"Imm1n_15">;
++def imm1n_15: Immediate<i32, [{ return Imm >= -1 && Imm <= 15 && Imm != 0; }], "Imm1n_15_AsmOperand"> {
++  let EncoderMethod = "getImm1n_15OpValue";
++  let DecoderMethod = "decodeImm1n_15Operand";
++}
++
++// imm32n_95 predicate - Immediate in the range [-32,95]
++def Imm32n_95_AsmOperand: ImmAsmOperand<"Imm32n_95">;
++def imm32n_95: Immediate<i32, [{ return Imm >= -32 && Imm <= 95; }], "Imm32n_95_AsmOperand"> {
++  let EncoderMethod = "getImm32n_95OpValue";
++  let DecoderMethod = "decodeImm32n_95Operand";
++}
++
+ // shimm1_31 predicate - Immediate in the range [1,31]
+ def Shimm1_31_AsmOperand : ImmAsmOperand<"Shimm1_31">;
+ def shimm1_31 : Immediate<i32, [{ return Imm >= 1 && Imm <= 31; }], "Shimm1_31_AsmOperand"> {
+-- 
+2.40.1
+

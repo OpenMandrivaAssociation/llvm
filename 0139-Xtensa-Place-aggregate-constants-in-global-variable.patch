@@ -1,0 +1,111 @@
+From 363cb7e7d9b0dc304defc94e7e18765a638b8018 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:48 +0300
+Subject: [PATCH 139/140] [Xtensa] Place aggregate constants in global
+ variable.
+
+ Do not use constant pool for aggregate or vector constant types,
+ in such cases create global variable.
+---
+ llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp   | 17 +---------
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 31 ++++++++++++++-----
+ .../Target/Xtensa/XtensaMachineFunctionInfo.h |  5 +++
+ 3 files changed, 30 insertions(+), 23 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+index 973cd0d2e0fa..59f643add45c 100644
+--- a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+@@ -121,22 +121,7 @@ void XtensaAsmPrinter::emitMachineConstantPoolEntry(
+         const MCSymbol &Sym = SRE.getSymbol();
+         str += Sym.getName();
+       } else {
+-        unsigned NumElements;
+-        if (isa<VectorType>(Ty))
+-          NumElements = (cast<FixedVectorType>(Ty))->getNumElements();
+-        else
+-          NumElements = Ty->getArrayNumElements();
+-
+-        for (unsigned I = 0; I < NumElements; I++) {
+-          const Constant *CAE = C->getAggregateElement(I);
+-          if (I > 0)
+-            str += ", ";
+-          if (const auto *CFP = dyn_cast<ConstantFP>(CAE)) {
+-            str += toString(CFP->getValueAPF().bitcastToAPInt(), 10, true);
+-          } else if (const auto *CI = dyn_cast<ConstantInt>(CAE)) {
+-            str += toString(CI->getValue(), 10, true);
+-          }
+-        }
++        llvm_unreachable("unexpected constant pool entry type");
+       }
+ 
+       OutStreamer->emitRawText(StringRef(str));
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 9cd08ad07019..db4467677871 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -1531,14 +1531,31 @@ SDValue XtensaTargetLowering::LowerJumpTable(JumpTableSDNode *JT,
+ SDValue XtensaTargetLowering::LowerConstantPool(ConstantPoolSDNode *CP,
+                                                 SelectionDAG &DAG) const {
+   EVT PtrVT = getPointerTy(DAG.getDataLayout());
+-
++  auto C = const_cast<Constant*>(CP->getConstVal());
++  auto T = const_cast<Type *>(CP->getType());
+   SDValue Result;
+-  if (CP->isMachineConstantPoolEntry())
+-    Result =
+-        DAG.getTargetConstantPool(CP->getMachineCPVal(), PtrVT, CP->getAlign());
+-  else
+-    Result = DAG.getTargetConstantPool(CP->getConstVal(), PtrVT, CP->getAlign(),
+-                                       CP->getOffset());
++
++  // Do not use constant pool for aggregate or vector constant types,
++  // in such cases create global variable
++  if (T->isAggregateType() || T->isVectorTy()) {
++    auto AFI = DAG.getMachineFunction().getInfo<XtensaFunctionInfo>();
++    auto M = const_cast<Module*>(DAG.getMachineFunction().
++                                 getFunction().getParent());
++    auto GV = new GlobalVariable(
++                    *M, T, /*isConstant=*/true, GlobalVariable::InternalLinkage, C,
++                    Twine(DAG.getDataLayout().getPrivateGlobalPrefix()) + "CP" +
++                    Twine(DAG.getMachineFunction().getFunctionNumber()) + "_" +
++                    Twine(AFI->createLabelUId())
++                  );
++    Result = DAG.getTargetConstantPool(GV, PtrVT, Align(4));
++  } else {
++    if (CP->isMachineConstantPoolEntry())
++      Result =
++          DAG.getTargetConstantPool(CP->getMachineCPVal(), PtrVT, CP->getAlign());
++    else
++      Result = DAG.getTargetConstantPool(C, PtrVT, CP->getAlign(),
++                                         CP->getOffset());
++  }
+ 
+   return getAddrPCRel(Result, DAG);
+ }
+diff --git a/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h b/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h
+index 10d11fcb21bf..6b1b26aa6c24 100644
+--- a/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h
++++ b/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h
+@@ -26,6 +26,7 @@ class XtensaFunctionInfo : public MachineFunctionInfo {
+   int VarArgsStackOffset;
+   unsigned VarArgsFrameIndex;
+   bool SaveFrameRegister = false;
++  unsigned LabelUId = 0;
+ 
+ public:
+   explicit XtensaFunctionInfo(const Function &F, const TargetSubtargetInfo *STI)
+@@ -43,6 +44,10 @@ public:
+ 
+   bool isSaveFrameRegister() const { return SaveFrameRegister; }
+   void setSaveFrameRegister() { SaveFrameRegister = true; }
++
++  unsigned createLabelUId() {
++    return LabelUId++;
++  }
+ };
+ 
+ } // namespace llvm
+-- 
+2.40.1
+

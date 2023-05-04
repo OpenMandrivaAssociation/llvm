@@ -1,0 +1,40 @@
+From d22baf0f3565ca9d5e646fab843635fd1d343241 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:44 +0300
+Subject: [PATCH 131/140] [Xtensa] Make it possible to use -fuse-ld when GCC
+
+ toolchain is detected
+---
+ clang/lib/Driver/ToolChains/Xtensa.cpp | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index 7d0725b3d027..0e37e746a832 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -287,12 +287,18 @@ void xtensa::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+   if (!D.SysRoot.empty())
+     CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
+ 
++  bool LinkerIsLLD;
++  std::string LinkerPath = ToolChain.GetLinkerPath(&LinkerIsLLD);
+   if (ToolChain.GCCToolchainName != "") {
+-    Linker.assign(ToolChain.GCCToolchainDir);
+-    llvm::sys::path::append(Linker, "bin",
+-                            ToolChain.GCCToolchainName + "-" + getShortName());
++    if (!LinkerIsLLD) {
++      Linker.assign(ToolChain.GCCToolchainDir);
++      llvm::sys::path::append(
++          Linker, "bin", ToolChain.GCCToolchainName + "-" + getShortName());
++    } else {
++      Linker.assign(LinkerPath);
++    }
+   } else {
+-    Linker.assign(ToolChain.GetLinkerPath());
++    Linker.assign(LinkerPath);
+   }
+ 
+   const char *crtbegin, *crtend;
+-- 
+2.40.1
+

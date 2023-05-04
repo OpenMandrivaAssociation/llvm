@@ -1,0 +1,62 @@
+From d884371a4dcecd107aea3d0e768de8f3edfec094 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:31 +0300
+Subject: [PATCH 106/140] [Xtensa] Implement asm macro for bbci/bbsi.
+
+Add bbci.l macro for bbci instructon and bbsi.l for bbsi.
+---
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td | 4 ++++
+ llvm/test/MC/Xtensa/Core/branch.s         | 8 ++++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 9f234c7cb41e..db9f411ae913 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -433,6 +433,8 @@ def BBCI : RRI8_Inst<0x07, (outs),
+   let imm8 = target;
+ }
+ 
++def : InstAlias<"bbci.l\t$s, $imm, $target", (BBCI AR:$s, uimm5:$imm, brtarget:$target)>;
++
+ def BBSI : RRI8_Inst<0x07, (outs),
+                     (ins AR:$s, uimm5:$imm, brtarget:$target),
+                     "bbsi\t$s, $imm, $target", []> {
+@@ -445,6 +447,8 @@ def BBSI : RRI8_Inst<0x07, (outs),
+   let imm8 = target;
+ }
+ 
++def : InstAlias<"bbsi.l\t$s, $imm, $target", (BBSI AR:$s, uimm5:$imm, brtarget:$target)>;
++
+ def : Pat<(brcc SETGT, AR:$s, AR:$t, bb:$target),
+           (BLT AR:$t, AR:$s, bb:$target)>;
+ def : Pat<(brcc SETUGT, AR:$s, AR:$t, bb:$target),
+diff --git a/llvm/test/MC/Xtensa/Core/branch.s b/llvm/test/MC/Xtensa/Core/branch.s
+index 7e9ba5f71334..66b68a610c1d 100644
+--- a/llvm/test/MC/Xtensa/Core/branch.s
++++ b/llvm/test/MC/Xtensa/Core/branch.s
+@@ -29,6 +29,10 @@ bbci a3, 16, LBL0
+ # CHECK: encoding: [0x07,0x73,A]
+ bbci a3, (16), LBL0
+ 
++# CHECK-INST:  bbci    a3, 16, LBL0
++# CHECK: encoding: [0x07,0x73,A]
++bbci.l a3, 16, LBL0
++
+ # Instruction format RRI8
+ # CHECK-INST:  bbs     a12, a5, LBL0
+ # CHECK: encoding: [0x57,0xdc,A]
+@@ -39,6 +43,10 @@ bbs a12, a5, LBL0
+ # CHECK: encoding: [0x07,0xf3,A]
+ bbsi a3, 16, LBL0
+ 
++# CHECK-INST:  bbsi    a3, 16, LBL0
++# CHECK: encoding: [0x07,0xf3,A]
++bbsi.l a3, 16, LBL0
++
+ # Instruction format RRI8
+ # CHECK-INST:  bnall   a7, a3, LBL0
+ # CHECK: encoding: [0x37,0xc7,A]
+-- 
+2.40.1
+

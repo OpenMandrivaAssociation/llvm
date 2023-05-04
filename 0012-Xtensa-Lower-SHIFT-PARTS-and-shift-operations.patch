@@ -1,0 +1,333 @@
+From b96c603ff5f974adb8cb80e239a485bb0ad5adda Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:41 +0300
+Subject: [PATCH 012/140] [Xtensa] Lower SHIFT PARTS and shift operations.
+
+Also lower SHL, SRA, SRL with register operands.
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 129 ++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  17 ++-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     |  34 ++++-
+ llvm/lib/Target/Xtensa/XtensaOperators.td     |  16 +++
+ 4 files changed, 189 insertions(+), 7 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index b69c3cae8564..b422354c70b0 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -133,6 +133,11 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   setOperationAction(ISD::ADD, MVT::i64, Expand);
+   setOperationAction(ISD::SUB, MVT::i64, Expand);
+ 
++  // Xtensa doesn't support s[hl,rl,ra]_parts
++  setOperationAction(ISD::SHL_PARTS, MVT::i32, Custom);
++  setOperationAction(ISD::SRA_PARTS, MVT::i32, Custom);
++  setOperationAction(ISD::SRL_PARTS, MVT::i32, Custom);
++
+   // Bit Manipulation
+   setOperationAction(ISD::BSWAP, MVT::i32, Expand);
+   setOperationAction(ISD::BSWAP, MVT::i64, Expand);
+@@ -836,6 +841,83 @@ SDValue XtensaTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
+   return DAG.getMergeValues(Ops, DL);
+ }
+ 
++SDValue XtensaTargetLowering::LowerShiftLeftParts(SDValue Op,
++                                                  SelectionDAG &DAG) const {
++  SDLoc DL(Op);
++  MVT VT = MVT::i32;
++
++  SDValue Lo = Op.getOperand(0), Hi = Op.getOperand(1);
++  SDValue Shamt = Op.getOperand(2);
++
++  SDValue SetShiftLeft = DAG.getNode(XtensaISD::SSL, DL, MVT::Glue, Shamt);
++  SDValue ShiftLeftHi =
++      DAG.getNode(XtensaISD::SRC, DL, VT, Hi, Lo, SetShiftLeft);
++  SDValue SetShiftLeft1 = DAG.getNode(XtensaISD::SSL, DL, MVT::Glue, Shamt);
++  SDValue ShiftLeftLo = DAG.getNode(XtensaISD::SHL, DL, VT, Lo, SetShiftLeft1);
++  SDValue Cond = DAG.getNode(ISD::AND, DL, MVT::i32, Shamt,
++                             DAG.getConstant(VT.getSizeInBits(), DL, MVT::i32));
++  Lo = DAG.getNode(ISD::SELECT, DL, VT, Cond, DAG.getConstant(0, DL, VT),
++                   ShiftLeftLo);
++  Hi = DAG.getNode(ISD::SELECT, DL, VT, Cond, ShiftLeftLo, ShiftLeftHi);
++
++  SDValue Ops[2] = {Lo, Hi};
++  return DAG.getMergeValues(Ops, DL);
++}
++
++SDValue XtensaTargetLowering::LowerShiftRightParts(SDValue Op,
++                                                   SelectionDAG &DAG,
++                                                   bool IsSRA) const {
++  SDLoc DL(Op);
++  SDValue Lo = Op.getOperand(0), Hi = Op.getOperand(1);
++  SDValue Shamt = Op.getOperand(2);
++  MVT VT = MVT::i32;
++
++  if (IsSRA) {
++    SDValue SetShiftRight1 = DAG.getNode(XtensaISD::SSR, DL, MVT::Glue, Shamt);
++    SDValue ShiftRightLo1 =
++        DAG.getNode(XtensaISD::SRC, DL, VT, Hi, Lo, SetShiftRight1);
++
++    SDValue SetShiftRight2 = DAG.getNode(XtensaISD::SSR, DL, MVT::Glue, Shamt);
++    SDValue ShiftRightHi1 =
++        DAG.getNode(XtensaISD::SRA, DL, VT, Hi, SetShiftRight2);
++
++    SDValue SetShiftRight3 = DAG.getNode(XtensaISD::SSR, DL, MVT::Glue, Shamt);
++    SDValue ShiftRightLo2 =
++        DAG.getNode(XtensaISD::SRA, DL, VT, Hi, SetShiftRight3);
++
++    SDValue ShiftRightHi2 =
++        DAG.getNode(ISD::SRA, DL, VT, Hi, DAG.getConstant(31, DL, VT));
++
++    SDValue Cond =
++        DAG.getNode(ISD::AND, DL, MVT::i32, Shamt,
++                    DAG.getConstant(VT.getSizeInBits(), DL, MVT::i32));
++    Hi = DAG.getNode(ISD::SELECT, DL, VT, Cond, ShiftRightHi2, ShiftRightHi1);
++    Lo = DAG.getNode(ISD::SELECT, DL, VT, Cond, ShiftRightLo2, ShiftRightLo1);
++  } else {
++    SDValue SetShiftRight1 = DAG.getNode(XtensaISD::SSR, DL, MVT::Glue, Shamt);
++    SDValue ShiftRightLo1 =
++        DAG.getNode(XtensaISD::SRC, DL, VT, Hi, Lo, SetShiftRight1);
++
++    SDValue SetShiftRight2 = DAG.getNode(XtensaISD::SSR, DL, MVT::Glue, Shamt);
++    SDValue ShiftRightHi1 =
++        DAG.getNode(XtensaISD::SRL, DL, VT, Hi, SetShiftRight2);
++
++    SDValue SetShiftRight3 = DAG.getNode(XtensaISD::SSR, DL, MVT::Glue, Shamt);
++    SDValue ShiftRightLo2 =
++        DAG.getNode(XtensaISD::SRL, DL, VT, Hi, SetShiftRight3);
++
++    SDValue Cond =
++        DAG.getNode(ISD::AND, DL, MVT::i32, Shamt,
++                    DAG.getConstant(VT.getSizeInBits(), DL, MVT::i32));
++    Hi = DAG.getNode(ISD::SELECT, DL, VT, Cond, DAG.getConstant(0, DL, VT),
++                     ShiftRightHi1);
++    Lo = DAG.getNode(ISD::SELECT, DL, VT, Cond, ShiftRightLo2, ShiftRightLo1);
++  }
++
++  SDValue Ops[2] = {Lo, Hi};
++  return DAG.getMergeValues(Ops, DL);
++}
++
+ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+                                              SelectionDAG &DAG) const {
+   switch (Op.getOpcode()) {
+@@ -861,6 +943,12 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+     return LowerSTACKRESTORE(Op, DAG);
+   case ISD::DYNAMIC_STACKALLOC:
+     return LowerDYNAMIC_STACKALLOC(Op, DAG);
++  case ISD::SHL_PARTS:
++    return LowerShiftLeftParts(Op, DAG);
++  case ISD::SRA_PARTS:
++    return LowerShiftRightParts(Op, DAG, true);
++  case ISD::SRL_PARTS:
++    return LowerShiftRightParts(Op, DAG, false);
+   default:
+     llvm_unreachable("Unexpected node to lower");
+   }
+@@ -876,6 +964,12 @@ const char *XtensaTargetLowering::getTargetNodeName(unsigned Opcode) const {
+     OPCODE(PCREL_WRAPPER);
+     OPCODE(SELECT);
+     OPCODE(SELECT_CC);
++    OPCODE(SHL);
++    OPCODE(SRA);
++    OPCODE(SRL);
++    OPCODE(SRC);
++    OPCODE(SSL);
++    OPCODE(SSR);
+   }
+   return NULL;
+ #undef OPCODE
+@@ -1004,9 +1098,44 @@ XtensaTargetLowering::emitSelectCC(MachineInstr &MI,
+ 
+ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
+     MachineInstr &MI, MachineBasicBlock *MBB) const {
++  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
++  DebugLoc DL = MI.getDebugLoc();
++
+   switch (MI.getOpcode()) {
+   case Xtensa::SELECT:
+     return emitSelectCC(MI, MBB);
++
++  case Xtensa::SLL_P: {
++    MachineOperand &R = MI.getOperand(0);
++    MachineOperand &S = MI.getOperand(1);
++    MachineOperand &SA = MI.getOperand(2);
++
++    BuildMI(*MBB, MI, DL, TII.get(Xtensa::SSL)).addReg(SA.getReg());
++    BuildMI(*MBB, MI, DL, TII.get(Xtensa::SLL), R.getReg()).addReg(S.getReg());
++    MI.eraseFromParent();
++    return MBB;
++  }
++  case Xtensa::SRA_P: {
++    MachineOperand &R = MI.getOperand(0);
++    MachineOperand &T = MI.getOperand(1);
++    MachineOperand &SA = MI.getOperand(2);
++
++    BuildMI(*MBB, MI, DL, TII.get(Xtensa::SSR)).addReg(SA.getReg());
++    BuildMI(*MBB, MI, DL, TII.get(Xtensa::SRA), R.getReg()).addReg(T.getReg());
++    MI.eraseFromParent();
++    return MBB;
++  }
++  case Xtensa::SRL_P: {
++    MachineOperand &R = MI.getOperand(0);
++    MachineOperand &T = MI.getOperand(1);
++    MachineOperand &SA = MI.getOperand(2);
++
++    BuildMI(*MBB, MI, DL, TII.get(Xtensa::SSR)).addReg(SA.getReg());
++    BuildMI(*MBB, MI, DL, TII.get(Xtensa::SRL), R.getReg()).addReg(T.getReg());
++    MI.eraseFromParent();
++    return MBB;
++  }
++
+   default:
+     llvm_unreachable("Unexpected instr type to insert");
+   }
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index f8da0ab75913..00222e9bee39 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -42,7 +42,15 @@ enum {
+   // chosen over operand 1; it has the same form as BR_CCMASK.
+   // Operand 3 is the flag operand.
+   SELECT,
+-  SELECT_CC
++  SELECT_CC,
++
++  // Shift
++  SHL,
++  SRA,
++  SRL,
++  SRC,
++  SSL,
++  SSR
+ };
+ }
+ 
+@@ -53,6 +61,10 @@ public:
+   explicit XtensaTargetLowering(const TargetMachine &TM,
+                                 const XtensaSubtarget &STI);
+ 
++  MVT getScalarShiftAmountTy(const DataLayout &, EVT LHSTy) const override {
++    return LHSTy.getSizeInBits() <= 32 ? MVT::i32 : MVT::i64;
++  }
++
+   EVT getSetCCResultType(const DataLayout &, LLVMContext &,
+                          EVT VT) const override {
+     if (!VT.isVector())
+@@ -104,6 +116,9 @@ private:
+   SDValue LowerSTACKSAVE(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerSTACKRESTORE(SDValue Op, SelectionDAG &DAG) const;
+ 
++  SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
++
+   SDValue getAddrPCRel(SDValue Op, SelectionDAG &DAG) const;
+ 
+   CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 88771588d1b9..6f91d2fdc21b 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -105,33 +105,39 @@ def MOVGEZ : RRR_Inst<0x00, 0x03, 0x0B, (outs AR:$r), (ins AR:$s, AR:$t),
+ 
+ let Uses = [SAR] in {
+   def SLL : RRR_Inst<0x00, 0x01, 0x0A, (outs AR:$r), (ins AR:$s),
+-                    "sll\t$r, $s", []> {
++                   "sll\t$r, $s",
++                   [(set AR:$r, (Xtensa_shl AR:$s))]> {
+     let t = 0x00;
+   }
+ 
+   def SRA : RRR_Inst<0x00, 0x01, 0x0B, (outs AR:$r), (ins AR:$t),
+-                    "sra\t$r, $t", []> {
++                    "sra\t$r, $t",
++                    [(set AR:$r, (Xtensa_sra AR:$t))]> {
+     let s = 0x00;
+   }
+ 
+   def SRC : RRR_Inst<0x00, 0x01, 0x08, (outs AR:$r), (ins AR:$s, AR:$t),
+-                    "src\t$r, $s, $t", []>;
++                    "src\t$r, $s, $t",
++                    [(set AR:$r, (Xtensa_src AR:$s, AR:$t))]>;
+ 
+   def SRL : RRR_Inst<0x00, 0x01, 0x09, (outs AR:$r), (ins AR:$t),
+-                    "srl\t$r, $t", []> {
++                    "srl\t$r, $t",
++                    [(set AR:$r, (Xtensa_srl AR:$t))]> {
+     let s = 0x00;
+   }
+ }
+ 
+ let Defs = [SAR] in {
+   def SSL : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$s),
+-                    "ssl\t$s", []> {
++                    "ssl\t$s",
++                    [(Xtensa_ssl AR:$s)]> {
+     let r = 0x01;
+     let t = 0x00;
+   }
+ 
+   def SSR : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$s),
+-                    "ssr\t$s", []> {
++                    "ssr\t$s", 
++                    [(Xtensa_ssr AR:$s)]> {
+     let r = 0x00;
+     let t = 0x00;
+   }
+@@ -189,6 +195,22 @@ def SSAI : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins uimm5:$imm),
+   let t{0} = imm{4};
+ }
+ 
++// Shift Pseudo instructions:
++// SSL/SSR + Shift combination
++let usesCustomInserter = 1 in {
++  def SLL_P : Pseudo<(outs AR:$r), (ins AR:$s, AR:$sa),
++                    "# SLL_P $r, $s, $sa",
++                    [(set AR:$r, (shl AR:$s, AR:$sa))]>;
++ 
++  def SRA_P : Pseudo<(outs AR:$r), (ins AR:$t, AR:$sa),
++                    "# SRA_P $r, $t, $sa",
++                    [(set AR:$r, (sra AR:$t, AR:$sa))]>;
++
++  def SRL_P : Pseudo<(outs AR:$r), (ins AR:$t, AR:$sa),
++                    "# SRL_P $r, $t, $sa",
++                    [(set AR:$r, (srl AR:$t, AR:$sa))]>;
++}
++
+ //===----------------------------------------------------------------------===//
+ // Load and store instructions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperators.td b/llvm/lib/Target/Xtensa/XtensaOperators.td
+index a85550c46531..3ed6b9791cf9 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperators.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperators.td
+@@ -23,6 +23,15 @@ def SDT_XtensaSelectCC            : SDTypeProfile<1, 5,
+                                                  [SDTCisSameAs<0, 1>,
+                                                   SDTCisSameAs<2, 3>,
+                                                   SDTCisVT<5, i32>]>;
++
++def SDT_XtensaSHL                 : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
++def SDT_XtensaSRA                 : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
++def SDT_XtensaSRL                 : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
++def SDT_XtensaSRC                 : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisVT<1, i32>, 
++                                                         SDTCisVT<2, i32>]>;
++def SDT_XtensaSSL                 : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
++def SDT_XtensaSSR                 : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
++
+ //===----------------------------------------------------------------------===//
+ // Node definitions
+ //===----------------------------------------------------------------------===//
+@@ -45,3 +54,10 @@ def Xtensa_pcrel_wrapper: SDNode<"XtensaISD::PCREL_WRAPPER", SDT_XtensaWrapPtr,
+ def Xtensa_select : SDNode<"XtensaISD::SELECT", SDTSelect>;
+ def Xtensa_select_cc: SDNode<"XtensaISD::SELECT_CC", SDT_XtensaSelectCC,
+                             [SDNPInGlue]>;
++
++def Xtensa_shl: SDNode<"XtensaISD::SHL", SDT_XtensaSHL, [SDNPInGlue]>;
++def Xtensa_sra: SDNode<"XtensaISD::SRA", SDT_XtensaSRA, [SDNPInGlue]>;
++def Xtensa_srl: SDNode<"XtensaISD::SRL", SDT_XtensaSRL, [SDNPInGlue]>;
++def Xtensa_src: SDNode<"XtensaISD::SRC", SDT_XtensaSRC, [SDNPInGlue]>;
++def Xtensa_ssl: SDNode<"XtensaISD::SSL", SDT_XtensaSSL, [SDNPOutGlue]>;
++def Xtensa_ssr: SDNode<"XtensaISD::SSR", SDT_XtensaSSR, [SDNPOutGlue]>;
+-- 
+2.40.1
+

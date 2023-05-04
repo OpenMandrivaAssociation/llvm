@@ -1,0 +1,26 @@
+From 1766a32625053c7df1042ca9063b47837f78fe74 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:26 +0300
+Subject: [PATCH 096/140] [Xtensa] Remove redundant target features
+
+---
+ clang/lib/Driver/ToolChains/Xtensa.cpp | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index 5f6b959af309..c01bdc0a8499 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -309,9 +309,4 @@ void xtensa::getXtensaTargetFeatures(const Driver &D, const ArgList &Args,
+                                      std::vector<StringRef> &Features) {
+   if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
+     getXtensaFeaturesFromMcpu(D, Args, A, A->getValue(), Features);
+-
+-  // Now add any that the user explicitly requested on the command line,
+-  // which may override the defaults.
+-  handleTargetFeaturesGroup(Args, Features,
+-                            options::OPT_m_xtensa_Features_Group);
+ }
+-- 
+2.40.1
+

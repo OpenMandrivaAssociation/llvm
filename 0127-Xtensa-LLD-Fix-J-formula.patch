@@ -1,0 +1,55 @@
+From 16c8de3e7ba524f9b8af738c0a84335f45445336 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:41 +0300
+Subject: [PATCH 127/140] [Xtensa][LLD] Fix J formula
+
+---
+ lld/ELF/Arch/Xtensa.cpp     | 10 +++++-----
+ lld/test/ELF/xtensa-reloc.s | 10 +++++-----
+ 2 files changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/lld/ELF/Arch/Xtensa.cpp b/lld/ELF/Arch/Xtensa.cpp
+index 31603068b8df..f6d75fde7ac2 100644
+--- a/lld/ELF/Arch/Xtensa.cpp
++++ b/lld/ELF/Arch/Xtensa.cpp
+@@ -137,11 +137,11 @@ void Xtensa::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
+       loc[1] = target >> 2;
+       loc[2] = target >> 10;
+     } else if ((loc[0] & 0x3f) == 0b00'0110) { // j (CALL format)
+-      uint64_t val = dest - p + 4;
+-      checkInt(loc, static_cast<int64_t>(val), 18, rel);
+-      loc[0] = (loc[0] & 0b0011'1111) | ((val & 0b0000'0011) << 6);
+-      loc[1] = val >> 2;
+-      loc[2] = val >> 10;
++      uint64_t valJ = val - 4;
++      checkInt(loc, static_cast<int64_t>(valJ), 18, rel);
++      loc[0] = (loc[0] & 0b0011'1111) | ((valJ & 0b0000'0011) << 6);
++      loc[1] = valJ >> 2;
++      loc[2] = valJ >> 10;
+     } else if (isRRI8Branch(loc)) { // RRI8 format (various branch instructions)
+       uint64_t v = val - 4;
+       checkInt(loc, static_cast<int64_t>(v), 8, rel);
+diff --git a/lld/test/ELF/xtensa-reloc.s b/lld/test/ELF/xtensa-reloc.s
+index 611e671e7646..e14151ae4a81 100644
+--- a/lld/test/ELF/xtensa-reloc.s
++++ b/lld/test/ELF/xtensa-reloc.s
+@@ -20,11 +20,11 @@
+ # CHECK-NEXT: call0 . +4096
+ # CHECK-NEXT: call0 . +4092
+ # CHECK-NEXT: call0 . +4088
+-# CHECK-NEXT: j     . +4092
+-# CHECK-NEXT: j     . +4089
+-# CHECK-NEXT: j     . +4086
+-# CHECK-NEXT: j     . -4045
+-# CHECK-NEXT: j     . -3792
++# CHECK-NEXT: j     . +4084
++# CHECK-NEXT: j     . +4081
++# CHECK-NEXT: j     . +4078
++# CHECK-NEXT: j     . -4053
++# CHECK-NEXT: j     . -3800
+ # CHECK-NEXT: call0 . -4056
+ # CHECK-NEXT: call0 . -3804
+ # CHECK-NEXT: l32r a3, . -4065
+-- 
+2.40.1
+

@@ -1,0 +1,31 @@
+From 9fe9f19a8bc563f01be076ff205572b616952f30 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:45 +0300
+Subject: [PATCH 133/140] esp/ci: Check for OOM failures after build
+
+---
+ .universal-toolchain-release.yml | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/.universal-toolchain-release.yml b/.universal-toolchain-release.yml
+index 27eebaf98e6c..75a41258aead 100644
+--- a/.universal-toolchain-release.yml
++++ b/.universal-toolchain-release.yml
+@@ -65,6 +65,14 @@
+     expire_in: 1 day
+   variables:
+     BUILD_TOOLCHAIN_CMD_EXTRA_ARGS: ""
++  after_script:
++    # help to identify that build failed due to OOM
++    - >
++      if [ $CI_JOB_STATUS == 'failed' ]; then
++        [ ! -f "${BUILD_DIR}/build.log" ] || grep -i "internal compiler error\|Killed" ${BUILD_DIR}/build.log || true
++        [ ! -f "${BUILD_DIR}/tests.log" ] || grep -i "internal compiler error\|Killed" ${BUILD_DIR}/tests.log || true
++        [ ! -f "${BUILD_DIR}/lld-tests.log" ] || grep -i "internal compiler error\|Killed" ${BUILD_DIR}/lld-tests.log || true
++      fi
+   script:
+     - *get_release_name
+     - mkdir ${DOWNLOADS_DIR}
+-- 
+2.40.1
+

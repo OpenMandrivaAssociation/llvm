@@ -1,0 +1,60 @@
+From 42c90cbc871f7a927103f30bbc0e9a1f74acad81 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:38 +0300
+Subject: [PATCH 120/140] [Xtensa] Fix Call ABI for 16 byte alignment.
+
+---
+ clang/lib/CodeGen/TargetInfo.cpp |  7 ++++---
+ clang/test/CodeGen/xtensa-abi.c  | 14 ++++++++++++++
+ 2 files changed, 18 insertions(+), 3 deletions(-)
+
+diff --git a/clang/lib/CodeGen/TargetInfo.cpp b/clang/lib/CodeGen/TargetInfo.cpp
+index 4ef05b97c06b..e5a712677301 100644
+--- a/clang/lib/CodeGen/TargetInfo.cpp
++++ b/clang/lib/CodeGen/TargetInfo.cpp
+@@ -12262,9 +12262,8 @@ ABIArgInfo XtensaABIInfo::classifyArgumentType(QualType Ty,
+     if (Size < 32 && Ty->isIntegralOrEnumerationType() && !MustUseStack) {
+       return extendType(Ty);
+     }
+-    if (Size == 64)
+-      return ABIArgInfo::getDirect(llvm::IntegerType::get(getVMContext(), 64));
+-    return ABIArgInfo::getDirect(llvm::IntegerType::get(getVMContext(), 32));
++    // Assume that type has 32, 64 or 128 bits
++    return ABIArgInfo::getDirect(llvm::IntegerType::get(getVMContext(), Size));
+   }
+ 
+   // Aggregates which are <= 6*32 will be passed in registers if possible,
+@@ -12275,6 +12274,8 @@ ABIArgInfo XtensaABIInfo::classifyArgumentType(QualType Ty,
+     } else if (NeededAlign == (2 * 32)) {
+       return ABIArgInfo::getDirect(llvm::ArrayType::get(
+           llvm::IntegerType::get(getVMContext(), 64), NeededArgGPRs / 2));
++    } else if (NeededAlign == (4 * 32)) {
++      return ABIArgInfo::getDirect(llvm::IntegerType::get(getVMContext(), 128));
+     } else {
+       return ABIArgInfo::getDirect(llvm::ArrayType::get(
+           llvm::IntegerType::get(getVMContext(), 32), NeededArgGPRs));
+diff --git a/clang/test/CodeGen/xtensa-abi.c b/clang/test/CodeGen/xtensa-abi.c
+index 4ce59e8466c8..d50a45bcde48 100644
+--- a/clang/test/CodeGen/xtensa-abi.c
++++ b/clang/test/CodeGen/xtensa-abi.c
+@@ -12,3 +12,17 @@ char *bufalloc ()
+ }
+ 
+ // CHECK: define dso_local noalias i8* @bufalloc() #0 {
++
++struct S16 { int a[4]; } __attribute__ ((aligned (16)));
++
++void callee_struct_a16b_1(struct S16 a) {}
++
++// CHECK: define dso_local void @callee_struct_a16b_1(i128 %a.coerce)
++
++void callee_struct_a16b_2(struct S16 a, int b) {}
++
++// CHECK: define dso_local void @callee_struct_a16b_2(i128 %a.coerce, i32 noundef %b)
++
++void callee_struct_a16b_3(int a, struct S16 b) {}
++
++// CHECK: define dso_local void @callee_struct_a16b_3(i32 noundef %a, %struct.S16* noundef byval(%struct.S16) align 16 %b)
+-- 
+2.40.1
+

@@ -1,0 +1,91 @@
+From 1d52bd525e9eaff4c6b4d2c67bc804cb6fb7893e Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:42 +0300
+Subject: [PATCH 013/140] [Xtensa] Implement load pseudo operations and
+
+ patterns.
+
+Implement load unsigned 8-bit pseudo operation. Implement
+extending loads patterns extloadi1/i8/i16.
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 20 +++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     | 12 +++++++++++
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp |  1 +
+ 3 files changed, 33 insertions(+)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index b422354c70b0..5dd5459d22b1 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -1099,6 +1099,8 @@ XtensaTargetLowering::emitSelectCC(MachineInstr &MI,
+ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
+     MachineInstr &MI, MachineBasicBlock *MBB) const {
+   const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
++  MachineFunction *MF = MBB->getParent();
++  MachineRegisterInfo &MRI = MF->getRegInfo();
+   DebugLoc DL = MI.getDebugLoc();
+ 
+   switch (MI.getOpcode()) {
+@@ -1136,6 +1138,24 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
+     return MBB;
+   }
+ 
++  case Xtensa::L8I_P: {
++    MachineOperand &R = MI.getOperand(0);
++    MachineOperand &Op1 = MI.getOperand(1);
++    MachineOperand &Op2 = MI.getOperand(2);
++
++    const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
++    unsigned R1 = MRI.createVirtualRegister(RC);
++
++    BuildMI(*MBB, MI, DL, TII.get(Xtensa::L8UI), R1).add(Op1).add(Op2);
++
++    unsigned R2 = MRI.createVirtualRegister(RC);
++    BuildMI(*MBB, MI, DL, TII.get(Xtensa::SLLI), R2).addReg(R1).addImm(24);
++    BuildMI(*MBB, MI, DL, TII.get(Xtensa::SRAI), R.getReg())
++        .addReg(R2)
++        .addImm(24);
++    MI.eraseFromParent();
++    return MBB;
++  }
+   default:
+     llvm_unreachable("Unexpected instr type to insert");
+   }
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 6f91d2fdc21b..a8251f5af559 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -284,6 +284,18 @@ let isCodeGenOnly = 1, mayLoad = 1 in {
+   }
+ }
+ 
++// Xtensa missed L8I load operation, use pseudo operation
++let usesCustomInserter = 1 in
++def L8I_P: Pseudo<(outs AR:$t), (ins mem8:$addr),
++               "!L8I_P $t, $addr",
++                [(set AR:$t, (sextloadi8
++				addr_ish1:$addr))]>;
++
++//extending loads
++def : Pat<(i32 (extloadi1  addr_ish1:$addr)), (L8UI addr_ish1:$addr)>;
++def : Pat<(i32 (extloadi8  addr_ish1:$addr)), (L8UI addr_ish1:$addr)>;
++def : Pat<(i32 (extloadi16 addr_ish2:$addr)), (L16UI addr_ish2:$addr)>;
++
+ //===----------------------------------------------------------------------===//
+ // Conditional branch instructions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
+index 559443f07fbb..dc77c614f97e 100644
+--- a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
+@@ -107,6 +107,7 @@ bool XtensaRegisterInfo::eliminateFI(MachineBasicBlock::iterator II,
+ 
+   bool Valid = false;
+   switch (MI.getOpcode()) {
++  case Xtensa::L8I_P:
+   case Xtensa::L8UI:
+   case Xtensa::S8I:
+     Valid = (Offset >= 0 && Offset <= 255);
+-- 
+2.40.1
+

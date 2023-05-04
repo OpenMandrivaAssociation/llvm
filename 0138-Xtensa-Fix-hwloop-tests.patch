@@ -1,0 +1,42 @@
+From 38d80479a73215439db17f6c0a647d55c6b0c20e Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:47 +0300
+Subject: [PATCH 138/140] [Xtensa] Fix hwloop tests
+
+---
+ llvm/test/CodeGen/Xtensa/hwloop_inner_loop.ll      | 2 +-
+ llvm/test/CodeGen/Xtensa/hwloop_unsuitable_loop.ll | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/llvm/test/CodeGen/Xtensa/hwloop_inner_loop.ll b/llvm/test/CodeGen/Xtensa/hwloop_inner_loop.ll
+index 1942d51136a2..ba188d61b5c8 100644
+--- a/llvm/test/CodeGen/Xtensa/hwloop_inner_loop.ll
++++ b/llvm/test/CodeGen/Xtensa/hwloop_inner_loop.ll
+@@ -1,4 +1,4 @@
+-; RUN: llc -O1 -mtriple=xtensa -mcpu=esp32 %s -o - | FileCheck %s
++; RUN: llc -O1 -mtriple=xtensa -mcpu=esp32 -disable-xtensa-hwloops=false %s -o - | FileCheck %s
+ 
+ 
+ ; Function Attrs: norecurse nounwind optsize readnone
+diff --git a/llvm/test/CodeGen/Xtensa/hwloop_unsuitable_loop.ll b/llvm/test/CodeGen/Xtensa/hwloop_unsuitable_loop.ll
+index bed2d7937468..b49102740277 100644
+--- a/llvm/test/CodeGen/Xtensa/hwloop_unsuitable_loop.ll
++++ b/llvm/test/CodeGen/Xtensa/hwloop_unsuitable_loop.ll
+@@ -1,4 +1,4 @@
+-; RUN: llc -O1 -mtriple=xtensa -mcpu=esp32 %s -o - | FileCheck %s
++; RUN: llc -O1 -mtriple=xtensa -mcpu=esp32 -disable-xtensa-hwloops=false %s -o - | FileCheck %s
+ 
+ ; Function Attrs: nounwind optsize
+ define i32 @test_hwloop(i32 %a, i32 %b, i32 %n) local_unnamed_addr #1 {
+@@ -29,7 +29,7 @@ for.body:                                         ; preds = %entry, %for.body
+ ; CHECK:	#APP
+ ; CHECK:	#NO_APP
+ ; CHECK:	addi.n	a4, a4, -1
+-; CHECK:	beqz	a4, .LBB0_6
++; CHECK:	beqz  a4, .LBB0_6
+ ; CHECK:.LBB0_4: 
+ ; CHECK:	bge	a8, a2, .LBB0_2
+ 
+-- 
+2.40.1
+

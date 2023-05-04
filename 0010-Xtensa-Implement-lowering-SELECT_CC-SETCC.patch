@@ -1,0 +1,401 @@
+From 7dee00ffc9f2e67dfa011e2e5164f2192aaf462c Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:40 +0300
+Subject: [PATCH 010/140] [Xtensa] Implement lowering SELECT_CC, SETCC
+
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 208 ++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  27 ++-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     |  41 ++++
+ llvm/lib/Target/Xtensa/XtensaOperators.td     |   8 +
+ 4 files changed, 283 insertions(+), 1 deletion(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 7485824c1958..a49da72aea0c 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -75,6 +75,27 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   setOperationAction(ISD::BlockAddress, PtrVT, Custom);
+   setOperationAction(ISD::JumpTable, PtrVT, Custom);
+ 
++  // Used by legalize types to correctly generate the setcc result.
++  // AddPromotedToType(ISD::SETCC, MVT::i1, MVT::i32);
++  setOperationPromotedToType(ISD::SETCC, MVT::i1, MVT::i32);
++  setOperationPromotedToType(ISD::BR_CC, MVT::i1, MVT::i32);
++
++  setOperationAction(ISD::BR_CC, MVT::i32, Legal);
++  setOperationAction(ISD::BR_CC, MVT::i64, Expand);
++
++  setOperationAction(ISD::SELECT, MVT::i32, Expand);
++  setOperationAction(ISD::SELECT, MVT::i64, Expand);
++
++  setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
++  setOperationAction(ISD::SELECT_CC, MVT::i64, Expand);
++
++  setOperationAction(ISD::SETCC, MVT::i32,
++                     Custom); // folds into brcond
++  setOperationAction(ISD::SETCC, MVT::i64, Expand);
++
++  // make BRCOND legal, its actually only legal for a subset of conds
++  setOperationAction(ISD::BRCOND, MVT::Other, Legal);
++
+   // Implement custom stack allocations
+   setOperationAction(ISD::DYNAMIC_STACKALLOC, PtrVT, Custom);
+   // Implement custom stack save and restore
+@@ -558,6 +579,56 @@ XtensaTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
+   return DAG.getNode(XtensaISD::RET_FLAG, DL, MVT::Other, RetOps);
+ }
+ 
++SDValue XtensaTargetLowering::LowerSELECT_CC(SDValue Op,
++                                             SelectionDAG &DAG) const {
++  SDLoc DL(Op);
++  EVT Ty = Op.getOperand(0).getValueType();
++  SDValue LHS = Op.getOperand(0);
++  SDValue RHS = Op.getOperand(1);
++  SDValue TrueV = Op.getOperand(2);
++  SDValue FalseV = Op.getOperand(3);
++  ISD::CondCode CC = cast<CondCodeSDNode>(Op->getOperand(4))->get();
++  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
++
++  // Wrap select nodes
++  return DAG.getNode(XtensaISD::SELECT_CC, DL, Ty, LHS, RHS, TrueV, FalseV,
++                     TargetCC);
++}
++
++SDValue XtensaTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
++  SDLoc DL(Op);
++  EVT Ty = Op.getOperand(0).getValueType();
++  SDValue LHS = Op.getOperand(0);
++  SDValue RHS = Op.getOperand(1);
++  ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(2))->get();
++  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
++
++  // Check Op SDNode users
++  // If there are only CALL/CALLW nodes, don't expand Global Address
++  SDNode &OpNode = *Op.getNode();
++  bool Val = false;
++  for (SDNode::use_iterator UI = OpNode.use_begin(); UI != OpNode.use_end();
++       ++UI) {
++    SDNode &User = *UI.getUse().getUser();
++    unsigned OpCode = User.getOpcode();
++    if (OpCode == ISD::BRCOND) {
++      Val = true;
++      break;
++    }
++  }
++
++  // SETCC has BRCOND predecessor, return original operation
++  if (Val)
++    return Op;
++
++  // Expand to target SELECT_CC
++  SDValue TrueV = DAG.getConstant(1, DL, Op.getValueType());
++  SDValue FalseV = DAG.getConstant(0, DL, Op.getValueType());
++
++  return DAG.getNode(XtensaISD::SELECT_CC, DL, Ty, LHS, RHS, TrueV, FalseV,
++                     TargetCC);
++}
++
+ SDValue XtensaTargetLowering::LowerImmediate(SDValue Op,
+                                              SelectionDAG &DAG) const {
+   const ConstantSDNode *CN = cast<ConstantSDNode>(Op);
+@@ -714,6 +785,10 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+     return LowerImmediate(Op, DAG);
+   case ISD::ConstantFP:
+     return LowerImmediateFP(Op, DAG);
++  case ISD::SETCC:
++    return LowerSETCC(Op, DAG);
++  case ISD::SELECT_CC:
++    return LowerSELECT_CC(Op, DAG);
+   case ISD::GlobalAddress:
+     return LowerGlobalAddress(Op, DAG);
+   case ISD::BlockAddress:
+@@ -741,7 +816,140 @@ const char *XtensaTargetLowering::getTargetNodeName(unsigned Opcode) const {
+     OPCODE(RET_FLAG);
+     OPCODE(CALL);
+     OPCODE(PCREL_WRAPPER);
++    OPCODE(SELECT);
++    OPCODE(SELECT_CC);
+   }
+   return NULL;
+ #undef OPCODE
+ }
++
++//===----------------------------------------------------------------------===//
++// Custom insertion
++//===----------------------------------------------------------------------===//
++
++static int GetBranchKind(int Cond, bool &BrInv) {
++  switch (Cond) {
++  case ISD::SETEQ:
++  case ISD::SETOEQ:
++  case ISD::SETUEQ:
++    return Xtensa::BEQ;
++  case ISD::SETNE:
++  case ISD::SETONE:
++  case ISD::SETUNE:
++    return Xtensa::BNE;
++  case ISD::SETLT:
++  case ISD::SETOLT:
++    return Xtensa::BLT;
++  case ISD::SETLE:
++  case ISD::SETOLE:
++    BrInv = true;
++    return Xtensa::BGE;
++  case ISD::SETGT:
++  case ISD::SETOGT:
++    BrInv = true;
++    return Xtensa::BLT;
++  case ISD::SETGE:
++  case ISD::SETOGE:
++    return Xtensa::BGE;
++  case ISD::SETULT:
++    return Xtensa::BLTU;
++  case ISD::SETULE:
++    BrInv = true;
++    return Xtensa::BGEU;
++  case ISD::SETUGT:
++    BrInv = true;
++    return Xtensa::BLTU;
++  case ISD::SETUGE:
++    return Xtensa::BGEU;
++  default:
++    return -1;
++  }
++}
++
++MachineBasicBlock *
++XtensaTargetLowering::emitSelectCC(MachineInstr &MI,
++                                   MachineBasicBlock *BB) const {
++  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
++  DebugLoc DL = MI.getDebugLoc();
++
++  MachineOperand &LHS = MI.getOperand(1);
++  MachineOperand &RHS = MI.getOperand(2);
++  MachineOperand &TrueV = MI.getOperand(3);
++  MachineOperand &FalseV = MI.getOperand(4);
++  MachineOperand &Cond = MI.getOperand(5);
++
++  // To "insert" a SELECT_CC instruction, we actually have to insert the
++  // diamond control-flow pattern.  The incoming instruction knows the
++  // destination vreg to set, the condition code register to branch on, the
++  // true/false values to select between, and a branch opcode to use.
++  const BasicBlock *LLVM_BB = BB->getBasicBlock();
++  MachineFunction::iterator It = ++BB->getIterator();
++
++  //  thisMBB:
++  //  ...
++  //   TrueVal = ...
++  //   cmpTY ccX, r1, r2
++  //   bCC copy1MBB
++  //   fallthrough --> copy0MBB
++  MachineBasicBlock *thisMBB = BB;
++  MachineFunction *F = BB->getParent();
++  MachineBasicBlock *copy0MBB = F->CreateMachineBasicBlock(LLVM_BB);
++  MachineBasicBlock *sinkMBB = F->CreateMachineBasicBlock(LLVM_BB);
++
++  F->insert(It, copy0MBB);
++  F->insert(It, sinkMBB);
++
++  // Transfer the remainder of BB and its successor edges to sinkMBB.
++  sinkMBB->splice(sinkMBB->begin(), BB,
++                  std::next(MachineBasicBlock::iterator(MI)), BB->end());
++  sinkMBB->transferSuccessorsAndUpdatePHIs(BB);
++
++  // Next, add the true and fallthrough blocks as its successors.
++  BB->addSuccessor(copy0MBB);
++  BB->addSuccessor(sinkMBB);
++
++  bool BrInv = false;
++  int BrKind = GetBranchKind(Cond.getImm(), BrInv);
++  if (BrInv) {
++    BuildMI(BB, DL, TII.get(BrKind))
++        .addReg(RHS.getReg())
++        .addReg(LHS.getReg())
++        .addMBB(sinkMBB);
++  } else {
++    BuildMI(BB, DL, TII.get(BrKind))
++        .addReg(LHS.getReg())
++        .addReg(RHS.getReg())
++        .addMBB(sinkMBB);
++  }
++  //  copy0MBB:
++  //   %FalseValue = ...
++  //   # fallthrough to sinkMBB
++  BB = copy0MBB;
++
++  // Update machine-CFG edges
++  BB->addSuccessor(sinkMBB);
++
++  //  sinkMBB:
++  //   %Result = phi [ %FalseValue, copy0MBB ], [ %TrueValue, thisMBB ]
++  //  ...
++  BB = sinkMBB;
++
++  BuildMI(*BB, BB->begin(), DL, TII.get(Xtensa::PHI), MI.getOperand(0).getReg())
++      .addReg(FalseV.getReg())
++      .addMBB(copy0MBB)
++      .addReg(TrueV.getReg())
++      .addMBB(thisMBB);
++
++  MI.eraseFromParent(); // The pseudo instruction is gone now.
++  return BB;
++}
++
++MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
++    MachineInstr &MI, MachineBasicBlock *MBB) const {
++  switch (MI.getOpcode()) {
++  case Xtensa::SELECT:
++    return emitSelectCC(MI, MBB);
++  default:
++    llvm_unreachable("Unexpected instr type to insert");
++  }
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index f2435cc18834..f8da0ab75913 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -35,7 +35,14 @@ enum {
+   PCREL_WRAPPER,
+ 
+   // Return with a flag operand.  Operand 0 is the chain operand.
+-  RET_FLAG
++  RET_FLAG,
++
++  // Selects between operand 0 and operand 1.  Operand 2 is the
++  // mask of condition-code values for which operand 0 should be
++  // chosen over operand 1; it has the same form as BR_CCMASK.
++  // Operand 3 is the flag operand.
++  SELECT,
++  SELECT_CC
+ };
+ }
+ 
+@@ -46,6 +53,13 @@ public:
+   explicit XtensaTargetLowering(const TargetMachine &TM,
+                                 const XtensaSubtarget &STI);
+ 
++  EVT getSetCCResultType(const DataLayout &, LLVMContext &,
++                         EVT VT) const override {
++    if (!VT.isVector())
++      return MVT::i32;
++    return VT.changeVectorElementTypeToInteger();
++  }
++
+   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
+   bool isFPImmLegal(const APFloat &Imm, EVT VT,
+                     bool ForCodeSize) const override;
+@@ -69,6 +83,10 @@ public:
+                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
+                       SelectionDAG &DAG) const override;
+ 
++  MachineBasicBlock *
++  EmitInstrWithCustomInserter(MachineInstr &MI,
++                              MachineBasicBlock *BB) const override;
++
+ private:
+   const XtensaSubtarget &Subtarget;
+ 
+@@ -79,6 +97,9 @@ private:
+   SDValue LowerJumpTable(JumpTableSDNode *JT, SelectionDAG &DAG) const;
+   SDValue LowerConstantPool(ConstantPoolSDNode *CP, SelectionDAG &DAG) const;
+ 
++  SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
++
+   SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerSTACKSAVE(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerSTACKRESTORE(SDValue Op, SelectionDAG &DAG) const;
+@@ -86,6 +107,10 @@ private:
+   SDValue getAddrPCRel(SDValue Op, SelectionDAG &DAG) const;
+ 
+   CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
++
++  // Implement EmitInstrWithCustomInserter for individual operation types.
++  MachineBasicBlock *emitSelectCC(MachineInstr &MI,
++                                  MachineBasicBlock *BB) const;
+ };
+ 
+ } // end namespace llvm
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 7722f304da1a..88771588d1b9 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -411,6 +411,38 @@ def BBSI : RRI8_Inst<0x07, (outs),
+   let imm8 = target;
+ }
+ 
++def : Pat<(brcc SETGT, AR:$s, AR:$t, bb:$target),
++          (BLT AR:$t, AR:$s, bb:$target)>;
++def : Pat<(brcc SETUGT, AR:$s, AR:$t, bb:$target),
++          (BLTU AR:$t, AR:$s, bb:$target)>;
++def : Pat<(brcc SETLE, AR:$s, AR:$t, bb:$target),
++          (BGE AR:$t, AR:$s, bb:$target)>;
++def : Pat<(brcc SETULE, AR:$s, AR:$t, bb:$target),
++          (BGEU AR:$t, AR:$s, bb:$target)>;
++
++def : Pat<(brcond (i32 (seteq AR:$s, AR:$t)), bb:$target),
++          (BEQ AR:$s, AR:$t, bb:$target)>;
++def : Pat<(brcond (i32 (setne AR:$s, AR:$t)), bb:$target),
++          (BNE AR:$s, AR:$t, bb:$target)>;
++def : Pat<(brcond (i32 (setge AR:$s, AR:$t)), bb:$target),
++          (BGE AR:$s, AR:$t, bb:$target)>;
++def : Pat<(brcond (i32 (setle AR:$s, AR:$t)), bb:$target),
++          (BLT AR:$s, AR:$t, bb:$target)>;
++def : Pat<(brcond (i32 (setuge AR:$s, AR:$t)), bb:$target),
++          (BGEU AR:$s, AR:$t, bb:$target)>;
++def : Pat<(brcond (i32 (setult AR:$s, AR:$t)), bb:$target),
++          (BLTU AR:$s, AR:$t, bb:$target)>;
++def : Pat<(brcond (i32 (setgt AR:$s, AR:$t)), bb:$target),
++          (BLT AR:$t, AR:$s, bb:$target)>;
++def : Pat<(brcond (i32 (setugt AR:$s, AR:$t)), bb:$target),
++          (BLTU AR:$t, AR:$s, bb:$target)>;
++def : Pat<(brcond (i32 (setle AR:$s, AR:$t)), bb:$target),
++          (BGE AR:$t, AR:$s, bb:$target)>;
++def : Pat<(brcond (i32 (setule AR:$s, AR:$t)), bb:$target),
++          (BGEU AR:$t, AR:$s, bb:$target)>;
++
++def : Pat<(brcond AR:$s, bb:$target), (BNEZ AR:$s, bb:$target)>;
++
+ //===----------------------------------------------------------------------===//
+ // Call and jump instructions
+ //===----------------------------------------------------------------------===//
+@@ -554,3 +586,12 @@ let Defs = [SP], Uses = [SP] in {
+                                "#ADJCALLSTACKUP",
+                                [(Xtensa_callseq_end timm:$amt1, timm:$amt2)]>;
+ }
++
++//===----------------------------------------------------------------------===//
++// Generic select instruction
++//===----------------------------------------------------------------------===//
++let usesCustomInserter = 1 in {
++  def SELECT : Pseudo<(outs AR:$dst), (ins AR:$lhs, AR:$rhs, AR:$t, AR:$f, i32imm:$cond),
++                     "!select $dst, $lhs, $rhs, $t, $f, $cond",
++                     [(set AR:$dst, (Xtensa_select_cc AR:$lhs, AR:$rhs, AR:$t, AR:$f, imm:$cond))]>;
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperators.td b/llvm/lib/Target/Xtensa/XtensaOperators.td
+index bb764d2c9247..a85550c46531 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperators.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperators.td
+@@ -19,6 +19,10 @@ def SDT_XtensaWrapPtr             : SDTypeProfile<1, 1,
+                                                  [SDTCisSameAs<0, 1>,
+                                                   SDTCisPtrTy<0>]>;
+ 
++def SDT_XtensaSelectCC            : SDTypeProfile<1, 5,
++                                                 [SDTCisSameAs<0, 1>,
++                                                  SDTCisSameAs<2, 3>,
++                                                  SDTCisVT<5, i32>]>;
+ //===----------------------------------------------------------------------===//
+ // Node definitions
+ //===----------------------------------------------------------------------===//
+@@ -37,3 +41,7 @@ def Xtensa_callseq_end  : SDNode<"ISD::CALLSEQ_END",   SDT_XtensaCallSeqEnd,
+                                  SDNPOutGlue]>;
+ 
+ def Xtensa_pcrel_wrapper: SDNode<"XtensaISD::PCREL_WRAPPER", SDT_XtensaWrapPtr, []>;
++
++def Xtensa_select : SDNode<"XtensaISD::SELECT", SDTSelect>;
++def Xtensa_select_cc: SDNode<"XtensaISD::SELECT_CC", SDT_XtensaSelectCC,
++                            [SDNPInGlue]>;
+-- 
+2.40.1
+

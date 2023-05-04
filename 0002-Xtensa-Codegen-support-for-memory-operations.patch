@@ -1,0 +1,99 @@
+From ba1b50e37a67b073153c7d72e02a0b91fcef0c09 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:36 +0300
+Subject: [PATCH 002/140] [Xtensa] Codegen support for memory operations
+
+---
+ llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp | 57 ++++++++++++++++++-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp |  7 +++
+ 2 files changed, 63 insertions(+), 1 deletion(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp b/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp
+index 18a8ead6afd0..7522f97c0950 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp
+@@ -43,7 +43,62 @@ public:
+ 
+   bool selectMemRegAddr(SDValue Addr, SDValue &Base, SDValue &Offset,
+                         int Scale) {
+-    report_fatal_error("MemReg address is not implemented yet");
++    EVT ValTy = Addr.getValueType();
++
++    // if Address is FI, get the TargetFrameIndex.
++    if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(Addr)) {
++      Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), ValTy);
++      Offset = CurDAG->getTargetConstant(0, SDLoc(Addr), ValTy);
++
++      return true;
++    }
++
++    if (TM.isPositionIndependent())
++      report_fatal_error("PIC relocations is not supported");
++
++    if ((Addr.getOpcode() == ISD::TargetExternalSymbol ||
++         Addr.getOpcode() == ISD::TargetGlobalAddress))
++      return false;
++
++    // Addresses of the form FI+const or FI|const
++    bool Valid = false;
++    if (CurDAG->isBaseWithConstantOffset(Addr)) {
++      ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Addr.getOperand(1));
++      int64_t OffsetVal = CN->getSExtValue();
++
++      switch (Scale) {
++      case 1:
++        Valid = (OffsetVal >= 0 && OffsetVal <= 255);
++        break;
++      case 2:
++        Valid =
++            (OffsetVal >= 0 && OffsetVal <= 510) && ((OffsetVal & 0x1) == 0);
++        break;
++      case 4:
++        Valid =
++            (OffsetVal >= 0 && OffsetVal <= 1020) && ((OffsetVal & 0x3) == 0);
++        break;
++      default:
++        break;
++      }
++
++      if (Valid) {
++        // If the first operand is a FI, get the TargetFI Node
++        if (FrameIndexSDNode *FIN =
++                dyn_cast<FrameIndexSDNode>(Addr.getOperand(0)))
++          Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), ValTy);
++        else
++          Base = Addr.getOperand(0);
++
++        Offset =
++            CurDAG->getTargetConstant(CN->getZExtValue(), SDLoc(Addr), ValTy);
++        return true;
++      }
++    }
++
++    // Last case
++    Base = Addr;
++    Offset = CurDAG->getTargetConstant(0, SDLoc(Addr), Addr.getValueType());
+     return true;
+   }
+ 
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index a9ab9e407a4a..4b4b9626ce28 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -45,6 +45,13 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   setBooleanVectorContents(ZeroOrOneBooleanContent);
+ 
+   setMinFunctionAlignment(Align(4));
++  
++  // No sign extend instructions for i1
++  for (MVT VT : MVT::integer_valuetypes()) {
++    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
++    setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
++    setLoadExtAction(ISD::EXTLOAD, VT, MVT::i1, Promote);
++  }
+ 
+   // Compute derived properties from the register classes
+   computeRegisterProperties(STI.getRegisterInfo());
+-- 
+2.40.1
+

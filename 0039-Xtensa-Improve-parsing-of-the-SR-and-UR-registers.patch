@@ -1,0 +1,754 @@
+From 3e900dc81a8441c4e58b795535b9a342b2e4d6aa Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:57 +0300
+Subject: [PATCH 039/140] [Xtensa] Improve parsing of the SR and UR registers.
+
+Implement subtarget dependent SR and UR register parsing and
+disassembling, add tests. Implement User Registers read/write
+instructions and add tests.
+---
+ .../Xtensa/AsmParser/XtensaAsmParser.cpp      | 312 +++++++++++++++++-
+ .../Disassembler/XtensaDisassembler.cpp       | 180 +++++++++-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     |  35 ++
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.td  |   3 +-
+ llvm/test/MC/Xtensa/Core/processor-control.s  |   8 +
+ 5 files changed, 521 insertions(+), 17 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+index a5a3bcf0cdfd..6a0b9aabb909 100644
+--- a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
++++ b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+@@ -54,10 +54,11 @@ class XtensaAsmParser : public MCTargetAsmParser {
+ 
+   OperandMatchResultTy parseImmediate(OperandVector &Operands);
+   OperandMatchResultTy parseRegister(OperandVector &Operands,
+-                                     bool AllowParens = false, bool SR = false);
++                                     bool AllowParens = false, bool SR = false,
++                                     bool UR = false);
+   OperandMatchResultTy parseOperandWithModifier(OperandVector &Operands);
+   bool parseOperand(OperandVector &Operands, StringRef Mnemonic,
+-                    bool SR = false);
++                    bool SR = false, bool UR = false);
+   bool ParseInstructionWithSR(ParseInstructionInfo &Info, StringRef Name,
+                               SMLoc NameLoc, OperandVector &Operands);
+   OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+@@ -65,6 +66,7 @@ class XtensaAsmParser : public MCTargetAsmParser {
+     return MatchOperand_NoMatch;
+   }
+   OperandMatchResultTy parsePCRelTarget(OperandVector &Operands);
++  bool checkRegister(unsigned RegNo);
+ 
+ public:
+   enum XtensaMatchResultTy {
+@@ -79,6 +81,86 @@ public:
+       : MCTargetAsmParser(Options, STI, MII) {
+     setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
+   }
++
++  bool hasWindowed() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureWindowed];
++  };
++
++  bool hasSingleFloat() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureSingleFloat];
++  };
++
++  bool hasLoop() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureLoop];
++  };
++
++  bool hasMAC16() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureMAC16];
++  };
++
++  bool hasBoolean() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureBoolean];
++  };
++
++  bool hasDFPAccel() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureDFPAccel];
++  };
++
++  bool hasS32C1I() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureS32C1I];
++  };
++
++  bool hasTHREADPTR() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureTHREADPTR];
++  };
++
++  bool hasExtendedL32R() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureExtendedL32R];
++  }
++
++  bool hasATOMCTL() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureATOMCTL];
++  }
++
++  bool hasMEMCTL() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureMEMCTL];
++  }
++
++  bool hasDebug() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureDebug];
++  }
++
++  bool hasException() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureException];
++  }
++
++  bool hasHighPriInterrupts() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureHighPriInterrupts];
++  }
++
++  bool hasCoprocessor() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureCoprocessor];
++  }
++
++  bool hasInterrupt() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureInterrupt];
++  }
++
++  bool hasRelocatableVector() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureRelocatableVector];
++  }
++
++  bool hasTimerInt() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureTimerInt];
++  }
++
++  bool hasPRID() const {
++    return getSTI().getFeatureBits()[Xtensa::FeaturePRID];
++  }
++
++  bool hasMiscSR() const {
++    return getSTI().getFeatureBits()[Xtensa::FeatureMiscSR];
++  }
+ };
+ 
+ // Return true if Expr is in the range [MinValue, MaxValue].
+@@ -506,17 +588,19 @@ bool XtensaAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+ }
+ 
+ OperandMatchResultTy XtensaAsmParser::parseRegister(OperandVector &Operands,
+-                                                    bool AllowParens, bool SR) {
++                                                    bool AllowParens, bool SR,
++                                                    bool UR) {
+   SMLoc FirstS = getLoc();
+   bool HadParens = false;
+   AsmToken Buf[2];
+-  StringRef RegName;
++  std::string RegName = "";
++  int64_t Num;
+ 
+   // If this a parenthesised register name is allowed, parse it atomically
+   if (AllowParens && getLexer().is(AsmToken::LParen)) {
+     size_t ReadCount = getLexer().peekTokens(Buf);
+     if (ReadCount == 2 && Buf[1].getKind() == AsmToken::RParen) {
+-      if ((Buf[0].getKind() == AsmToken::Integer) && (!SR))
++      if ((Buf[0].getKind() == AsmToken::Integer) && (!SR) && (!UR))
+         return MatchOperand_NoMatch;
+       HadParens = true;
+       getParser().Lex(); // Eat '('
+@@ -529,15 +613,38 @@ OperandMatchResultTy XtensaAsmParser::parseRegister(OperandVector &Operands,
+   default:
+     return MatchOperand_NoMatch;
+   case AsmToken::Integer:
+-    if (!SR)
++    if ((!SR) && (!UR))
+       return MatchOperand_NoMatch;
+-    RegName = StringRef(std::to_string(getLexer().getTok().getIntVal()));
++
++    Num = getLexer().getTok().getIntVal();
++    // Parse case when we expect UR operand as special case,
++    // because SR and UR registers may have the same number
++    // and such situation may lead to confilct
++    if (UR) {
++      if (Num == 0)
++        RegName = "GPIO_OUT";
++      if (Num == 230)
++        RegName = "EXPSTATE";
++      if (Num == 231)
++        RegName = "THREADPTR";
++      if (Num == 232)
++        RegName = "FCR";
++      if (Num == 233)
++        RegName = "FSR";
++      if (Num == 234)
++        RegName = "F64R_LO";
++      if (Num == 235)
++        RegName = "F64R_HI";
++      if (Num == 236)
++        RegName = "F64S";
++    } else
++      RegName = std::to_string(Num);
+     RegNo = MatchRegisterName(RegName);
+     if (RegNo == 0)
+       RegNo = MatchRegisterAltName(RegName);
+     break;
+   case AsmToken::Identifier:
+-    RegName = getLexer().getTok().getIdentifier();
++    RegName = getLexer().getTok().getIdentifier().str();
+     RegNo = MatchRegisterName(RegName);
+     if (RegNo == 0)
+       RegNo = MatchRegisterAltName(RegName);
+@@ -549,6 +656,11 @@ OperandMatchResultTy XtensaAsmParser::parseRegister(OperandVector &Operands,
+       getLexer().UnLex(Buf[0]);
+     return MatchOperand_NoMatch;
+   }
++
++  if (!checkRegister(RegNo)) {
++    return MatchOperand_NoMatch;
++  }
++
+   if (HadParens)
+     Operands.push_back(XtensaOperand::createToken("(", FirstS));
+   SMLoc S = getLoc();
+@@ -608,7 +720,7 @@ XtensaAsmParser::parseOperandWithModifier(OperandVector &Operands) {
+ /// from this information, adding to Operands.
+ /// If operand was parsed, returns false, else true.
+ bool XtensaAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic,
+-                                   bool SR) {
++                                   bool SR, bool UR) {
+   // Check if the current operand has a custom associated parser, if so, try to
+   // custom parse the operand, or fallback to the general approach.
+   OperandMatchResultTy ResTy = MatchOperandParserImpl(Operands, Mnemonic);
+@@ -622,7 +734,7 @@ bool XtensaAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic,
+     return true;
+ 
+   // Attempt to parse token as register
+-  if (parseRegister(Operands, true, SR) == MatchOperand_Success)
++  if (parseRegister(Operands, true, SR, UR) == MatchOperand_Success)
+     return false;
+ 
+   // Attempt to parse token as an immediate
+@@ -638,8 +750,13 @@ bool XtensaAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic,
+ bool XtensaAsmParser::ParseInstructionWithSR(ParseInstructionInfo &Info,
+                                              StringRef Name, SMLoc NameLoc,
+                                              OperandVector &Operands) {
++  bool IsSR = Name.startswith("wsr") || Name.startswith("rsr") ||
++              Name.startswith("xsr");
++  bool IsUR = Name.startswith("wur") || Name.startswith("rur");
++
+   if ((Name.startswith("wsr.") || Name.startswith("rsr.") ||
+-       Name.startswith("xsr.")) &&
++       Name.startswith("xsr.") || Name.startswith("rur.") ||
++       Name.startswith("wur.")) &&
+       (Name.size() > 4)) {
+     // Parse case when instruction name is concatenated with SR register
+     // name, like "wsr.sar a1"
+@@ -658,6 +775,11 @@ bool XtensaAsmParser::ParseInstructionWithSR(ParseInstructionInfo &Info,
+       return true;
+     }
+ 
++    if (!checkRegister(RegNo)) {
++      Error(NameLoc, "invalid register name");
++      return true;
++    }
++
+     // Parse operand
+     if (parseOperand(Operands, Name))
+       return true;
+@@ -682,7 +804,7 @@ bool XtensaAsmParser::ParseInstructionWithSR(ParseInstructionInfo &Info,
+     getLexer().Lex();
+ 
+     // Parse second operand
+-    if (parseOperand(Operands, Name, true))
++    if (parseOperand(Operands, Name, IsSR, IsUR))
+       return true;
+   }
+ 
+@@ -700,7 +822,8 @@ bool XtensaAsmParser::ParseInstruction(ParseInstructionInfo &Info,
+                                        StringRef Name, SMLoc NameLoc,
+                                        OperandVector &Operands) {
+   if (Name.startswith("wsr") || Name.startswith("rsr") ||
+-      Name.startswith("xsr")) {
++      Name.startswith("xsr") || Name.startswith("rur") ||
++      Name.startswith("wur")) {
+     return ParseInstructionWithSR(Info, Name, NameLoc, Operands);
+   }
+ 
+@@ -736,6 +859,169 @@ bool XtensaAsmParser::ParseInstruction(ParseInstructionInfo &Info,
+ }
+ 
+ bool XtensaAsmParser::ParseDirective(AsmToken DirectiveID) { return true; }
++ 
++// Verify SR and UR
++bool XtensaAsmParser::checkRegister(unsigned RegNo) {
++  StringRef CPU = getSTI().getCPU();
++  unsigned NumIntLevels = 0;
++  unsigned NumTimers = 0;
++  unsigned NumMiscSR = 0;
++  bool IsESP32 = false;
++  bool IsESP32_S2 = false;
++  bool Res = true;
++
++  // Assume that CPU is esp32 by default
++  if ((CPU == "esp32") || (CPU == "")) {
++    NumIntLevels = 6;
++    NumTimers = 3;
++    NumMiscSR = 4;
++    IsESP32 = true;
++  } else if (CPU == "esp32-s2") {
++    NumIntLevels = 6;
++    NumTimers = 3;
++    NumMiscSR = 4;
++    IsESP32_S2 = true;
++  } else if (CPU == "esp8266") {
++    NumIntLevels = 2;
++    NumTimers = 1;
++  }
++
++  switch (RegNo) {
++  case Xtensa::LBEG:
++  case Xtensa::LEND:
++  case Xtensa::LCOUNT:
++    Res = hasLoop();
++    break;
++  case Xtensa::BREG:
++    Res = hasBoolean();
++    break;
++  case Xtensa::LITBASE:
++    Res = hasExtendedL32R();
++    break;
++  case Xtensa::SCOMPARE1:
++    Res = hasS32C1I();
++    break;
++  case Xtensa::ACCLO:
++  case Xtensa::ACCHI:
++  case Xtensa::M0:
++  case Xtensa::M1:
++  case Xtensa::M2:
++  case Xtensa::M3:
++    Res = hasMAC16();
++    break;
++  case Xtensa::WINDOWBASE:
++  case Xtensa::WINDOWSTART:
++    Res = hasWindowed();
++    break;
++  case Xtensa::IBREAKENABLE:
++  case Xtensa::IBREAKA0:
++  case Xtensa::IBREAKA1:
++  case Xtensa::DBREAKA0:
++  case Xtensa::DBREAKA1:
++  case Xtensa::DBREAKC0:
++  case Xtensa::DBREAKC1:
++  case Xtensa::DEBUGCAUSE:
++  case Xtensa::ICOUNT:
++  case Xtensa::ICOUNTLEVEL:
++    Res = hasDebug();
++    break;
++  case Xtensa::ATOMCTL:
++    Res = hasATOMCTL();
++    break;
++  case Xtensa::MEMCTL:
++    Res = hasMEMCTL();
++    break;
++  case Xtensa::EPC1:
++    Res = hasException();
++    break;
++  case Xtensa::EPC2:
++  case Xtensa::EPC3:
++  case Xtensa::EPC4:
++  case Xtensa::EPC5:
++  case Xtensa::EPC6:
++  case Xtensa::EPC7:
++    Res = hasHighPriInterrupts();
++    Res = Res & (NumIntLevels >= (RegNo - Xtensa::EPC1));
++    break;
++  case Xtensa::EPS2:
++  case Xtensa::EPS3:
++  case Xtensa::EPS4:
++  case Xtensa::EPS5:
++  case Xtensa::EPS6:
++  case Xtensa::EPS7:
++    Res = hasHighPriInterrupts();
++    Res = Res & (NumIntLevels > (RegNo - Xtensa::EPS2));
++    break;
++  case Xtensa::EXCSAVE1:
++    Res = hasException();
++    break;
++  case Xtensa::EXCSAVE2:
++  case Xtensa::EXCSAVE3:
++  case Xtensa::EXCSAVE4:
++  case Xtensa::EXCSAVE5:
++  case Xtensa::EXCSAVE6:
++  case Xtensa::EXCSAVE7:
++    Res = hasHighPriInterrupts();
++    Res = Res & (NumIntLevels >= (RegNo - Xtensa::EXCSAVE1));
++    break;
++  case Xtensa::DEPC:
++  case Xtensa::EXCCAUSE:
++  case Xtensa::EXCVADDR:
++    Res = hasException();
++    break;
++  case Xtensa::CPENABLE:
++    Res = hasCoprocessor();
++    break;
++  case Xtensa::VECBASE:
++    Res = hasRelocatableVector();
++    break;
++  case Xtensa::CCOUNT:
++    Res = hasTimerInt();
++    Res &= (NumTimers > 0);
++    break;
++  case Xtensa::CCOMPARE0:
++  case Xtensa::CCOMPARE1:
++  case Xtensa::CCOMPARE2:
++    Res = hasTimerInt();
++    Res &= (NumTimers > (RegNo - Xtensa::CCOMPARE0));
++    break;
++  case Xtensa::PRID:
++    Res = hasPRID();
++    break;
++  case Xtensa::INTSET:
++  case Xtensa::INTCLEAR:
++  case Xtensa::INTENABLE:
++    Res = hasInterrupt();
++    break;
++  case Xtensa::MISC0:
++  case Xtensa::MISC1:
++  case Xtensa::MISC2:
++  case Xtensa::MISC3:
++    Res = hasMiscSR();
++    Res &= (NumMiscSR > (RegNo - Xtensa::MISC0));
++    break;
++  case Xtensa::THREADPTR:
++    Res = hasTHREADPTR();
++    break;
++  case Xtensa::GPIO_OUT:
++    Res = IsESP32_S2;
++    break;
++  case Xtensa::EXPSTATE:
++    Res = IsESP32;
++    break;
++  case Xtensa::FCR:
++  case Xtensa::FSR:
++    Res = hasSingleFloat();
++    break;
++  case Xtensa::F64R_LO:
++  case Xtensa::F64R_HI:
++  case Xtensa::F64S:
++    Res = hasDFPAccel();
++    break;
++  }
++
++  return Res;
++}
+ 
+ // Force static initialization.
+ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaAsmParser() {
+diff --git a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+index 3cac05d74d82..ae5e8e281253 100644
+--- a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
++++ b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+@@ -147,6 +147,169 @@ static DecodeStatus DecodeMR23RegisterClass(MCInst &Inst, uint64_t RegNo,
+   return MCDisassembler::Success;
+ }
+ 
++// Verify SR and UR
++bool CheckRegister(unsigned RegNo, MCSubtargetInfo STI) {
++  StringRef CPU = STI.getCPU();
++  unsigned NumIntLevels = 0;
++  unsigned NumTimers = 0;
++  unsigned NumMiscSR = 0;
++  bool IsESP32 = false;
++  bool IsESP32_S2 = false;
++  bool Res = true;
++
++  // Assume that CPU is esp32 by default
++  if ((CPU == "esp32") || (CPU == "")) {
++    NumIntLevels = 6;
++    NumTimers = 3;
++    NumMiscSR = 4;
++    IsESP32 = true;
++  } else if (CPU == "esp32-s2") {
++    NumIntLevels = 6;
++    NumTimers = 3;
++    NumMiscSR = 4;
++    IsESP32_S2 = true;
++  } else if (CPU == "esp8266") {
++    NumIntLevels = 2;
++    NumTimers = 1;
++  }
++
++  switch (RegNo) {
++  case Xtensa::LBEG:
++  case Xtensa::LEND:
++  case Xtensa::LCOUNT:
++    Res = STI.getFeatureBits()[Xtensa::FeatureLoop];
++    break;
++  case Xtensa::BREG:
++    Res = STI.getFeatureBits()[Xtensa::FeatureBoolean];
++    break;
++  case Xtensa::LITBASE:
++    Res = STI.getFeatureBits()[Xtensa::FeatureExtendedL32R];
++    break;
++  case Xtensa::SCOMPARE1:
++    Res = STI.getFeatureBits()[Xtensa::FeatureS32C1I];
++    break;
++  case Xtensa::ACCLO:
++  case Xtensa::ACCHI:
++  case Xtensa::M0:
++  case Xtensa::M1:
++  case Xtensa::M2:
++  case Xtensa::M3:
++    Res = STI.getFeatureBits()[Xtensa::FeatureMAC16];
++    break;
++  case Xtensa::WINDOWBASE:
++  case Xtensa::WINDOWSTART:
++    Res = STI.getFeatureBits()[Xtensa::FeatureWindowed];
++    break;
++  case Xtensa::IBREAKENABLE:
++  case Xtensa::IBREAKA0:
++  case Xtensa::IBREAKA1:
++  case Xtensa::DBREAKA0:
++  case Xtensa::DBREAKA1:
++  case Xtensa::DBREAKC0:
++  case Xtensa::DBREAKC1:
++  case Xtensa::DEBUGCAUSE:
++  case Xtensa::ICOUNT:
++  case Xtensa::ICOUNTLEVEL:
++    Res = STI.getFeatureBits()[Xtensa::FeatureDebug];
++    break;
++  case Xtensa::ATOMCTL:
++    Res = STI.getFeatureBits()[Xtensa::FeatureATOMCTL];
++    break;
++  case Xtensa::MEMCTL:
++    Res = STI.getFeatureBits()[Xtensa::FeatureMEMCTL];
++    break;
++  case Xtensa::EPC1:
++    Res = STI.getFeatureBits()[Xtensa::FeatureException];
++    break;
++  case Xtensa::EPC2:
++  case Xtensa::EPC3:
++  case Xtensa::EPC4:
++  case Xtensa::EPC5:
++  case Xtensa::EPC6:
++  case Xtensa::EPC7:
++    Res = STI.getFeatureBits()[Xtensa::FeatureHighPriInterrupts];
++    Res = Res & (NumIntLevels >= (RegNo - Xtensa::EPC1));
++    break;
++  case Xtensa::EPS2:
++  case Xtensa::EPS3:
++  case Xtensa::EPS4:
++  case Xtensa::EPS5:
++  case Xtensa::EPS6:
++  case Xtensa::EPS7:
++    Res = STI.getFeatureBits()[Xtensa::FeatureHighPriInterrupts];
++    Res = Res & (NumIntLevels > (RegNo - Xtensa::EPS2));
++    break;
++  case Xtensa::EXCSAVE1:
++    Res = STI.getFeatureBits()[Xtensa::FeatureException];
++    break;
++  case Xtensa::EXCSAVE2:
++  case Xtensa::EXCSAVE3:
++  case Xtensa::EXCSAVE4:
++  case Xtensa::EXCSAVE5:
++  case Xtensa::EXCSAVE6:
++  case Xtensa::EXCSAVE7:
++    Res = STI.getFeatureBits()[Xtensa::FeatureHighPriInterrupts];
++    Res = Res & (NumIntLevels >= (RegNo - Xtensa::EXCSAVE1));
++    break;
++  case Xtensa::DEPC:
++  case Xtensa::EXCCAUSE:
++  case Xtensa::EXCVADDR:
++    Res = STI.getFeatureBits()[Xtensa::FeatureException];
++    break;
++  case Xtensa::CPENABLE:
++    Res = STI.getFeatureBits()[Xtensa::FeatureCoprocessor];
++    break;
++  case Xtensa::VECBASE:
++    Res = STI.getFeatureBits()[Xtensa::FeatureRelocatableVector];
++    break;
++  case Xtensa::CCOUNT:
++    Res = STI.getFeatureBits()[Xtensa::FeatureTimerInt];
++    Res &= (NumTimers > 0);
++    break;
++  case Xtensa::CCOMPARE0:
++  case Xtensa::CCOMPARE1:
++  case Xtensa::CCOMPARE2:
++    Res = STI.getFeatureBits()[Xtensa::FeatureTimerInt];
++    Res &= (NumTimers > (RegNo - Xtensa::CCOMPARE0));
++    break;
++  case Xtensa::PRID:
++    Res = STI.getFeatureBits()[Xtensa::FeaturePRID];
++    break;
++  case Xtensa::INTSET:
++  case Xtensa::INTCLEAR:
++  case Xtensa::INTENABLE:
++    Res = STI.getFeatureBits()[Xtensa::FeatureInterrupt];
++    break;
++  case Xtensa::MISC0:
++  case Xtensa::MISC1:
++  case Xtensa::MISC2:
++  case Xtensa::MISC3:
++    Res = STI.getFeatureBits()[Xtensa::FeatureMiscSR];
++    Res &= (NumMiscSR > (RegNo - Xtensa::MISC0));
++    break;
++  case Xtensa::THREADPTR:
++    Res = STI.getFeatureBits()[Xtensa::FeatureTHREADPTR];
++    break;
++  case Xtensa::GPIO_OUT:
++    Res = IsESP32_S2;
++    break;
++  case Xtensa::EXPSTATE:
++    Res = IsESP32;
++    break;
++  case Xtensa::FCR:
++  case Xtensa::FSR:
++    Res = STI.getFeatureBits()[Xtensa::FeatureSingleFloat];
++    break;
++  case Xtensa::F64R_LO:
++  case Xtensa::F64R_HI:
++  case Xtensa::F64S:
++    Res = STI.getFeatureBits()[Xtensa::FeatureDFPAccel];
++    break;
++  }
++
++  return Res;
++}
++
+ static const unsigned SRDecoderTable[] = {
+     Xtensa::LBEG,        0,   Xtensa::LEND,         1,
+     Xtensa::LCOUNT,      2,   Xtensa::SAR,          3,
+@@ -186,12 +349,19 @@ static const unsigned SRDecoderTable[] = {
+ static DecodeStatus DecodeSRRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                           uint64_t Address,
+                                           const void *Decoder) {
++  const llvm::MCSubtargetInfo STI =
++      ((const MCDisassembler *)Decoder)->getSubtargetInfo();
++
+   if (RegNo > 255)
+     return MCDisassembler::Fail;
+ 
+   for (unsigned i = 0; i < std::size(SRDecoderTable); i += 2) {
+     if (SRDecoderTable[i + 1] == RegNo) {
+       unsigned Reg = SRDecoderTable[i];
++
++      if (!CheckRegister(Reg, STI))
++        return MCDisassembler::Fail;
++
+       Inst.addOperand(MCOperand::createReg(Reg));
+       return MCDisassembler::Success;
+     }
+@@ -201,9 +371,9 @@ static DecodeStatus DecodeSRRegisterClass(MCInst &Inst, uint64_t RegNo,
+ }
+ 
+ static const unsigned URDecoderTable[] = {
+-    Xtensa::EXPSTATE, 230, Xtensa::THREADPTR, 231, Xtensa::FCR,     232,
+-    Xtensa::FSR,      233, Xtensa::F64R_LO,   234, Xtensa::F64R_HI, 235,
+-    Xtensa::F64S,     236};
++    Xtensa::GPIO_OUT, 0,   Xtensa::EXPSTATE, 230, Xtensa::THREADPTR, 231,
++    Xtensa::FCR,      232, Xtensa::FSR,      233, Xtensa::F64R_LO,   234,
++    Xtensa::F64R_HI,  235, Xtensa::F64S,     236};
+ 
+ static DecodeStatus DecodeURRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                           uint64_t Address,
+@@ -217,6 +387,10 @@ static DecodeStatus DecodeURRegisterClass(MCInst &Inst, uint64_t RegNo,
+   for (unsigned i = 0; i < std::size(URDecoderTable); i += 2) {
+     if (URDecoderTable[i + 1] == RegNo) {
+       unsigned Reg = URDecoderTable[i];
++
++      if (!CheckRegister(Reg, STI))
++        return MCDisassembler::Fail;
++
+       Inst.addOperand(MCOperand::createReg(Reg));
+       return MCDisassembler::Success;
+     }
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 378949fa4b02..a3de1b724906 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -611,6 +611,41 @@ def XSR : RSR_Inst<0x00, 0x01, 0x06, (outs AR:$ard, SR:$srd), (ins AR:$t, SR:$sr
+   let Constraints = "$ard = $t, $srd = $sr";
+ }
+ 
++//===----------------------------------------------------------------------===//
++// User Registers read/write instructions
++//===----------------------------------------------------------------------===//
++
++def WUR : RRR_Inst<0x00, 0x03, 0x0F, (outs UR:$ur), (ins AR:$t),
++                  "wur\t$t, $ur", []> {
++  bits<8> ur;
++
++  let r = ur{7-4};
++  let s = ur{3-0};
++}
++
++def RUR : RRR_Inst<0x00, 0x03, 0x0E, (outs AR:$r), (ins UR:$ur),
++                  "rur\t$r, $ur", []> {
++  bits<8> ur;
++
++  let s = ur{7-4};
++  let t = ur{3-0};
++}
++
++//===----------------------------------------------------------------------===//
++// External Registers read/write instructions
++//===----------------------------------------------------------------------===//
++
++def RER : RRR_Inst<0x00, 0x00, 0x04, (outs AR:$t), (ins AR:$s),
++                  "rer\t$t, $s", []> {
++  let r = 0x6;
++}
++
++def WER : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$t, AR:$s),
++                  "wer\t$t, $s", []> {
++  let r = 0x7;
++  let hasSideEffects = 1;
++}
++
+ //===----------------------------------------------------------------------===//
+ // Stack allocation
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+index 2fb153d065ac..93e67af82fc8 100644
+--- a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+@@ -225,6 +225,7 @@ class URReg<bits<8> num, string n, list<string> alt = []> : XtensaReg<n> {
+   let AltNames = alt;
+ }
+ 
++def GPIO_OUT : URReg<0, "gpio_out", ["GPIO_OUT"]>;
+ def EXPSTATE : URReg<230, "expstate", ["EXPSTATE"]>;
+ 
+ // Thread Pointer register
+@@ -236,7 +237,7 @@ def F64R_LO : URReg<234, "f64r_lo", ["F64R_LO"]>;
+ def F64R_HI : URReg<235, "f64r_hi", ["F64R_HI"]>;
+ def F64S : URReg<236, "f64s", ["F64S"]>;
+ 
+-def UR :  RegisterClass<"Xtensa", [i32], 32, (add EXPSTATE, THREADPTR, FCR,
++def UR :  RegisterClass<"Xtensa", [i32], 32, (add GPIO_OUT, EXPSTATE, THREADPTR, FCR,
+   FSR, F64R_LO, F64R_HI, F64S)>; 
+ 
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/test/MC/Xtensa/Core/processor-control.s b/llvm/test/MC/Xtensa/Core/processor-control.s
+index 5b648356fc68..1e7bac578927 100644
+--- a/llvm/test/MC/Xtensa/Core/processor-control.s
++++ b/llvm/test/MC/Xtensa/Core/processor-control.s
+@@ -25,6 +25,10 @@ isync
+ # CHECK: encoding: [0xf0,0x20,0x00]
+ nop
+ 
++# CHECK-INST: rer a3, a4
++# CHECK: encoding: [0x30,0x64,0x40]
++rer a3, a4
++
+ # Instruction format RSR
+ # CHECK-INST: rsr a8, sar
+ # CHECK: encoding: [0x80,0x03,0x03]
+@@ -43,6 +47,10 @@ rsr a8, 3
+ # CHECK: encoding: [0x10,0x20,0x00]
+ rsync
+ 
++# CHECK-INST: wer a3, a4
++# CHECK: encoding: [0x30,0x74,0x40]
++wer a3, a4
++
+ # Instruction format RSR
+ # CHECK-INST: wsr a8, sar
+ # CHECK: encoding: [0x80,0x03,0x13]
+-- 
+2.40.1
+

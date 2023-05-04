@@ -1,0 +1,112 @@
+From 567cef3d7e5d6cbd2c0b95c1bbe7a5a50a520403 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:38 +0300
+Subject: [PATCH 005/140] [Xtensa] Implement lowering constants.
+
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 48 ++++++++++++++++++-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  5 ++
+ 2 files changed, 52 insertions(+), 1 deletion(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 4b4b9626ce28..05d3a2524bcc 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -45,7 +45,12 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   setBooleanVectorContents(ZeroOrOneBooleanContent);
+ 
+   setMinFunctionAlignment(Align(4));
+-  
++
++  setOperationAction(ISD::Constant, MVT::i32, Custom);
++  setOperationAction(ISD::Constant, MVT::i64, Expand);
++  setOperationAction(ISD::ConstantFP, MVT::f32, Custom);
++  setOperationAction(ISD::ConstantFP, MVT::f64, Expand);
++
+   // No sign extend instructions for i1
+   for (MVT VT : MVT::integer_valuetypes()) {
+     setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
+@@ -57,6 +62,11 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   computeRegisterProperties(STI.getRegisterInfo());
+ }
+ 
++bool XtensaTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT,
++                                        bool ForCodeSize) const {
++  return false;
++}
++
+ //===----------------------------------------------------------------------===//
+ // Calling conventions
+ //===----------------------------------------------------------------------===//
+@@ -298,9 +308,45 @@ XtensaTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
+   return DAG.getNode(XtensaISD::RET_FLAG, DL, MVT::Other, RetOps);
+ }
+ 
++SDValue XtensaTargetLowering::LowerImmediate(SDValue Op,
++                                             SelectionDAG &DAG) const {
++  const ConstantSDNode *CN = cast<ConstantSDNode>(Op);
++  SDLoc DL(CN);
++  APInt apval = CN->getAPIntValue();
++  int64_t value = apval.getSExtValue();
++  if (Op.getValueType() == MVT::i32) {
++    if (value > -2048 && value <= 2047)
++      return Op;
++    Type *Ty = Type::getInt32Ty(*DAG.getContext());
++    Constant *CV = ConstantInt::get(Ty, value);
++    SDValue CP = DAG.getConstantPool(CV, MVT::i32);
++    return CP;
++  }
++  return Op;
++}
++
++SDValue XtensaTargetLowering::LowerImmediateFP(SDValue Op,
++                                               SelectionDAG &DAG) const {
++  const ConstantFPSDNode *CN = cast<ConstantFPSDNode>(Op);
++  SDLoc DL(CN);
++  APFloat apval = CN->getValueAPF();
++  int64_t value = llvm::bit_cast<uint32_t>(CN->getValueAPF().convertToFloat());
++  if (Op.getValueType() == MVT::f32) {
++    Type *Ty = Type::getInt32Ty(*DAG.getContext());
++    Constant *CV = ConstantInt::get(Ty, value);
++    SDValue CP = DAG.getConstantPool(CV, MVT::i32);
++    return DAG.getNode(ISD::BITCAST, DL, MVT::f32, CP);
++  }
++  return Op;
++}
++
+ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+                                              SelectionDAG &DAG) const {
+   switch (Op.getOpcode()) {
++  case ISD::Constant:
++    return LowerImmediate(Op, DAG);
++  case ISD::ConstantFP:
++    return LowerImmediateFP(Op, DAG);
+   default:
+     llvm_unreachable("Unexpected node to lower");
+   }
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index 2df2a074fe25..e2ed301e45eb 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -36,6 +36,8 @@ public:
+   explicit XtensaTargetLowering(const TargetMachine &TM,
+                                 const XtensaSubtarget &STI);
+ 
++  bool isFPImmLegal(const APFloat &Imm, EVT VT,
++                    bool ForCodeSize) const override;
+   const char *getTargetNodeName(unsigned Opcode) const override;
+   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+   SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
+@@ -57,6 +59,9 @@ public:
+ private:
+   const XtensaSubtarget &Subtarget;
+ 
++  SDValue LowerImmediate(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerImmediateFP(SDValue Op, SelectionDAG &DAG) const;
++
+   CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
+ };
+ 
+-- 
+2.40.1
+

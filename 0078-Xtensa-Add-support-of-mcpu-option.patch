@@ -1,0 +1,827 @@
+From 504016447fa674ac8348108a6c055cdc44a08abf Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:17 +0300
+Subject: [PATCH 078/140] [Xtensa] Add support of "-mcpu" option.
+
+Implement support of the "-mcpu" option. Support Xtensa
+features in clang. Add macros definintion in XtensaTargetInfo based on
+Xtensa features.
+---
+ clang/lib/Basic/Targets/Xtensa.cpp            | 60 +++++++++++-
+ clang/lib/Basic/Targets/Xtensa.h              | 27 ++++--
+ clang/lib/Driver/ToolChains/CommonArgs.cpp    |  4 +
+ clang/lib/Driver/ToolChains/Xtensa.cpp        | 41 ++++++--
+ clang/lib/Driver/ToolChains/Xtensa.h          |  6 +-
+ clang/test/Driver/xtensa-cpus.c               | 36 +++++++
+ clang/test/Misc/target-invalid-cpu-note.c     |  4 +
+ .../llvm/TargetParser/XtensaTargetParser.def  | 83 +++++++++++++++++
+ .../llvm/TargetParser/XtensaTargetParser.h    | 71 ++++++++++++++
+ llvm/include/llvm/module.modulemap            |  1 +
+ .../Xtensa/AsmParser/XtensaAsmParser.cpp      | 14 +--
+ .../Disassembler/XtensaDisassembler.cpp       |  8 +-
+ .../MCTargetDesc/XtensaMCTargetDesc.cpp       |  4 +
+ llvm/lib/Target/Xtensa/Xtensa.td              | 18 ++--
+ .../lib/Target/Xtensa/XtensaTargetMachine.cpp | 12 ++-
+ llvm/lib/TargetParser/CMakeLists.txt          |  1 +
+ llvm/lib/TargetParser/XtensaTargetParser.cpp  | 93 +++++++++++++++++++
+ .../secondary/llvm/lib/TargetParser/BUILD.gn  |  1 +
+ 18 files changed, 442 insertions(+), 42 deletions(-)
+ create mode 100644 clang/test/Driver/xtensa-cpus.c
+ create mode 100644 llvm/include/llvm/TargetParser/XtensaTargetParser.def
+ create mode 100644 llvm/include/llvm/TargetParser/XtensaTargetParser.h
+ create mode 100644 llvm/lib/TargetParser/XtensaTargetParser.cpp
+
+diff --git a/clang/lib/Basic/Targets/Xtensa.cpp b/clang/lib/Basic/Targets/Xtensa.cpp
+index 2fb0474801b6..cdcc901b9455 100644
+--- a/clang/lib/Basic/Targets/Xtensa.cpp
++++ b/clang/lib/Basic/Targets/Xtensa.cpp
+@@ -22,19 +22,71 @@ using namespace clang::targets;
+ 
+ const Builtin::Info XtensaTargetInfo::BuiltinInfo[] = {
+ #define BUILTIN(ID, TYPE, ATTRS)                                               \
+-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
++  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
+ #include "clang/Basic/BuiltinsXtensa.def"
+ };
+ 
+ void XtensaTargetInfo::getTargetDefines(const LangOptions &Opts,
+                                         MacroBuilder &Builder) const {
+-  Builder.defineMacro("__Xtensa__");
++  Builder.defineMacro("__ELF__");
+   Builder.defineMacro("__xtensa__");
+   Builder.defineMacro("__XTENSA__");
+   Builder.defineMacro("__XTENSA_EL__");
++  if (HasWindowed)
++    Builder.defineMacro("__XTENSA_WINDOWED_ABI__");
++  else
++    Builder.defineMacro("__XTENSA_CALL0_ABI__");
++  if (!HasFP)
++    Builder.defineMacro("__XTENSA_SOFT_FLOAT__");
+ }
+ 
+ ArrayRef<Builtin::Info> XtensaTargetInfo::getTargetBuiltins() const {
+-  return llvm::makeArrayRef(BuiltinInfo, clang::Xtensa::LastTSBuiltin -
+-                                             Builtin::FirstTSBuiltin);
++  return llvm::ArrayRef(BuiltinInfo,
++                        clang::Xtensa::LastTSBuiltin - Builtin::FirstTSBuiltin);
++}
++
++void XtensaTargetInfo::fillValidCPUList(
++    SmallVectorImpl<StringRef> &Values) const {
++  llvm::Xtensa::fillValidCPUList(Values);
++}
++
++bool XtensaTargetInfo::initFeatureMap(
++    llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags, StringRef CPU,
++    const std::vector<std::string> &FeaturesVec) const {
++
++  // Assume that by default cpu is esp32
++  if (CPU.empty())
++    CPU = "esp32";
++
++  CPU = llvm::Xtensa::getBaseName(CPU);
++
++  SmallVector<StringRef, 16> CPUFeatures;
++  llvm::Xtensa::getCPUFeatures(CPU, CPUFeatures);
++
++  for (auto Feature : CPUFeatures)
++    if (Feature[0] == '+')
++      Features[Feature.drop_front(1)] = true;
++
++  return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
++}
++
++/// Return true if has this feature, need to sync with handleTargetFeatures.
++bool XtensaTargetInfo::hasFeature(StringRef Feature) const {
++  return llvm::StringSwitch<bool>(Feature)
++      .Case("fp", HasFP)
++      .Case("windowed", HasWindowed)
++      .Default(false);
++}
++
++/// Perform initialization based on the user configured set of features.
++bool XtensaTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
++                                            DiagnosticsEngine &Diags) {
++  for (const auto &Feature : Features) {
++    if (Feature == "+fp")
++      HasFP = true;
++    else if (Feature == "+windowed")
++      HasWindowed = true;
++  }
++
++  return true;
+ }
+diff --git a/clang/lib/Basic/Targets/Xtensa.h b/clang/lib/Basic/Targets/Xtensa.h
+index 126ad8321948..d58aa0e06949 100644
+--- a/clang/lib/Basic/Targets/Xtensa.h
++++ b/clang/lib/Basic/Targets/Xtensa.h
+@@ -20,6 +20,7 @@
+ #include "llvm/ADT/StringSwitch.h"
+ #include "llvm/ADT/Triple.h"
+ #include "llvm/Support/Compiler.h"
++#include "llvm/TargetParser/XtensaTargetParser.h"
+ 
+ #include "clang/Basic/Builtins.h"
+ #include "clang/Basic/MacroBuilder.h"
+@@ -31,6 +32,8 @@ namespace targets {
+ class LLVM_LIBRARY_VISIBILITY XtensaTargetInfo : public TargetInfo {
+   static const Builtin::Info BuiltinInfo[];
+   std::string CPU;
++  bool HasFP = false;
++  bool HasWindowed = false;
+ 
+ public:
+   XtensaTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
+@@ -69,11 +72,11 @@ public:
+         "a11", "a12", "a13", "a14", "a15",
+         // Special register name
+         "sar"};
+-    return llvm::makeArrayRef(GCCRegNames);
++    return llvm::ArrayRef(GCCRegNames);
+   }
+ 
+   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
+-    return None;
++    return std::nullopt;
+   }
+ 
+   bool validateAsmConstraint(const char *&Name,
+@@ -94,19 +97,25 @@ public:
+   }
+ 
+   bool isValidCPUName(StringRef Name) const override {
+-    return llvm::StringSwitch<bool>(Name)
+-        .Case("esp32", true)
+-        .Case("esp8266", true)
+-        .Case("esp32-s2", true)
+-        .Case("esp32-s3", true)
+-        .Case("generic", true)
+-        .Default(false);
++    return llvm::Xtensa::parseCPUKind(Name) != llvm::Xtensa::CK_INVALID;
+   }
+ 
+   bool setCPU(const std::string &Name) override {
+     CPU = Name;
+     return isValidCPUName(Name);
+   }
++
++  void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
++
++  bool
++  initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
++                 StringRef CPU,
++                 const std::vector<std::string> &FeaturesVec) const override;
++
++  bool hasFeature(StringRef Feature) const override;
++
++  bool handleTargetFeatures(std::vector<std::string> &Features,
++                            DiagnosticsEngine &Diags) override;
+ };
+ } // namespace targets
+ } // namespace clang
+diff --git a/clang/lib/Driver/ToolChains/CommonArgs.cpp b/clang/lib/Driver/ToolChains/CommonArgs.cpp
+index 6e7cd20af05f..092f0e3123d9 100644
+--- a/clang/lib/Driver/ToolChains/CommonArgs.cpp
++++ b/clang/lib/Driver/ToolChains/CommonArgs.cpp
+@@ -22,6 +22,7 @@
+ #include "HIPAMD.h"
+ #include "Hexagon.h"
+ #include "MSP430.h"
++#include "Xtensa.h"
+ #include "clang/Basic/CharInfo.h"
+ #include "clang/Basic/LangOptions.h"
+ #include "clang/Basic/ObjCRuntime.h"
+@@ -545,6 +546,9 @@ void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
+   case llvm::Triple::loongarch64:
+     loongarch::getLoongArchTargetFeatures(D, Triple, Args, Features);
+     break;
++  case llvm::Triple::xtensa:
++    xtensa::getXtensaTargetFeatures(D, Args, Features);
++    break;
+   }
+ 
+   for (auto Feature : unifyTargetFeatures(Features)) {
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index 4e7d72e821ec..c8b663204913 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -21,6 +21,7 @@
+ #include "llvm/Option/ArgList.h"
+ #include "llvm/Support/Path.h"
+ #include "llvm/Support/VirtualFileSystem.h"
++#include "llvm/TargetParser/XtensaTargetParser.h"
+ #include <system_error>
+ 
+ using namespace clang::driver;
+@@ -43,9 +44,9 @@ XtensaGCCToolchainDetector::XtensaGCCToolchainDetector(
+ 
+   if (CPUName.equals("esp32"))
+     ToolchainName = "xtensa-esp32-elf";
+-  else if (CPUName.equals("esp32-s2"))
++  else if (CPUName.equals("esp32-s2") || CPUName.equals("esp32s2"))
+     ToolchainName = "xtensa-esp32s2-elf";
+-  else if (CPUName.equals("esp32-s3"))
++  else if (CPUName.equals("esp32-s3") || CPUName.equals("esp32s3"))
+     ToolchainName = "xtensa-esp32s3-elf";
+   else if (CPUName.equals("esp8266"))
+     ToolchainName = "xtensa-lx106-elf";
+@@ -151,11 +152,11 @@ XtensaToolChain::XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
+ }
+ 
+ Tool *XtensaToolChain::buildLinker() const {
+-  return new tools::Xtensa::Linker(*this);
++  return new tools::xtensa::Linker(*this);
+ }
+ 
+ Tool *XtensaToolChain::buildAssembler() const {
+-  return new tools::Xtensa::Assembler(*this);
++  return new tools::xtensa::Assembler(*this);
+ }
+ 
+ void XtensaToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
+@@ -220,7 +221,7 @@ const StringRef XtensaToolChain::GetTargetCPUVersion(const ArgList &Args) {
+   return "esp32";
+ }
+ 
+-void tools::Xtensa::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
++void tools::xtensa::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
+                                             const InputInfo &Output,
+                                             const InputInfoList &Inputs,
+                                             const ArgList &Args,
+@@ -264,7 +265,7 @@ void tools::Xtensa::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
+       JA, *this, ResponseFileSupport::AtFileCurCP(), Asm, CmdArgs, Inputs));
+ }
+ 
+-void Xtensa::Linker::ConstructJob(Compilation &C, const JobAction &JA,
++void xtensa::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+                                   const InputInfo &Output,
+                                   const InputInfoList &Inputs,
+                                   const ArgList &Args,
+@@ -297,3 +298,31 @@ void Xtensa::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+       std::make_unique<Command>(JA, *this, ResponseFileSupport::AtFileCurCP(),
+                                 Args.MakeArgString(Linker), CmdArgs, Inputs));
+ }
++
++// Get features by CPU name
++static void getXtensaFeaturesFromMcpu(const Driver &D,
++                                      const llvm::opt::ArgList &Args,
++                                      const llvm::opt::Arg *A, StringRef Mcpu,
++                                      std::vector<StringRef> &Features) {
++  if (llvm::Xtensa::parseCPUKind(Mcpu) == llvm::Xtensa::CK_INVALID) {
++    D.Diag(clang::diag::err_drv_clang_unsupported) << A->getAsString(Args);
++  } else {
++    SmallVector<StringRef, 16> CPUFeatures;
++    llvm::Xtensa::getCPUFeatures(Mcpu, CPUFeatures);
++    for (auto &F : CPUFeatures) {
++      Features.push_back(F);
++    }
++  }
++}
++
++// Xtensa target features.
++void xtensa::getXtensaTargetFeatures(const Driver &D, const ArgList &Args,
++                                     std::vector<StringRef> &Features) {
++  if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
++    getXtensaFeaturesFromMcpu(D, Args, A, A->getValue(), Features);
++
++  // Now add any that the user explicitly requested on the command line,
++  // which may override the defaults.
++  handleTargetFeaturesGroup(Args, Features,
++                            options::OPT_m_xtensa_Features_Group);
++}
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.h b/clang/lib/Driver/ToolChains/Xtensa.h
+index 663dc63f6d27..ce6781040c42 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.h
++++ b/clang/lib/Driver/ToolChains/Xtensa.h
+@@ -61,7 +61,7 @@ public:
+ } // end namespace toolchains
+ 
+ namespace tools {
+-namespace Xtensa {
++namespace xtensa {
+ class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
+ public:
+   Linker(const ToolChain &TC)
+@@ -86,7 +86,9 @@ public:
+                     const char *LinkingOutput) const override;
+ };
+ 
+-} // end namespace Xtensa
++void getXtensaTargetFeatures(const Driver &D, const llvm::opt::ArgList &Args,
++                             std::vector<llvm::StringRef> &Features);
++} // end namespace xtensa
+ } // end namespace tools
+ } // end namespace driver
+ } // end namespace clang
+diff --git a/clang/test/Driver/xtensa-cpus.c b/clang/test/Driver/xtensa-cpus.c
+new file mode 100644
+index 000000000000..7a93f4cba4b0
+--- /dev/null
++++ b/clang/test/Driver/xtensa-cpus.c
+@@ -0,0 +1,36 @@
++// Check target CPUs are correctly passed.
++
++// RUN: %clang -target xtensa -### -c %s 2>&1 -mcpu=esp8266 | FileCheck -check-prefix=MCPU-ESP8266 %s
++// MCPU-ESP8266: "-target-cpu" "esp8266"
++// MCPU-ESP8266: "-target-feature" "+density" "-target-feature" "+nsa" "-target-feature" "+mul32" "-target-feature" "+extendedl32r"
++// MCPU-ESP8266: "-target-feature" "+debug" "-target-feature" "+exception" "-target-feature" "+highpriinterrupts"
++// MCPU-ESP8266: "-target-feature" "+interrupt" "-target-feature" "+rvector" "-target-feature" "+timerint" "-target-feature" "+prid"
++// MCPU-ESP8266: "-target-feature" "+regprotect"
++
++// RUN: %clang -target xtensa -### -c %s 2>&1 -mcpu=esp32 | FileCheck -check-prefix=MCPU-ESP32 %s
++// MCPU-ESP32: "-target-cpu" "esp32"
++// MCPU-ESP32: "-target-feature" "+density" "-target-feature" "+fp" "-target-feature" "+windowed" "-target-feature" "+bool"
++// MCPU-ESP32: "-target-feature" "+loop" "-target-feature" "+sext" "-target-feature" "+nsa" "-target-feature" "+mul32"
++// MCPU-ESP32: "-target-feature" "+mul32high" "-target-feature" "+div32" "-target-feature" "+mac16" "-target-feature" "+dfpaccel"
++// MCPU-ESP32: "-target-feature" "+s32c1i" "-target-feature" "+threadptr" "-target-feature" "+atomctl" "-target-feature" "+memctl"
++// MCPU-ESP32: "-target-feature" "+debug" "-target-feature" "+exception" "-target-feature" "+highpriinterrupts"
++// MCPU-ESP32: "-target-feature" "+coprocessor" "-target-feature" "+interrupt" "-target-feature" "+rvector" "-target-feature" "+timerint"
++// MCPU-ESP32: "-target-feature" "+prid" "-target-feature" "+regprotect" "-target-feature" "+miscsr"
++
++// RUN: %clang -target xtensa -### -c %s 2>&1 -mcpu=esp32s2 | FileCheck -check-prefix=MCPU-ESP32S2 %s
++// MCPU-ESP32S2: "-target-cpu" "esp32s2"
++// MCPU-ESP32S2: "-target-feature" "+density" "-target-feature" "+windowed" "-target-feature" "+sext" "-target-feature" "+nsa"
++// MCPU-ESP32S2: "-target-feature" "+mul32" "-target-feature" "+mul32high" "-target-feature" "+div32" "-target-feature" "+threadptr"
++// MCPU-ESP32S2: "-target-feature" "+memctl" "-target-feature" "+debug" "-target-feature" "+exception" "-target-feature" "+highpriinterrupts"
++// MCPU-ESP32S2: "-target-feature" "+coprocessor" "-target-feature" "+interrupt" "-target-feature" "+rvector" "-target-feature" "+timerint"
++// MCPU-ESP32S2: "-target-feature" "+prid" "-target-feature" "+regprotect" "-target-feature" "+miscsr" "-target-feature" "+esp32s2"
++
++// RUN: %clang -target xtensa -### -c %s 2>&1 -mcpu=esp32s3 | FileCheck -check-prefix=MCPU-ESP32S3 %s
++// MCPU-ESP32S3: "-target-cpu" "esp32s3"
++// MCPU-ESP32S3: "-target-feature" "+density" "-target-feature" "+fp" "-target-feature" "+windowed" "-target-feature" "+bool"
++// MCPU-ESP32S3: "-target-feature" "+loop" "-target-feature" "+sext" "-target-feature" "+nsa" "-target-feature" "+mul32"
++// MCPU-ESP32S3: "-target-feature" "+mul32high" "-target-feature" "+div32" "-target-feature" "+mac16" "-target-feature" "+dfpaccel"
++// MCPU-ESP32S3: "-target-feature" "+s32c1i" "-target-feature" "+threadptr" "-target-feature" "+atomctl" "-target-feature" "+memctl"
++// MCPU-ESP32S3: "-target-feature" "+debug" "-target-feature" "+exception" "-target-feature" "+highpriinterrupts"
++// MCPU-ESP32S3: "-target-feature" "+coprocessor" "-target-feature" "+interrupt" "-target-feature" "+rvector" "-target-feature" "+timerint"
++// MCPU-ESP32S3: "-target-feature" "+prid" "-target-feature" "+regprotect" "-target-feature" "+miscsr" "-target-feature" "+esp32s3"
+diff --git a/clang/test/Misc/target-invalid-cpu-note.c b/clang/test/Misc/target-invalid-cpu-note.c
+index 1f205163a966..e0c021a4882c 100644
+--- a/clang/test/Misc/target-invalid-cpu-note.c
++++ b/clang/test/Misc/target-invalid-cpu-note.c
+@@ -94,3 +94,7 @@
+ // RUN: not %clang_cc1 -triple riscv64 -tune-cpu not-a-cpu -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix TUNE-RISCV64
+ // TUNE-RISCV64: error: unknown target CPU 'not-a-cpu'
+ // TUNE-RISCV64-NEXT: note: valid target CPU values are: generic-rv64, rocket-rv64, sifive-s21, sifive-s51, sifive-s54, sifive-s76, sifive-u54, sifive-u74, generic, rocket, sifive-7-series{{$}}
++
++// RUN: not %clang_cc1 -triple xtensa -tune-cpu not-a-cpu -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix TUNE-XTENSA
++// TUNE-XTENSA: error: unknown target CPU 'not-a-cpu'
++// TUNE-XTENSA: note: valid target CPU values are: generic, esp8266, esp32, esp32s2, esp32-s2, esp32s3, esp32-s3
+diff --git a/llvm/include/llvm/TargetParser/XtensaTargetParser.def b/llvm/include/llvm/TargetParser/XtensaTargetParser.def
+new file mode 100644
+index 000000000000..e46020700f2e
+--- /dev/null
++++ b/llvm/include/llvm/TargetParser/XtensaTargetParser.def
+@@ -0,0 +1,83 @@
++//===- XtensaTargetParser.def - Xtensa target parsing defines ---*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file provides defines to build up the Xtensa target parser's logic.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef XTENSA_FEATURE
++#define XTENSA_FEATURE(ID, STR)
++#endif
++
++XTENSA_FEATURE(FK_DENSITY,           "density")
++XTENSA_FEATURE(FK_FP,                "fp")
++XTENSA_FEATURE(FK_WINDOWED,          "windowed")
++XTENSA_FEATURE(FK_BOOLEAN,           "bool")
++XTENSA_FEATURE(FK_LOOP,              "loop")
++XTENSA_FEATURE(FK_SEXT,              "sext")
++XTENSA_FEATURE(FK_NSA,               "nsa")
++XTENSA_FEATURE(FK_MUL32,             "mul32")
++XTENSA_FEATURE(FK_MUL32HIGH,         "mul32high")
++XTENSA_FEATURE(FK_DIV32,             "div32")
++XTENSA_FEATURE(FK_MAC16,             "mac16")
++XTENSA_FEATURE(FK_DFPACCEL,          "dfpaccel")
++XTENSA_FEATURE(FK_S32C1I,            "s32c1i")
++XTENSA_FEATURE(FK_THREADPTR,         "threadptr")
++XTENSA_FEATURE(FK_EXTENDEDL32R,      "extendedl32r")
++XTENSA_FEATURE(FK_ATOMCTL,           "atomctl")
++XTENSA_FEATURE(FK_MEMCTL,            "memctl")
++XTENSA_FEATURE(FK_DEBUG,             "debug")
++XTENSA_FEATURE(FK_EXCEPTION,         "exception")
++XTENSA_FEATURE(FK_HIGHPRIINTERRUPTS, "highpriinterrupts")
++XTENSA_FEATURE(FK_COPROCESSOR,       "coprocessor")
++XTENSA_FEATURE(FK_INTERRUPT,         "interrupt")
++XTENSA_FEATURE(FK_RVECTOR,           "rvector")
++XTENSA_FEATURE(FK_TIMERINT,          "timerint")
++XTENSA_FEATURE(FK_PRID,              "prid")
++XTENSA_FEATURE(FK_REGPROTECT,        "regprotect")
++XTENSA_FEATURE(FK_MISCSR,            "miscsr")
++XTENSA_FEATURE(FK_ESP32S2OPS,        "esp32s2")
++XTENSA_FEATURE(FK_ESP32S3OPS,        "esp32s3")
++
++#undef XTENSA_FEATURE
++
++#ifndef XTENSA_CPU
++#define XTENSA_CPU(ENUM, NAME, FEATURES)
++#endif
++
++XTENSA_CPU(INVALID, {"invalid"}, FK_INVALID)
++XTENSA_CPU(GENERIC, {"generic"}, FK_NONE)
++XTENSA_CPU(ESP8266, {"esp8266"},
++               (FK_DENSITY | FK_NSA | FK_MUL32 | FK_EXTENDEDL32R | FK_DEBUG | FK_EXCEPTION | FK_HIGHPRIINTERRUPTS |
++                FK_INTERRUPT | FK_RVECTOR | FK_TIMERINT | FK_REGPROTECT | FK_PRID))
++XTENSA_CPU(ESP32,   {"esp32"},
++               (FK_DENSITY | FK_FP | FK_LOOP | FK_MAC16 | FK_WINDOWED | FK_BOOLEAN |
++                FK_SEXT | FK_NSA | FK_MUL32 | FK_MUL32HIGH | FK_DFPACCEL | FK_S32C1I | FK_THREADPTR | FK_DIV32 |
++                FK_ATOMCTL | FK_MEMCTL | FK_DEBUG | FK_EXCEPTION | FK_HIGHPRIINTERRUPTS | FK_COPROCESSOR |
++                FK_INTERRUPT | FK_RVECTOR | FK_TIMERINT | FK_PRID | FK_REGPROTECT | FK_MISCSR))
++XTENSA_CPU(ESP32S2, {"esp32s2"},
++               (FK_DENSITY | FK_WINDOWED | FK_SEXT | FK_NSA | FK_MUL32 | FK_MUL32HIGH | FK_THREADPTR | FK_DIV32 |
++                FK_MEMCTL | FK_DEBUG | FK_EXCEPTION | FK_HIGHPRIINTERRUPTS | FK_COPROCESSOR | FK_INTERRUPT |
++                FK_RVECTOR | FK_TIMERINT | FK_PRID | FK_REGPROTECT | FK_MISCSR | FK_ESP32S2OPS))
++XTENSA_CPU(ESP32S3, {"esp32s3"},
++               (FK_DENSITY | FK_FP | FK_LOOP | FK_MAC16 | FK_WINDOWED | FK_BOOLEAN |
++                FK_SEXT | FK_NSA | FK_MUL32 | FK_MUL32HIGH | FK_DFPACCEL | FK_S32C1I | FK_THREADPTR | FK_DIV32 |
++                FK_ATOMCTL | FK_MEMCTL | FK_DEBUG | FK_EXCEPTION | FK_HIGHPRIINTERRUPTS | FK_COPROCESSOR |
++                FK_INTERRUPT | FK_RVECTOR | FK_TIMERINT | FK_PRID | FK_REGPROTECT | FK_MISCSR |
++                FK_ESP32S3OPS))
++
++#undef XTENSA_CPU
++
++#ifndef XTENSA_CPU_ALIAS
++#define XTENSA_CPU_ALIAS(NAME, ALTNMAME)
++#endif
++
++XTENSA_CPU_ALIAS("esp32s2", "esp32-s2")
++XTENSA_CPU_ALIAS("esp32s3", "esp32-s3")
++
++#undef XTENSA_CPU_ALIAS
+diff --git a/llvm/include/llvm/TargetParser/XtensaTargetParser.h b/llvm/include/llvm/TargetParser/XtensaTargetParser.h
+new file mode 100644
+index 000000000000..b2d642b2d63e
+--- /dev/null
++++ b/llvm/include/llvm/TargetParser/XtensaTargetParser.h
+@@ -0,0 +1,71 @@
++//==-- XtensaTargetParser - Parser for Xtensa features --*- C++ -*-=//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file implements a target parser to recognise Xtensa hardware features
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_TARGETPARSER_XTENSATARGETPARSER_H
++#define LLVM_TARGETPARSER_XTENSATARGETPARSER_H
++
++#include "llvm/TargetParser/Triple.h"
++#include <vector>
++
++namespace llvm {
++class StringRef;
++
++namespace Xtensa {
++
++enum CPUKind : unsigned {
++#define XTENSA_CPU(ENUM, NAME, FEATURES) CK_##ENUM,
++#include "XtensaTargetParser.def"
++};
++
++enum FeatureKind : uint64_t {
++  FK_INVALID =           0,
++  FK_NONE =              1,
++  FK_FP =                1 << 1,
++  FK_WINDOWED =          1 << 2,
++  FK_BOOLEAN =           1 << 3,
++  FK_DENSITY =           1 << 4,
++  FK_LOOP =              1 << 5,
++  FK_SEXT =              1 << 6,
++  FK_NSA =               1 << 7,
++  FK_MUL32 =             1 << 8,
++  FK_MUL32HIGH =         1 << 9,
++  FK_DIV32 =             1 << 10,
++  FK_MAC16 =             1 << 11,
++  FK_DFPACCEL =          1 << 12,
++  FK_S32C1I =            1 << 13,
++  FK_THREADPTR =         1 << 14,
++  FK_EXTENDEDL32R =      1 << 15,
++  FK_ATOMCTL =           1 << 16,
++  FK_MEMCTL =            1 << 17,
++  FK_DEBUG =             1 << 18,
++  FK_EXCEPTION =         1 << 19,
++  FK_HIGHPRIINTERRUPTS = 1 << 20,
++  FK_COPROCESSOR =       1 << 21,
++  FK_INTERRUPT =         1 << 22,
++  FK_RVECTOR =           1 << 23,
++  FK_TIMERINT =          1 << 24,
++  FK_PRID =              1 << 25,
++  FK_REGPROTECT =        1 << 26,
++  FK_MISCSR =            1 << 27,
++  FK_ESP32S2OPS =        1 << 28,
++  FK_ESP32S3OPS =        1 << 29
++};
++
++CPUKind parseCPUKind(StringRef CPU);
++StringRef getBaseName(StringRef CPU);
++void getCPUFeatures(StringRef CPU, SmallVectorImpl<StringRef> &Features);
++void fillValidCPUList(SmallVectorImpl<StringRef> &Values);
++
++} // namespace Xtensa
++} // namespace llvm
++
++#endif // LLVM_SUPPORT_XTENSATARGETPARSER_H
+diff --git a/llvm/include/llvm/module.modulemap b/llvm/include/llvm/module.modulemap
+index 741e0a83b1b7..07bc81c302a8 100644
+--- a/llvm/include/llvm/module.modulemap
++++ b/llvm/include/llvm/module.modulemap
+@@ -438,6 +438,7 @@ module LLVM_Utils {
+     textual header "TargetParser/CSKYTargetParser.def"
+     textual header "TargetParser/X86TargetParser.def"
+     textual header "TargetParser/LoongArchTargetParser.def"
++    textual header "TargetParser/XtensaTargetParser.def"
+   }
+ 
+   // This part of the module is usable from both C and C++ code.
+diff --git a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+index 21b8d0cc171b..9fbf0a38d414 100644
+--- a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
++++ b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+@@ -954,8 +954,8 @@ bool XtensaAsmParser::checkRegister(unsigned RegNo) {
+   unsigned NumTimers = 0;
+   unsigned NumMiscSR = 0;
+   bool IsESP32 = false;
+-  bool IsESP32_S2 = false;
+-  bool IsESP32_S3 = false;
++  bool IsESP32S2 = false;
++  bool IsESP32S3 = false;
+   bool Res = true;
+ 
+   // Assume that CPU is esp32 by default
+@@ -964,16 +964,16 @@ bool XtensaAsmParser::checkRegister(unsigned RegNo) {
+     NumTimers = 3;
+     NumMiscSR = 4;
+     IsESP32 = true;
+-  } else if (CPU == "esp32-s2") {
++  } else if (CPU == "esp32s2") {
+     NumIntLevels = 6;
+     NumTimers = 3;
+     NumMiscSR = 4;
+-    IsESP32_S2 = true;
+-  } else if (CPU == "esp32-s3") {
++    IsESP32S2 = true;
++  } else if (CPU == "esp32s3") {
+     NumIntLevels = 6;
+     NumTimers = 3;
+     NumMiscSR = 4;
+-    IsESP32_S3 = true;
++    IsESP32S3 = true;
+   } else if (CPU == "esp8266") {
+     NumIntLevels = 2;
+     NumTimers = 1;
+@@ -1097,7 +1097,7 @@ bool XtensaAsmParser::checkRegister(unsigned RegNo) {
+     Res = hasTHREADPTR();
+     break;
+   case Xtensa::GPIO_OUT:
+-    Res = IsESP32_S2 || IsESP32_S3;
++    Res = IsESP32S2 || IsESP32S3;
+     break;
+   case Xtensa::EXPSTATE:
+     Res = IsESP32;
+diff --git a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+index 558a1855b1cd..b6d04917e114 100644
+--- a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
++++ b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+@@ -154,7 +154,7 @@ bool CheckRegister(unsigned RegNo, MCSubtargetInfo STI) {
+   unsigned NumTimers = 0;
+   unsigned NumMiscSR = 0;
+   bool IsESP32 = false;
+-  bool IsESP32_S2 = false;
++  bool IsESP32S2 = false;
+   bool Res = true;
+ 
+   // Assume that CPU is esp32 by default
+@@ -163,11 +163,11 @@ bool CheckRegister(unsigned RegNo, MCSubtargetInfo STI) {
+     NumTimers = 3;
+     NumMiscSR = 4;
+     IsESP32 = true;
+-  } else if (CPU == "esp32-s2") {
++  } else if (CPU == "esp32s2") {
+     NumIntLevels = 6;
+     NumTimers = 3;
+     NumMiscSR = 4;
+-    IsESP32_S2 = true;
++    IsESP32S2 = true;
+   } else if (CPU == "esp8266") {
+     NumIntLevels = 2;
+     NumTimers = 1;
+@@ -291,7 +291,7 @@ bool CheckRegister(unsigned RegNo, MCSubtargetInfo STI) {
+     Res = STI.getFeatureBits()[Xtensa::FeatureTHREADPTR];
+     break;
+   case Xtensa::GPIO_OUT:
+-    Res = IsESP32_S2;
++    Res = IsESP32S2;
+     break;
+   case Xtensa::EXPSTATE:
+     Res = IsESP32;
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
+index ffb26e566709..7876af4fde11 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
+@@ -67,6 +67,10 @@ static MCSubtargetInfo *
+ createXtensaMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
+   if (CPU.empty())
+     CPU = "esp32";
++  else if (CPU == "esp32-s2")
++    CPU = "esp32s2";
++  else if (CPU == "esp32-s3")
++    CPU = "esp32s3";
+   return createXtensaMCSubtargetInfoImpl(TT, CPU, CPU, FS);
+ }
+  
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.td b/llvm/lib/Target/Xtensa/Xtensa.td
+index dd4b484aa6ba..363bb45a72f7 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.td
++++ b/llvm/lib/Target/Xtensa/Xtensa.td
+@@ -184,15 +184,15 @@ def : Proc<"esp32", [FeatureDensity, FeatureSingleFloat, FeatureLoop, FeatureMAC
+ def : Proc<"esp8266", [FeatureDensity, FeatureNSA, FeatureMul16, FeatureMul32, FeatureExtendedL32R, FeatureDebug, FeatureException,
+                        FeatureHighPriInterrupts, FeatureInterrupt, FeatureRelocatableVector, FeatureTimerInt, FeatureRegionProtection, FeaturePRID]>;
+ 
+-def : Proc<"esp32-s2", [FeatureDensity, FeatureWindowed, FeatureSEXT, FeatureNSA,  FeatureMul16, FeatureMul32, FeatureMul32High, FeatureTHREADPTR,
+-                        FeatureDiv32, FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor, FeatureInterrupt,
+-                        FeatureRelocatableVector,	FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureESP32S2Ops]>;
+-
+-def : Proc<"esp32-s3", [FeatureDensity, FeatureSingleFloat, FeatureLoop, FeatureMAC16, FeatureWindowed, FeatureBoolean, FeatureSEXT,
+-                        FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDFPAccel, FeatureS32C1I, FeatureTHREADPTR, FeatureDiv32,
+-                        FeatureATOMCTL, FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor,
+-                        FeatureInterrupt, FeatureRelocatableVector, FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR,
+-                        FeatureESP32S3Ops]>;
++def : Proc<"esp32s2", [FeatureDensity, FeatureWindowed, FeatureSEXT, FeatureNSA,  FeatureMul16, FeatureMul32, FeatureMul32High, FeatureTHREADPTR,
++                       FeatureDiv32, FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor, FeatureInterrupt,
++                       FeatureRelocatableVector,	FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureESP32S2Ops]>;
++
++def : Proc<"esp32s3", [FeatureDensity, FeatureSingleFloat, FeatureLoop, FeatureMAC16, FeatureWindowed, FeatureBoolean, FeatureSEXT,
++                       FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDFPAccel, FeatureS32C1I, FeatureTHREADPTR, FeatureDiv32,
++                       FeatureATOMCTL, FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor,
++                       FeatureInterrupt, FeatureRelocatableVector, FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR,
++                       FeatureESP32S3Ops]>;
+ 
+ //===----------------------------------------------------------------------===//
+ // Register File Description
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+index 51fe73ce220a..5dd3d6b32dac 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+@@ -51,6 +51,16 @@ static std::unique_ptr<TargetLoweringObjectFile> createTLOF() {
+   return std::make_unique<XtensaElfTargetObjectFile>();
+ }
+ 
++static StringRef getCPUName(StringRef CPU) {
++  if (CPU.empty())
++    CPU = "esp32";
++  else if (CPU == "esp32-s2")
++    CPU = "esp32s2";
++  else if (CPU == "esp32-s3")
++    CPU = "esp32s3";
++  return CPU;
++}
++
+ XtensaTargetMachine::XtensaTargetMachine(const Target &T, const Triple &TT,
+                                          StringRef CPU, StringRef FS,
+                                          const TargetOptions &Options,
+@@ -72,7 +82,7 @@ XtensaTargetMachine::XtensaTargetMachine(const Target &T, const Triple &TT,
+                                          std::optional<Reloc::Model> RM,
+                                          std::optional<CodeModel::Model> CM,
+                                          CodeGenOpt::Level OL, bool JIT)
+-    : XtensaTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL, JIT, true) {}
++    : XtensaTargetMachine(T, TT, getCPUName(CPU), FS, Options, RM, CM, OL, JIT, true) {}
+ 
+ const XtensaSubtarget *
+ XtensaTargetMachine::getSubtargetImpl(const Function &F) const {
+diff --git a/llvm/lib/TargetParser/CMakeLists.txt b/llvm/lib/TargetParser/CMakeLists.txt
+index 392c67478007..3c4677ed30dd 100644
+--- a/llvm/lib/TargetParser/CMakeLists.txt
++++ b/llvm/lib/TargetParser/CMakeLists.txt
+@@ -9,6 +9,7 @@ add_llvm_component_library(LLVMTargetParser
+   TargetParser.cpp
+   Triple.cpp
+   X86TargetParser.cpp
++  XtensaTargetParser.cpp
+ 
+   ADDITIONAL_HEADER_DIRS
+   Unix
+diff --git a/llvm/lib/TargetParser/XtensaTargetParser.cpp b/llvm/lib/TargetParser/XtensaTargetParser.cpp
+new file mode 100644
+index 000000000000..c3cc59ed84bc
+--- /dev/null
++++ b/llvm/lib/TargetParser/XtensaTargetParser.cpp
+@@ -0,0 +1,93 @@
++//==-- XtensaTargetParser - Parser for Xtensa features ------------*- C++ -*-=//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file implements a target parser to recognise Xtensa hardware features
++//
++//===----------------------------------------------------------------------===//
++
++#include "llvm/ADT/STLExtras.h"
++#include "llvm/ADT/StringSwitch.h"
++#include "llvm/TargetParser/XtensaTargetParser.h"
++
++namespace llvm {
++
++namespace Xtensa {
++struct CPUInfo {
++  StringLiteral Name;
++  CPUKind Kind;
++  uint64_t Features;
++};
++
++struct FeatureName {
++  uint64_t ID;
++  const char *NameCStr;
++  size_t NameLength;
++
++  StringRef getName() const { return StringRef(NameCStr, NameLength); }
++};
++
++const FeatureName XtensaFeatureNames[] = {
++#define XTENSA_FEATURE(ID, NAME) {ID, "+" NAME, sizeof(NAME)},
++#include "llvm/TargetParser/XtensaTargetParser.def"
++};
++
++constexpr CPUInfo XtensaCPUInfo[] = {
++#define XTENSA_CPU(ENUM, NAME, FEATURES) {NAME, CK_##ENUM, FEATURES},
++#include "llvm/TargetParser/XtensaTargetParser.def"
++};
++
++StringRef getBaseName(StringRef CPU){
++  return llvm::StringSwitch<StringRef>(CPU)
++#define XTENSA_CPU_ALIAS(NAME, ANAME) .Case(ANAME, NAME)
++#include "llvm/TargetParser/XtensaTargetParser.def"
++       .Default(CPU);
++}
++
++StringRef getAliasName(StringRef CPU){
++  return llvm::StringSwitch<StringRef>(CPU)
++#define XTENSA_CPU_ALIAS(NAME, ANAME) .Case(NAME, ANAME)
++#include "llvm/TargetParser/XtensaTargetParser.def"
++       .Default(CPU);
++}
++
++CPUKind parseCPUKind(StringRef CPU) {
++  CPU = getBaseName(CPU);
++  return llvm::StringSwitch<CPUKind>(CPU)
++#define XTENSA_CPU(ENUM, NAME, FEATURES) .Case(NAME, CK_##ENUM)
++#include "llvm/TargetParser/XtensaTargetParser.def"
++      .Default(CK_INVALID);
++}
++
++//Get all features for the CPU
++void getCPUFeatures(StringRef CPU, SmallVectorImpl<StringRef> &Features) {
++  CPU = getBaseName(CPU);
++  auto I = llvm::find_if(XtensaCPUInfo,
++                         [&](const CPUInfo &CI) { return CI.Name == CPU; });
++  assert(I != std::end(XtensaCPUInfo) && "CPU not found!");
++  uint64_t Bits = I->Features;
++
++  for (const auto &F : XtensaFeatureNames) {
++    if ((Bits & F.ID) == F.ID)
++      Features.push_back(F.getName());
++  }
++}
++
++//Find all valid CPUs
++void fillValidCPUList(SmallVectorImpl<StringRef> &Values) {
++  for (const auto &C : XtensaCPUInfo) {
++    if (C.Kind != CK_INVALID) {
++      Values.emplace_back(C.Name);
++      StringRef Name = getAliasName(C.Name);
++      if (Name != C.Name)
++        Values.emplace_back(Name);
++    }
++  }
++}
++
++} // namespace Xtensa
++} // namespace llvm
+diff --git a/llvm/utils/gn/secondary/llvm/lib/TargetParser/BUILD.gn b/llvm/utils/gn/secondary/llvm/lib/TargetParser/BUILD.gn
+index 450706f68350..4d9d149a24d2 100644
+--- a/llvm/utils/gn/secondary/llvm/lib/TargetParser/BUILD.gn
++++ b/llvm/utils/gn/secondary/llvm/lib/TargetParser/BUILD.gn
+@@ -17,5 +17,6 @@ static_library("TargetParser") {
+     "TargetParser.cpp",
+     "Triple.cpp",
+     "X86TargetParser.cpp",
++    "XtensaTargetParser.cpp",
+   ]
+ }
+-- 
+2.40.1
+

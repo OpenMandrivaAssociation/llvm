@@ -1,0 +1,42 @@
+From 73606da5ef67ff5a7c8249b0f2e83813db969026 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:22 +0300
+Subject: [PATCH 087/140] esp/riscv: Use GCC assembler for ESP RISCV chips
+
+---
+ clang/lib/Driver/ToolChains/RISCVToolchain.cpp | 1 +
+ clang/lib/Driver/ToolChains/RISCVToolchain.h   | 6 ++++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/clang/lib/Driver/ToolChains/RISCVToolchain.cpp b/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
+index 3491de22d371..27fc03fcf5ea 100644
+--- a/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
++++ b/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
+@@ -8,6 +8,7 @@
+ 
+ #include "RISCVToolchain.h"
+ #include "CommonArgs.h"
++#include "Arch/RISCV.h"
+ #include "clang/Driver/Compilation.h"
+ #include "clang/Driver/InputInfo.h"
+ #include "clang/Driver/Options.h"
+diff --git a/clang/lib/Driver/ToolChains/RISCVToolchain.h b/clang/lib/Driver/ToolChains/RISCVToolchain.h
+index 46b94bdb54e0..dd4437f0a465 100644
+--- a/clang/lib/Driver/ToolChains/RISCVToolchain.h
++++ b/clang/lib/Driver/ToolChains/RISCVToolchain.h
+@@ -35,6 +35,12 @@ public:
+   addLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
+                            llvm::opt::ArgStringList &CC1Args) const override;
+ 
++  bool IsIntegratedAssemblerDefault() const override {
++    if (GCCInstallation.getTriple().getVendor() == llvm::Triple::Espressif)
++      return false;
++    return Generic_ELF::IsIntegratedAssemblerDefault();
++  }
++
+ protected:
+   Tool *buildLinker() const override;
+ 
+-- 
+2.40.1
+

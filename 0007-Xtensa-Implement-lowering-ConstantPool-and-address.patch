@@ -1,0 +1,252 @@
+From e60260f1947bba457bbd9c5d782453836324549e Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:39 +0300
+Subject: [PATCH 007/140] [Xtensa] Implement lowering ConstantPool and address
+
+ operations.
+
+Lower ConstantPool, GlobalAddress, BlockAddress and JumpTable.
+Implement lowering of External and JumpTable symbols to MCInst
+representation.
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 103 +++++++++++++++++-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |   5 +
+ llvm/lib/Target/Xtensa/XtensaMCInstLower.cpp  |  22 ++++
+ llvm/lib/Target/Xtensa/XtensaMCInstLower.h    |   4 +
+ 4 files changed, 133 insertions(+), 1 deletion(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 7ec459d7b2de..da282f11310f 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -43,6 +43,7 @@ static bool isLongCall(const char *str) {
+ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+                                            const XtensaSubtarget &STI)
+     : TargetLowering(tm), Subtarget(STI) {
++  MVT PtrVT = MVT::i32;
+   // Set up the register classes.
+   addRegisterClass(MVT::i32, &Xtensa::ARRegClass);
+ 
+@@ -68,10 +69,22 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+     setLoadExtAction(ISD::EXTLOAD, VT, MVT::i1, Promote);
+   }
+ 
++  // Handle the various types of symbolic address.
++  setOperationAction(ISD::ConstantPool, PtrVT, Custom);
++  setOperationAction(ISD::GlobalAddress, PtrVT, Custom);
++  setOperationAction(ISD::BlockAddress, PtrVT, Custom);
++  setOperationAction(ISD::JumpTable, PtrVT, Custom);
++
+   // Compute derived properties from the register classes
+   computeRegisterProperties(STI.getRegisterInfo());
+ }
+ 
++bool XtensaTargetLowering::isOffsetFoldingLegal(
++    const GlobalAddressSDNode *GA) const {
++  // The Xtensa target isn't yet aware of offsets.
++  return false;
++}
++
+ bool XtensaTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT,
+                                         bool ForCodeSize) const {
+   return false;
+@@ -482,7 +495,7 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
+ }
+ 
+ bool XtensaTargetLowering::CanLowerReturn(
+-    CallingConv::ID CallConv, MachineFunction & MF, bool IsVarArg,
++    CallingConv::ID CallConv, MachineFunction &MF, bool IsVarArg,
+     const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context) const {
+   SmallVector<CCValAssign, 16> RVLocs;
+   CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, Context);
+@@ -571,6 +584,86 @@ SDValue XtensaTargetLowering::LowerImmediateFP(SDValue Op,
+   return Op;
+ }
+ 
++SDValue XtensaTargetLowering::LowerGlobalAddress(SDValue Op,
++                                                 SelectionDAG &DAG) const {
++  //  Reloc::Model RM = DAG.getTarget().getRelocationModel();
++  SDLoc DL(Op);
++
++  if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Op)) {
++    auto PtrVt = getPointerTy(DAG.getDataLayout());
++    const GlobalValue *GV = G->getGlobal();
++
++    // Check Op SDNode users
++    // If there are only CALL nodes, don't expand Global Address
++    SDNode &OpNode = *Op.getNode();
++    bool Val = false;
++    for (SDNode::use_iterator UI = OpNode.use_begin(); UI != OpNode.use_end();
++         ++UI) {
++      SDNode &User = *UI.getUse().getUser();
++      unsigned OpCode = User.getOpcode();
++      if (OpCode != XtensaISD::CALL) {
++        Val = true;
++        break;
++      }
++    }
++    if (!Val) {
++      SDValue TargAddr = DAG.getTargetGlobalAddress(G->getGlobal(), DL, PtrVt,
++                                                    0, 0 /* TargetFlags */);
++      return TargAddr;
++    }
++
++    SDValue CPAddr = DAG.getTargetConstantPool(GV, PtrVt, Align(4));
++    SDValue CPWrap = getAddrPCRel(CPAddr, DAG);
++
++    return CPWrap;
++  }
++  llvm_unreachable("invalid global addresses to lower");
++}
++
++SDValue XtensaTargetLowering::LowerBlockAddress(BlockAddressSDNode *Node,
++                                                SelectionDAG &DAG) const {
++  const BlockAddress *BA = Node->getBlockAddress();
++  EVT PtrVT = getPointerTy(DAG.getDataLayout());
++
++  XtensaConstantPoolValue *CPV =
++      XtensaConstantPoolConstant::Create(BA, 0, XtensaCP::CPBlockAddress, 0);
++  SDValue CPAddr = DAG.getTargetConstantPool(CPV, PtrVT, Align(4));
++
++  SDValue CPWrap = getAddrPCRel(CPAddr, DAG);
++  return CPWrap;
++}
++
++SDValue XtensaTargetLowering::LowerJumpTable(JumpTableSDNode *JT,
++                                             SelectionDAG &DAG) const {
++  SDLoc DL(JT);
++  EVT PtrVt = getPointerTy(DAG.getDataLayout());
++
++  // Create a constant pool entry for the callee address
++  XtensaConstantPoolValue *CPV =
++      XtensaConstantPoolJumpTable::Create(*DAG.getContext(), JT->getIndex());
++
++  // Get the address of the callee into a register
++  SDValue CPAddr = DAG.getTargetConstantPool(CPV, PtrVt, Align(4));
++  SDValue CPWrap = getAddrPCRel(CPAddr, DAG);
++
++  return CPWrap;
++}
++
++SDValue XtensaTargetLowering::LowerConstantPool(ConstantPoolSDNode *CP,
++                                                SelectionDAG &DAG) const {
++  EVT PtrVT = getPointerTy(DAG.getDataLayout());
++
++  SDValue Result;
++  if (CP->isMachineConstantPoolEntry())
++    Result =
++        DAG.getTargetConstantPool(CP->getMachineCPVal(), PtrVT, CP->getAlign());
++  else
++    Result = DAG.getTargetConstantPool(CP->getConstVal(), PtrVT, CP->getAlign(),
++                                       CP->getOffset());
++
++  return getAddrPCRel(Result, DAG);
++}
++
+ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+                                              SelectionDAG &DAG) const {
+   switch (Op.getOpcode()) {
+@@ -578,6 +671,14 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+     return LowerImmediate(Op, DAG);
+   case ISD::ConstantFP:
+     return LowerImmediateFP(Op, DAG);
++  case ISD::GlobalAddress:
++    return LowerGlobalAddress(Op, DAG);
++  case ISD::BlockAddress:
++    return LowerBlockAddress(cast<BlockAddressSDNode>(Op), DAG);
++  case ISD::JumpTable:
++    return LowerJumpTable(cast<JumpTableSDNode>(Op), DAG);
++  case ISD::ConstantPool:
++    return LowerConstantPool(cast<ConstantPoolSDNode>(Op), DAG);
+   default:
+     llvm_unreachable("Unexpected node to lower");
+   }
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index 18c7772a4345..0fbfffe34d43 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -46,6 +46,7 @@ public:
+   explicit XtensaTargetLowering(const TargetMachine &TM,
+                                 const XtensaSubtarget &STI);
+ 
++  bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
+   bool isFPImmLegal(const APFloat &Imm, EVT VT,
+                     bool ForCodeSize) const override;
+   const char *getTargetNodeName(unsigned Opcode) const override;
+@@ -73,6 +74,10 @@ private:
+ 
+   SDValue LowerImmediate(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerImmediateFP(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerBlockAddress(BlockAddressSDNode *Node, SelectionDAG &DAG) const;
++  SDValue LowerJumpTable(JumpTableSDNode *JT, SelectionDAG &DAG) const;
++  SDValue LowerConstantPool(ConstantPoolSDNode *CP, SelectionDAG &DAG) const;
+ 
+   SDValue getAddrPCRel(SDValue Op, SelectionDAG &DAG) const;
+ 
+diff --git a/llvm/lib/Target/Xtensa/XtensaMCInstLower.cpp b/llvm/lib/Target/Xtensa/XtensaMCInstLower.cpp
+index 4688091a26bb..d3dc082617e1 100644
+--- a/llvm/lib/Target/Xtensa/XtensaMCInstLower.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaMCInstLower.cpp
+@@ -28,6 +28,16 @@ XtensaMCInstLower::XtensaMCInstLower(MCContext &ctx,
+                                      XtensaAsmPrinter &asmPrinter)
+     : Ctx(ctx), Printer(asmPrinter) {}
+ 
++MCSymbol *
++XtensaMCInstLower::GetExternalSymbolSymbol(const MachineOperand &MO) const {
++  return Printer.GetExternalSymbolSymbol(MO.getSymbolName());
++}
++
++MCSymbol *
++XtensaMCInstLower::GetJumpTableSymbol(const MachineOperand &MO) const {
++  return Printer.GetJTISymbol(MO.getIndex());
++}
++
+ MCSymbol *
+ XtensaMCInstLower::GetConstantPoolIndexSymbol(const MachineOperand &MO) const {
+   // Create a symbol for the name.
+@@ -53,6 +63,13 @@ XtensaMCInstLower::LowerSymbolOperand(const MachineOperand &MO,
+     Symbol = Printer.GetBlockAddressSymbol(MO.getBlockAddress());
+     Offset += MO.getOffset();
+     break;
++  case MachineOperand::MO_ExternalSymbol:
++    Symbol = GetExternalSymbolSymbol(MO);
++    Offset += MO.getOffset();
++    break;
++  case MachineOperand::MO_JumpTableIndex:
++    Symbol = GetJumpTableSymbol(MO);
++    break;
+   case MachineOperand::MO_ConstantPoolIndex:
+     Symbol = GetConstantPoolIndexSymbol(MO);
+     Offset += MO.getOffset();
+@@ -91,7 +108,12 @@ MCOperand XtensaMCInstLower::lowerOperand(const MachineOperand &MO,
+     return MCOperand::createImm(MO.getImm() + Offset);
+   case MachineOperand::MO_RegisterMask:
+     break;
++  case MachineOperand::MO_MachineBasicBlock:
++  case MachineOperand::MO_GlobalAddress:
++  case MachineOperand::MO_ExternalSymbol:
++  case MachineOperand::MO_JumpTableIndex:
+   case MachineOperand::MO_ConstantPoolIndex:
++  case MachineOperand::MO_BlockAddress:
+     return LowerSymbolOperand(MO, MOTy, Offset);
+   default:
+     llvm_unreachable("unknown operand type");
+diff --git a/llvm/lib/Target/Xtensa/XtensaMCInstLower.h b/llvm/lib/Target/Xtensa/XtensaMCInstLower.h
+index 32a0ad86a385..344c28058adc 100644
+--- a/llvm/lib/Target/Xtensa/XtensaMCInstLower.h
++++ b/llvm/lib/Target/Xtensa/XtensaMCInstLower.h
+@@ -39,6 +39,10 @@ public:
+   MCOperand lowerOperand(const MachineOperand &MO, unsigned Offset = 0) const;
+ 
+ private:
++  MCSymbol *GetExternalSymbolSymbol(const MachineOperand &MO) const;
++
++  MCSymbol *GetJumpTableSymbol(const MachineOperand &MO) const;
++
+   MCSymbol *GetConstantPoolIndexSymbol(const MachineOperand &MO) const;
+ 
+   MCOperand LowerSymbolOperand(const MachineOperand &MO,
+-- 
+2.40.1
+

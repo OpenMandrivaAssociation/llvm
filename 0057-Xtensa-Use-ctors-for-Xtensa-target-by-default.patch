@@ -1,0 +1,121 @@
+From 2fec8b17908d94178f9674e1336a015fcbeb7314 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:06 +0300
+Subject: [PATCH 057/140] [Xtensa] Use ctors for Xtensa target by default
+
+---
+ llvm/lib/Target/Xtensa/CMakeLists.txt         |  1 +
+ .../lib/Target/Xtensa/XtensaTargetMachine.cpp |  7 +++++-
+ .../Target/Xtensa/XtensaTargetObjectFile.cpp  | 23 +++++++++++++++++
+ .../Target/Xtensa/XtensaTargetObjectFile.h    | 25 +++++++++++++++++++
+ 4 files changed, 55 insertions(+), 1 deletion(-)
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaTargetObjectFile.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaTargetObjectFile.h
+
+diff --git a/llvm/lib/Target/Xtensa/CMakeLists.txt b/llvm/lib/Target/Xtensa/CMakeLists.txt
+index 1a3ff0c5311f..2d27fa78a9b8 100644
+--- a/llvm/lib/Target/Xtensa/CMakeLists.txt
++++ b/llvm/lib/Target/Xtensa/CMakeLists.txt
+@@ -27,6 +27,7 @@ add_llvm_target(XtensaCodeGen
+   XtensaSizeReductionPass.cpp
+   XtensaSubtarget.cpp
+   XtensaTargetMachine.cpp
++  XtensaTargetObjectFile.cpp
+ 
+   LINK_COMPONENTS
+   AsmPrinter
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+index 2d8e14589d60..4d7392b85839 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+@@ -14,6 +14,7 @@
+ 
+ #include "XtensaMachineFunctionInfo.h"
+ #include "XtensaTargetMachine.h"
++#include "XtensaTargetObjectFile.h"
+ #include "TargetInfo/XtensaTargetInfo.h"
+ #include "llvm/CodeGen/Passes.h"
+ #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+@@ -45,6 +46,10 @@ static Reloc::Model getEffectiveRelocModel(bool JIT,
+   return *RM;
+ }
+ 
++static std::unique_ptr<TargetLoweringObjectFile> createTLOF() {
++  return std::make_unique<XtensaElfTargetObjectFile>();
++}
++
+ XtensaTargetMachine::XtensaTargetMachine(const Target &T, const Triple &TT,
+                                          StringRef CPU, StringRef FS,
+                                          const TargetOptions &Options,
+@@ -55,7 +60,7 @@ XtensaTargetMachine::XtensaTargetMachine(const Target &T, const Triple &TT,
+     : LLVMTargetMachine(T, computeDataLayout(TT, CPU, Options, IsLittle), TT,
+                         CPU, FS, Options, getEffectiveRelocModel(JIT, RM),
+                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
+-      TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
++      TLOF(createTLOF()),
+       Subtarget(TT, std::string(CPU), std::string(FS), *this) {
+   initAsmInfo();
+ }
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetObjectFile.cpp b/llvm/lib/Target/Xtensa/XtensaTargetObjectFile.cpp
+new file mode 100644
+index 000000000000..27da879ea860
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaTargetObjectFile.cpp
+@@ -0,0 +1,23 @@
++//===-- llvm/Target/XtensaTargetObjectFile.cpp - Xtensa Object Info Impl --===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "XtensaTargetObjectFile.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/Target/TargetMachine.h"
++
++using namespace llvm;
++
++//===----------------------------------------------------------------------===//
++//                               ELF Target
++//===----------------------------------------------------------------------===//
++
++void XtensaElfTargetObjectFile::Initialize(MCContext &Ctx,
++                                           const TargetMachine &TM) {
++  TargetLoweringObjectFileELF::Initialize(Ctx, TM);
++  InitializeELF(false);
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetObjectFile.h b/llvm/lib/Target/Xtensa/XtensaTargetObjectFile.h
+new file mode 100644
+index 000000000000..dae8f890459a
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaTargetObjectFile.h
+@@ -0,0 +1,25 @@
++//===- llvm/Target/XtensaTargetObjectFile.h - Xtensa Object Info -*- C++ -*-==//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSATARGETOBJECTFILE_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSATARGETOBJECTFILE_H
++
++#include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
++
++namespace llvm {
++
++class XtensaElfTargetObjectFile : public TargetLoweringObjectFileELF {
++public:
++  XtensaElfTargetObjectFile() : TargetLoweringObjectFileELF() {}
++
++  void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
++};
++
++} // end namespace llvm
++
++#endif // LLVM_LIB_TARGET_XTENSA_XTENSATARGETOBJECTFILE_H
+-- 
+2.40.1
+

@@ -1,0 +1,50 @@
+From 2c5cb33309b116508c6bce269157c49d04da6c43 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:13 +0300
+Subject: [PATCH 069/140] [Xtensa] Define register type for CC
+
+Implement getRegisterTypeForCallingConv() method in XtensaTargetLowering
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 10 ++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  4 ++++
+ 2 files changed, 14 insertions(+)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 645bdcf05a24..13765a6afabb 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -340,6 +340,16 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   computeRegisterProperties(STI.getRegisterInfo());
+ }
+ 
++/// Return the register type for a given MVT
++MVT XtensaTargetLowering::getRegisterTypeForCallingConv(LLVMContext &Context,
++                                                      CallingConv::ID CC,
++                                                      EVT VT) const {
++  if (VT.isFloatingPoint())
++    return MVT::i32;
++
++  return TargetLowering::getRegisterTypeForCallingConv(Context, CC, VT);
++}
++
+ bool XtensaTargetLowering::isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                                       EVT VT) const {
+   if (!VT.isSimple())
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index d638343c82bb..3e7d9dda62f5 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -102,6 +102,10 @@ public:
+     return LHSTy.getSizeInBits() <= 32 ? MVT::i32 : MVT::i64;
+   }
+ 
++  /// Return the register type for a given MVT
++  MVT getRegisterTypeForCallingConv(LLVMContext &Context, CallingConv::ID CC,
++                                    EVT VT) const override;
++
+   EVT getSetCCResultType(const DataLayout &, LLVMContext &,
+                          EVT VT) const override {
+     if (!VT.isVector())
+-- 
+2.40.1
+

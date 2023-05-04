@@ -1,0 +1,218 @@
+From 56056055f361cc7dab829a2054b0d42c99dadf3a Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:12 +0300
+Subject: [PATCH 068/140] [Xtensa] Implement ESP32-S3 target.
+
+Implement support of the ESP32-S3 chip in clang and llvm.
+The ESP32-S3 chip includes Xtensa ISA extension which
+helps to work with GPIO, so we add instructions description
+and test.
+---
+ clang/lib/Basic/Targets/Xtensa.h              |  1 +
+ clang/lib/Driver/ToolChains/Xtensa.cpp        |  2 ++
+ .../Xtensa/AsmParser/XtensaAsmParser.cpp      |  8 ++++-
+ llvm/lib/Target/Xtensa/Xtensa.td              | 11 ++++++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     | 34 +++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp    |  1 +
+ llvm/lib/Target/Xtensa/XtensaSubtarget.h      |  5 +++
+ llvm/test/MC/Xtensa/xtensa-esp32s3-valid.s    | 21 ++++++++++++
+ 8 files changed, 82 insertions(+), 1 deletion(-)
+ create mode 100644 llvm/test/MC/Xtensa/xtensa-esp32s3-valid.s
+
+diff --git a/clang/lib/Basic/Targets/Xtensa.h b/clang/lib/Basic/Targets/Xtensa.h
+index 0c077dda2d97..126ad8321948 100644
+--- a/clang/lib/Basic/Targets/Xtensa.h
++++ b/clang/lib/Basic/Targets/Xtensa.h
+@@ -98,6 +98,7 @@ public:
+         .Case("esp32", true)
+         .Case("esp8266", true)
+         .Case("esp32-s2", true)
++        .Case("esp32-s3", true)
+         .Case("generic", true)
+         .Default(false);
+   }
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index c3919ff8c8e9..4e7d72e821ec 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -45,6 +45,8 @@ XtensaGCCToolchainDetector::XtensaGCCToolchainDetector(
+     ToolchainName = "xtensa-esp32-elf";
+   else if (CPUName.equals("esp32-s2"))
+     ToolchainName = "xtensa-esp32s2-elf";
++  else if (CPUName.equals("esp32-s3"))
++    ToolchainName = "xtensa-esp32s3-elf";
+   else if (CPUName.equals("esp8266"))
+     ToolchainName = "xtensa-lx106-elf";
+ 
+diff --git a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+index e55260e97360..21b8d0cc171b 100644
+--- a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
++++ b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+@@ -955,6 +955,7 @@ bool XtensaAsmParser::checkRegister(unsigned RegNo) {
+   unsigned NumMiscSR = 0;
+   bool IsESP32 = false;
+   bool IsESP32_S2 = false;
++  bool IsESP32_S3 = false;
+   bool Res = true;
+ 
+   // Assume that CPU is esp32 by default
+@@ -968,6 +969,11 @@ bool XtensaAsmParser::checkRegister(unsigned RegNo) {
+     NumTimers = 3;
+     NumMiscSR = 4;
+     IsESP32_S2 = true;
++  } else if (CPU == "esp32-s3") {
++    NumIntLevels = 6;
++    NumTimers = 3;
++    NumMiscSR = 4;
++    IsESP32_S3 = true;
+   } else if (CPU == "esp8266") {
+     NumIntLevels = 2;
+     NumTimers = 1;
+@@ -1091,7 +1097,7 @@ bool XtensaAsmParser::checkRegister(unsigned RegNo) {
+     Res = hasTHREADPTR();
+     break;
+   case Xtensa::GPIO_OUT:
+-    Res = IsESP32_S2;
++    Res = IsESP32_S2 || IsESP32_S3;
+     break;
+   case Xtensa::EXPSTATE:
+     Res = IsESP32;
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.td b/llvm/lib/Target/Xtensa/Xtensa.td
+index e5d5e4eb1e0b..dfcf95b9a615 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.td
++++ b/llvm/lib/Target/Xtensa/Xtensa.td
+@@ -158,6 +158,11 @@ def FeatureESP32S2Ops        : SubtargetFeature<"esp32s2", "HasESP32S2Ops", "tru
+ def HasESP32S2Ops            : Predicate<"Subtarget->hasESP32S2Ops()">,
+                                           AssemblerPredicate<(all_of FeatureESP32S2Ops)>;
+ 
++def FeatureESP32S3Ops        : SubtargetFeature<"esp32s3", "HasESP32S3Ops", "true",
++                                                "Support Xtensa esp32-s3 ISA extension">;
++def HasESP32S3Ops            : Predicate<"Subtarget->hasESP32S3Ops()">,
++                                          AssemblerPredicate<(all_of FeatureESP32S3Ops)>;
++
+ //===----------------------------------------------------------------------===//
+ // Xtensa supported processors.
+ //===----------------------------------------------------------------------===//
+@@ -178,6 +183,12 @@ def : Proc<"esp32-s2", [FeatureDensity, FeatureWindowed, FeatureSEXT, FeatureNSA
+                         FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor, FeatureInterrupt,
+                         FeatureRelocatableVector,	FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureESP32S2Ops]>;
+ 
++def : Proc<"esp32-s3", [FeatureDensity, FeatureSingleFloat, FeatureLoop, FeatureMAC16, FeatureWindowed, FeatureBoolean, 
++                        FeatureSEXT, FeatureNSA, FeatureMul32, FeatureMul32High, FeatureDFPAccel, FeatureS32C1I, FeatureTHREADPTR, FeatureDiv32,
++                        FeatureATOMCTL, FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor,
++                        FeatureInterrupt, FeatureRelocatableVector, FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR,
++                        FeatureESP32S3Ops]>;
++
+ //===----------------------------------------------------------------------===//
+ // Register File Description
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index f901b2d5cf5d..331868f7abbe 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -1643,6 +1643,40 @@ let Predicates = [HasESP32S2Ops] in {
+   }
+ }
+ 
++//===----------------------------------------------------------------------===//
++// Xtensa ESP32S3 Instructions
++//===----------------------------------------------------------------------===//
++let Predicates = [HasESP32S3Ops] in {
++  def EE_WR_MASK_GPIO_OUT : RRR_Inst<0x04, 0x02, 0x07, (outs), (ins AR:$t, AR:$s),
++                                    "ee.wr_mask_gpio_out\t$t, $s", []> {
++    let r = 0x4;
++  }
++
++  def EE_SET_BIT_GPIO_OUT : RRR_Inst<0x04, 0x05, 0x07, (outs), (ins select_256:$imm),
++                                "ee.set_bit_gpio_out\t$imm", []> {
++    bits<8> imm;
++
++    let r = 0x4;
++    let s = imm{7-4};
++    let t = imm{3-0};
++  }
++
++  def EE_CLR_BIT_GPIO_OUT : RRR_Inst<0x04, 0x06, 0x07, (outs), (ins select_256:$imm),
++                                "ee.clr_bit_gpio_out\t$imm", []> {
++    bits<8> imm;
++
++    let r = 0x4;
++    let s = imm{7-4};
++    let t = imm{3-0};
++  }
++
++  def EE_GET_GPIO_IN : RRR_Inst<0x04, 0x05, 0x06, (outs AR:$t), (ins),
++                               "ee.get_gpio_in\t$t", []> {
++    let r = 0x0;
++    let s = 0x8;
++  }
++}
++
+ //===----------------------------------------------------------------------===//
+ // DSP Instructions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+index 2b90365eb870..c9b8e0bd0e8c 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -60,6 +60,7 @@ XtensaSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
+   HasRegionProtection = false;
+   HasMiscSR = false;
+   HasESP32S2Ops = false;
++  HasESP32S3Ops = false;
+ 
+   // Parse features string.
+   ParseSubtargetFeatures(CPUName, CPUName, FS);
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.h b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+index 24be0de4bf2a..ee173686c2a2 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.h
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+@@ -122,6 +122,9 @@ private:
+   // Enable Xtensa esp32-s2 ISA extension
+   bool HasESP32S2Ops;
+ 
++  // Enable Xtensa esp32-s3 ISA extension
++  bool HasESP32S3Ops;
++
+   XtensaSubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
+ 
+ public:
+@@ -195,6 +198,8 @@ public:
+ 
+   bool hasESP32S2Ops() const { return HasESP32S2Ops; }
+ 
++  bool hasESP32S3Ops() const { return HasESP32S3Ops; }
++
+   // Automatically generated by tblgen.
+   void ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
+ };
+diff --git a/llvm/test/MC/Xtensa/xtensa-esp32s3-valid.s b/llvm/test/MC/Xtensa/xtensa-esp32s3-valid.s
+new file mode 100644
+index 000000000000..50037ea38df1
+--- /dev/null
++++ b/llvm/test/MC/Xtensa/xtensa-esp32s3-valid.s
+@@ -0,0 +1,21 @@
++# RUN: llvm-mc %s -triple=xtensa  -mattr=+esp32s3 -show-encoding \
++# RUN:     | FileCheck -check-prefixes=CHECK,CHECK-INST %s
++
++.align	4
++LBL0:
++
++# CHECK-INST:  ee.clr_bit_gpio_out  52
++# CHECK: encoding: [0x44,0x43,0x76]
++ee.clr_bit_gpio_out 52
++
++# CHECK-INST:  ee.get_gpio_in  a2
++# CHECK: encoding: [0x24,0x08,0x65]
++ee.get_gpio_in a2
++
++# CHECK-INST:  ee.set_bit_gpio_out  18
++# CHECK: encoding: [0x24,0x41,0x75]
++ee.set_bit_gpio_out 18
++
++# CHECK-INST:  ee.wr_mask_gpio_out	a3, a2
++# CHECK: encoding: [0x34,0x42,0x72]
++ee.wr_mask_gpio_out	a3, a2
+-- 
+2.40.1
+

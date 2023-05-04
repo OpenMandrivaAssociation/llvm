@@ -1,0 +1,363 @@
+From f05a12ce0a9539d4ba8a28ccb42a729ac72e51dd Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:31 +0300
+Subject: [PATCH 107/140] [Xtensa] Implement support of literal and region asm
+
+ directives in asm parser.
+
+Implement support of the ".literal" and ".literal_postion" directives in asm parser.
+Implement support of the regions using ".begin" and ".end" directives, currently only
+"literal_prefix" region is supported.
+---
+ .../Xtensa/AsmParser/XtensaAsmParser.cpp      | 161 +++++++++++++++++-
+ .../MCTargetDesc/XtensaTargetStreamer.cpp     |  42 +++--
+ .../MCTargetDesc/XtensaTargetStreamer.h       |   4 +
+ llvm/test/MC/Xtensa/directive-literal.s       |  23 +++
+ llvm/test/MC/Xtensa/directive-region.s        |  25 +++
+ 5 files changed, 238 insertions(+), 17 deletions(-)
+ create mode 100644 llvm/test/MC/Xtensa/directive-literal.s
+ create mode 100644 llvm/test/MC/Xtensa/directive-region.s
+
+diff --git a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+index 9fbf0a38d414..dcabef7cd13a 100644
+--- a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
++++ b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+@@ -24,6 +24,7 @@
+ #include "llvm/MC/MCRegisterInfo.h"
+ #include "llvm/MC/MCStreamer.h"
+ #include "llvm/MC/MCSubtargetInfo.h"
++#include "llvm/MC/MCSymbol.h"
+ #include "llvm/MC/TargetRegistry.h"
+ #include "llvm/Support/Casting.h"
+ 
+@@ -34,6 +35,21 @@ using namespace llvm;
+ struct XtensaOperand;
+ 
+ class XtensaAsmParser : public MCTargetAsmParser {
++  // Xtensa GNU assembler supports region definitions using
++  // .begin and .end directives. Currently only .literal_prefix regions are
++  // supported.
++  struct RegionInfo {
++  public:
++    SMLoc Loc;
++    StringRef RegionDirectiveName;
++    StringRef LiteralPrefixName;
++    RegionInfo() = default;
++    RegionInfo( SMLoc L, StringRef DirectiveName, StringRef Name = "")
++     : Loc(L), RegionDirectiveName(DirectiveName), LiteralPrefixName(Name) {}
++  };
++
++  // Stack of active region definitions.
++  SmallVector<RegionInfo, 1> RegionInProgress;
+ 
+   SMLoc getLoc() const { return getParser().getTok().getLoc(); }
+  
+@@ -77,6 +93,14 @@ class XtensaAsmParser : public MCTargetAsmParser {
+   }
+   OperandMatchResultTy parsePCRelTarget(OperandVector &Operands);
+   bool checkRegister(unsigned RegNo);
++  bool parseLiteralDirective(SMLoc L);
++  bool parseBeginDirective(SMLoc L);
++  bool parseEndDirective(SMLoc L);
++  void onEndOfFile() override {
++    if (!RegionInProgress.empty()) {
++      Error(RegionInProgress.back().Loc, ".end of region is not found");
++    }
++  }
+ 
+ public:
+   enum XtensaMatchResultTy {
+@@ -945,8 +969,141 @@ bool XtensaAsmParser::ParseInstruction(ParseInstructionInfo &Info,
+   return false;
+ }
+ 
+-bool XtensaAsmParser::ParseDirective(AsmToken DirectiveID) { return true; }
+- 
++bool XtensaAsmParser::parseLiteralDirective(SMLoc L) {
++  MCAsmParser &Parser = getParser();
++  MCSymbol *Sym;
++  const MCExpr *Value;
++  SMLoc LiteralLoc = getLexer().getLoc();
++  XtensaTargetStreamer &TS = this->getTargetStreamer();
++
++  if (Parser.parseExpression(Value))
++    return true;
++
++  const MCSymbolRefExpr *SE = dyn_cast<MCSymbolRefExpr>(Value);
++  if (!SE)
++    return Error(LiteralLoc, "literal label must be a symbol");
++  else {
++    Sym = getContext().getOrCreateSymbol(SE->getSymbol().getName());
++  }
++
++  if (Parser.parseToken(AsmToken::Comma, "expected comma"))
++    return true;
++
++  SMLoc OpcodeLoc = getLexer().getLoc();
++  if (parseOptionalToken(AsmToken::EndOfStatement))
++    return Error(OpcodeLoc, "expected value");
++
++  if (Parser.parseExpression(Value))
++    return true;
++
++  TS.emitLiteralLabel(Sym, LiteralLoc);
++  TS.emitLiteral(Value, LiteralLoc);
++
++  return false;
++}
++
++bool XtensaAsmParser::parseBeginDirective(SMLoc L) {
++  MCAsmParser &Parser = getParser();
++  const MCExpr *Value;
++  SMLoc BeginLoc = getLexer().getLoc();
++  XtensaTargetStreamer &TS = this->getTargetStreamer();
++
++  if (Parser.parseExpression(Value))
++    return true;
++
++  const MCSymbolRefExpr *SE = dyn_cast<MCSymbolRefExpr>(Value);
++  if (!SE)
++    return Error(BeginLoc, "region option must be a symbol");
++
++  StringRef RegionDirectiveName = SE->getSymbol().getName();
++
++  if (RegionDirectiveName == "literal_prefix") {
++
++    SMLoc OpcodeLoc = getLexer().getLoc();
++    if (parseOptionalToken(AsmToken::EndOfStatement))
++      return Error(OpcodeLoc, "expected literal section name");
++
++    if (Parser.parseExpression(Value))
++      return true;
++
++    OpcodeLoc = getLexer().getLoc();
++    SE = dyn_cast<MCSymbolRefExpr>(Value);
++    if (!SE)
++      return Error(OpcodeLoc, "literal_prefix name must be a symbol");
++
++    StringRef LiteralPrefixName = SE->getSymbol().getName();
++    TS.setLiteralSectionPrefix(LiteralPrefixName);
++    RegionInProgress.emplace_back(BeginLoc, RegionDirectiveName, LiteralPrefixName);
++  } else {
++    return Error(BeginLoc, "unsupported region directive");
++  }
++
++  return false;
++}
++
++bool XtensaAsmParser::parseEndDirective(SMLoc L) {
++  MCAsmParser &Parser = getParser();
++  const MCExpr *Value;
++  SMLoc EndLoc = getLexer().getLoc();
++  XtensaTargetStreamer &TS = this->getTargetStreamer();
++
++  if (Parser.parseExpression(Value))
++    return true;
++
++  const MCSymbolRefExpr *SE = dyn_cast<MCSymbolRefExpr>(Value);
++  if (!SE)
++    return Error(EndLoc, "region option must be a symbol");
++
++  StringRef RegionDirectiveName = SE->getSymbol().getName();
++
++  if (RegionInProgress.empty())
++    return Error(EndLoc, ".end of the region without .begin");
++  else {
++    RegionInfo Region = RegionInProgress.pop_back_val();
++   
++    if (RegionInProgress.empty())
++      TS.setLiteralSectionPrefix("");
++    else
++      TS.setLiteralSectionPrefix(Region.LiteralPrefixName);
++   
++    if (RegionDirectiveName != Region.RegionDirectiveName) {
++      return Error(EndLoc, ".end directive differs from .begin directive");
++    }
++  }
++
++  // Error: does not match begin literal_prefix
++  return false;
++}
++
++bool XtensaAsmParser::ParseDirective(AsmToken DirectiveID) {
++  StringRef IDVal = DirectiveID.getString();
++  SMLoc Loc = getLexer().getLoc();
++
++  if (IDVal == ".literal_position") {
++    // We currently push literals in literal section which name depends on name
++    // of the current section.
++    // So, assume that we may skip this directive.
++    return false;
++  }
++
++  if (IDVal == ".literal") {
++    parseLiteralDirective(Loc);
++    return false;
++  }
++
++  if (IDVal == ".begin") {
++    parseBeginDirective(Loc);
++    return false;
++  }
++
++  if (IDVal == ".end") {
++    parseEndDirective(Loc);
++    return false;
++  }
++
++  return true;
++}
++  
+ // Verify SR and UR
+ bool XtensaAsmParser::checkRegister(unsigned RegNo) {
+   StringRef CPU = getSTI().getCPU();
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.cpp
+index 645491d8f971..134193821c85 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.cpp
+@@ -38,16 +38,22 @@ XtensaTargetELFStreamer::XtensaTargetELFStreamer(MCStreamer &S)
+ void XtensaTargetELFStreamer::emitLiteralLabel(MCSymbol *LblSym, SMLoc L) {
+   MCContext &Context = getStreamer().getContext();
+   MCStreamer &OutStreamer = getStreamer();
+-  MCSectionELF *CS = (MCSectionELF *)OutStreamer.getCurrentSectionOnly();
+-  std::string CSectionName = CS->getName().str();
+-  std::size_t Pos = CSectionName.find(".text");
++  StringRef LiteralSectionPrefix = getLiteralSectionPrefix();
+   std::string SectionName;
+-  if (Pos != std::string::npos) {
+-    SectionName = ".literal";
+-    SectionName += CSectionName.substr(Pos);
++
++  if (LiteralSectionPrefix != "") {
++    SectionName = LiteralSectionPrefix.str() + ".literal";
+   } else {
+-    SectionName = CSectionName;
+-    SectionName += ".literal";
++    MCSectionELF *CS = (MCSectionELF *)OutStreamer.getCurrentSectionOnly();
++    std::string CSectionName = CS->getName().str();
++    std::size_t Pos = CSectionName.find(".text");
++    if (Pos != std::string::npos) {
++      SectionName = ".literal";
++      SectionName += CSectionName.substr(Pos);
++    } else {
++      SectionName = CSectionName;
++      SectionName += ".literal";
++    }
+   }
+ 
+   MCSection *ConstSection = Context.getELFSection(
+@@ -72,15 +78,21 @@ void XtensaTargetELFStreamer::emitLiteral(const MCExpr *Value, SMLoc L) {
+   MCContext &Context = getStreamer().getContext();
+   MCStreamer &OutStreamer = getStreamer();
+   MCSectionELF *CS = (MCSectionELF *)OutStreamer.getCurrentSectionOnly();
+-  std::string CSectionName = CS->getName().str();
+-  std::size_t Pos = CSectionName.find(".text");
++  StringRef LiteralSectionPrefix = getLiteralSectionPrefix();
+   std::string SectionName;
+-  if (Pos != std::string::npos) {
+-    SectionName = ".literal";
+-    SectionName += CSectionName.substr(Pos);
++
++  if (LiteralSectionPrefix != "") {
++    SectionName = LiteralSectionPrefix.str() + ".literal";
+   } else {
+-    SectionName = CSectionName;
+-    SectionName += ".literal";
++    std::string CSectionName = CS->getName().str();
++    std::size_t Pos = CSectionName.find(".text");
++    if (Pos != std::string::npos) {
++      SectionName = ".literal";
++      SectionName += CSectionName.substr(Pos);
++    } else {
++      SectionName = CSectionName;
++      SectionName += ".literal";
++    }
+   }
+ 
+   MCSection *ConstSection = Context.getELFSection(
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.h b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.h
+index 962da002a997..ef03578862a2 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.h
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.h
+@@ -20,12 +20,16 @@ namespace llvm {
+ class formatted_raw_ostream;
+ 
+ class XtensaTargetStreamer : public MCTargetStreamer {
++  StringRef LiteralSectionPrefix = "";
++
+ public:
+   XtensaTargetStreamer(MCStreamer &S);
+   virtual void emitLiteral(MCSymbol *LblSym, const MCExpr *Value, SMLoc L) = 0;
+   virtual void emitLiteralLabel(MCSymbol *LblSym, SMLoc L) = 0;
+   virtual void emitLiteral(const MCExpr *Value, SMLoc L) = 0;
+   virtual void emitLiteral(std::string str) = 0;
++  void setLiteralSectionPrefix(StringRef Name) { LiteralSectionPrefix = Name; }
++  StringRef getLiteralSectionPrefix() { return LiteralSectionPrefix; }
+ };
+ 
+ class XtensaTargetAsmStreamer : public XtensaTargetStreamer {
+diff --git a/llvm/test/MC/Xtensa/directive-literal.s b/llvm/test/MC/Xtensa/directive-literal.s
+new file mode 100644
+index 000000000000..cc2fccdb61c8
+--- /dev/null
++++ b/llvm/test/MC/Xtensa/directive-literal.s
+@@ -0,0 +1,23 @@
++# RUN: llvm-mc -triple xtensa-esp-elf -filetype obj -o - %s \
++# RUN:   | llvm-readobj -S --sd - \
++# RUN:   | FileCheck %s
++
++	.text
++	.literal_position
++	.literal .LCPI0_0, 305419896
++	.global	test_literal
++	.p2align	2
++	.type	test_literal,@function
++test_literal:
++# %bb.0:
++	entry	a1, 32
++	mov.n	a7, a1
++	l32r	a2, .LCPI0_0
++	retw.n
++
++# CHECK: Section {
++# CHECK:   Name: .literal.text
++# CHECK:   SectionData (
++# CHECK:     0000: 78563412
++# CHECK:   )
++# CHECK: }
+\ No newline at end of file
+diff --git a/llvm/test/MC/Xtensa/directive-region.s b/llvm/test/MC/Xtensa/directive-region.s
+new file mode 100644
+index 000000000000..ca62571c3122
+--- /dev/null
++++ b/llvm/test/MC/Xtensa/directive-region.s
+@@ -0,0 +1,25 @@
++# RUN: llvm-mc -triple xtensa-esp-elf -filetype obj -o - %s \
++# RUN:   | llvm-readobj -S --sd - \
++# RUN:   | FileCheck %s
++
++	.text
++    .begin literal_prefix .ExceptionVector
++	.literal_position
++	.literal .LCPI0_0, 305419896
++	.global	test_literal
++	.p2align	2
++	.type	test_literal,@function
++test_literal:
++# %bb.0:
++	entry	a1, 32
++	mov.n	a7, a1
++	l32r	a2, .LCPI0_0
++	retw.n
++    .end literal_prefix
++
++# CHECK: Section {
++# CHECK:   Name: .ExceptionVector.literal
++# CHECK:   SectionData (
++# CHECK:     0000: 78563412
++# CHECK:   )
++# CHECK: }
+\ No newline at end of file
+-- 
+2.40.1
+

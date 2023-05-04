@@ -1,0 +1,37 @@
+From 16b5c7576b17e40a98f4d4d321e24fd025b2ce69 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:29 +0300
+Subject: [PATCH 102/140] [Xtensa] Fix ill.n instruction econding
+
+---
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td  | 2 +-
+ llvm/test/MC/Xtensa/xtensa-valid-density.s | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 2a59d179761f..9f234c7cb41e 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -1494,7 +1494,7 @@ let isBarrier = 1, isTerminator = 1 in {
+     let s = 0;
+   }
+ 
+-  def ILL_N : RRRN_Inst<0x0C, (outs), (ins),
++  def ILL_N : RRRN_Inst<0x0D, (outs), (ins),
+                        "ill.n", []>, Requires<[HasDensity]> {
+     let r = 0xf;
+     let s = 0x0;
+diff --git a/llvm/test/MC/Xtensa/xtensa-valid-density.s b/llvm/test/MC/Xtensa/xtensa-valid-density.s
+index fc5457ce82dd..f4315c61e8ef 100644
+--- a/llvm/test/MC/Xtensa/xtensa-valid-density.s
++++ b/llvm/test/MC/Xtensa/xtensa-valid-density.s
+@@ -5,5 +5,5 @@
+ LBL0:
+ 
+ # CHECK-INST:  ill.n
+-# CHECK: encoding: [0x6c,0xf0]
++# CHECK: encoding: [0x6d,0xf0]
+ ill.n
+-- 
+2.40.1
+

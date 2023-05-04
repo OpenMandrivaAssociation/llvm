@@ -1,0 +1,139 @@
+From a218f8245c815543cdfa2304d33d4c1cb4c1656e Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:14 +0300
+Subject: [PATCH 071/140] [Xtensa] Implement MUL16 feature.
+
+---
+ llvm/lib/Target/Xtensa/Xtensa.td           | 21 +++++++++++++--------
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td  | 11 +++++++++++
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp |  1 +
+ llvm/lib/Target/Xtensa/XtensaSubtarget.h   |  5 +++++
+ llvm/test/MC/Xtensa/xtensa-valid-mul16.s   | 14 ++++++++++++++
+ 5 files changed, 44 insertions(+), 8 deletions(-)
+ create mode 100644 llvm/test/MC/Xtensa/xtensa-valid-mul16.s
+
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.td b/llvm/lib/Target/Xtensa/Xtensa.td
+index dfcf95b9a615..dd4b484aa6ba 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.td
++++ b/llvm/lib/Target/Xtensa/Xtensa.td
+@@ -52,6 +52,11 @@ def FeatureNSA              : SubtargetFeature<"nsa", "HasNSA", "true",
+ def HasNSA                  : Predicate<"Subtarget->hasNSA()">,
+                                          AssemblerPredicate<(all_of FeatureNSA)>;
+ 
++def FeatureMul16            : SubtargetFeature<"mul16", "HasMul16", "true",
++                                               "Enable Xtensa Mul16 option">;
++def HasMul16                : Predicate<"Subtarget->hasMul16()">,
++                                         AssemblerPredicate<(all_of FeatureMul16)>;
++
+ def FeatureMul32            : SubtargetFeature<"mul32", "HasMul32", "true",
+                                                "Enable Xtensa Mul32 option">;
+ def HasMul32                : Predicate<"Subtarget->hasMul32()">,
+@@ -171,20 +176,20 @@ class Proc<string Name, list<SubtargetFeature> Features>
+ 
+ def : Proc<"generic", []>;
+ 
+-def : Proc<"esp32", [FeatureDensity, FeatureSingleFloat, FeatureLoop, FeatureMAC16, FeatureWindowed, FeatureBoolean, 
+-                     FeatureSEXT, FeatureNSA, FeatureMul32, FeatureMul32High, FeatureDFPAccel, FeatureS32C1I, FeatureTHREADPTR, FeatureDiv32,
++def : Proc<"esp32", [FeatureDensity, FeatureSingleFloat, FeatureLoop, FeatureMAC16, FeatureWindowed, FeatureBoolean, FeatureSEXT,
++                     FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDFPAccel, FeatureS32C1I, FeatureTHREADPTR, FeatureDiv32,
+                      FeatureATOMCTL, FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor,
+                      FeatureInterrupt, FeatureRelocatableVector, FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR]>;
+ 
+-def : Proc<"esp8266", [FeatureDensity, FeatureNSA, FeatureMul32, FeatureExtendedL32R, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
+-                       FeatureInterrupt, FeatureRelocatableVector, FeatureTimerInt, FeatureRegionProtection, FeaturePRID]>;
++def : Proc<"esp8266", [FeatureDensity, FeatureNSA, FeatureMul16, FeatureMul32, FeatureExtendedL32R, FeatureDebug, FeatureException,
++                       FeatureHighPriInterrupts, FeatureInterrupt, FeatureRelocatableVector, FeatureTimerInt, FeatureRegionProtection, FeaturePRID]>;
+ 
+-def : Proc<"esp32-s2", [FeatureDensity, FeatureWindowed, FeatureSEXT, FeatureNSA, FeatureMul32, FeatureMul32High, FeatureTHREADPTR, FeatureDiv32,
+-                        FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor, FeatureInterrupt,
++def : Proc<"esp32-s2", [FeatureDensity, FeatureWindowed, FeatureSEXT, FeatureNSA,  FeatureMul16, FeatureMul32, FeatureMul32High, FeatureTHREADPTR,
++                        FeatureDiv32, FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor, FeatureInterrupt,
+                         FeatureRelocatableVector,	FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureESP32S2Ops]>;
+ 
+-def : Proc<"esp32-s3", [FeatureDensity, FeatureSingleFloat, FeatureLoop, FeatureMAC16, FeatureWindowed, FeatureBoolean, 
+-                        FeatureSEXT, FeatureNSA, FeatureMul32, FeatureMul32High, FeatureDFPAccel, FeatureS32C1I, FeatureTHREADPTR, FeatureDiv32,
++def : Proc<"esp32-s3", [FeatureDensity, FeatureSingleFloat, FeatureLoop, FeatureMAC16, FeatureWindowed, FeatureBoolean, FeatureSEXT,
++                        FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDFPAccel, FeatureS32C1I, FeatureTHREADPTR, FeatureDiv32,
+                         FeatureATOMCTL, FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor,
+                         FeatureInterrupt, FeatureRelocatableVector, FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR,
+                         FeatureESP32S3Ops]>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 2adff84ac455..e12d0e1b0b30 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -1327,6 +1327,17 @@ def NSAU : RRR_Inst<0x00, 0x00, 0x04, (outs AR:$t), (ins AR:$s),
+   let r = 0xF;
+ }
+ 
++//===----------------------------------------------------------------------===//
++// Mul16 Instructions
++//===----------------------------------------------------------------------===//
++
++let Predicates = [HasMul16] in {
++  def MUL16S : RRR_Inst<0x00, 0x01, 0x0D, (outs AR:$r), (ins AR:$s, AR:$t),
++                       "mul16s\t$r, $s, $t", []>;
++  def MUL16U : RRR_Inst<0x00, 0x01, 0x0C, (outs AR:$r), (ins AR:$s, AR:$t),
++                       "mul16u\t$r, $s, $t", []>;
++}
++
+ //===----------------------------------------------------------------------===//
+ // Mul32 Instructions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+index c9b8e0bd0e8c..e164da998b5e 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -39,6 +39,7 @@ XtensaSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
+   HasLoop = false;
+   HasSEXT = false;
+   HasNSA = false;
++  HasMul16 = false;
+   HasMul32 = false;
+   HasMul32High = false;
+   HasDiv32 = false;
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.h b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+index ee173686c2a2..b4fac0b65eb1 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.h
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+@@ -59,6 +59,9 @@ private:
+   // Enable Xtensa NSA option
+   bool HasNSA;
+ 
++  // Enable Xtensa Mul16 option
++  bool HasMul16;
++
+   // Enable Xtensa Mul32 option
+   bool HasMul32;
+ 
+@@ -156,6 +159,8 @@ public:
+ 
+   bool hasNSA() const { return HasNSA; }
+ 
++  bool hasMul16() const { return HasMul16; }
++
+   bool hasMul32() const { return HasMul32; }
+ 
+   bool hasMul32High() const { return HasMul32High; }
+diff --git a/llvm/test/MC/Xtensa/xtensa-valid-mul16.s b/llvm/test/MC/Xtensa/xtensa-valid-mul16.s
+new file mode 100644
+index 000000000000..4a6c525191f8
+--- /dev/null
++++ b/llvm/test/MC/Xtensa/xtensa-valid-mul16.s
+@@ -0,0 +1,14 @@
++# RUN: llvm-mc %s -triple=xtensa -mattr=+mul16 -show-encoding \
++# RUN:     | FileCheck -check-prefixes=CHECK,CHECK-INST %s
++
++
++.align	4
++LBL0:
++
++# CHECK-INST:  mul16s a2, a3, a4
++# CHECK: encoding: [0x40,0x23,0xd1]
++ mul16s a2, a3, a4
++
++# CHECK-INST:  mul16u a2, a3, a4
++# CHECK: encoding: [0x40,0x23,0xc1]
++ mul16u a2, a3, a4
+-- 
+2.40.1
+

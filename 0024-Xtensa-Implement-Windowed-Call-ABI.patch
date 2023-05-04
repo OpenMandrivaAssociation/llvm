@@ -1,0 +1,479 @@
+From a4159c171ac269c0e7f1441a7c0e8ad914b8dde0 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:47 +0300
+Subject: [PATCH 024/140] [Xtensa] Implement Windowed Call ABI
+
+---
+ llvm/lib/Target/Xtensa/XtensaCallingConv.td   |  14 ++
+ .../lib/Target/Xtensa/XtensaFrameLowering.cpp | 167 +++++++++++++-----
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp |  58 +++++-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp    |  10 +-
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp |  13 +-
+ 5 files changed, 203 insertions(+), 59 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaCallingConv.td b/llvm/lib/Target/Xtensa/XtensaCallingConv.td
+index c39eb665b4d3..adfb8656b32d 100644
+--- a/llvm/lib/Target/Xtensa/XtensaCallingConv.td
++++ b/llvm/lib/Target/Xtensa/XtensaCallingConv.td
+@@ -32,3 +32,17 @@ def RetCC_Xtensa : CallingConv<[
+ //===----------------------------------------------------------------------===//
+ 
+ def CSR_Xtensa : CalleeSavedRegs<(add A0, A12, A13, A14, A15)>;
++def CSRWE_Xtensa : CalleeSavedRegs<(add)> {
++  let OtherPreserved = (add A0, SP, A2, A3, A4, A5, A6, A7);
++}
++//===----------------------------------------------------------------------===//
++
++def RetCCW_Xtensa : CallingConv<[
++  CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
++  CCIfType<[f32], CCBitConvertToType<i32>>,
++
++  //First two return values go in a10, a11, a12, a13
++  CCIfType<[i32], CCAssignToReg<[A10, A11, A12, A13]>>,
++  CCIfType<[f32], CCAssignToReg<[A10, A11, A12, A13]>>,
++  CCIfType<[i64], CCAssignToRegWithShadow<[A10, A12], [A11, A13]>>
++]>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp b/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+index 53d180cc0e58..82cc9584a31b 100644
+--- a/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+@@ -79,6 +79,12 @@ bool XtensaFrameLowering::hasFP(const MachineFunction &MF) const {
+          MFI.hasVarSizedObjects();
+ }
+ 
++/* minimum frame = reg save area (4 words) plus static chain (1 word)
++   and the total number of words must be a multiple of 128 bits.  */
++/* Width of a word, in units (bytes).  */
++#define UNITS_PER_WORD 4
++#define MIN_FRAME_SIZE (8 * UNITS_PER_WORD)
++
+ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
+                                        MachineBasicBlock &MBB) const {
+   assert(&MBB == &MF.front() && "Shrink-wrapping not yet implemented");
+@@ -88,6 +94,7 @@ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
+   const XtensaInstrInfo &TII =
+       *static_cast<const XtensaInstrInfo *>(MF.getSubtarget().getInstrInfo());
+   MachineBasicBlock::iterator MBBI = MBB.begin();
++  const XtensaSubtarget &STI = MF.getSubtarget<XtensaSubtarget>();
+   DebugLoc dl = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
+   unsigned SP = Xtensa::SP;
+   unsigned FP = RegInfo->getFrameRegister(MF);
+@@ -101,53 +108,105 @@ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
+   // Round up StackSize to 16*N
+   StackSize += (16 - StackSize) & 0xf;
+ 
+-  // No need to allocate space on the stack.
+-  if (StackSize == 0 && !MFI.adjustsStack())
+-    return;
++  if (STI.isWinABI()) {
++    StackSize += 32;
++
++    if (StackSize <= 32760) {
++      BuildMI(MBB, MBBI, dl, TII.get(Xtensa::ENTRY))
++          .addReg(SP)
++          .addImm(StackSize);
++    } else {
++      /* Use a8 as a temporary since a0-a7 may be live.  */
++      unsigned TmpReg = Xtensa::A8;
++
++      const XtensaInstrInfo &TII = *static_cast<const XtensaInstrInfo *>(
++          MBB.getParent()->getSubtarget().getInstrInfo());
++      BuildMI(MBB, MBBI, dl, TII.get(Xtensa::ENTRY))
++          .addReg(SP)
++          .addImm(MIN_FRAME_SIZE);
++      TII.loadImmediate(MBB, MBBI, &TmpReg, StackSize - MIN_FRAME_SIZE);
++      BuildMI(MBB, MBBI, dl, TII.get(Xtensa::SUB), TmpReg)
++          .addReg(SP)
++          .addReg(TmpReg);
++      BuildMI(MBB, MBBI, dl, TII.get(Xtensa::MOVSP), SP).addReg(TmpReg);
++    }
+ 
+-  // Adjust stack.
+-  TII.adjustStackPtr(SP, -StackSize, MBB, MBBI);
+-
+-  // emit ".cfi_def_cfa_offset StackSize"
+-  unsigned CFIIndex = MF.addFrameInst(
+-      MCCFIInstruction::cfiDefCfaOffset(nullptr, StackSize));
+-  BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+-      .addCFIIndex(CFIIndex);
+-
+-  const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+-
+-  if (CSI.size()) {
+-    // Find the instruction past the last instruction that saves a
+-    // callee-saved register to the stack.
+-    for (unsigned i = 0; i < CSI.size(); ++i)
+-      ++MBBI;
+-
+-    // Iterate over list of callee-saved registers and emit .cfi_offset
+-    // directives.
+-    for (const auto &I : CSI) {
+-      int64_t Offset = MFI.getObjectOffset(I.getFrameIdx());
+-      unsigned Reg = I.getReg();
+-
+-      unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(
+-          nullptr, MRI->getDwarfRegNum(Reg, 1), Offset));
++    // Store FP register in A8, because FP may be used to pass function
++    // arguments
++    BuildMI(MBB, MBBI, dl, TII.get(Xtensa::OR), Xtensa::A8)
++        .addReg(FP)
++        .addReg(FP);
++
++    // if framepointer enabled, set it to point to the stack pointer.
++    if (hasFP(MF)) {
++      // Insert instruction "move $fp, $sp" at this location.
++      BuildMI(MBB, MBBI, dl, TII.get(Xtensa::OR), FP)
++          .addReg(SP)
++          .addReg(SP)
++          .setMIFlag(MachineInstr::FrameSetup);
++
++      MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(
++          nullptr, MRI->getDwarfRegNum(FP, true), StackSize);
++      unsigned CFIIndex = MF.addFrameInst(Inst);
++      BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
++          .addCFIIndex(CFIIndex);
++    } else {
++      // emit ".cfi_def_cfa_offset StackSize"
++      unsigned CFIIndex = MF.addFrameInst(
++          MCCFIInstruction::cfiDefCfaOffset(nullptr, StackSize));
+       BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+           .addCFIIndex(CFIIndex);
+     }
+-  }
++  } else {
++    // No need to allocate space on the stack.
++    if (StackSize == 0 && !MFI.adjustsStack())
++      return;
+ 
+-  // if framepointer enabled, set it to point to the stack pointer.
+-  if (hasFP(MF)) {
+-    // Insert instruction "move $fp, $sp" at this location.
+-    BuildMI(MBB, MBBI, dl, TII.get(Xtensa::OR), FP)
+-        .addReg(SP)
+-        .addReg(SP)
+-        .setMIFlag(MachineInstr::FrameSetup);
+-
+-    // emit ".cfi_def_cfa_register $fp"
+-    unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createDefCfaRegister(
+-        nullptr, MRI->getDwarfRegNum(FP, true)));
++    // Adjust stack.
++    TII.adjustStackPtr(SP, -StackSize, MBB, MBBI);
++
++    // emit ".cfi_def_cfa_offset StackSize"
++    unsigned CFIIndex = MF.addFrameInst(
++        MCCFIInstruction::cfiDefCfaOffset(nullptr, StackSize));
+     BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+         .addCFIIndex(CFIIndex);
++
++    const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
++
++    if (CSI.size()) {
++      // Find the instruction past the last instruction that saves a
++      // callee-saved register to the stack.
++      for (unsigned i = 0; i < CSI.size(); ++i)
++        ++MBBI;
++
++      // Iterate over list of callee-saved registers and emit .cfi_offset
++      // directives.
++      for (const auto &I : CSI) {
++        int64_t Offset = MFI.getObjectOffset(I.getFrameIdx());
++        unsigned Reg = I.getReg();
++
++        unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(
++            nullptr, MRI->getDwarfRegNum(Reg, 1), Offset));
++        BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
++            .addCFIIndex(CFIIndex);
++      }
++    }
++
++    // if framepointer enabled, set it to point to the stack pointer.
++    if (hasFP(MF)) {
++      // Insert instruction "move $fp, $sp" at this location.
++      BuildMI(MBB, MBBI, dl, TII.get(Xtensa::OR), FP)
++          .addReg(SP)
++          .addReg(SP)
++          .setMIFlag(MachineInstr::FrameSetup);
++
++      // emit ".cfi_def_cfa_register $fp"
++      unsigned CFIIndex =
++          MF.addFrameInst(MCCFIInstruction::createDefCfaRegister(
++              nullptr, MRI->getDwarfRegNum(FP, true)));
++      BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
++          .addCFIIndex(CFIIndex);
++    }
+   }
+ 
+   if (StackSize != PrevStackSize) {
+@@ -172,6 +231,7 @@ void XtensaFrameLowering::emitEpilogue(MachineFunction &MF,
+       MF.getSubtarget().getRegisterInfo());
+   const XtensaInstrInfo &TII =
+       *static_cast<const XtensaInstrInfo *>(MF.getSubtarget().getInstrInfo());
++  const XtensaSubtarget &STI = MF.getSubtarget<XtensaSubtarget>();
+   DebugLoc dl = MBBI->getDebugLoc();
+   unsigned SP = Xtensa::SP;
+   unsigned FP = RegInfo->getFrameRegister(MF);
+@@ -183,10 +243,17 @@ void XtensaFrameLowering::emitEpilogue(MachineFunction &MF,
+ 
+     for (unsigned i = 0; i < MFI.getCalleeSavedInfo().size(); ++i)
+       --I;
+-
+-    BuildMI(MBB, I, dl, TII.get(Xtensa::OR), SP).addReg(FP).addReg(FP);
++    if (STI.isWinABI()) {
++      // Insert instruction "movsp $sp, $fp" at this location.
++      BuildMI(MBB, I, dl, TII.get(Xtensa::MOVSP), SP).addReg(FP);
++    } else {
++      BuildMI(MBB, I, dl, TII.get(Xtensa::OR), SP).addReg(FP).addReg(FP);
++    }
+   }
+ 
++  if (STI.isWinABI())
++    return;
++
+   // Get the number of bytes from FrameInfo
+   uint64_t StackSize = MFI.getStackSize();
+ 
+@@ -201,6 +268,10 @@ bool XtensaFrameLowering::spillCalleeSavedRegisters(
+     MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+     ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
+   MachineFunction *MF = MBB.getParent();
++  const XtensaSubtarget &STI = MF->getSubtarget<XtensaSubtarget>();
++
++  if (STI.isWinABI())
++    return true;
+ 
+   MachineBasicBlock &EntryBlock = *(MF->begin());
+   const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
+@@ -229,8 +300,11 @@ bool XtensaFrameLowering::spillCalleeSavedRegisters(
+ 
+ bool XtensaFrameLowering::restoreCalleeSavedRegisters(
+     MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+-    MutableArrayRef<CalleeSavedInfo> CSI,
+-    const TargetRegisterInfo *TRI) const {
++    MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
++  MachineFunction *MF = MBB.getParent();
++  const XtensaSubtarget &STI = MF->getSubtarget<XtensaSubtarget>();
++  if (STI.isWinABI())
++    return true;
+   return TargetFrameLowering::restoreCalleeSavedRegisters(MBB, MI, CSI, TRI);
+ }
+ 
+@@ -257,11 +331,16 @@ MachineBasicBlock::iterator XtensaFrameLowering::eliminateCallFramePseudoInstr(
+ void XtensaFrameLowering::determineCalleeSaves(MachineFunction &MF,
+                                                BitVector &SavedRegs,
+                                                RegScavenger *RS) const {
++  const XtensaSubtarget &STI = MF.getSubtarget<XtensaSubtarget>();
+   MachineFrameInfo &MFI = MF.getFrameInfo();
+   const XtensaRegisterInfo *RegInfo = static_cast<const XtensaRegisterInfo *>(
+       MF.getSubtarget().getRegisterInfo());
+   unsigned FP = RegInfo->getFrameRegister(MF);
+ 
++  if (STI.isWinABI()) {
++    return;
++  }
++
+   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
+ 
+   // Mark $fp as used if function has dedicated frame pointer.
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 688e7896121f..049699d9938a 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -43,6 +43,15 @@ static bool isLongCall(const char *str) {
+   return true;
+ }
+ 
++// The calling conventions in XtensaCallingConv.td are described in terms of the
++// callee's register window. This function translates registers to the
++// corresponding caller window %o register.
++static unsigned toCallerWindow(unsigned Reg) {
++  if (Reg >= Xtensa::A2 && Reg <= Xtensa::A7)
++    return Reg - Xtensa::A2 + Xtensa::A10;
++  return Reg;
++}
++
+ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+                                            const XtensaSubtarget &STI)
+     : TargetLowering(tm), Subtarget(STI) {
+@@ -428,7 +437,17 @@ SDValue XtensaTargetLowering::LowerFormalArguments(
+ 
+       // Transform the arguments stored on
+       // physical registers into virtual ones
+-      unsigned Reg = MF.addLiveIn(VA.getLocReg(), RC);
++      unsigned Reg = 0;
++      unsigned FrameReg = Subtarget.getRegisterInfo()->getFrameRegister(MF);
++
++      // Argument passed in FrameReg in WinABI we save in A8 (in emitPrologue),
++      // so load argument from A8
++      if (Subtarget.isWinABI() && (VA.getLocReg() == FrameReg)) {
++        Reg = MF.addLiveIn(Xtensa::A8, RC);
++      } else {
++        Reg = MF.addLiveIn(VA.getLocReg(), RC);
++      }
++
+       SDValue ArgValue = DAG.getCopyFromReg(Chain, DL, Reg, RegVT);
+ 
+       // If this is an 8 or 16-bit value, it has been passed promoted
+@@ -646,6 +665,8 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
+   SDValue Glue;
+   for (unsigned I = 0, E = RegsToPass.size(); I != E; ++I) {
+     unsigned Reg = RegsToPass[I].first;
++    if (Subtarget.isWinABI())
++      Reg = toCallerWindow(Reg);
+     Chain = DAG.getCopyToReg(Chain, DL, Reg, RegsToPass[I].second, Glue);
+     Glue = Chain.getValue(1);
+   }
+@@ -702,6 +723,8 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
+   // known live into the call.
+   for (unsigned I = 0, E = RegsToPass.size(); I != E; ++I) {
+     unsigned Reg = RegsToPass[I].first;
++    if (Subtarget.isWinABI())
++      Reg = toCallerWindow(Reg);
+     Ops.push_back(DAG.getRegister(Reg, RegsToPass[I].second.getValueType()));
+   }
+ 
+@@ -710,7 +733,8 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
+     Ops.push_back(Glue);
+ 
+   SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
+-  Chain = DAG.getNode(XtensaISD::CALL, DL, NodeTys, Ops);
++  Chain = DAG.getNode(Subtarget.isWinABI() ? XtensaISD::CALLW : XtensaISD::CALL,
++                      DL, NodeTys, Ops);
+   Glue = Chain.getValue(1);
+ 
+   // Mark the end of the call, which is glued to the call itself.
+@@ -721,7 +745,8 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
+   // Assign locations to each value returned by this call.
+   SmallVector<CCValAssign, 16> RetLocs;
+   CCState RetCCInfo(CallConv, IsVarArg, MF, RetLocs, *DAG.getContext());
+-  RetCCInfo.AnalyzeCallResult(Ins, RetCC_Xtensa);
++  RetCCInfo.AnalyzeCallResult(Ins, Subtarget.isWinABI() ? RetCCW_Xtensa
++                                                        : RetCC_Xtensa);
+ 
+   // Copy all of the result registers out of their specified physreg.
+   for (unsigned I = 0, E = RetLocs.size(); I != E; ++I) {
+@@ -764,7 +789,9 @@ XtensaTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
+   SDValue Glue;
+   // Quick exit for void returns
+   if (RetLocs.empty())
+-    return DAG.getNode(XtensaISD::RET_FLAG, DL, MVT::Other, Chain);
++    return DAG.getNode(Subtarget.isWinABI() ? XtensaISD::RETW_FLAG
++                                            : XtensaISD::RET_FLAG,
++                       DL, MVT::Other, Chain);
+ 
+   // Copy the result values into the output registers.
+   SmallVector<SDValue, 4> RetOps;
+@@ -791,7 +818,9 @@ XtensaTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
+   if (Glue.getNode())
+     RetOps.push_back(Glue);
+ 
+-  return DAG.getNode(XtensaISD::RET_FLAG, DL, MVT::Other, RetOps);
++  return DAG.getNode(Subtarget.isWinABI() ? XtensaISD::RETW_FLAG
++                                          : XtensaISD::RET_FLAG,
++                     DL, MVT::Other, RetOps);
+ }
+ 
+ SDValue XtensaTargetLowering::LowerSELECT_CC(SDValue Op,
+@@ -906,14 +935,14 @@ SDValue XtensaTargetLowering::LowerGlobalAddress(SDValue Op,
+     const GlobalValue *GV = G->getGlobal();
+ 
+     // Check Op SDNode users
+-    // If there are only CALL nodes, don't expand Global Address
++    // If there are only CALL/CALLW nodes, don't expand Global Address
+     SDNode &OpNode = *Op.getNode();
+     bool Val = false;
+     for (SDNode::use_iterator UI = OpNode.use_begin(); UI != OpNode.use_end();
+          ++UI) {
+       SDNode &User = *UI.getUse().getUser();
+       unsigned OpCode = User.getOpcode();
+-      if (OpCode != XtensaISD::CALL) {
++      if (OpCode != XtensaISD::CALL && OpCode != XtensaISD::CALLW) {
+         Val = true;
+         break;
+       }
+@@ -1014,7 +1043,13 @@ SDValue XtensaTargetLowering::LowerSTACKSAVE(SDValue Op,
+ SDValue XtensaTargetLowering::LowerSTACKRESTORE(SDValue Op,
+                                                 SelectionDAG &DAG) const {
+   unsigned sp = Xtensa::SP;
+-  return DAG.getCopyToReg(Op.getOperand(0), SDLoc(Op), sp, Op.getOperand(1));
++  if (Subtarget.isWinABI()) {
++    SDValue NewSP =
++        DAG.getNode(XtensaISD::MOVSP, SDLoc(Op), MVT::i32, Op.getOperand(1));
++    return DAG.getCopyToReg(Op.getOperand(0), SDLoc(Op), sp, NewSP);
++  } else {
++    return DAG.getCopyToReg(Op.getOperand(0), SDLoc(Op), sp, Op.getOperand(1));
++  }
+ }
+ 
+ SDValue XtensaTargetLowering::LowerFRAMEADDR(SDValue Op,
+@@ -1050,7 +1085,12 @@ SDValue XtensaTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
+   unsigned SPReg = Xtensa::SP;
+   SDValue SP = DAG.getCopyFromReg(Chain, DL, SPReg, VT);
+   SDValue NewSP = DAG.getNode(ISD::SUB, DL, VT, SP, SizeRoundUp); // Value
+-  Chain = DAG.getCopyToReg(SP.getValue(1), DL, SPReg, NewSP); // Output chain
++  if (Subtarget.isWinABI()) {
++    SDValue NewSP1 = DAG.getNode(XtensaISD::MOVSP, DL, MVT::i32, NewSP);
++    Chain = DAG.getCopyToReg(SP.getValue(1), DL, SPReg, NewSP1); // Output chain
++  } else {
++    Chain = DAG.getCopyToReg(SP.getValue(1), DL, SPReg, NewSP); // Output chain
++  }
+ 
+   SDValue NewVal = DAG.getCopyFromReg(Chain, DL, SPReg, MVT::i32);
+   Chain = NewVal.getValue(1);
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+index 9d37a866cf9a..28cccd9d4807 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+@@ -75,9 +75,13 @@ void XtensaInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
+         .addReg(Reg1, RegState::Kill);
+   }
+ 
+-  BuildMI(MBB, I, DL, get(Xtensa::OR), SP)
+-      .addReg(Reg, RegState::Kill)
+-      .addReg(Reg, RegState::Kill);
++  if (STI.isWinABI()) {
++    BuildMI(MBB, I, DL, get(Xtensa::MOVSP), SP).addReg(Reg, RegState::Kill);
++  } else {
++    BuildMI(MBB, I, DL, get(Xtensa::OR), SP)
++        .addReg(Reg, RegState::Kill)
++        .addReg(Reg, RegState::Kill);
++  }
+ }
+ 
+ void XtensaInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
+index 011bd55c7de4..4a736cdb26f1 100644
+--- a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
+@@ -34,13 +34,19 @@ XtensaRegisterInfo::XtensaRegisterInfo(const XtensaSubtarget &STI)
+ 
+ const uint16_t *
+ XtensaRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
+-  return CSR_Xtensa_SaveList;
++  if (Subtarget.isWinABI())
++    return CSRWE_Xtensa_SaveList;
++  else
++    return CSR_Xtensa_SaveList;
+ }
+ 
+ const uint32_t *
+ XtensaRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
+                                          CallingConv::ID) const {
+-  return CSR_Xtensa_RegMask;
++  if (Subtarget.isWinABI())
++    return CSRWE_Xtensa_RegMask;
++  else
++    return CSR_Xtensa_RegMask;
+ }
+ 
+ BitVector XtensaRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
+@@ -174,5 +180,6 @@ bool XtensaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
+ 
+ Register XtensaRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+   const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
+-  return TFI->hasFP(MF) ? (Xtensa::A15) : Xtensa::SP;
++  return TFI->hasFP(MF) ? (Subtarget.isWinABI() ? Xtensa::A7 : Xtensa::A15)
++                        : Xtensa::SP;
+ }
+-- 
+2.40.1
+

@@ -1,0 +1,601 @@
+From e26bbce7f181e575cf533f05fd859abbbc7b5fde Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:13 +0300
+Subject: [PATCH 070/140] [Xtensa]  Correcting FP instructions and intrinsics.
+
+Correcting FP instruction descriptions. Implement lowering
+of the fma, powf and other FP intrinsics. Add test for base FP
+intrinsics.
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp |  62 ++-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     |  30 +-
+ llvm/test/CodeGen/Xtensa/float-intrinsics.ll  | 363 ++++++++++++++++++
+ 3 files changed, 422 insertions(+), 33 deletions(-)
+ create mode 100644 llvm/test/CodeGen/Xtensa/float-intrinsics.ll
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 13765a6afabb..f16815b496da 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -217,56 +217,76 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   for (unsigned I = MVT::FIRST_FP_VALUETYPE; I <= MVT::LAST_FP_VALUETYPE; ++I) {
+     MVT VT = MVT::SimpleValueType(I);
+     if (isTypeLegal(VT)) {
+-      // We can use FI for FRINT.
+-      // setOperationAction(ISD::FRINT, VT, Legal);
+       if (VT.getSizeInBits() == 32 && Subtarget.hasSingleFloat()) {
++        setOperationAction(ISD::FABS, VT, Legal);
+         setOperationAction(ISD::FADD, VT, Legal);
+-        setOperationAction(ISD::FSUB, VT, Legal);
++        setOperationAction(ISD::FMA, VT, Legal);
+         setOperationAction(ISD::FMUL, VT, Legal);
+-        setOperationAction(ISD::FDIV, VT, Expand);
++        setOperationAction(ISD::FNEG, VT, Legal);
++        setOperationAction(ISD::FSUB, VT, Legal);
+       } else {
++        setOperationAction(ISD::FABS, VT, Expand);
+         setOperationAction(ISD::FADD, VT, Expand);
+-        setOperationAction(ISD::FSUB, VT, Expand);
++        setOperationAction(ISD::FMA, VT, Expand);
+         setOperationAction(ISD::FMUL, VT, Expand);
+-        setOperationAction(ISD::FDIV, VT, Expand);
++        setOperationAction(ISD::FNEG, VT, Expand);
++        setOperationAction(ISD::FSUB, VT, Expand);
+       }
+ 
+-      // TODO: once implemented in InstrInfo uncomment
+-      setOperationAction(ISD::FSQRT, VT, Expand);
+-
+       // No special instructions for these.
+-      setOperationAction(ISD::FSIN, VT, Expand);
++      setOperationAction(ISD::FCBRT, VT, Expand);
++      setOperationAction(ISD::FCEIL, VT, Expand);
++      setOperationAction(ISD::FCOPYSIGN, VT, Expand);
+       setOperationAction(ISD::FCOS, VT, Expand);
++      setOperationAction(ISD::FDIV, VT, Expand);
++      setOperationAction(ISD::FEXP, VT, Expand);
++      setOperationAction(ISD::FEXP2, VT, Expand);
++      setOperationAction(ISD::FFLOOR, VT, Expand);
++      setOperationAction(ISD::FLOG, VT, Expand);
++      setOperationAction(ISD::FLOG2, VT, Expand);
++      setOperationAction(ISD::FLOG10, VT, Expand);
++      setOperationAction(ISD::FMAXIMUM, VT, Expand);
++      setOperationAction(ISD::FMINIMUM, VT, Expand);
++      setOperationAction(ISD::FMAXNUM, VT, Expand);
++      setOperationAction(ISD::FMINNUM, VT, Expand);
++      setOperationAction(ISD::FNEARBYINT, VT, Expand);
++      setOperationAction(ISD::FPOW, VT, Expand);
++      setOperationAction(ISD::FPOWI, VT, Expand);
+       setOperationAction(ISD::FREM, VT, Expand);
+-      setOperationAction(ISD::FABS, VT, Expand);
++      setOperationAction(ISD::FRINT, VT, Expand);
++      setOperationAction(ISD::FROUND, VT, Expand);
++      setOperationAction(ISD::FSIN, VT, Expand);
++      setOperationAction(ISD::FSINCOS, VT, Expand);
++      setOperationAction(ISD::FSQRT, VT, Expand);
++      setOperationAction(ISD::FTRUNC, VT, Expand);
++      setOperationAction(ISD::LLRINT, VT, Expand);
++      setOperationAction(ISD::LLROUND, VT, Expand);
++      setOperationAction(ISD::LRINT, VT, Expand);
++      setOperationAction(ISD::LROUND, VT, Expand);
+     }
+   }
+ 
+-  // Handle floating-point types.
+   if (Subtarget.hasSingleFloat()) {
+-    setOperationAction(ISD::FMA, MVT::f32, Legal);
+     setOperationAction(ISD::BITCAST, MVT::i32, Legal);
+     setOperationAction(ISD::BITCAST, MVT::f32, Legal);
+     setOperationAction(ISD::UINT_TO_FP, MVT::i32, Legal);
+     setOperationAction(ISD::SINT_TO_FP, MVT::i32, Legal);
+     setOperationAction(ISD::FP_TO_UINT, MVT::i32, Legal);
+     setOperationAction(ISD::FP_TO_SINT, MVT::i32, Legal);
+-    setOperationAction(ISD::FCOPYSIGN, MVT::f32, Expand);
+   } else {
+-    setOperationAction(ISD::FMA, MVT::f32, Expand);
+-    setOperationAction(ISD::SETCC, MVT::f32, Expand);
+     setOperationAction(ISD::BITCAST, MVT::i32, Expand);
+     setOperationAction(ISD::BITCAST, MVT::f32, Expand);
+     setOperationAction(ISD::UINT_TO_FP, MVT::i32, Expand);
+     setOperationAction(ISD::SINT_TO_FP, MVT::i32, Expand);
+     setOperationAction(ISD::FP_TO_UINT, MVT::i32, Expand);
+     setOperationAction(ISD::FP_TO_SINT, MVT::i32, Expand);
+-    setOperationAction(ISD::UINT_TO_FP, MVT::i64, Expand);
+-    setOperationAction(ISD::SINT_TO_FP, MVT::i64, Expand);
+-    setOperationAction(ISD::FP_TO_UINT, MVT::i64, Expand);
+-    setOperationAction(ISD::FP_TO_SINT, MVT::i64, Expand);
+   }
+-  setOperationAction(ISD::FMA, MVT::f64, Expand);
++
++  setOperationAction(ISD::UINT_TO_FP, MVT::i64, Expand);
++  setOperationAction(ISD::SINT_TO_FP, MVT::i64, Expand);
++  setOperationAction(ISD::FP_TO_UINT, MVT::i64, Expand);
++  setOperationAction(ISD::FP_TO_SINT, MVT::i64, Expand);
++
+   setOperationAction(ISD::SETCC, MVT::f64, Expand);
+   setOperationAction(ISD::BITCAST, MVT::i64, Expand);
+   setOperationAction(ISD::BITCAST, MVT::f64, Expand);
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 331868f7abbe..2adff84ac455 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -1044,10 +1044,12 @@ def UN_S  :  FCompare<0x01, 0x0b, "un.s",  Xtensa_cmpuo, 1>;
+ 
+ def ABS_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+                     "abs.s\t$r, $s",
+-                    [(set FPR:$r, (fabs FPR:$s))]> {
++                    [(set FPR:$r, (fabs FPR:$s))]>, Requires<[HasSingleFloat]> {
+   let t = 0x01;
+ }
+ 
++def : Pat<(fabs FPR:$s), (ABS_S $s)>;
++
+ def ADDEXP_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+                        "addexp.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
+   let t = 0x0E;
+@@ -1082,7 +1084,7 @@ def DIVN_S : RRR_Inst<0x00, 0x0A, 0x07, (outs FPR:$r), (ins FPR:$s, FPR:$t),
+                      "divn.s\t$r, $s, $t", []>, Requires<[HasSingleFloat]>;
+ 
+ def FLOAT_S : RRR_Inst<0x00, 0x0A, 0x0c, (outs FPR:$r), (ins AR:$s, uimm4:$imm),
+-                      "float.s\t$r, $s, $imm", []> {
++                      "float.s\t$r, $s, $imm", []>, Requires<[HasSingleFloat]> {
+   bits<4> imm;
+ 
+   let t = imm;
+@@ -1112,6 +1114,10 @@ def MADD_S : RRR_Inst<0x00, 0x0A, 0x04, (outs FPR:$r), (ins FPR:$a, FPR:$s, FPR:
+   let Constraints = "$r = $a";
+ }
+ 
++// fmadd: r1 * r2 + r3
++def : Pat<(fma FPR:$r1, FPR:$r2, FPR:$r3),
++          (MADD_S $r3, $r1, $r2)>;
++
+ def MKDADJ_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+                        "mkdadj.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
+   let t = 0x0D;
+@@ -1163,7 +1169,7 @@ def NEXP01_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+ 
+ def NEG_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+                     "neg.s\t$r, $s",
+-                    [(set FPR:$r, (fneg FPR:$s))]> {
++                    [(set FPR:$r, (fneg FPR:$s))]>, Requires<[HasSingleFloat]> {
+   let t = 0x06;
+ }
+ 
+@@ -1174,7 +1180,7 @@ def RECIP0_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+ 
+ def RFR : RRR_Inst<0x00, 0x0A, 0x0f, (outs AR:$r), (ins FPR:$s),
+                   "rfr\t$r, $s",
+-                  [(set AR:$r, (bitconvert FPR:$s))]> {
++                  [(set AR:$r, (bitconvert FPR:$s))]>, Requires<[HasSingleFloat]> {
+   let t = 0x04;
+ }
+ 
+@@ -1196,16 +1202,16 @@ def SQRT0_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+ }
+ 
+ def TRUNC_S : RRR_Inst<0x00, 0x0A, 0x09, (outs AR:$r), (ins FPR:$s, uimm4:$imm),
+-                      "trunc.s\t$r, $s, $imm", []> {
++                      "trunc.s\t$r, $s, $imm", []>, Requires<[HasSingleFloat]> {
+   bits<4> imm;
+ 
+   let t = imm;
+ }
+ 
+-def : Pat<(i32 (fp_to_sint FPR:$s)), (TRUNC_S FPR:$s, 0)>;
++def : Pat<(i32 (any_fp_to_sint FPR:$s)), (TRUNC_S FPR:$s, 0)>;
+ 
+ def UFLOAT_S : RRR_Inst<0x00, 0x0A, 0x0D, (outs FPR:$r), (ins AR:$s, uimm4:$imm),
+-                       "ufloat.s\t$r, $s, $imm", []> {
++                       "ufloat.s\t$r, $s, $imm", []>, Requires<[HasSingleFloat]> {
+   bits<4> imm;
+ 
+   let t = imm;
+@@ -1214,22 +1220,22 @@ def UFLOAT_S : RRR_Inst<0x00, 0x0A, 0x0D, (outs FPR:$r), (ins AR:$s, uimm4:$imm)
+ def : Pat<(f32 (uint_to_fp AR:$s)), (UFLOAT_S AR:$s, 0)>;
+ 
+ def UTRUNC_S : RRR_Inst<0x00, 0x0A, 0x0e, (outs AR:$r), (ins FPR:$s, uimm4:$imm),
+-                       "utrunc.s\t$r, $s, $imm", []> {
++                       "utrunc.s\t$r, $s, $imm", []>, Requires<[HasSingleFloat]> {
+   bits<4> imm;
+ 
+   let t = imm;
+ }
+ 
+-def : Pat<(i32 (fp_to_uint FPR:$s)), (UTRUNC_S FPR:$s, 0)>;
++def : Pat<(i32 (any_fp_to_uint FPR:$s)), (UTRUNC_S FPR:$s, 0)>;
+ 
+ def WFR : RRR_Inst<0x00, 0x0A, 0x0f, (outs FPR:$r), (ins AR:$s),
+                   "wfr\t$r, $s",
+-                  [(set FPR:$r, (bitconvert AR:$s))]> {
++                  [(set FPR:$r, (bitconvert AR:$s))]>, Requires<[HasSingleFloat]> {
+   let t = 0x05;
+ }
+ 
+ // FP select operations
+-let usesCustomInserter = 1 in {
++let usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
+   def SELECT_CC_FP_INT : Pseudo<(outs AR:$dst), (ins FPR:$lhs, FPR:$rhs, AR:$t, AR:$f, i32imm:$cond),
+                                "!select_cc_fp_int $dst, $lhs, $rhs, $t, $f, $cond",
+                                [(set AR:$dst, (Xtensa_select_cc_fp FPR:$lhs, FPR:$rhs, AR:$t, AR:$f, imm:$cond))]>;
+@@ -1242,7 +1248,7 @@ let usesCustomInserter = 1 in {
+ }
+ 
+ // FP brcc pesudo operation
+-let usesCustomInserter = 1, isBranch = 1, isTerminator = 1, isBarrier = 1 in {
++let usesCustomInserter = 1, isBranch = 1, isTerminator = 1, isBarrier = 1, Predicates = [HasSingleFloat] in {
+   def BRCC_FP : Pseudo<(outs), (ins i32imm:$cond, FPR:$lhs, FPR:$rhs, brtarget:$target),
+                       "!brcc_fp $cond, $lhs, $rhs, $target",
+                       [(Xtensa_brcc_fp imm:$cond, FPR:$lhs, FPR:$rhs, bb:$target)]>;
+diff --git a/llvm/test/CodeGen/Xtensa/float-intrinsics.ll b/llvm/test/CodeGen/Xtensa/float-intrinsics.ll
+new file mode 100644
+index 000000000000..256a1dee2abf
+--- /dev/null
++++ b/llvm/test/CodeGen/Xtensa/float-intrinsics.ll
+@@ -0,0 +1,363 @@
++; RUN: llc -mtriple=xtensa -mcpu=esp32 -verify-machineinstrs < %s \
++; RUN:   | FileCheck -check-prefix=XTENSA %s
++
++declare float @llvm.sqrt.f32(float)
++
++define float @sqrt_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI0_0, sqrtf
++; XTENSA-LABEL: sqrt_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI0_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++;
++  %1 = call float @llvm.sqrt.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.powi.f32(float, i32)
++
++define float @powi_f32(float %a, i32 %b) nounwind {
++; XTENSA:    	.literal .LCPI1_0, __powisf2
++; XTENSA-LABEL: powi_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI1_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  mov.n	a11, a3
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.powi.f32(float %a, i32 %b)
++  ret float %1
++}
++
++declare float @llvm.sin.f32(float)
++
++define float @sin_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI2_0, sinf
++; XTENSA-LABEL:    	sin_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI2_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.sin.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.cos.f32(float)
++
++define float @cos_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI3_0, cosf
++; XTENSA-LABEL:    	cos_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI3_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.cos.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.pow.f32(float, float)
++
++define float @pow_f32(float %a, float %b) nounwind {
++; XTENSA:    	.literal .LCPI4_0, powf
++; XTENSA-LABEL:     pow_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI4_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  mov.n	a11, a3
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++  %1 = call float @llvm.pow.f32(float %a, float %b)
++  ret float %1
++}
++
++declare float @llvm.exp.f32(float)
++
++define float @exp_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI5_0, expf
++; XTENSA-LABEL:    	exp_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI5_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++  %1 = call float @llvm.exp.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.exp2.f32(float)
++
++define float @exp2_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI6_0, exp2
++; XTENSA-LABEL:    	exp2_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI6_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++  %1 = call float @llvm.exp2.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.log.f32(float)
++
++define float @log_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI7_0, log
++; XTENSA-LABEL:    	log_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI7_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++  %1 = call float @llvm.log.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.log10.f32(float)
++
++define float @log10_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI8_0, log10
++; XTENSA-LABEL:    	log10_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI8_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++  %1 = call float @llvm.log10.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.log2.f32(float)
++
++define float @log2_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI9_0, log2
++; XTENSA-LABEL:    	log2_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI9_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++  %1 = call float @llvm.log2.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.fma.f32(float, float, float)
++
++define float @fma_f32(float %a, float %b, float %c) nounwind {
++; XTENSA-LABEL:    	fma_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  wfr	f8, a3
++; XTENSA-NEXT:	  wfr	f9, a2
++; XTENSA-NEXT:	  wfr	f10, a4
++; XTENSA-NEXT:	  madd.s	f10, f9, f8
++; XTENSA-NEXT:	  rfr	a2, f10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.fma.f32(float %a, float %b, float %c)
++  ret float %1
++}
++
++declare float @llvm.minnum.f32(float, float)
++
++define float @minnum_f32(float %a, float %b) nounwind {
++; XTENSA:    	.literal .LCPI11_0, fminf
++; XTENSA-LABEL:     minnum_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI11_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  mov.n	a11, a3
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.minnum.f32(float %a, float %b)
++  ret float %1
++}
++
++declare float @llvm.maxnum.f32(float, float)
++
++define float @maxnum_f32(float %a, float %b) nounwind {
++; XTENSA:    	.literal .LCPI12_0, fmaxf
++; XTENSA-LABEL:     maxnum_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI12_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  mov.n	a11, a3
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.maxnum.f32(float %a, float %b)
++  ret float %1
++}
++
++declare float @llvm.fabs.f32(float)
++
++define float @fabs_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI13_0, 2147483647
++; XTENSA-LABEL:    	fabs_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI13_0
++; XTENSA-NEXT:	  and	a2, a2, a8
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.fabs.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.copysign.f32(float, float)
++
++define float @copysign_f32(float %a, float %b) nounwind {
++; XTENSA:       .literal .LCPI14_0, -2147483648
++; XTENSA:       .literal .LCPI14_1, 2147483647
++; XTENSA-LABEL:     copysign_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI14_0
++; XTENSA-NEXT:	  and	a8, a3, a8
++; XTENSA-NEXT:	  l32r	a9, .LCPI14_1
++; XTENSA-NEXT:	  and	a9, a2, a9
++; XTENSA-NEXT:	  wfr	f8, a9
++; XTENSA-NEXT:	  movi.n	a9, 0
++; XTENSA-NEXT:	  beq	a8, a9, .LBB14_2
++; XTENSA-NEXT:	  # %bb.1:
++; XTENSA-NEXT:	  neg.s	f8, f8
++; XTENSA-NEXT:	  .LBB14_2:
++; XTENSA-NEXT:	  rfr	a2, f8
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.copysign.f32(float %a, float %b)
++  ret float %1
++}
++
++declare float @llvm.floor.f32(float)
++
++define float @floor_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI15_0, floor
++; XTENSA-LABEL:    	floor_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI15_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.floor.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.ceil.f32(float)
++
++define float @ceil_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI16_0, ceil
++; XTENSA-LABEL:    	ceil_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI16_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.ceil.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.trunc.f32(float)
++
++define float @trunc_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI17_0, trunc
++; XTENSA-LABEL:    	trunc_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI17_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.trunc.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.rint.f32(float)
++
++define float @rint_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI18_0, rint
++; XTENSA-LABEL:    	rint_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI18_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.rint.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.nearbyint.f32(float)
++
++define float @nearbyint_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI19_0, nearbyint
++; XTENSA-LABEL:    	nearbyint_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI19_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.nearbyint.f32(float %a)
++  ret float %1
++}
++
++declare float @llvm.round.f32(float)
++
++define float @round_f32(float %a) nounwind {
++; XTENSA:    	.literal .LCPI20_0, round
++; XTENSA-LABEL:    	round_f32:
++; XTENSA:       # %bb.0:
++; XTENSA-NEXT:	  entry	a1, 32
++; XTENSA-NEXT:	  l32r	a8, .LCPI20_0
++; XTENSA-NEXT:	  mov.n	a10, a2
++; XTENSA-NEXT:	  callx8	a8
++; XTENSA-NEXT:	  mov.n	a2, a10
++; XTENSA-NEXT:	  retw.n
++
++  %1 = call float @llvm.round.f32(float %a)
++  ret float %1
++}
+-- 
+2.40.1
+

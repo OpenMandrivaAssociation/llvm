@@ -1,0 +1,144 @@
+From cd2c83b45a4bd1c210f2d16831ef64927460a843 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:10 +0300
+Subject: [PATCH 064/140] [Xtensa] Support 'f' Inline Assembly Constraint
+
+This adds the 'f' inline assembly constraint, as supported by GCC. An
+'f'-constrained operand is passed in a floating point register.
+
+This patch adds support in both the clang frontend, and LLVM itself.
+---
+ clang/lib/Basic/Targets/Xtensa.h              |  1 +
+ clang/test/CodeGen/xtensa-inline-asm.c        | 13 +++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 13 ++++++++++-
+ .../CodeGen/Xtensa/inline-asm-constraints.ll  | 23 +++++++++++++++++++
+ .../test/CodeGen/Xtensa/inline-asm-invalid.ll |  8 +++++++
+ 5 files changed, 57 insertions(+), 1 deletion(-)
+ create mode 100644 clang/test/CodeGen/xtensa-inline-asm.c
+ create mode 100644 llvm/test/CodeGen/Xtensa/inline-asm-constraints.ll
+ create mode 100644 llvm/test/CodeGen/Xtensa/inline-asm-invalid.ll
+
+diff --git a/clang/lib/Basic/Targets/Xtensa.h b/clang/lib/Basic/Targets/Xtensa.h
+index 981edf5cb280..0c077dda2d97 100644
+--- a/clang/lib/Basic/Targets/Xtensa.h
++++ b/clang/lib/Basic/Targets/Xtensa.h
+@@ -82,6 +82,7 @@ public:
+     default:
+       return false;
+     case 'a':
++    case 'f':
+       Info.setAllowsRegister();
+       return true;
+     }
+diff --git a/clang/test/CodeGen/xtensa-inline-asm.c b/clang/test/CodeGen/xtensa-inline-asm.c
+new file mode 100644
+index 000000000000..9c7473eb9835
+--- /dev/null
++++ b/clang/test/CodeGen/xtensa-inline-asm.c
+@@ -0,0 +1,13 @@
++// RUN: %clang_cc1 -no-opaque-pointers -triple xtensa -O1 -emit-llvm %s -o - \
++// RUN:     | FileCheck %s
++
++// Test Xtensa specific inline assembly constraints.
++
++float f;
++void test_f() {
++// CHECK-LABEL: define dso_local void @test_f() local_unnamed_addr #0 {
++// CHECK: [[FLT_ARG:%[a-zA-Z_0-9]+]] = load float, float* @f
++// CHECK: call void asm sideeffect "", "f"(float [[FLT_ARG]])
++  asm volatile ("" :: "f"(f));
++}
++
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index e7642afebe78..623967e0a2f5 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -391,6 +391,7 @@ XtensaTargetLowering::getConstraintType(StringRef Constraint) const {
+     switch (Constraint[0]) {
+     case 'a':
+     case 'd':
++    case 'f':
+     case 'r':
+       return C_RegisterClass;
+ 
+@@ -411,6 +412,8 @@ XtensaTargetLowering::getSingleConstraintMatchWeight(
+   if (CallOperandVal == NULL)
+     return CW_Default;
+ 
++  Type *type = CallOperandVal->getType();
++
+   // Look at the constraint type.
+   switch (*constraint) {
+   default:
+@@ -420,9 +423,14 @@ XtensaTargetLowering::getSingleConstraintMatchWeight(
+   case 'a':
+   case 'd':
+   case 'r':
+-    if (CallOperandVal->getType()->isIntegerTy())
++    if (type->isIntegerTy())
++      weight = CW_Register;
++    break;
++  case 'f':
++    if (type->isFloatingPointTy())
+       weight = CW_Register;
+     break;
++
+   }
+   return weight;
+ }
+@@ -439,6 +447,9 @@ XtensaTargetLowering::getRegForInlineAsmConstraint(
+     case 'd': // Data register (equivalent to 'r')
+     case 'r': // General-purpose register
+       return std::make_pair(0U, &Xtensa::ARRegClass);
++    case 'f': // Floating-point register
++      if (Subtarget.hasSingleFloat())
++        return std::make_pair(0U, &Xtensa::FPRRegClass);
+     }
+   }
+   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+diff --git a/llvm/test/CodeGen/Xtensa/inline-asm-constraints.ll b/llvm/test/CodeGen/Xtensa/inline-asm-constraints.ll
+new file mode 100644
+index 000000000000..7dbb0f07debd
+--- /dev/null
++++ b/llvm/test/CodeGen/Xtensa/inline-asm-constraints.ll
+@@ -0,0 +1,23 @@
++; RUN: llc -mtriple=xtensa  -mcpu=esp32 -verify-machineinstrs < %s \
++; RUN:   | FileCheck -check-prefix=Xtensa %s
++
++
++@gf = external global float
++
++define float @constraint_f_float(float %a) nounwind {
++; Xtensa-LABEL: constraint_f_float:
++; Xtensa:       # %bb.0:
++; Xtensa-NEXT:    entry a1, 32
++; Xtensa-NEXT:    wfr f8, a2
++; Xtensa-NEXT:    l32r a8, .LCPI0_0
++; Xtensa-NEXT:    lsi f9, a8, 0
++; Xtensa-NEXT:    #APP
++; Xtensa-NEXT:    add.s f8, f8, f9
++; Xtensa-NEXT:    #NO_APP
++; Xtensa-NEXT:    rfr a2, f8
++; Xtensa-NEXT:    retw
++  %1 = load float, float* @gf
++  %2 = tail call float asm "add.s $0, $1, $2", "=f,f,f"(float %a, float %1)
++  ret float %2
++}
++
+diff --git a/llvm/test/CodeGen/Xtensa/inline-asm-invalid.ll b/llvm/test/CodeGen/Xtensa/inline-asm-invalid.ll
+new file mode 100644
+index 000000000000..260429d93344
+--- /dev/null
++++ b/llvm/test/CodeGen/Xtensa/inline-asm-invalid.ll
+@@ -0,0 +1,8 @@
++; RUN: not llc -mtriple=xtensa -mcpu=generic < %s 2>&1 | FileCheck %s
++
++define void @constraint_f() nounwind {
++; CHECK: error: couldn't allocate input reg for constraint 'f'
++  tail call void asm "add.s f0, f1, $0", "f"(float 0.0)
++  ret void
++}
++
+-- 
+2.40.1
+

@@ -1,0 +1,26 @@
+From e56fa1bb93bcb68aaed1f3ebcc1bdd34c098c6e7 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:15 +0300
+Subject: [PATCH 074/140] [Xtensa] Initialize MCSubtargetInfo with esp32.
+
+Initialize Xtensa MCSubtargetInfo with esp32 subtarget by default.
+---
+ llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
+index 8832cdf7dc01..ffb26e566709 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
+@@ -65,6 +65,8 @@ static MCRegisterInfo *createXtensaMCRegisterInfo(const Triple &TT) {
+ 
+ static MCSubtargetInfo *
+ createXtensaMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
++  if (CPU.empty())
++    CPU = "esp32";
+   return createXtensaMCSubtargetInfoImpl(TT, CPU, CPU, FS);
+ }
+  
+-- 
+2.40.1
+

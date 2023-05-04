@@ -1,0 +1,627 @@
+From f8323d311c09a116460332bcb09fcbb60045cbd2 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:46 +0300
+Subject: [PATCH 023/140] [Xtensa] Implement Windowed feature operations
+
+---
+ .../Xtensa/AsmParser/XtensaAsmParser.cpp      |  16 +++
+ .../Disassembler/XtensaDisassembler.cpp       |  29 +++-
+ .../Xtensa/MCTargetDesc/XtensaInstPrinter.cpp |  34 +++++
+ .../Xtensa/MCTargetDesc/XtensaInstPrinter.h   |   3 +
+ .../MCTargetDesc/XtensaMCCodeEmitter.cpp      |  52 +++++++
+ llvm/lib/Target/Xtensa/Xtensa.td              |   5 +
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp |   3 +
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |   6 +
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     | 135 ++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaOperands.td      |  21 +++
+ llvm/lib/Target/Xtensa/XtensaOperators.td     |  10 +-
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.td  |   6 +-
+ .../Target/Xtensa/XtensaSizeReductionPass.cpp |  15 +-
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp    |   1 +
+ llvm/lib/Target/Xtensa/XtensaSubtarget.h      |   7 +
+ 15 files changed, 339 insertions(+), 4 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+index 8b1eaadd56fa..11c04964f540 100644
+--- a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
++++ b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+@@ -170,6 +170,8 @@ public:
+            ((cast<MCConstantExpr>(getImm())->getValue() & 0x3) == 0);
+   }
+ 
++  bool isentry_imm12() const { return isImm(0, 32760); }
++
+   bool isUimm4() const { return isImm(0, 15); }
+ 
+   bool isUimm5() const { return isImm(0, 31); }
+@@ -186,6 +188,11 @@ public:
+ 
+   bool isImm32n_95() const { return isImm(-32, 95); }
+ 
++  bool isImm64n_4n() const {
++    return isImm(-64, -4) &&
++           ((dyn_cast<MCConstantExpr>(getImm())->getValue() & 0x3) == 0);
++  }
++
+   bool isB4const() const {
+     if (Kind != Immediate)
+       return false;
+@@ -415,6 +422,12 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
+   case Match_InvalidImm32n_95:
+     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                  "expected immediate in range [-32, 95] except 0");
++  case Match_InvalidImm64n_4n:
++    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
++                 "expected immediate in range [-64, -4]");
++  case Match_InvalidImm8n_7:
++    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
++                 "expected immediate in range [-8, 7]");
+   case Match_InvalidShimm1_31:
+     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                  "expected immediate in range [1, 31]");
+@@ -439,6 +452,9 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
+     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                  "expected immediate in range [0, 60], first 2 bits "
+                  "should be zero");
++  case Match_Invalidentry_imm12:
++    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
++                 "expected immediate in range [0, 32760]");
+   }
+ 
+   report_fatal_error("Unknown match type detected!");
+diff --git a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+index 17f17bc6b8a0..550ce337eca8 100644
+--- a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
++++ b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+@@ -75,7 +75,8 @@ static DecodeStatus DecodeARRegisterClass(MCInst &Inst, uint64_t RegNo,
+   return MCDisassembler::Success;
+ }
+ 
+-static const unsigned SRDecoderTable[] = {Xtensa::SAR, 3};
++static const unsigned SRDecoderTable[] = {
++    Xtensa::SAR, 3, Xtensa::WINDOWBASE, 72, Xtensa::WINDOWSTART, 73};
+ 
+ static DecodeStatus DecodeSRRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                           uint64_t Address,
+@@ -212,6 +213,32 @@ static DecodeStatus decodeImm32n_95Operand(MCInst &Inst, uint64_t Imm,
+   return MCDisassembler::Success;
+ }
+ 
++static DecodeStatus decodeImm8n_7Operand(MCInst &Inst, uint64_t Imm,
++                                         int64_t Address, const void *Decoder) {
++  assert(isUInt<4>(Imm) && "Invalid immediate");
++  if (Imm > 7)
++    Inst.addOperand(MCOperand::createImm(Imm - 16));
++  else
++    Inst.addOperand(MCOperand::createImm(Imm));
++  return MCDisassembler::Success;
++}
++
++static DecodeStatus decodeImm64n_4nOperand(MCInst &Inst, uint64_t Imm,
++                                           int64_t Address,
++                                           const void *Decoder) {
++  assert(isUInt<4>(Imm) && "Invalid immediate");
++  Inst.addOperand(MCOperand::createImm((~0x3f) | (Imm << 2)));
++  return MCDisassembler::Success;
++}
++
++static DecodeStatus decodeEntry_Imm12OpValue(MCInst &Inst, uint64_t Imm,
++                                           int64_t Address,
++                                           const void *Decoder) {
++  assert(isUInt<12>(Imm) && "Invalid immediate");
++  Inst.addOperand(MCOperand::createImm(Imm << 3));
++  return MCDisassembler::Success;
++}
++
+ static DecodeStatus decodeShimm1_31Operand(MCInst &Inst, uint64_t Imm,
+                                            int64_t Address,
+                                            const void *Decoder) {
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
+index d6175eb80ead..d1308ed56aa0 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
+@@ -273,6 +273,28 @@ void XtensaInstPrinter::printImm32n_95_AsmOperand(const MCInst *MI, int OpNum,
+     printOperand(MI, OpNum, O);
+ }
+ 
++void XtensaInstPrinter::printImm8n_7_AsmOperand(const MCInst *MI, int OpNum,
++                                                raw_ostream &O) {
++  if (MI->getOperand(OpNum).isImm()) {
++    int64_t Value = MI->getOperand(OpNum).getImm();
++    assert((Value >= -8 && Value <= 7) &&
++           "Invalid argument, value must be in ranges <-8,7>");
++    O << Value;
++  } else
++    printOperand(MI, OpNum, O);
++}
++
++void XtensaInstPrinter::printImm64n_4n_AsmOperand(const MCInst *MI, int OpNum,
++                                                  raw_ostream &O) {
++  if (MI->getOperand(OpNum).isImm()) {
++    int64_t Value = MI->getOperand(OpNum).getImm();
++    assert((Value >= -64 && Value <= -4) & ((Value & 0x3) == 0) &&
++           "Invalid argument, value must be in ranges <-64,-4>");
++    O << Value;
++  } else
++    printOperand(MI, OpNum, O);
++}
++
+ void XtensaInstPrinter::printOffset8m8_AsmOperand(const MCInst *MI, int OpNum,
+                                                   raw_ostream &O) {
+   if (MI->getOperand(OpNum).isImm()) {
+@@ -318,6 +340,18 @@ void XtensaInstPrinter::printOffset4m32_AsmOperand(const MCInst *MI, int OpNum,
+     printOperand(MI, OpNum, O);
+ }
+ 
++void XtensaInstPrinter::printEntry_Imm12_AsmOperand(const MCInst *MI, int OpNum,
++                                                    raw_ostream &O) {
++  if (MI->getOperand(OpNum).isImm()) {
++    int64_t Value = MI->getOperand(OpNum).getImm();
++    assert((Value >= 0 && Value <= 32760) &&
++           "Invalid argument, value must be multiples of eight in range "
++           "<0,32760>");
++    O << Value;
++  } else
++    printOperand(MI, OpNum, O);
++}
++
+ void XtensaInstPrinter::printB4const_AsmOperand(const MCInst *MI, int OpNum,
+                                                 raw_ostream &O) {
+   if (MI->getOperand(OpNum).isImm()) {
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
+index ca87d79bfb67..f8a9f592e011 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
+@@ -62,10 +62,13 @@ private:
+   void printImm1_16_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printImm1n_15_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printImm32n_95_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
++  void printImm8n_7_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
++  void printImm64n_4n_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printOffset8m8_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printOffset8m16_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printOffset8m32_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printOffset4m32_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
++  void printEntry_Imm12_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printB4const_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printB4constu_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+ };
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+index 7b8887e2059a..d5b61985d09d 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+@@ -111,6 +111,18 @@ private:
+                                SmallVectorImpl<MCFixup> &Fixups,
+                                const MCSubtargetInfo &STI) const;
+ 
++  uint32_t getImm8n_7OpValue(const MCInst &MI, unsigned OpNo,
++                             SmallVectorImpl<MCFixup> &Fixups,
++                             const MCSubtargetInfo &STI) const;
++
++  uint32_t getImm64n_4nOpValue(const MCInst &MI, unsigned OpNo,
++                               SmallVectorImpl<MCFixup> &Fixups,
++                               const MCSubtargetInfo &STI) const;
++
++  uint32_t getEntry_Imm12OpValue(const MCInst &MI, unsigned OpNo,
++                                 SmallVectorImpl<MCFixup> &Fixups,
++                                 const MCSubtargetInfo &STI) const;
++
+   uint32_t getShimm1_31OpValue(const MCInst &MI, unsigned OpNo,
+                                SmallVectorImpl<MCFixup> &Fixups,
+                                const MCSubtargetInfo &STI) const;
+@@ -399,6 +411,46 @@ XtensaMCCodeEmitter::getImm32n_95OpValue(const MCInst &MI, unsigned OpNo,
+   return Res;
+ }
+ 
++uint32_t
++XtensaMCCodeEmitter::getImm8n_7OpValue(const MCInst &MI, unsigned OpNo,
++                                       SmallVectorImpl<MCFixup> &Fixups,
++                                       const MCSubtargetInfo &STI) const {
++  const MCOperand &MO = MI.getOperand(OpNo);
++  int32_t Res = static_cast<int32_t>(MO.getImm());
++
++  assert(((Res >= -8) && (Res <= 7)) && "Unexpected operand value!");
++
++  if (Res < 0)
++    return Res + 16;
++
++  return Res;
++}
++
++uint32_t
++XtensaMCCodeEmitter::getImm64n_4nOpValue(const MCInst &MI, unsigned OpNo,
++                                         SmallVectorImpl<MCFixup> &Fixups,
++                                         const MCSubtargetInfo &STI) const {
++  const MCOperand &MO = MI.getOperand(OpNo);
++  int32_t Res = static_cast<int32_t>(MO.getImm());
++
++  assert(((Res >= -64) && (Res <= -4) && ((Res & 0x3) == 0)) &&
++         "Unexpected operand value!");
++
++  return Res & 0x3f;
++}
++
++uint32_t
++XtensaMCCodeEmitter::getEntry_Imm12OpValue(const MCInst &MI, unsigned OpNo,
++                                           SmallVectorImpl<MCFixup> &Fixups,
++                                           const MCSubtargetInfo &STI) const {
++  const MCOperand &MO = MI.getOperand(OpNo);
++  uint32_t res = static_cast<uint32_t>(MO.getImm());
++
++  assert(((res & 0x7) == 0) && "Unexpected operand value!");
++
++  return res;
++}
++
+ uint32_t
+ XtensaMCCodeEmitter::getB4constOpValue(const MCInst &MI, unsigned OpNo,
+                                        SmallVectorImpl<MCFixup> &Fixups,
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.td b/llvm/lib/Target/Xtensa/Xtensa.td
+index 460a15e808b3..8a9f0778337f 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.td
++++ b/llvm/lib/Target/Xtensa/Xtensa.td
+@@ -21,6 +21,11 @@ def FeatureDensity : SubtargetFeature<"density", "HasDensity", "true",
+                     "Enable Density instructions">;
+ def HasDensity : Predicate<"Subtarget->hasDensity()">,
+                      AssemblerPredicate<(all_of FeatureDensity)>;
++
++def FeatureWindowed         : SubtargetFeature<"windowed", "HasWindowed", "true",
++                                               "Enable Xtensa Windowed Register option">;
++def HasWindowed             : Predicate<"Subtarget->hasWindowed()">,
++                                         AssemblerPredicate<(all_of FeatureWindowed)>; 
+ //===----------------------------------------------------------------------===//
+ // Xtensa supported processors.
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 5c0004848858..688e7896121f 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -1285,11 +1285,14 @@ const char *XtensaTargetLowering::getTargetNodeName(unsigned Opcode) const {
+     return "XtensaISD::" #NAME
+   switch (Opcode) {
+     OPCODE(RET_FLAG);
++    OPCODE(RETW_FLAG);
+     OPCODE(CALL);
++    OPCODE(CALLW);
+     OPCODE(PCREL_WRAPPER);
+     OPCODE(SELECT);
+     OPCODE(SELECT_CC);
+     OPCODE(BR_JT);
++    OPCODE(MOVSP);
+     OPCODE(SHL);
+     OPCODE(SRA);
+     OPCODE(SRL);
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index cc811c435c8a..562d59abf64d 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -31,6 +31,10 @@ enum {
+   // is the target address.  The arguments start at operand 2.
+   // There is an optional glue operand at the end.
+   CALL,
++  // WinABI Call version
++  CALLW,
++
++  MOVSP,
+ 
+   // Wraps a TargetGlobalAddress that should be loaded using PC-relative
+   // accesses.  Operand 0 is the address.
+@@ -38,6 +42,8 @@ enum {
+ 
+   // Return with a flag operand.  Operand 0 is the chain operand.
+   RET_FLAG,
++  // WinABI Return
++  RETW_FLAG,
+ 
+   // Selects between operand 0 and operand 1.  Operand 2 is the
+   // mask of condition-code values for which operand 0 should be
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 573e0477fc8f..d547e7bffb28 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -703,3 +703,138 @@ let isReturn = 1, isTerminator = 1,
+     let t = 0;
+   }
+ }
++
++//===----------------------------------------------------------------------===//
++// Windowed instructions
++//===----------------------------------------------------------------------===//
++
++def ENTRY : BRI12_Inst<0x06, 0x3, 0x0, (outs), (ins AR:$s, entry_imm12:$imm), 
++                     "entry\t$s, $imm", []>, Requires<[HasWindowed]> {
++  bits<15> imm;
++
++  let imm12{11-0} = imm{14-3};
++  let Defs = [SP];
++}
++
++//Call instructions
++let isCall = 1, Defs = [A0] in {
++  def CALL4 : CALL_Inst<0x05, (outs), (ins pcrel32call:$offset),
++                      "call4\t$offset", []>, Requires<[HasWindowed]> {
++    let n = 1;
++  }
++
++  def CALL8 : CALL_Inst<0x05, (outs), (ins pcrel32call:$offset),
++                       "call8\t$offset", []>, Requires<[HasWindowed]> {
++    let n = 2;
++  }
++
++  def CALL12 : CALL_Inst<0x05, (outs), (ins pcrel32call:$offset),
++                        "call12\t$offset", []>, Requires<[HasWindowed]> {
++    let n = 3;
++  }
++
++  def CALLX4 : CALLX_Inst<0x00, 0x00, 0x00, (outs), (ins AR:$s), 
++                         "callx4\t$s", []>, Requires<[HasWindowed]> {
++    let m = 0x3;
++    let n = 0x1;
++    let r = 0;
++  }
++
++  def CALLX8 : CALLX_Inst<0x00, 0x00, 0x00, (outs), (ins AR:$s), 
++                         "callx8\t$s", []>, Requires<[HasWindowed]> {
++    let m = 0x3;
++    let n = 0x2;
++    let r = 0;
++  }
++
++  def CALLX12 : CALLX_Inst<0x00, 0x00, 0x00, (outs), (ins AR:$s), 
++                          "callx12\t$s", []>, Requires<[HasWindowed]> {
++    let m = 0x3;
++    let n = 0x3;
++    let r = 0;
++  }
++}
++
++//Windowed call patterns
++def : Pat<(Xtensa_callw (i32 tglobaladdr:$dst)),
++          (CALL8 tglobaladdr:$dst)>;
++def : Pat<(Xtensa_callw (i32 texternalsym:$dst)),
++          (CALL8 texternalsym:$dst)>;
++def : Pat<(Xtensa_callw AR:$dst),
++          (CALLX8 AR:$dst)>;
++
++def MOVSP : RRR_Inst<0x00, 0x00, 0x00, (outs AR:$t), (ins AR:$s),
++                    "movsp\t$t, $s",
++                    [(set AR:$t, (Xtensa_movsp AR:$s))]>,
++                    Requires<[HasWindowed]> {
++  let r = 0x01;
++}
++
++//Return instructions
++let isReturn = 1, isTerminator = 1,
++    isBarrier = 1, Uses = [A0] in {
++  def RETW_N : RRRN_Inst<0x0D, (outs), (ins),
++                        "retw.n", [(Xtensa_retWflag)]>,
++                        Requires<[HasWindowed, HasDensity]> {
++    let r = 0x0F;
++    let s = 0;
++    let t = 1;
++  }
++
++  def RETW : CALLX_Inst<0x00, 0x00, 0x00, (outs), (ins),
++                       "retw", [(Xtensa_retWflag)]>,
++                       Requires<[HasWindowed]> {
++    let m = 0x2;
++    let n = 0x1;
++    let s = 0;
++    let r = 0;
++  }
++}
++
++//Store 32-bit for Window Exceptions
++def S32E : RRI4_Inst<0x00, 0x09, (outs), (ins AR:$t, AR:$s, imm64n_4n:$imm),
++                    "s32e\t$t, $s, $imm", []>, Requires<[HasWindowed]> {
++  bits<6> imm;
++
++  let r = imm{5-2};
++  let imm4 = 0x4;
++  let mayStore = 1;
++}
++
++def L32E : RRI4_Inst<0x00, 0x09, (outs), (ins AR:$t, AR:$s, imm64n_4n:$imm),
++                    "l32e\t$t, $s, $imm", []>, Requires<[HasWindowed]> {
++  bits<6> imm;
++
++  let r = imm{5-2};
++  let imm4 = 0x0;
++  let mayLoad = 1;
++}
++
++//Return from window
++def RFWU : RRR_Inst<0x00, 0x00, 0x00, (outs), (ins),
++                   "rfwu", []>, Requires<[HasWindowed]> {
++  bits<4> imm;
++
++  let r = 0x3;
++  let s = 0x5;
++  let t = 0x0;
++}
++
++def RFWO : RRR_Inst<0x00, 0x00, 0x00, (outs), (ins),
++                   "rfwo", []>, Requires<[HasWindowed]> {
++  bits<4> imm;
++
++  let r = 0x3;
++  let s = 0x4;
++  let t = 0x0;
++}
++
++//Rotate window
++def ROTW : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins imm8n_7:$imm),
++                   "rotw\t$imm", []>, Requires<[HasWindowed]> {
++  bits<4> imm;
++
++  let r = 0x8;
++  let s = 0x0;
++  let t = imm{3-0};
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperands.td b/llvm/lib/Target/Xtensa/XtensaOperands.td
+index a1db366e2425..47946596282a 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperands.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperands.td
+@@ -37,6 +37,20 @@ def imm8_sh8 : Immediate<i32, [{ return Imm >= -32768 && Imm <= 32512 && ((Imm &
+   let DecoderMethod = "decodeImm8_sh8Operand";
+ }
+ 
++// imm8n_7 predicate - Immediate in the range [-8,7]
++def Imm8n_7_AsmOperand: ImmAsmOperand<"Imm8n_7">;
++def imm8n_7: Immediate<i32, [{ return Imm >= -8 && Imm <= 7; }], "Imm8n_7_AsmOperand"> {
++  let EncoderMethod = "getImm8n_7OpValue";
++  let DecoderMethod = "decodeImm8n_7Operand";
++}
++
++// imm64n_4n predicate - Immediate in the range [-64,-4]
++def Imm64n_4n_AsmOperand: ImmAsmOperand<"Imm64n_4n">;
++def imm64n_4n: Immediate<i32, [{ return Imm >= -64 && Imm <= -4; }], "Imm64n_4n_AsmOperand"> {
++  let EncoderMethod = "getImm64n_4nOpValue";
++  let DecoderMethod = "decodeImm64n_4nOperand";
++} 
++
+ // imm12 predicate - Immediate in the range [-2048,2047]
+ def Imm12_AsmOperand : ImmAsmOperand<"Imm12">;
+ def imm12 : Immediate<i32, [{ return Imm >= -2048 && Imm <= 2047; }], "Imm12_AsmOperand"> {
+@@ -117,6 +131,13 @@ def offset4m32 : Immediate<i32,
+     [{ return Imm >= 0 && Imm <= 60 && (Imm & 0x3 == 0); }],
+     "Offset4m32_AsmOperand">;
+ 
++// entry_imm12 predicate - Immediate in the range [0,32760], ENTRY parameter
++def Entry_Imm12_AsmOperand: ImmAsmOperand<"entry_imm12">;
++def entry_imm12: Immediate<i32, [{ return Imm >= 0 && Imm <= 32760 && (Imm & 0x3 == 0); }], "Entry_Imm12_AsmOperand"> {
++  let EncoderMethod = "getEntry_Imm12OpValue";
++  let DecoderMethod = "decodeEntry_Imm12OpValue";
++}
++
+ // b4const predicate - Branch Immediate 4-bit signed operand
+ def B4const_AsmOperand: ImmAsmOperand<"B4const">;
+ def b4const: Immediate<i32,
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperators.td b/llvm/lib/Target/Xtensa/XtensaOperators.td
+index ca8ec55c5670..41b2f9d72a64 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperators.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperators.td
+@@ -23,6 +23,8 @@ def SDT_XtensaSelectCC            : SDTypeProfile<1, 5,
+                                                  [SDTCisSameAs<0, 1>,
+                                                   SDTCisSameAs<2, 3>,
+                                                   SDTCisVT<5, i32>]>;
++
++def SDT_XtensaMOVSP               : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>, SDTCisVT<0, i32>]>;
+ def SDT_XtensaBrJT                : SDTypeProfile<0, 2,
+                                                  [SDTCisPtrTy<0>, SDTCisVT<1, i32>]>;
+ 
+@@ -43,7 +45,8 @@ def Xtensa_call: SDNode<"XtensaISD::CALL", SDT_XtensaCall,
+ 
+ def Xtensa_retflag: SDNode<"XtensaISD::RET_FLAG", SDTNone,
+                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+-
++def Xtensa_retWflag: SDNode<"XtensaISD::RETW_FLAG", SDTNone,
++                          [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+ 
+ def Xtensa_callseq_start: SDNode<"ISD::CALLSEQ_START", SDT_XtensaCallSeqStart,
+                                 [SDNPHasChain, SDNPSideEffect, SDNPOutGlue]>;
+@@ -57,6 +60,9 @@ def Xtensa_select : SDNode<"XtensaISD::SELECT", SDTSelect>;
+ def Xtensa_select_cc: SDNode<"XtensaISD::SELECT_CC", SDT_XtensaSelectCC,
+                             [SDNPInGlue]>;
+ 
++def Xtensa_movsp: SDNode<"XtensaISD::MOVSP", SDT_XtensaMOVSP,
++                            [SDNPInGlue]>;
++
+ def Xtensa_shl: SDNode<"XtensaISD::SHL", SDT_XtensaSHL, [SDNPInGlue]>;
+ def Xtensa_sra: SDNode<"XtensaISD::SRA", SDT_XtensaSRA, [SDNPInGlue]>;
+ def Xtensa_srl: SDNode<"XtensaISD::SRL", SDT_XtensaSRL, [SDNPInGlue]>;
+@@ -65,3 +71,5 @@ def Xtensa_ssl: SDNode<"XtensaISD::SSL", SDT_XtensaSSL, [SDNPOutGlue]>;
+ def Xtensa_ssr: SDNode<"XtensaISD::SSR", SDT_XtensaSSR, [SDNPOutGlue]>;
+ 
+ def Xtensa_brjt: SDNode<"XtensaISD::BR_JT", SDT_XtensaBrJT, [SDNPHasChain]>;
++def Xtensa_callw: SDNode<"XtensaISD::CALLW", SDT_XtensaCall,
++                        [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+index 5c07386b060c..9939d19ef190 100644
+--- a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+@@ -75,4 +75,8 @@ class SRReg<bits<8> num, string n, list<string> alt = []> : XtensaReg<n> {
+ // Shift Amount Register
+ def SAR : SRReg<3, "sar", ["SAR","3"]>;
+ 
+-def SR :  RegisterClass<"Xtensa", [i32], 32, (add SAR)>;
++def WINDOWBASE : SRReg<72, "windowbase", ["WINDOWBASE", "72"]>;
++def WINDOWSTART : SRReg<73, "windowstart", ["WINDOWSTART", "73"]>;
++
++def SR :  RegisterClass<"Xtensa", [i32], 32, (add SAR,
++ WINDOWBASE, WINDOWSTART)>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaSizeReductionPass.cpp b/llvm/lib/Target/Xtensa/XtensaSizeReductionPass.cpp
+index f69c1e601a78..1377d7fccf1e 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSizeReductionPass.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSizeReductionPass.cpp
+@@ -173,7 +173,7 @@ bool XtensaSizeReduce::ReduceMI(const MachineBasicBlock::instr_iterator &MII) {
+     MachineOperand Op1 = MI->getOperand(1);
+     MachineOperand Op2 = MI->getOperand(2);
+ 
+-	if (Op1.getReg() != Op2.getReg())
++    if (Op1.getReg() != Op2.getReg())
+       break;
+ 
+     // Replace OR R1, R2, R2 to MOV.N R1, R2
+@@ -203,6 +203,19 @@ bool XtensaSizeReduce::ReduceMI(const MachineBasicBlock::instr_iterator &MII) {
+     return true;
+   } break;
+ 
++  case Xtensa::RETW: {
++    // Replace RETW to RETW.N
++    DebugLoc dl = MI->getDebugLoc();
++    const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::RETW_N);
++    MachineInstrBuilder MIB = BuildMI(MBB, MI, dl, NewMCID);
++    // Transfer MI flags.
++    MIB.setMIFlags(MI->getFlags());
++    LLVM_DEBUG(dbgs() << "       to 16-bit: " << *MIB);
++    NumReduced++;
++    MBB.erase_instr(MI);
++    return true;
++  } break;
++
+   default:
+     break;
+   }
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+index f76af66cac1e..fe47de0f9527 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -33,6 +33,7 @@ XtensaSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
+   }
+ 
+   HasDensity = false;
++  HasWindowed = false;
+ 
+   // Parse features string.
+   ParseSubtargetFeatures(CPUName, CPUName, FS);
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.h b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+index 476f1f943a9e..aea0a9ed9b45 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.h
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+@@ -41,6 +41,9 @@ private:
+   // Enabled Xtensa Density extension
+   bool HasDensity;
+ 
++  // Enabled Xtensa Windowed Register option
++  bool HasWindowed;
++
+   XtensaSubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
+ 
+ public:
+@@ -56,8 +59,12 @@ public:
+   const XtensaTargetLowering *getTargetLowering() const override { return &TLInfo; }
+   const SelectionDAGTargetInfo *getSelectionDAGInfo() const override { return &TSInfo; }
+ 
++  bool isWinABI() const { return hasWindowed(); }
++
+   bool hasDensity() const { return HasDensity; }
+ 
++  bool hasWindowed() const { return HasWindowed; }
++
+   // Automatically generated by tblgen.
+   void ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
+ };
+-- 
+2.40.1
+

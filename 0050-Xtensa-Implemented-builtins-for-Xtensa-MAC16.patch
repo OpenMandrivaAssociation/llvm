@@ -1,0 +1,133 @@
+From 460893f7c0317af41fd81879d98a35cbf4ba53a4 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:03 +0300
+Subject: [PATCH 050/140] [Xtensa] Implemented builtins for Xtensa MAC16
+
+ instructions.
+---
+ clang/include/clang/Sema/Sema.h    |  1 +
+ clang/lib/Sema/SemaChecking.cpp    | 79 ++++++++++++++++++++++++++++++
+ llvm/include/llvm/IR/Intrinsics.td |  1 +
+ 3 files changed, 81 insertions(+)
+
+diff --git a/clang/include/clang/Sema/Sema.h b/clang/include/clang/Sema/Sema.h
+index d40dacb5aa0f..4c149be453d0 100644
+--- a/clang/include/clang/Sema/Sema.h
++++ b/clang/include/clang/Sema/Sema.h
+@@ -13490,6 +13490,7 @@ private:
+                                      CallExpr *TheCall);
+   bool CheckLoongArchBuiltinFunctionCall(const TargetInfo &TI,
+                                          unsigned BuiltinID, CallExpr *TheCall);
++  bool CheckXtensaBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
+ 
+   bool SemaBuiltinVAStart(unsigned BuiltinID, CallExpr *TheCall);
+   bool SemaBuiltinVAStartARMMicrosoft(CallExpr *Call);
+diff --git a/clang/lib/Sema/SemaChecking.cpp b/clang/lib/Sema/SemaChecking.cpp
+index ea21171aaac6..c023893abf09 100644
+--- a/clang/lib/Sema/SemaChecking.cpp
++++ b/clang/lib/Sema/SemaChecking.cpp
+@@ -2025,6 +2025,8 @@ bool Sema::CheckTSBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
+   case llvm::Triple::loongarch32:
+   case llvm::Triple::loongarch64:
+     return CheckLoongArchBuiltinFunctionCall(TI, BuiltinID, TheCall);
++  case llvm::Triple::xtensa:
++    return CheckXtensaBuiltinFunctionCall(BuiltinID, TheCall);
+   }
+ }
+ 
+@@ -4708,6 +4710,83 @@ bool Sema::CheckSystemZBuiltinFunctionCall(unsigned BuiltinID,
+   return SemaBuiltinConstantArgRange(TheCall, i, l, u);
+ }
+ 
++bool Sema::CheckXtensaBuiltinFunctionCall(unsigned BuiltinID,
++                                          CallExpr *TheCall) {
++  unsigned i = 0, l = 0, u = 0;
++  switch (BuiltinID) {
++  default:
++    return false;
++  case Xtensa::BI__builtin_xtensa_mul_ad_ll:
++  case Xtensa::BI__builtin_xtensa_mul_ad_lh:
++  case Xtensa::BI__builtin_xtensa_mul_ad_hl:
++  case Xtensa::BI__builtin_xtensa_mul_ad_hh:
++  case Xtensa::BI__builtin_xtensa_mula_ad_ll:
++  case Xtensa::BI__builtin_xtensa_mula_ad_lh:
++  case Xtensa::BI__builtin_xtensa_mula_ad_hl:
++  case Xtensa::BI__builtin_xtensa_mula_ad_hh:
++  case Xtensa::BI__builtin_xtensa_muls_ad_ll:
++  case Xtensa::BI__builtin_xtensa_muls_ad_lh:
++  case Xtensa::BI__builtin_xtensa_muls_ad_hl:
++  case Xtensa::BI__builtin_xtensa_muls_ad_hh:
++    i = 1;
++    l = 2;
++    u = 3;
++    break;
++  case Xtensa::BI__builtin_xtensa_mul_da_ll:
++  case Xtensa::BI__builtin_xtensa_mul_da_lh:
++  case Xtensa::BI__builtin_xtensa_mul_da_hl:
++  case Xtensa::BI__builtin_xtensa_mul_da_hh:
++  case Xtensa::BI__builtin_xtensa_mula_da_ll:
++  case Xtensa::BI__builtin_xtensa_mula_da_lh:
++  case Xtensa::BI__builtin_xtensa_mula_da_hl:
++  case Xtensa::BI__builtin_xtensa_mula_da_hh:
++  case Xtensa::BI__builtin_xtensa_muls_da_ll:
++  case Xtensa::BI__builtin_xtensa_muls_da_lh:
++  case Xtensa::BI__builtin_xtensa_muls_da_hl:
++  case Xtensa::BI__builtin_xtensa_muls_da_hh:
++    i = 0;
++    l = 0;
++    u = 1;
++    break;
++  case Xtensa::BI__builtin_xtensa_mul_dd_ll:
++  case Xtensa::BI__builtin_xtensa_mul_dd_lh:
++  case Xtensa::BI__builtin_xtensa_mul_dd_hl:
++  case Xtensa::BI__builtin_xtensa_mul_dd_hh:
++  case Xtensa::BI__builtin_xtensa_mula_dd_ll:
++  case Xtensa::BI__builtin_xtensa_mula_dd_lh:
++  case Xtensa::BI__builtin_xtensa_mula_dd_hl:
++  case Xtensa::BI__builtin_xtensa_mula_dd_hh:
++  case Xtensa::BI__builtin_xtensa_muls_dd_ll:
++  case Xtensa::BI__builtin_xtensa_muls_dd_lh:
++  case Xtensa::BI__builtin_xtensa_muls_dd_hl:
++  case Xtensa::BI__builtin_xtensa_muls_dd_hh:
++    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 1) ||
++           SemaBuiltinConstantArgRange(TheCall, 1, 2, 3);
++  case Xtensa::BI__builtin_xtensa_mula_da_ll_lddec:
++  case Xtensa::BI__builtin_xtensa_mula_da_lh_lddec:
++  case Xtensa::BI__builtin_xtensa_mula_da_hl_lddec:
++  case Xtensa::BI__builtin_xtensa_mula_da_hh_lddec:
++  case Xtensa::BI__builtin_xtensa_mula_da_ll_ldinc:
++  case Xtensa::BI__builtin_xtensa_mula_da_lh_ldinc:
++  case Xtensa::BI__builtin_xtensa_mula_da_hl_ldinc:
++  case Xtensa::BI__builtin_xtensa_mula_da_hh_ldinc:
++    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3) ||
++           SemaBuiltinConstantArgRange(TheCall, 2, 0, 1);
++  case Xtensa::BI__builtin_xtensa_mula_dd_ll_lddec:
++  case Xtensa::BI__builtin_xtensa_mula_dd_lh_lddec:
++  case Xtensa::BI__builtin_xtensa_mula_dd_hl_lddec:
++  case Xtensa::BI__builtin_xtensa_mula_dd_hh_lddec:
++  case Xtensa::BI__builtin_xtensa_mula_dd_ll_ldinc:
++  case Xtensa::BI__builtin_xtensa_mula_dd_lh_ldinc:
++  case Xtensa::BI__builtin_xtensa_mula_dd_hl_ldinc:
++  case Xtensa::BI__builtin_xtensa_mula_dd_hh_ldinc:
++    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3) ||
++           SemaBuiltinConstantArgRange(TheCall, 2, 0, 1) ||
++           SemaBuiltinConstantArgRange(TheCall, 3, 2, 3);
++  }
++  return SemaBuiltinConstantArgRange(TheCall, i, l, u);
++}
++
+ /// SemaBuiltinCpuSupports - Handle __builtin_cpu_supports(char *).
+ /// This checks that the target supports __builtin_cpu_supports and
+ /// that the string argument is constant and valid.
+diff --git a/llvm/include/llvm/IR/Intrinsics.td b/llvm/include/llvm/IR/Intrinsics.td
+index e0fd727607ce..f7b7e1c53af9 100644
+--- a/llvm/include/llvm/IR/Intrinsics.td
++++ b/llvm/include/llvm/IR/Intrinsics.td
+@@ -2191,3 +2191,4 @@ include "llvm/IR/IntrinsicsSPIRV.td"
+ include "llvm/IR/IntrinsicsVE.td"
+ include "llvm/IR/IntrinsicsDirectX.td"
+ include "llvm/IR/IntrinsicsLoongArch.td"
++include "llvm/IR/IntrinsicsXtensa.td"
+-- 
+2.40.1
+

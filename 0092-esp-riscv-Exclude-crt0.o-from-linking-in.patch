@@ -1,0 +1,36 @@
+From a5e4d30aacdd1a2f68dd581bc091f5781fe879be Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:24 +0300
+Subject: [PATCH 092/140] esp/riscv: Exclude 'crt0.o' from linking in
+
+ 'freestanding' mode
+---
+ clang/lib/Driver/ToolChains/RISCVToolchain.cpp | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/clang/lib/Driver/ToolChains/RISCVToolchain.cpp b/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
+index 0c65e8df79ee..f71543ac7d30 100644
+--- a/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
++++ b/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
+@@ -184,7 +184,17 @@ void RISCV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+   }
+ 
+   if (WantCRTs) {
+-    CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crt0.o")));
++    /* Espressif toolcahin uses newlib. crt0.o from it refers to 'main' symbol.
++       In 'freestanding' mode 'main' is not marked as special symbol by clang,
++       so when compiling C++ program with 'clang++' 'main' gets mmangled
++       (if not decalred as 'extern "C"' ) and linker can not resolve it.
++       The problem can happen, for example, when cmake checks C++ compiler by buiding simple C++ code,
++       unfortunately 'main' function in that code is not decalred as 'extern "C"'. */
++    bool Freestanding =
++        Args.hasFlag(options::OPT_ffreestanding, options::OPT_fhosted, false);
++    if (!Freestanding || ToolChain.getTriple().getVendor() != llvm::Triple::Espressif) {
++      CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crt0.o")));
++    }
+     CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(crtbegin)));
+   }
+ 
+-- 
+2.40.1
+

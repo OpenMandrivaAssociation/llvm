@@ -1,0 +1,170 @@
+From 662ee53a91892f2db2bdfd1eb87b52bfac17ddd5 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:00 +0300
+Subject: [PATCH 044/140] [Xtensa] Lower ATOMIC_FENCE. Add Atomic Expand pass.
+
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp  | 14 ++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h    |  8 ++++++++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td      | 14 ++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaOperators.td      |  5 ++++-
+ llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp |  3 +++
+ 5 files changed, 43 insertions(+), 1 deletion(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index eb09b3c7457f..1baf3990b2b4 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -304,6 +304,10 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+ 
+   setOperationAction(ISD::TRAP, MVT::Other, Legal);
+ 
++  // to have the best chance and doing something good with fences custom lower
++  // them
++  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Custom);
++
+   // Compute derived properties from the register classes
+   computeRegisterProperties(STI.getRegisterInfo());
+ 
+@@ -1656,6 +1660,13 @@ SDValue XtensaTargetLowering::LowerShiftRightParts(SDValue Op,
+   return DAG.getMergeValues(Ops, DL);
+ }
+ 
++SDValue XtensaTargetLowering::LowerATOMIC_FENCE(SDValue Op,
++                                                SelectionDAG &DAG) const {
++  SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  return DAG.getNode(XtensaISD::MEMW, DL, MVT::Other, Chain);
++}
++
+ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+                                              SelectionDAG &DAG) const {
+   switch (Op.getOpcode()) {
+@@ -1695,6 +1706,8 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+     return LowerVASTART(Op, DAG);
+   case ISD::VACOPY:
+     return LowerVACOPY(Op, DAG);
++  case ISD::ATOMIC_FENCE:
++    return LowerATOMIC_FENCE(Op, DAG);
+   case ISD::SHL_PARTS:
+     return LowerShiftLeftParts(Op, DAG);
+   case ISD::SRA_PARTS:
+@@ -1732,6 +1745,7 @@ const char *XtensaTargetLowering::getTargetNodeName(unsigned Opcode) const {
+     OPCODE(MADD);
+     OPCODE(MSUB);
+     OPCODE(MOVS);
++    OPCODE(MEMW);
+     OPCODE(MOVSP);
+     OPCODE(RUR);
+     OPCODE(SHL);
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index a6da5a0296db..52c3bb4e589c 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -52,6 +52,8 @@ enum {
+   // FP move
+   MOVS,
+ 
++  MEMW,
++
+   MOVSP,
+ 
+   // Wraps a TargetGlobalAddress that should be loaded using PC-relative
+@@ -155,6 +157,10 @@ public:
+                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
+                       SelectionDAG &DAG) const override;
+ 
++  bool shouldInsertFencesForAtomic(const Instruction *I) const override {
++    return true;
++  }
++
+   MachineBasicBlock *
+   EmitInstrWithCustomInserter(MachineInstr &MI,
+                               MachineBasicBlock *BB) const override;
+@@ -188,6 +194,8 @@ private:
+   SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
+ 
++  SDValue LowerATOMIC_FENCE(SDValue Op, SelectionDAG &DAG) const;
++
+   SDValue getAddrPCRel(SDValue Op, SelectionDAG &DAG) const;
+ 
+   CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index bfca64dd6f1e..4e0b28b6b2af 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -557,6 +557,8 @@ def EXTW : RRR_Inst<0x00, 0x00, 0x00, (outs), (ins),
+   let hasSideEffects = 1;
+ }
+ 
++def : Pat<(Xtensa_mem_barrier), (MEMW)>;
++
+ //===----------------------------------------------------------------------===//
+ // Processor control instructions
+ //===----------------------------------------------------------------------===//
+@@ -1342,6 +1344,18 @@ def WITLB : RRR_Inst<0x00, 0x00, 0x05, (outs AR:$t), (ins AR:$s),
+   let r = 0x6;
+ }
+ 
++//===----------------------------------------------------------------------===//
++// Atomic patterns
++//===----------------------------------------------------------------------===//
++
++def : Pat<(i32 (atomic_load_8  addr_ish1:$addr)), (L8UI addr_ish1:$addr)>;
++def : Pat<(i32 (atomic_load_16 addr_ish2:$addr)), (L16UI addr_ish2:$addr)>;
++def : Pat<(i32 (atomic_load_32 addr_ish4:$addr)), (L32I addr_ish4:$addr)>;
++
++def : Pat<(atomic_store_8  addr_ish1:$addr, AR:$t), (S8I AR:$t, addr_ish1:$addr)>;
++def : Pat<(atomic_store_16 addr_ish2:$addr, AR:$t), (S16I AR:$t, addr_ish2:$addr)>;
++def : Pat<(atomic_store_32 addr_ish4:$addr, AR:$t), (S32I AR:$t, addr_ish4:$addr)>;
++
+ //===----------------------------------------------------------------------===//
+ // DSP Instructions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperators.td b/llvm/lib/Target/Xtensa/XtensaOperators.td
+index 3107137c9ad1..e5f96e446520 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperators.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperators.td
+@@ -40,6 +40,7 @@ def SDT_XtensaSRC                 : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCi
+                                                          SDTCisVT<2, i32>]>;
+ def SDT_XtensaSSL                 : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
+ def SDT_XtensaSSR                 : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
++def SDT_XtensaMEMBARRIER         : SDTypeProfile<0, 0, []>;
+ def SDT_XtensaRUR                : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+ 
+ //===----------------------------------------------------------------------===//
+@@ -98,6 +99,8 @@ def Xtensa_ssr: SDNode<"XtensaISD::SSR", SDT_XtensaSSR, [SDNPOutGlue]>;
+ def Xtensa_brjt: SDNode<"XtensaISD::BR_JT", SDT_XtensaBrJT, [SDNPHasChain]>;
+ def Xtensa_callw: SDNode<"XtensaISD::CALLW", SDT_XtensaCall,
+                         [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
++def Xtensa_mem_barrier: SDNode<"XtensaISD::MEMW", SDT_XtensaMEMBARRIER,
++                              [SDNPHasChain, SDNPSideEffect]>;
+ 
+ def Xtensa_rur: SDNode<"XtensaISD::RUR", SDT_XtensaRUR,
+-                            [SDNPInGlue]>;
++                      [SDNPInGlue]>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+index 3d0de2199f45..2d8e14589d60 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+@@ -90,6 +90,7 @@ public:
+     return getTM<XtensaTargetMachine>();
+   }
+ 
++  void addIRPasses() override;
+   bool addInstSelector() override;
+   void addPreEmitPass() override;
+ };
+@@ -100,6 +101,8 @@ bool XtensaPassConfig::addInstSelector() {
+   return false;
+ }
+ 
++void XtensaPassConfig::addIRPasses() { addPass(createAtomicExpandPass()); }
++
+ void XtensaPassConfig::addPreEmitPass() {
+   addPass(createXtensaSizeReductionPass());
+   addPass(&BranchRelaxationPassID);
+-- 
+2.40.1
+

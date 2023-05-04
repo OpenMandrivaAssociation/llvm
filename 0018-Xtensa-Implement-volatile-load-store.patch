@@ -1,0 +1,81 @@
+From e4c715b950aac06800f1da65b1bc941eb96497de Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:44 +0300
+Subject: [PATCH 018/140] [Xtensa] Implement volatile load/store.
+
+Implement volatile load/store from/to volatile memory location.
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 20 ++++++++++++++++++-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     |  4 ++--
+ 2 files changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index d2e1c59f00e9..5e5e542bcadd 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -95,7 +95,7 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   setOperationAction(ISD::SETCC, MVT::i32,
+                      Custom); // folds into brcond
+   setOperationAction(ISD::SETCC, MVT::i64, Expand);
+-  
++
+   // Expand jump table branches as address arithmetic followed by an
+   // indirect jump.
+   setOperationAction(ISD::BR_JT, MVT::Other, Custom);
+@@ -1472,6 +1472,11 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
+     const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+     unsigned R1 = MRI.createVirtualRegister(RC);
+ 
++    const MachineMemOperand &MMO = **MI.memoperands_begin();
++    if (MMO.isVolatile()) {
++      BuildMI(*MBB, MI, DL, TII.get(Xtensa::MEMW));
++    }
++
+     BuildMI(*MBB, MI, DL, TII.get(Xtensa::L8UI), R1).add(Op1).add(Op2);
+ 
+     unsigned R2 = MRI.createVirtualRegister(RC);
+@@ -1482,6 +1487,19 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
+     MI.eraseFromParent();
+     return MBB;
+   }
++  case Xtensa::S8I:
++  case Xtensa::S16I:
++  case Xtensa::S32I:
++  case Xtensa::L8UI:
++  case Xtensa::L16SI:
++  case Xtensa::L16UI:
++  case Xtensa::L32I: {
++    const MachineMemOperand &MMO = **MI.memoperands_begin();
++    if (MMO.isVolatile()) {
++      BuildMI(*MBB, MI, DL, TII.get(Xtensa::MEMW));
++    }
++    return MBB;
++  }
+   default:
+     llvm_unreachable("Unexpected instr type to insert");
+   }
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index d21100181cf0..316c660dfffb 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -216,7 +216,7 @@ let usesCustomInserter = 1 in {
+ //===----------------------------------------------------------------------===//
+ 
+ // Load instructions
+-let mayLoad = 1 in {
++let mayLoad = 1, usesCustomInserter = 1 in {
+ 
+   class Load_RRI8<bits<4> oper, string instrAsm, SDPatternOperator opNode,
+         ComplexPattern addrOp, Operand memOp>
+@@ -237,7 +237,7 @@ def L16UI : Load_RRI8<0x01, "l16ui", zextloadi16, addr_ish2, mem16>;
+ def L32I  : Load_RRI8<0x02, "l32i", load, addr_ish4, mem32>;
+ 
+ // Store instructions
+-let mayStore = 1 in {
++let mayStore = 1, usesCustomInserter = 1 in {
+   class Store_II8<bits<4> oper, string instrAsm, SDPatternOperator opNode,
+         ComplexPattern addrOp, Operand memOp>
+ 	  : RRI8_Inst<0x02, (outs), (ins AR:$t, memOp:$addr),
+-- 
+2.40.1
+

@@ -28,7 +28,7 @@
 
 # (tpg) optimize it a bit
 # And reduce debug level to save some space
-%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Qunused-arguments -Wl,-Bsymbolic-functions -g1
+%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Wl,-Bsymbolic-functions -g1
 %global build_ldflags %{build_ldflags} -fno-semantic-interposition -Wl,-Bsymbolic-functions
 
 %ifarch %{riscv}
@@ -150,7 +150,7 @@ Release:	0.%{date}.1
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
-Release:	1
+Release:	2
 %endif
 # HEAD as of 2023/01/30 also take a look here https://github.com/KhronosGroup/glslang/blob/master/known_good.json
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/SPIRV-Headers-1d31a100405cf8783ca7a31e31cdd727c9fc54c3.tar.gz
@@ -235,13 +235,154 @@ Patch61:	compiler-rt-no-Iusrinclude.patch
 # Really a patch -- but we want to apply it conditionally
 # and we use %%autosetup for other patches...
 Source62:	llvm-10-default-compiler-rt.patch
-# Another patch, applied conditionally
-Source63:	llvm-riscv-needs-libatomic-linkage.patch
 # SPIR-V fixes
 #Patch90:	spirv-fix-warnings.patch
 Patch91:	SPRIV-Tools-soname.patch
 Patch92:	spirv-tools-compile.patch
 Patch93:	spirv-headers-install-even-if-not-toplevel.patch
+
+# Patches for Xtensa support from
+# https://github.com/espressif/llvm-project
+Patch1001:	0001-Xtensa-Initial-support-of-the-ALU-operations.patch
+Patch1002:	0002-Xtensa-Codegen-support-for-memory-operations.patch
+Patch1003:	0003-Xtensa-Add-Constant-Pool.patch
+Patch1004:	0004-Xtensa-Implement-assembler-representation-of-the.patch
+Patch1005:	0005-Xtensa-Implement-lowering-constants.patch
+Patch1006:	0006-Xtensa-Add-support-of-the-Xtensa-function-calls.patch
+Patch1007:	0007-Xtensa-Implement-lowering-ConstantPool-and-address.patch
+Patch1008:	0008-Xtensa-Implement-emitPrologue-emitEpilogue.patch
+Patch1009:	0009-Xtensa-Lower-stack-operations.patch
+Patch1010:	0010-Xtensa-Implement-lowering-SELECT_CC-SETCC.patch
+Patch1011:	0011-Xtensa-Support-for-a-variety-of-additional-LLVM-IR.patch
+Patch1012:	0012-Xtensa-Lower-SHIFT-PARTS-and-shift-operations.patch
+Patch1013:	0013-Xtensa-Implement-load-pseudo-operations-and.patch
+Patch1014:	0014-Xtensa-Support-for-variable-arguments.patch
+Patch1015:	0015-Xtensa-Implement-lowering-BR_JT-operation.patch
+Patch1016:	0016-Xtensa-Support-for-address-intrinsics.patch
+Patch1017:	0017-Xtensa-Add-basic-support-for-inline-asm-constraints.patch
+Patch1018:	0018-Xtensa-Implement-volatile-load-store.patch
+Patch1019:	0019-Xtensa-Implement-branch-analysis.patch
+Patch1020:	0020-Xtensa-Implement-support-for-the-BranchRelaxation.patch
+Patch1021:	0021-Xtensa-Implement-code-density-feature-operations.patch
+Patch1022:	0022-Xtensa-Add-code-size-reduction-pass.patch
+Patch1023:	0023-Xtensa-Implement-Windowed-feature-operations.patch
+Patch1024:	0024-Xtensa-Implement-Windowed-Call-ABI.patch
+Patch1025:	0025-Xtensa-Reserve-an-emergency-spill-slot-for.patch
+Patch1026:	0026-Xtensa-Implement-Boolean-feature-operations.patch
+Patch1027:	0027-Xtensa-Implement-Floating-Point-feature-operations.patch
+Patch1028:	0028-Xtensa-Lowering-Floating-Point-Operations.patch
+Patch1029:	0029-Xtensa-Implement-DAG-Combine-for-FADD-and-FSUB.patch
+Patch1030:	0030-Xtensa-Implement-Loop-SEXT-and-NSA-features.patch
+Patch1031:	0031-Xtensa-Implement-Mul32-Mul32High-and-Div32.patch
+Patch1032:	0032-Xtensa-Implement-Mac16-feature-and-operations.patch
+Patch1033:	0033-Xtensa-Implement-Xtensa-features-and-operations.patch
+Patch1034:	0034-Xtensa-Implement-Xtensa-features-and-operations.patch
+Patch1035:	0035-Xtensa-Add-the-Xtensa-target.patch
+Patch1036:	0036-Xtensa-Implement-Xtensa-ABI-lowering.patch
+Patch1037:	0037-Xtensa-Add-subtargets-ESP32.-ESP8266-and-ESP32-S2.patch
+Patch1038:	0038-Xtensa-Add-esp32-esp8266-and-esp32-s2-to-valid-cpu.patch
+Patch1039:	0039-Xtensa-Improve-parsing-of-the-SR-and-UR-registers.patch
+Patch1040:	0040-Xtensa-Emit-literals.patch
+Patch1041:	0041-Xtensa-Improve-assembler-parsing.-Improve-CFA.patch
+Patch1042:	0042-Xtensa-Lowering-Exception-Selector-and-Pointer.patch
+Patch1043:	0043-Xtensa-Lowering-GLobalTLSAddress-operation.patch
+Patch1044:	0044-Xtensa-Lower-ATOMIC_FENCE.-Add-Atomic-Expand-pass.patch
+Patch1045:	0045-Xtensa-Lower-atomic_cmp_swap_-8-16-32-operations.patch
+Patch1046:	0046-Xtensa-Lower-atomic_swap_-8-16-32-operations.patch
+Patch1047:	0047-Xtensa-Lower-atomic-operations.patch
+Patch1048:	0048-Xtensa-Implement-Xtensa-toolchain.patch
+Patch1049:	0049-Xtensa-Implement-multilib-support.patch
+Patch1050:	0050-Xtensa-Implemented-builtins-for-Xtensa-MAC16.patch
+Patch1051:	0051-Xtensa-Implemented-builtins-for-Xtensa-MAC16.patch
+Patch1052:	0052-Xtensa-Implement-lowering-llvm-intrinsics.patch
+Patch1053:	0053-Xtensa-Not-for-upstream-Add-functions-needed-to.patch
+Patch1054:	0054-Xtensa-Correct-Call-ABI-for-function-return.patch
+Patch1055:	0055-Xtensa-Implement-rest-part-of-FP-instructions.patch
+Patch1056:	0056-Xtensa-Correct-lowering-BR_CC-with-FP-operands.patch
+Patch1057:	0057-Xtensa-Use-ctors-for-Xtensa-target-by-default.patch
+Patch1058:	0058-Xtensa-Implement-Hardware-Loop-optimization-pass.patch
+Patch1059:	0059-Xtensa-Change-using-of-Frame-Pointer.patch
+Patch1060:	0060-esp-maint-Adds-Github-workfows.patch
+Patch1061:	0061-Xtensa-Implement-esp32-psram-cache-fixes.patch
+Patch1062:	0062-Xtensa-Fix-Hardware-Loop-optimization.patch
+Patch1063:	0063-Xtensa-Remove-unnecessary-MOVSP-in-epilogue.patch
+Patch1064:	0064-Xtensa-Support-f-Inline-Assembly-Constraint.patch
+Patch1065:	0065-Xtensa-Correction-of-the-PSRAM-fix-pass.patch
+Patch1066:	0066-Xtensa-Correction-of-the-hardware-loop-instrinsics.patch
+Patch1067:	0067-Xtensa-Correction-of-the-ESP32-S2-target.patch
+Patch1068:	0068-Xtensa-Implement-ESP32-S3-target.patch
+Patch1069:	0069-Xtensa-Define-register-type-for-CC.patch
+Patch1070:	0070-Xtensa-Correcting-FP-instructions-and-intrinsics.patch
+Patch1071:	0071-Xtensa-Implement-MUL16-feature.patch
+Patch1072:	0072-Xtensa-Add-a-no-op-mlongcalls-option-for-better.patch
+Patch1073:	0073-Xtensa-Initialize-MCSubtargetInfo-with-esp32.patch
+Patch1074:	0074-Xtensa-Initialize-MCSubtargetInfo-with-esp32.patch
+Patch1075:	0075-Xtensa-Correction-of-the-Hardware-Loop-pass.patch
+Patch1076:	0076-Xtensa-Fix-atomic-swap-for-8-16-bit-operands.patch
+Patch1077:	0077-Xtensa-Initial-porting-compiler-rt-library-for.patch
+Patch1078:	0078-Xtensa-Add-support-of-mcpu-option.patch
+Patch1079:	0079-Xtensa-Improve-Xtensa-multilib-support-in-clang.patch
+Patch1080:	0080-Xtensa-Add-rtlib-option-support-for-ESP-Xtensa.patch
+Patch1081:	0081-Xtensa-Add-fuse-ld-option-support-to-ESP-Xtensa.patch
+Patch1082:	0082-Xtensa-Use-B0-register-for-FP-cmp-operations.patch
+Patch1083:	0083-ci-add-.gitlab-ci.yml-to-support-CI-CD.patch
+Patch1084:	0084-Xtensa-Fix-inline-asm.patch
+Patch1085:	0085-Xtensa-Fix-handling-of-empty-fuse-ld-option-for.patch
+Patch1086:	0086-esp-Adds-support-for-vendor-Espressif-to-target.patch
+Patch1087:	0087-esp-riscv-Use-GCC-assembler-for-ESP-RISCV-chips.patch
+Patch1088:	0088-esp-riscv-Adds-support-for-riscv32-esp-elf-target.patch
+Patch1089:	0089-riscv-Add-default-multilib.patch
+Patch1090:	0090-esp-riscv-Add-multilib-support-for-riscv32-esp-elf.patch
+Patch1091:	0091-esp-riscv-Add-libnosys-to-linker-command-line-by.patch
+Patch1092:	0092-esp-riscv-Exclude-crt0.o-from-linking-in.patch
+Patch1093:	0093-riscv-Add-ESP-toolchain-tests.patch
+Patch1094:	0094-esp-ci-Adds-Linux-build.patch
+Patch1095:	0095-esp-ci-Adds-Mingw32-build.patch
+Patch1096:	0096-Xtensa-Remove-redundant-target-features.patch
+Patch1097:	0097-esp-ci-Upgrade-universal-toolchain-to.patch
+Patch1098:	0098-esp-ci-Allow-failure-for-universal-toolchain-builds.patch
+Patch1099:	0099-Xtensa-Implement-support-of-the-sysroot.patch
+Patch1100:	0100-Xtensa-Fix-crtbegin-crtend-implementation.patch
+Patch1101:	0101-Xtensa-Build-compiler-rt-libs.patch
+Patch1102:	0102-Xtensa-Fix-ill.n-instruction-econding.patch
+Patch1103:	0103-ci-add-jobs-for-arm64-toolchains.patch
+Patch1104:	0104-ci-cd-fix-clang-version-in-gitlab-ci.yml.patch
+Patch1105:	0105-Xtensa-fix-compiler-rt-crt-build-script.patch
+Patch1106:	0106-Xtensa-Implement-asm-macro-for-bbci-bbsi.patch
+Patch1107:	0107-Xtensa-Implement-support-of-literal-and-region-asm.patch
+Patch1108:	0108-Xtensa-Corrected-asm-parser.patch
+Patch1109:	0109-riscv-gnu-Adds-no-rtti-multilib-support.patch
+Patch1110:	0110-Xtensa-Guess-GCC-toolchain-triplet-from-MCPU-option.patch
+Patch1111:	0111-esp-ci-Adds-MacOS-x86_64-ARM64-universal-toolchain.patch
+Patch1112:	0112-esp-ci-Adds-minimal-distro-with-libraries-headres.patch
+Patch1113:	0113-esp-ci-Upgrade-GCC-toolchain-to-esp-2022r1.patch
+Patch1114:	0114-esp-ci-Move-newlib-build-to-separate-job.patch
+Patch1115:	0115-esp-ci-Adds-Linux-ARM-ARM64-universal-toolchain.patch
+Patch1116:	0116-esp-ci-Upgrade-Clang-ver-to-15.patch
+Patch1117:	0117-esp-ci-Adds-support-to-switch-between-legacy-and.patch
+Patch1118:	0118-esp-ci-Adds-MacOS-binaries-signing-stage.patch
+Patch1119:	0119-Xtensa-Xtensa-ABI-128bit-arg-alignment.patch
+Patch1120:	0120-Xtensa-Fix-Call-ABI-for-16-byte-alignment.patch
+Patch1121:	0121-Xtensa-Add-IR-test-for-16byte-alignment.patch
+Patch1122:	0122-esp-ci-Run-LLD-tests.-Output-test-logs-in.patch
+Patch1123:	0123-Xtensa-Fix-atomic-rmw-operation.patch
+Patch1124:	0124-Xtensa-Fix-Hardware-Loop-pass.patch
+Patch1125:	0125-Xtensa-Add-LLD-linker-support.patch
+Patch1126:	0126-Xtensa-LLD-add-more-tests.patch
+Patch1127:	0127-Xtensa-LLD-Fix-J-formula.patch
+Patch1128:	0128-Xtensa-Add-emit-constant-pool-option.patch
+Patch1129:	0129-Xtensa-Add-support-of-the-mcmodel-option.patch
+Patch1130:	0130-Xtensa-Fix-lowering-funnel-shift-left.patch
+Patch1131:	0131-Xtensa-Make-it-possible-to-use-fuse-ld-when-GCC.patch
+Patch1132:	0132-esp-ci-Fixes-Windows-release-archives.patch
+Patch1133:	0133-esp-ci-Check-for-OOM-failures-after-build.patch
+Patch1134:	0134-LLD-Xtensa-Cover-DIFF-8-16-32-relocations.patch
+Patch1135:	0135-Xtensa-Implement-constant-islands-pass.patch
+Patch1136:	0136-Xtensa-Disable-hardware-loops-by-default.patch
+Patch1137:	0137-Xtensa-Improve-fixup-error-messages-in-asm-backend.patch
+Patch1138:	0138-Xtensa-Fix-hwloop-tests.patch
+Patch1139:	0139-Xtensa-Place-aggregate-constants-in-global-variable.patch
+Patch1140:	0140-esp-ci-change-clang-version-to-16.patch
 
 BuildRequires:	bison
 BuildRequires:	binutils-devel
@@ -949,6 +1090,7 @@ Summary:	Development files for Polly
 License:	MIT
 Group:		Development/Other
 Requires:	%{name}-polly = %{EVRD}
+Requires:	%{mklibname -d -s Polly} = %{EVRD}
 
 %description polly-devel
 Development files for Polly.
@@ -968,7 +1110,8 @@ short vector instructions as well as dedicated accelerators.
 %doc %{_docdir}/LLVM/polly
 %{_includedir}/polly
 %{_libdir}/cmake/polly
-%{_libdir}/libPolly*.a
+%{_libdir}/libPollyISL.a
+%{_libdir}/libPollyPPCG.a
 #-----------------------------------------------------------
 
 %if %{with clang}
@@ -1504,6 +1647,7 @@ License:	MIT
 Group:		Development/Other
 Requires:	%{name}-polly32 = %{EVRD}
 Requires:	%{name}-polly-devel = %{EVRD}
+Requires:	%{mklib32name -d -s Polly} = %{EVRD}
 
 %description polly32-devel
 Development files for Polly.
@@ -1520,7 +1664,8 @@ parallelism that takes advantage of multi-cores, cache hierarchies,
 short vector instructions as well as dedicated accelerators.
 
 %files polly32-devel
-%{_prefix}/lib/libPolly*.a
+%{_prefix}/lib/libPollyISL.a
+%{_prefix}/lib/libPollyPPCG.a
 %{_prefix}/lib/cmake/polly
 
 %define lib32unwind libunwind%{libunwind_major}
@@ -1851,9 +1996,6 @@ mv SPIRV-Tools-* llvm/projects/SPIRV-Tools
 %autopatch -p1
 %if %{with default_compilerrt}
 patch -p1 -b -z .crt~ <%{S:62}
-%endif
-%ifarch %{riscv}
-patch -p1 -b -z .rvatomic~ <%{S:63}
 %endif
 git init
 git config user.email build@openmandriva.org

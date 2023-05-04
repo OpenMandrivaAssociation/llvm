@@ -1,0 +1,35 @@
+From 3f1fdee2722c43c925bb70e8a7522fdcfbe7bbd8 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:39 +0300
+Subject: [PATCH 122/140] esp/ci: Run LLD tests. Output test logs in
+
+ lld-tests.log
+---
+ .universal-toolchain-release.yml | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/.universal-toolchain-release.yml b/.universal-toolchain-release.yml
+index 3f15eb9637a3..5292918a32a9 100644
+--- a/.universal-toolchain-release.yml
++++ b/.universal-toolchain-release.yml
+@@ -58,6 +58,7 @@
+   artifacts:
+     paths:
+       - ${DIST_DIR}/
++      - ${BUILD_DIR}/lld-tests.log
+       - ${BUILD_DIR}/tests.log
+       - ${BUILD_DIR}/build.log
+     when: always
+@@ -94,6 +95,9 @@
+         touch ${BUILD_PATH}/tests.log;
+         chmod o+w ${BUILD_PATH}/tests.log;
+         runuser -l test_runner -c 'cmake --build '${LLVM_BUILD_PATH}' --target check-all 2>&1 > '${BUILD_PATH}'/tests.log';
++        touch ${BUILD_PATH}/lld-tests.log;
++        chmod o+w ${BUILD_PATH}/lld-tests.log;
++        runuser -l test_runner -c 'cmake --build '${LLVM_BUILD_PATH}' --target lld-test 2>&1 > '${BUILD_PATH}'/lld-tests.log';
+       fi
+     - export DISTRO_DIR=$PWD/$DIST_DIR
+     - pushd ${BUILD_PATH}
+-- 
+2.40.1
+

@@ -1,0 +1,132 @@
+From 057e8a56f8dc9f21fe3a88e6c59126f7d51b7665 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:49 +0300
+Subject: [PATCH 029/140] [Xtensa] Implement DAG Combine for FADD and FSUB
+
+ operations.
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 72 +++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  3 +
+ 2 files changed, 75 insertions(+)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 59a9fc624cbd..24e8aa0d74e8 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -257,6 +257,8 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+     setCondCodeAction(ISD::SETUGE, MVT::f32, Expand);
+     setCondCodeAction(ISD::SETUGT, MVT::f32, Expand);
+ 
++    setTargetDAGCombine(ISD::FADD);
++    setTargetDAGCombine(ISD::FSUB);
+     setTargetDAGCombine(ISD::BRCOND);
+   }
+ 
+@@ -291,6 +293,21 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   }
+ }
+ 
++bool XtensaTargetLowering::isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
++                                                      EVT VT) const {
++  if (!VT.isSimple())
++    return false;
++
++  switch (VT.getSimpleVT().SimpleTy) {
++  case MVT::f32:
++    return Subtarget.hasSingleFloat();
++  default:
++    break;
++  }
++
++ return false;
++}
++
+ bool XtensaTargetLowering::isOffsetFoldingLegal(
+     const GlobalAddressSDNode *GA) const {
+   // The Xtensa target isn't yet aware of offsets.
+@@ -387,6 +404,57 @@ void XtensaTargetLowering::LowerAsmOperandForConstraint(
+ //  DAG Combine functions
+ //===----------------------------------------------------------------------===//
+ 
++static SDValue performMADD_MSUBCombine(SDNode *ROOTNode, SelectionDAG &CurDAG,
++                                       const XtensaSubtarget &Subtarget) {
++  if (ROOTNode->getOperand(0).getValueType() != MVT::f32)
++    return SDValue();
++
++  if (ROOTNode->getOperand(0).getOpcode() != ISD::FMUL &&
++      ROOTNode->getOperand(1).getOpcode() != ISD::FMUL)
++    return SDValue();
++
++  SDValue Mult = ROOTNode->getOperand(0).getOpcode() == ISD::FMUL
++                     ? ROOTNode->getOperand(0)
++                     : ROOTNode->getOperand(1);
++
++  SDValue AddOperand = ROOTNode->getOperand(0).getOpcode() == ISD::FMUL
++                           ? ROOTNode->getOperand(1)
++                           : ROOTNode->getOperand(0);
++
++  if (!Mult.hasOneUse())
++    return SDValue();
++
++  SDLoc DL(ROOTNode);
++
++  bool IsAdd = ROOTNode->getOpcode() == ISD::FADD;
++  unsigned Opcode = IsAdd ? XtensaISD::MADD : XtensaISD::MSUB;
++  SDValue MAddOps[3] = {AddOperand, Mult->getOperand(0), Mult->getOperand(1)};
++  EVT VTs[3] = {MVT::f32, MVT::f32, MVT::f32};
++  SDValue MAdd = CurDAG.getNode(Opcode, DL, VTs, MAddOps);
++
++  return MAdd;
++}
++
++static SDValue performSUBCombine(SDNode *N, SelectionDAG &DAG,
++                                 TargetLowering::DAGCombinerInfo &DCI,
++                                 const XtensaSubtarget &Subtarget) {
++  if (DCI.isBeforeLegalizeOps()) {
++    if (Subtarget.hasSingleFloat() && N->getValueType(0) == MVT::f32)
++      return performMADD_MSUBCombine(N, DAG, Subtarget);
++  }
++  return SDValue();
++}
++
++static SDValue performADDCombine(SDNode *N, SelectionDAG &DAG,
++                                 TargetLowering::DAGCombinerInfo &DCI,
++                                 const XtensaSubtarget &Subtarget) {
++  if (DCI.isBeforeLegalizeOps()) {
++    if (Subtarget.hasSingleFloat() && N->getValueType(0) == MVT::f32)
++      return performMADD_MSUBCombine(N, DAG, Subtarget);
++  }
++  return SDValue();
++}
++
+ static SDValue PerformBRCONDCombine(SDNode *N, SelectionDAG &DAG,
+                                     TargetLowering::DAGCombinerInfo &DCI,
+                                     const XtensaSubtarget &Subtarget) {
+@@ -420,6 +488,10 @@ SDValue XtensaTargetLowering::PerformDAGCombine(SDNode *N,
+   switch (Opc) {
+   default:
+     break;
++  case ISD::FADD:
++    return performADDCombine(N, DAG, DCI, Subtarget);
++  case ISD::FSUB:
++    return performSUBCombine(N, DAG, DCI, Subtarget);
+   case ISD::BRCOND:
+     return PerformBRCONDCombine(N, DAG, DCI, Subtarget);
+   }
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index b6534cf67ce4..3f9929b9da2f 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -99,6 +99,9 @@ public:
+     return VT.changeVectorElementTypeToInteger();
+   }
+ 
++  bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
++                                  EVT VT) const override;
++
+   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
+   bool isFPImmLegal(const APFloat &Imm, EVT VT,
+                     bool ForCodeSize) const override;
+-- 
+2.40.1
+

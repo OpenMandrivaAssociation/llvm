@@ -1,0 +1,346 @@
+From 7b8897ba17046287005c63f3937853fcdc6472b6 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:12 +0300
+Subject: [PATCH 067/140] [Xtensa] Correction of the  ESP32-S2 target.
+
+The ESP32-S2 chip includes Xtensa ISA extension which
+helps to work with GPIO, so we add instructions description
+and test. Add MEMCTL feature to ESP32-S2 target. Implement
+Xtensa illegal instructions with tests.
+---
+ .../Xtensa/AsmParser/XtensaAsmParser.cpp      |  5 ++
+ .../Disassembler/XtensaDisassembler.cpp       |  8 +++
+ .../Xtensa/MCTargetDesc/XtensaInstPrinter.cpp | 11 ++++
+ .../Xtensa/MCTargetDesc/XtensaInstPrinter.h   |  1 +
+ .../MCTargetDesc/XtensaMCCodeEmitter.cpp      | 17 ++++++
+ llvm/lib/Target/Xtensa/Xtensa.td              |  9 ++-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     | 55 +++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaOperands.td      |  7 +++
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp    |  1 +
+ llvm/lib/Target/Xtensa/XtensaSubtarget.h      |  5 ++
+ llvm/test/MC/Xtensa/Core/processor-control.s  |  4 ++
+ llvm/test/MC/Xtensa/xtensa-esp32s2-valid.s    | 21 +++++++
+ llvm/test/MC/Xtensa/xtensa-valid-density.s    |  9 +++
+ 13 files changed, 151 insertions(+), 2 deletions(-)
+ create mode 100644 llvm/test/MC/Xtensa/xtensa-esp32s2-valid.s
+ create mode 100644 llvm/test/MC/Xtensa/xtensa-valid-density.s
+
+diff --git a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+index b66e96dfb63f..e55260e97360 100644
+--- a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
++++ b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+@@ -353,6 +353,8 @@ public:
+ 
+   bool isseimm7_22() const { return isImm(7, 22); }
+ 
++  bool isSelect_256() const { return isImm(0, 255); }
++
+   /// getStartLoc - Gets location of the first token of this operand
+   SMLoc getStartLoc() const override { return StartLoc; }
+   /// getEndLoc - Gets location of the last token of this operand
+@@ -624,6 +626,9 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
+   case Match_Invalidseimm7_22:
+     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                  "expected immediate in range [7, 22]");
++  case Match_InvalidSelect_256:
++    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
++                 "expected immediate in range [0, 255]");
+   }
+ 
+   report_fatal_error("Unknown match type detected!");
+diff --git a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+index aa6ac4e38188..558a1855b1cd 100644
+--- a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
++++ b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+@@ -569,6 +569,14 @@ static DecodeStatus decodeSeimm7_22Operand(MCInst &Inst, uint64_t Imm,
+   return MCDisassembler::Success;
+ }
+ 
++static DecodeStatus decodeSelect_256Operand(MCInst &Inst, uint64_t Imm,
++                                            int64_t Address,
++                                            const void *Decoder) {
++  assert(isUInt<8>(Imm) && "Invalid immediate");
++  Inst.addOperand(MCOperand::createImm(Imm));
++  return MCDisassembler::Success;
++}
++
+ static int64_t TableB4const[16] = {-1, 1,  2,  3,  4,  5,  6,   7,
+                                    8,  10, 12, 16, 32, 64, 128, 256};
+ static DecodeStatus decodeB4constOperand(MCInst &Inst, uint64_t Imm,
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
+index 8d5e56b35b51..0960c73dba93 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
+@@ -439,3 +439,14 @@ void XtensaInstPrinter::printSeimm7_22_AsmOperand(const MCInst *MI, int OpNum,
+   } else
+     printOperand(MI, OpNum, O);
+ }
++
++void XtensaInstPrinter::printSelect_256_AsmOperand(const MCInst *MI, int OpNum,
++                                                   raw_ostream &O) {
++  if (MI->getOperand(OpNum).isImm()) {
++    int64_t Value = MI->getOperand(OpNum).getImm();
++    assert((Value >= 0 && Value <= 255) &&
++           "Invalid argument, value must be in range [0,255]");
++    O << Value;
++  } else
++    printOperand(MI, OpNum, O);
++}
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
+index 62b080c63570..b103fb5dc9e0 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
+@@ -73,6 +73,7 @@ private:
+   void printB4const_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printB4constu_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printSeimm7_22_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
++  void printSelect_256_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+ };
+ } // end namespace llvm
+ 
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+index 96194d4e4aa7..35a016eff25c 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+@@ -142,6 +142,11 @@ private:
+   uint32_t getSeimm7_22OpValue(const MCInst &MI, unsigned OpNo,
+                                SmallVectorImpl<MCFixup> &Fixups,
+                                const MCSubtargetInfo &STI) const;
++
++  uint32_t getSelect_256OpValue(const MCInst &MI, unsigned OpNo,
++                                SmallVectorImpl<MCFixup> &Fixups,
++                                const MCSubtargetInfo &STI) const;
++
+ };
+ } // namespace
+ 
+@@ -592,4 +597,16 @@ XtensaMCCodeEmitter::getSeimm7_22OpValue(const MCInst &MI, unsigned OpNo,
+   return res;
+ }
+ 
++uint32_t
++XtensaMCCodeEmitter::getSelect_256OpValue(const MCInst &MI, unsigned OpNo,
++                                          SmallVectorImpl<MCFixup> &Fixups,
++                                          const MCSubtargetInfo &STI) const {
++  const MCOperand &MO = MI.getOperand(OpNo);
++  uint32_t Res = static_cast<uint32_t>(MO.getImm());
++
++  assert(((Res >= 0) && (Res <= 255)) && "Unexpected operand value!");
++
++  return Res;
++}
++
+ #include "XtensaGenMCCodeEmitter.inc"
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.td b/llvm/lib/Target/Xtensa/Xtensa.td
+index b17442717c21..e5d5e4eb1e0b 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.td
++++ b/llvm/lib/Target/Xtensa/Xtensa.td
+@@ -153,6 +153,11 @@ def FeatureMiscSR            : SubtargetFeature<"miscsr", "HasMiscSR", "true",
+ def HasMiscSR                : Predicate<"Subtarget->hasMiscSR()">,
+                                           AssemblerPredicate<(all_of FeatureMiscSR)>;
+ 
++def FeatureESP32S2Ops        : SubtargetFeature<"esp32s2", "HasESP32S2Ops", "true",
++                                                "Support Xtensa esp32-s2 ISA extension">;
++def HasESP32S2Ops            : Predicate<"Subtarget->hasESP32S2Ops()">,
++                                          AssemblerPredicate<(all_of FeatureESP32S2Ops)>;
++
+ //===----------------------------------------------------------------------===//
+ // Xtensa supported processors.
+ //===----------------------------------------------------------------------===//
+@@ -170,8 +175,8 @@ def : Proc<"esp8266", [FeatureDensity, FeatureNSA, FeatureMul32, FeatureExtended
+                        FeatureInterrupt, FeatureRelocatableVector, FeatureTimerInt, FeatureRegionProtection, FeaturePRID]>;
+ 
+ def : Proc<"esp32-s2", [FeatureDensity, FeatureWindowed, FeatureSEXT, FeatureNSA, FeatureMul32, FeatureMul32High, FeatureTHREADPTR, FeatureDiv32,
+-                        FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor, FeatureInterrupt, FeatureRelocatableVector,
+-						FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR]>;
++                        FeatureMEMCTL, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureCoprocessor, FeatureInterrupt,
++                        FeatureRelocatableVector,	FeatureTimerInt, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureESP32S2Ops]>;
+ 
+ //===----------------------------------------------------------------------===//
+ // Register File Description
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 9dd5dd63d5dc..f901b2d5cf5d 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -1454,6 +1454,27 @@ def WITLB : RRR_Inst<0x00, 0x00, 0x05, (outs AR:$t), (ins AR:$s),
+   let r = 0x6;
+ }
+ 
++//===----------------------------------------------------------------------===//
++// Illegal instructions
++//===----------------------------------------------------------------------===//
++
++let isBarrier = 1, isTerminator = 1 in {
++  def ILL : CALLX_Inst<0x00, 0x00, 0x00, (outs), (ins),
++                      "ill", []> {
++    let m = 0x0;
++    let n = 0x0;
++    let r = 0;
++    let s = 0;
++  }
++
++  def ILL_N : RRRN_Inst<0x0C, (outs), (ins),
++                       "ill.n", []>, Requires<[HasDensity]> {
++    let r = 0xf;
++    let s = 0x0;
++    let t = 0x6;
++  }
++}
++
+ //===----------------------------------------------------------------------===//
+ // Atomic patterns
+ //===----------------------------------------------------------------------===//
+@@ -1588,6 +1609,40 @@ let usesCustomInserter = 1, Predicates = [HasS32C1I] in {
+                                     [(set AR:$dst, (atomic_load_umax_32 AR:$ptr, AR:$arg))]>;	
+ }
+ 
++//===----------------------------------------------------------------------===//
++// Xtensa ESP32S2 Instructions
++//===----------------------------------------------------------------------===//
++let Predicates = [HasESP32S2Ops] in {
++  def WR_MASK_GPIO_OUT : RRR_Inst<0x0, 0x06, 0x0, (outs), (ins AR:$s, AR:$t),
++                                 "wr_mask_gpio_out\t$s, $t", []> {
++    let r = 0x2;
++  }
++
++  def SET_BIT_GPIO_OUT : RRR_Inst<0x0, 0x06, 0x0, (outs), (ins select_256:$imm),
++                                 "set_bit_gpio_out\t$imm", []> {
++    bits<8> imm;
++
++    let r = 0x1;
++    let s = imm{7-4};
++    let t = imm{3-0};
++  }
++
++  def CLR_BIT_GPIO_OUT : RRR_Inst<0x0, 0x06, 0x0, (outs), (ins select_256:$imm),
++                                 "clr_bit_gpio_out\t$imm", []> {
++    bits<8> imm;
++
++    let r = 0x0;
++    let s = imm{7-4};
++    let t = imm{3-0};
++  }
++
++  def GET_GPIO_IN : RRR_Inst<0x0, 0x06, 0x0, (outs AR:$t), (ins),
++                            "get_gpio_in\t$t", []> {
++    let r = 0x3;
++    let s = 0x0;
++  }
++}
++
+ //===----------------------------------------------------------------------===//
+ // DSP Instructions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperands.td b/llvm/lib/Target/Xtensa/XtensaOperands.td
+index 9957bf7bd1f4..620aeee00051 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperands.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperands.td
+@@ -175,6 +175,13 @@ def seimm7_22: Immediate<i32, [{ return Imm >= 7 && Imm <= 22; }], "Seimm7_22_As
+   let DecoderMethod = "decodeSeimm7_22Operand";
+ }
+ 
++// select_256 predicate - Immediate in the range [0,255]
++def Select_256_AsmOperand: ImmAsmOperand<"Select_256">;
++def select_256: Immediate<i32, [{ return Imm >= 0 && Imm <= 255; }], "Select_256_AsmOperand"> {
++  let EncoderMethod = "getSelect_256OpValue";
++  let DecoderMethod = "decodeSelect_256Operand";
++}
++
+ //===----------------------------------------------------------------------===//
+ // Memory address operands
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+index 106884d8a031..2b90365eb870 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -59,6 +59,7 @@ XtensaSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
+   HasPRID = false;
+   HasRegionProtection = false;
+   HasMiscSR = false;
++  HasESP32S2Ops = false;
+ 
+   // Parse features string.
+   ParseSubtargetFeatures(CPUName, CPUName, FS);
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.h b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+index 8eb3281706cf..24be0de4bf2a 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.h
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+@@ -119,6 +119,9 @@ private:
+   // Enable Xtensa Miscellaneous Special Reigsiters option
+   bool HasMiscSR;
+ 
++  // Enable Xtensa esp32-s2 ISA extension
++  bool HasESP32S2Ops;
++
+   XtensaSubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
+ 
+ public:
+@@ -190,6 +193,8 @@ public:
+ 
+   bool hasMiscSR() const { return HasMiscSR; }
+ 
++  bool hasESP32S2Ops() const { return HasESP32S2Ops; }
++
+   // Automatically generated by tblgen.
+   void ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
+ };
+diff --git a/llvm/test/MC/Xtensa/Core/processor-control.s b/llvm/test/MC/Xtensa/Core/processor-control.s
+index 1e7bac578927..ebbc577db772 100644
+--- a/llvm/test/MC/Xtensa/Core/processor-control.s
++++ b/llvm/test/MC/Xtensa/Core/processor-control.s
+@@ -15,6 +15,10 @@ dsync
+ # CHECK: encoding: [0x20,0x20,0x00]
+ esync
+ 
++# CHECK-INST: ill
++# CHECK: encoding: [0x00,0x00,0x00]
++ill
++
+ # Instruction format RRR
+ # CHECK-INST: isync
+ # CHECK: encoding: [0x00,0x20,0x00]
+diff --git a/llvm/test/MC/Xtensa/xtensa-esp32s2-valid.s b/llvm/test/MC/Xtensa/xtensa-esp32s2-valid.s
+new file mode 100644
+index 000000000000..9c998e919c81
+--- /dev/null
++++ b/llvm/test/MC/Xtensa/xtensa-esp32s2-valid.s
+@@ -0,0 +1,21 @@
++# RUN: llvm-mc %s -triple=xtensa  -mattr=+esp32s2 -show-encoding \
++# RUN:     | FileCheck -check-prefixes=CHECK,CHECK-INST %s
++
++.align	4
++LBL0:
++
++# CHECK-INST:  clr_bit_gpio_out  52
++# CHECK: encoding: [0x40,0x03,0x06]
++clr_bit_gpio_out 52
++
++# CHECK-INST:  get_gpio_in  a2
++# CHECK: encoding: [0x20,0x30,0x06]
++get_gpio_in a2
++
++# CHECK-INST:  set_bit_gpio_out  18
++# CHECK: encoding: [0x20,0x11,0x06]
++set_bit_gpio_out 18
++
++# CHECK-INST:  wr_mask_gpio_out	a3, a2
++# CHECK: encoding: [0x20,0x23,0x06]
++wr_mask_gpio_out	a3, a2
+diff --git a/llvm/test/MC/Xtensa/xtensa-valid-density.s b/llvm/test/MC/Xtensa/xtensa-valid-density.s
+new file mode 100644
+index 000000000000..fc5457ce82dd
+--- /dev/null
++++ b/llvm/test/MC/Xtensa/xtensa-valid-density.s
+@@ -0,0 +1,9 @@
++# RUN: llvm-mc %s -triple=xtensa  -mattr=+density -show-encoding \
++# RUN:     | FileCheck -check-prefixes=CHECK,CHECK-INST %s
++
++.align	4
++LBL0:
++
++# CHECK-INST:  ill.n
++# CHECK: encoding: [0x6c,0xf0]
++ill.n
+-- 
+2.40.1
+

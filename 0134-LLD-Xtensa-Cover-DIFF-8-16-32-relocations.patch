@@ -1,0 +1,26 @@
+From 0090f2dc1d593556f4935af2a88924d6874e59cf Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:45 +0300
+Subject: [PATCH 134/140] [LLD][Xtensa] Cover DIFF{8, 16, 32} relocations.
+
+---
+ lld/ELF/Arch/Xtensa.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/lld/ELF/Arch/Xtensa.cpp b/lld/ELF/Arch/Xtensa.cpp
+index f6d75fde7ac2..10d6c3b52d1d 100644
+--- a/lld/ELF/Arch/Xtensa.cpp
++++ b/lld/ELF/Arch/Xtensa.cpp
+@@ -71,6 +71,9 @@ RelExpr Xtensa::getRelExpr(RelType type, const Symbol &s,
+     // Because it's a relaxation hint, this relocation can be ignored for now
+     // until linker relaxations are implemented.
+     return R_NONE;
++  case R_XTENSA_DIFF8:
++  case R_XTENSA_DIFF16:
++  case R_XTENSA_DIFF32:
+   case R_XTENSA_PDIFF8:
+   case R_XTENSA_PDIFF16:
+   case R_XTENSA_PDIFF32:
+-- 
+2.40.1
+

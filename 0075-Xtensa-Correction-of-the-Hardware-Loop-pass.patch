@@ -1,0 +1,563 @@
+From 5f3fffbc451091fb2cbf15e55ff53a9388e4d44b Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:16 +0300
+Subject: [PATCH 075/140] [Xtensa] Correction of the Hardware Loop pass.
+
+Update loop counter via a phi instruction. This
+improvement fix case when loop have multiple enters.
+---
+ .../lib/Target/Xtensa/XtensaHardwareLoops.cpp | 182 ++++++++++++------
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp |  62 +++++-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |   4 +
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp    |   9 +-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     |  14 +-
+ llvm/lib/Target/Xtensa/XtensaOperators.td     |   7 +-
+ .../Xtensa/XtensaTargetTransformInfo.cpp      |   2 +-
+ 7 files changed, 201 insertions(+), 79 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaHardwareLoops.cpp b/llvm/lib/Target/Xtensa/XtensaHardwareLoops.cpp
+index a1a2432ded4c..34dc19399559 100644
+--- a/llvm/lib/Target/Xtensa/XtensaHardwareLoops.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaHardwareLoops.cpp
+@@ -67,6 +67,7 @@ struct XtensaHardwareLoops : public MachineFunctionPass {
+   MachineRegisterInfo *MRI;
+   MachineDominatorTree *MDT;
+   const XtensaInstrInfo *TII;
++  const TargetRegisterInfo *TRI;
+   const XtensaSubtarget *STI;
+   SmallPtrSet<MachineBasicBlock *, 1> VisitedMBBs;
+ 
+@@ -99,7 +100,10 @@ private:
+ 
+   bool checkLoopSize(MachineLoop *L);
+ 
+-  bool checkLoopEndDisplacement(MachineFunction &MF, MachineBasicBlock *LH, MachineBasicBlock* LE);
++  bool checkLoopEndDisplacement(MachineFunction &MF, MachineBasicBlock *LH,
++                                MachineBasicBlock *LE);
++
++  void revertNonLoops(MachineFunction &M);
+ };
+ 
+ char XtensaHardwareLoops::ID = 0;
+@@ -119,11 +123,11 @@ bool XtensaHardwareLoops::runOnMachineFunction(MachineFunction &MF) {
+     return false;
+ 
+   bool Changed = false;
+-
+   MLI = &getAnalysis<MachineLoopInfo>();
+   MRI = &MF.getRegInfo();
+   STI = &MF.getSubtarget<XtensaSubtarget>();
+   TII = STI->getInstrInfo();
++  TRI = STI->getRegisterInfo();
+ 
+   if (!STI->hasLoop())
+     return false;
+@@ -135,6 +139,8 @@ bool XtensaHardwareLoops::runOnMachineFunction(MachineFunction &MF) {
+       Changed |= processLoop(L);
+     }
+ 
++  revertNonLoops(MF);
++
+   return Changed;
+ }
+ 
+@@ -191,27 +197,33 @@ bool XtensaHardwareLoops::processLoop(MachineLoop *L) {
+     return true;
+ 
+   using instr_iterator = MachineBasicBlock::instr_iterator;
+-  MachineInstr *LII = nullptr; // LOOPINIT instruction
+-  MachineInstr *LEI = nullptr; // LOOPEND instruction
+-  MachineBasicBlock *LEMBB = nullptr;
++  MachineInstr *LII = nullptr;   // LOOPINIT instruction
++  MachineInstr *LDECI = nullptr; // LOOPDEC instruction
++  MachineInstr *LBRI = nullptr;  // LOOPBR instruction
++  MachineBasicBlock *LDECMBB = nullptr;
++  MachineBasicBlock *LBRMBB = nullptr;
+   MachineBasicBlock *LH = L->getHeader();
+   MachineBasicBlock *LastMBB = L->getLoopLatch();
+-  std::vector<MachineInstr *> LoopInitInsts;
+   std::map<MachineBasicBlock *, MachineInstr *> LoopInitMap;
+ 
+-  // Try to find LOOPEND instruction in the loop latch
++  // Try to find LOOPENDDEC instruction in the loop latch
+   for (auto MBI = L->block_begin(), MBIE = L->block_end(); MBI != MBIE; ++MBI) {
+     if (VisitedMBBs.count(*MBI))
+       continue;
+     for (auto MII = (*MBI)->begin(), MIE = (*MBI)->end(); MII != MIE; ++MII) {
+       MachineInstr *LMI = &*MII;
+-      if (LMI->getOpcode() == Xtensa::LOOPEND) {
+-        LEI = LMI;
+-        LEMBB = *MBI;
++      if (LMI->getOpcode() == Xtensa::LOOPDEC) {
++        LDECI = LMI;
++        LDECMBB = *MBI;
++      }
++
++      if (LMI->getOpcode() == Xtensa::LOOPBR) {
++        LBRI = LMI;
++        LBRMBB = *MBI;
+       }
++
+       // Collect LOOPINIT instructions inside the loop
+       if (LMI->getOpcode() == Xtensa::LOOPINIT) {
+-        LoopInitInsts.push_back(LMI);
+         MachineBasicBlock *SB = LMI->getParent();
+         while (!SB->isSuccessor(LH)) {
+           for (auto SBI : SB->successors()) {
+@@ -229,10 +241,17 @@ bool XtensaHardwareLoops::processLoop(MachineLoop *L) {
+     VisitedMBBs.insert(*MBI);
+   }
+ 
+-  if (LEI != nullptr) {
+-    MachineBasicBlock::iterator LHI = LH->getFirstNonPHI();
++  if ((LBRI != nullptr) && (LDECI != nullptr)) {
+     MachineBasicBlock *LIMBB = nullptr;
+ 
++    for (const auto &Use : MRI->use_operands(LDECI->getOperand(0).getReg())) {
++      const MachineInstr *UseMI = Use.getParent();
++      if ((UseMI != LBRI) && (UseMI->getOpcode() != TargetOpcode::PHI)) {
++        LLVM_DEBUG(dbgs() << "Xtensa Loops: Unable to remove LoopDec.\n");
++        return false;
++      }
++    }
++
+     // Collect LOOPINIT instructions in predecessors from outter loop
+     for (auto PBI : LH->predecessors()) {
+       if (L->contains(PBI))
+@@ -268,76 +287,72 @@ bool XtensaHardwareLoops::processLoop(MachineLoop *L) {
+     // sub a, a, 1
+     // bnez a, LH
+     if (!checkLoopSize(L) || containsInvalidInstruction(L) ||
+-        (LEMBB != LastMBB) ||
+-        (!checkLoopEndDisplacement(*LH->getParent(), LH, LEMBB))) {
+-      const MCInstrDesc &PD = TII->get(TargetOpcode::PHI);
+-      MachineInstr *NewPN = LH->getParent()->CreateMachineInstr(PD, DL);
+-      LH->insert(LH->begin(), NewPN);
+-      Register PR = MRI->createVirtualRegister(&Xtensa::ARRegClass);
+-      NewPN->addOperand(MachineOperand::CreateReg(PR, true));
+-
+-      Register IndR = MRI->createVirtualRegister(&Xtensa::ARRegClass);
++        (LBRMBB != LastMBB) ||
++        (!checkLoopEndDisplacement(*LH->getParent(), LH, LBRMBB))) {
+ 
+       for (auto PB : LH->predecessors()) {
+-
+         if (LoopInitMap.find(PB) != LoopInitMap.end()) {
+-          MachineOperand MO = MachineOperand::CreateReg(
+-              LoopInitMap[PB]->getOperand(0).getReg(), false);
+-          NewPN->addOperand(MO);
+-          NewPN->addOperand(MachineOperand::CreateMBB(PB));
++          Register Elts = LoopInitMap[PB]->getOperand(1).getReg();
++          Register Def = LoopInitMap[PB]->getOperand(0).getReg();
++
++          for (auto &Use : make_early_inc_range(MRI->use_operands(Def))) {
++            Use.setReg(Elts);
++          }
+           LoopInitMap[PB]->getParent()->erase(LoopInitMap[PB]);
+-        } else {
+-          MachineOperand MO = MachineOperand::CreateReg(IndR, false);
+-          NewPN->addOperand(MO);
+-          NewPN->addOperand(MachineOperand::CreateMBB(PB));
+         }
+       }
+ 
+-      MachineInstrBuilder MIB =
+-          BuildMI(*LEMBB, LEI, LEI->getDebugLoc(), TII->get(Xtensa::ADDI), IndR)
+-              .addReg(PR)
+-              .addImm(-1);
+-
+-      MIB = BuildMI(*LEMBB, LEI, LEI->getDebugLoc(), TII->get(Xtensa::BNEZ))
+-                .addReg(IndR)
+-                .addMBB(LEI->getOperand(0).getMBB());
+-      LEMBB->erase(LEI);
++      Register IndR = LDECI->getOperand(0).getReg();
++      Register PR = LDECI->getOperand(1).getReg();
++
++      BuildMI(*LDECMBB, LDECI, LDECI->getDebugLoc(), TII->get(Xtensa::ADDI),
++              IndR)
++          .addReg(PR)
++          .addImm(-1);
++      BuildMI(*LBRMBB, LBRI, LBRI->getDebugLoc(), TII->get(Xtensa::BNEZ))
++          .addReg(IndR)
++          .addMBB(LBRI->getOperand(1).getMBB());
++      LDECMBB->erase(LDECI);
++      LBRMBB->erase(LBRI);
+       return false;
+     }
+ 
+-    // If several LOOPINIT instructions are dicovered then create PHI
+-    // function
+-    if (LoopInitMap.size() > 1) {
+-      const MCInstrDesc &PD = TII->get(TargetOpcode::PHI);
+-      MachineInstr *NewPN = LH->getParent()->CreateMachineInstr(PD, DL);
+-      LH->insert(LH->begin(), NewPN);
+-      Register PR = MRI->createVirtualRegister(&Xtensa::ARRegClass);
+-      NewPN->addOperand(MachineOperand::CreateReg(PR, true));
+-
+-      for (auto PB : LH->predecessors()) {
++    MachineInstr *PN = nullptr;
+ 
+-        if (LoopInitMap.find(PB) != LoopInitMap.end()) {
+-          MachineOperand MO = MachineOperand::CreateReg(
+-              LoopInitMap[PB]->getOperand(0).getReg(), false);
+-          NewPN->addOperand(MO);
+-          NewPN->addOperand(MachineOperand::CreateMBB(PB));
+-          LoopInitMap[PB]->getParent()->erase(LoopInitMap[PB]);
+-        } else {
+-          MachineOperand MO = MachineOperand::CreateReg(PR, false);
+-          NewPN->addOperand(MO);
+-          NewPN->addOperand(MachineOperand::CreateMBB(PB));
+-        }
++    for (auto &Use : MRI->use_operands(LDECI->getOperand(0).getReg())) {
++      MachineInstr *UseMI = Use.getParent();
++      if (UseMI->getOpcode() == TargetOpcode::PHI) {
++        PN = UseMI;
+       }
+-      LII = NewPN;
+     }
+ 
++    assert(((PN != nullptr) && (PN->getParent() == LH)) &&
++           "Expected PHI node successor of the LOOPEND instruction in loop "
++           "header");
++    LII = PN;
++
++    Register EltsDec = LDECI->getOperand(0).getReg();
++    Register Elts = LDECI->getOperand(1).getReg();
++
++    for (MachineOperand &MO : PN->operands()) {
++      if (!MO.isReg() || MO.getReg() != EltsDec)
++        continue;
++      MO.substVirtReg(Elts, 0, *TRI);
++    }
++    LDECMBB->erase(LDECI);
++
++    MachineBasicBlock::iterator LHI = LH->getFirstNonPHI();
++
+     BuildMI(*LH, LHI, DL, TII->get(Xtensa::LOOPSTART))
+         .addReg(LII->getOperand(0).getReg())
+-        .addMBB(LEMBB);
++        .addMBB(LBRMBB);
+ 
+     if (LII->getOpcode() == Xtensa::LOOPINIT)
+       LII->getParent()->erase(LII);
+ 
++    BuildMI(*LBRMBB, LBRI, DL, TII->get(Xtensa::LOOPEND)).addMBB(LH);
++    LBRMBB->erase(LBRI);
++
+     return true;
+   }
+ 
+@@ -386,3 +401,44 @@ bool XtensaHardwareLoops::checkLoopEndDisplacement(MachineFunction &MF,
+   llvm_unreachable("Wrong hardware loop");
+ }
+ 
++void XtensaHardwareLoops::revertNonLoops(MachineFunction &MF) {
++  for (MachineFunction::iterator I = MF.begin(); I != MF.end(); ++I) {
++    MachineBasicBlock &MBB = *I;
++
++    for (MachineBasicBlock::iterator MII = MBB.begin(), E = MBB.end(); MII != E;
++         ++MII) {
++      MachineInstr *MI = &*MII;
++      if (MI->getOpcode() == Xtensa::LOOPINIT) {
++        MachineInstr *LI = MI;
++        MachineBasicBlock *LIMBB = LI->getParent();
++        Register Elts = LI->getOperand(1).getReg();
++        Register Def = LI->getOperand(0).getReg();
++        for (auto &Use : make_early_inc_range(MRI->use_operands(Def))) {
++          Use.setReg(Elts);
++        }
++        --MII;
++        LIMBB->erase(LI);
++      } else if (MI->getOpcode() == Xtensa::LOOPDEC) {
++        MachineInstr *LEI = MI;
++        MachineBasicBlock *LEMBB = LEI->getParent();
++        Register IndR = LEI->getOperand(0).getReg();
++        Register PR = LEI->getOperand(1).getReg();
++
++        BuildMI(*LEMBB, LEI, LEI->getDebugLoc(), TII->get(Xtensa::ADDI), IndR)
++            .addReg(PR)
++            .addImm(-1);
++        --MII;
++        LEMBB->erase(LEI);
++      } else if (MI->getOpcode() == Xtensa::LOOPBR) {
++        MachineInstr *LBRI = MI;
++        MachineBasicBlock *LBRMBB = LBRI->getParent();
++
++        BuildMI(*LBRMBB, LBRI, LBRI->getDebugLoc(), TII->get(Xtensa::BNEZ))
++            .addReg(LBRI->getOperand(0).getReg())
++            .addMBB(LBRI->getOperand(1).getMBB());
++        --MII;
++        LBRMBB->erase(LBRI);
++      }
++    }
++  }
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index f16815b496da..4e10303f433d 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -302,10 +302,14 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+     setTargetDAGCombine(ISD::FSUB);
+   }
+ 
+-  if (Subtarget.hasSingleFloat() || Subtarget.hasLoop()) {
++  if (Subtarget.hasSingleFloat()) {
+     setTargetDAGCombine(ISD::BRCOND);
+   }
+ 
++  if (Subtarget.hasLoop()) {
++    setTargetDAGCombine(ISD::BR_CC);
++  }
++
+   // Needed so that we don't try to implement f128 constant loads using
+   // a load-and-extend of a f80 constant (in cases where the constant
+   // would fit in an f80).
+@@ -585,7 +589,7 @@ static SDValue SearchLoopIntrinsic(SDValue N, ISD::CondCode &CC, int &Imm,
+   }
+   case ISD::INTRINSIC_W_CHAIN: {
+     unsigned IntOp = cast<ConstantSDNode>(N.getOperand(1))->getZExtValue();
+-    if (IntOp != Intrinsic::loop_decrement)
++    if (IntOp != Intrinsic::loop_decrement_reg)
+       return SDValue();
+     return N;
+   }
+@@ -593,17 +597,28 @@ static SDValue SearchLoopIntrinsic(SDValue N, ISD::CondCode &CC, int &Imm,
+   return SDValue();
+ }
+ 
+-static SDValue PerformBRCONDCombine(SDNode *N, SelectionDAG &DAG,
++static SDValue PerformHWLoopCombine(SDNode *N, SelectionDAG &DAG,
+                                     TargetLowering::DAGCombinerInfo &DCI,
+                                     const XtensaSubtarget &Subtarget) {
+   SDValue Chain = N->getOperand(0);
+   SDLoc DL(N);
+-  SDValue Cond = N->getOperand(1);
+-  SDValue Dest = N->getOperand(2);
++  SDValue Cond;
++  SDValue Dest;
+   ISD::CondCode CC = ISD::SETEQ;
+   int Imm = 1;
+   bool Negate = false;
+ 
++  assert(N->getOpcode() == ISD::BR_CC && "Expected BR_CC!");
++  CC = cast<CondCodeSDNode>(N->getOperand(1))->get();
++  Cond = N->getOperand(2);
++  Dest = N->getOperand(4);
++  if (auto *Const = dyn_cast<ConstantSDNode>(N->getOperand(3))) {
++    if (!Const->isOne() && !Const->isNullValue())
++      return SDValue();
++    Imm = Const->getZExtValue();
++  } else
++    return SDValue();
++
+   SDValue Int = SearchLoopIntrinsic(Cond, CC, Imm, Negate);
+   if (Int) {
+     assert((N->hasOneUse() && N->use_begin()->getOpcode() == ISD::BR) &&
+@@ -634,16 +649,39 @@ static SDValue PerformBRCONDCombine(SDNode *N, SelectionDAG &DAG,
+     } else if (!IsFalseIfZero(CC, Imm)) {
+       llvm_unreachable("unsupported condition");
+     }
++    SDLoc dl(Int);
++    SDValue Elements = Int.getOperand(2);
++    SDValue Size = DAG.getTargetConstant(
++        cast<ConstantSDNode>(Int.getOperand(3))->getZExtValue(), dl, MVT::i32);
++    SDValue Args[] = {
++        Int.getOperand(0),
++        Elements,
++        Size,
++    };
++    SDValue LoopDec = DAG.getNode(XtensaISD::LOOPDEC, dl,
++                                     DAG.getVTList(MVT::i32, MVT::Other), Args);
+ 
+     // We now need to make the intrinsic dead (it cannot be instruction
+     // selected).
+-    DAG.ReplaceAllUsesOfValueWith(Int.getValue(1), Int.getOperand(0));
+-    assert(Int.getNode()->hasOneUse() &&
+-           "Counter decrement has more than one use");
++    DAG.ReplaceAllUsesWith(Int.getNode(), LoopDec.getNode());
++
++    Chain = DAG.getNode(ISD::TokenFactor, dl, MVT::Other,
++                        SDValue(LoopDec.getNode(), 1), Chain);
+ 
+-    return DAG.getNode(XtensaISD::LOOPEND, DL, MVT::Other, N->getOperand(0),
+-                       Dest);
++    SDValue EndArgs[] = {Chain, SDValue(LoopDec.getNode(), 0), Dest};
++    return DAG.getNode(XtensaISD::LOOPBR, dl, MVT::Other, EndArgs);
+   }
++  return SDValue();
++}
++
++static SDValue PerformBRCONDCombine(SDNode *N, SelectionDAG &DAG,
++                                    TargetLowering::DAGCombinerInfo &DCI,
++                                    const XtensaSubtarget &Subtarget) {
++  SDValue Chain = N->getOperand(0);
++  SDLoc DL(N);
++  SDValue Cond = N->getOperand(1);
++  SDValue Dest = N->getOperand(2);
++  ISD::CondCode CC = ISD::SETEQ;
+ 
+   if (Cond.getOpcode() != ISD::SETCC)
+     return SDValue();
+@@ -671,6 +709,8 @@ SDValue XtensaTargetLowering::PerformDAGCombine(SDNode *N,
+     return performADDCombine(N, DAG, DCI, Subtarget);
+   case ISD::FSUB:
+     return performSUBCombine(N, DAG, DCI, Subtarget);
++  case ISD::BR_CC:
++    return PerformHWLoopCombine(N, DAG, DCI, Subtarget);
+   case ISD::BRCOND:
+     return PerformBRCONDCombine(N, DAG, DCI, Subtarget);
+   }
+@@ -1843,6 +1883,8 @@ const char *XtensaTargetLowering::getTargetNodeName(unsigned Opcode) const {
+     OPCODE(CMPOEQ);
+     OPCODE(CMPOLE);
+     OPCODE(CMPOLT);
++    OPCODE(LOOPBR);
++    OPCODE(LOOPDEC);
+     OPCODE(LOOPEND);
+     OPCODE(MADD);
+     OPCODE(MSUB);
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index 3e7d9dda62f5..eaa8a0776346 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -50,6 +50,10 @@ enum {
+   CMPOLE,
+   CMPOLT,
+ 
++  // Branch at the end of the loop, uses result of the LOOPDEC
++  LOOPBR,
++  // Decrement loop counter
++  LOOPDEC,
+   LOOPEND,
+ 
+   // FP multipy-add/sub
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+index 81979f522c82..04d3d2d3c041 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+@@ -262,6 +262,7 @@ bool XtensaInstrInfo::reverseBranchCondition(
+     return false;
+ 
+   case Xtensa::LOOPEND:
++  case Xtensa::LOOPBR:
+     return true;
+ 
+   default:
+@@ -299,6 +300,7 @@ XtensaInstrInfo::getBranchDestBlock(const MachineInstr &MI) const {
+   case Xtensa::BNEZ:
+   case Xtensa::BLTZ:
+   case Xtensa::BGEZ:
++  case Xtensa::LOOPBR:
+     return MI.getOperand(1).getMBB();
+ 
+   case Xtensa::BT:
+@@ -319,6 +321,7 @@ bool XtensaInstrInfo::isBranchOffsetInRange(unsigned BranchOp,
+   case Xtensa::JX:
+     return true;
+   case Xtensa::LOOPEND:
++  case Xtensa::LOOPBR:
+     BrOffset += 4;
+     assert((BrOffset <= 0) && "Wrong hardware loop");
+     return true;
+@@ -634,6 +637,7 @@ unsigned XtensaInstrInfo::InsertBranchAtInst(MachineBasicBlock &MBB,
+   case Xtensa::BNEZ:
+   case Xtensa::BLTZ:
+   case Xtensa::BGEZ:
++  case Xtensa::LOOPBR:
+     MI = BuildMI(MBB, I, DL, get(BR_C)).addReg(Cond[1].getReg()).addMBB(TBB);
+     break;
+   case Xtensa::BT:
+@@ -641,7 +645,7 @@ unsigned XtensaInstrInfo::InsertBranchAtInst(MachineBasicBlock &MBB,
+     MI = BuildMI(MBB, I, DL, get(BR_C)).addReg(Cond[1].getReg()).addMBB(TBB);
+     break;
+   case Xtensa::LOOPEND:
+-    MI = BuildMI(MBB, I, DL, get(BR_C)).addMBB(TBB);
++    MI = BuildMI(MBB, I, DL, get(Xtensa::LOOPEND)).addMBB(TBB);
+     break;
+   default:
+     llvm_unreachable("Invalid branch type!");
+@@ -730,6 +734,7 @@ bool XtensaInstrInfo::isBranch(const MachineBasicBlock::iterator &MI,
+   case Xtensa::BNEZ:
+   case Xtensa::BLTZ:
+   case Xtensa::BGEZ:
++  case Xtensa::LOOPBR:
+     Cond[0].setImm(OpCode);
+     Target = &MI->getOperand(1);
+     return true;
+@@ -744,4 +749,4 @@ bool XtensaInstrInfo::isBranch(const MachineBasicBlock::iterator &MI,
+     assert(!MI->getDesc().isBranch() && "Unknown branch opcode");
+     return false;
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index e12d0e1b0b30..2a59d179761f 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -1286,8 +1286,8 @@ def LOOPNEZ : RRI8_Inst<0x06, (outs), (ins AR:$s, ltarget:$target),
+ }
+ 
+ let isTerminator = 1, isBarrier = 1, hasSideEffects = 1, Size = 3 in {
+-  def LOOPINIT : Pseudo<(outs), (ins AR:$elts),
+-                       "!loopinit $elts", [(int_set_loop_iterations AR:$elts)]>;
++  def LOOPINIT : Pseudo<(outs AR:$elts), (ins AR:$eltsin),
++                       "!loopinit $elts, $eltsin", [(set AR:$elts, (int_start_loop_iterations AR:$eltsin))]>;
+ }
+ 
+ // LOOPSTART pseudo instruction reserves 9 bytes for LOOP operation and NOP operations for possible alignment.
+@@ -1302,6 +1302,16 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 0, Size =
+                       "!loopend $target", [(Xtensa_loopend bb:$target)]>;
+ }
+ 
++let isTerminator = 1, isBarrier = 1, hasSideEffects = 1, Size = 3 in {
++  def LOOPDEC : Pseudo<(outs AR:$eltsout), (ins AR:$eltsin),
++                      "!loopdec $eltsout, $eltsin", [(set AR:$eltsout, (Xtensa_loopdec AR:$eltsin))]>;
++}
++
++let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 0, Size = 3 in {
++  def LOOPBR : Pseudo<(outs), (ins AR:$elts, brtarget:$target),
++                     "!loopbr $elts, $target", [(Xtensa_loopbr AR:$elts, bb:$target)]>;
++}
++
+ //===----------------------------------------------------------------------===//
+ // SEXT Instructions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperators.td b/llvm/lib/Target/Xtensa/XtensaOperators.td
+index a37dcd7c8a98..cdc29be5deb3 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperators.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperators.td
+@@ -45,6 +45,8 @@ def SDT_XtensaMEMBARRIER         : SDTypeProfile<0, 0, []>;
+ def SDT_XtensaRUR                : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+ 
+ def SDT_XtensaLoopEnd             : SDTypeProfile<0, 1, [SDTCisVT<0, OtherVT>]>;
++def SDT_XtensaLoopDec             : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>, SDTCisVT<0, i32>]>;
++def SDT_XtensaLoopBr              : SDTypeProfile<0, 2, [SDTCisVT<0, i32>, SDTCisVT<1, OtherVT>]>;
+ 
+ //===----------------------------------------------------------------------===//
+ // Node definitions
+@@ -112,4 +114,7 @@ def Xtensa_rur: SDNode<"XtensaISD::RUR", SDT_XtensaRUR,
+ 
+ def Xtensa_loopend: SDNode<"XtensaISD::LOOPEND", SDT_XtensaLoopEnd,
+                           [SDNPHasChain, SDNPInGlue]>;
+-
++def Xtensa_loopdec: SDNode<"XtensaISD::LOOPDEC", SDT_XtensaLoopDec,
++                          [SDNPHasChain, SDNPInGlue]>;
++def Xtensa_loopbr:  SDNode<"XtensaISD::LOOPBR", SDT_XtensaLoopBr,
++                          [SDNPHasChain, SDNPInGlue]>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetTransformInfo.cpp b/llvm/lib/Target/Xtensa/XtensaTargetTransformInfo.cpp
+index 7bdec7050477..62ad8b6b0099 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetTransformInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaTargetTransformInfo.cpp
+@@ -27,7 +27,7 @@ bool XtensaTTIImpl::isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
+     return false;
+ 
+   LLVMContext &C = L->getHeader()->getContext();
+-  HWLoopInfo.CounterInReg = false;
++  HWLoopInfo.CounterInReg = true;
+   HWLoopInfo.IsNestingLegal = false;
+   HWLoopInfo.CountType = Type::getInt32Ty(C);
+   HWLoopInfo.LoopDecrement = ConstantInt::get(HWLoopInfo.CountType, 1);
+-- 
+2.40.1
+

@@ -1,0 +1,58 @@
+From d11cf321a1db21a2658c6d7d0d02b472512787c3 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:02 +0300
+Subject: [PATCH 049/140] [Xtensa] Implement multilib support
+
+Use Multilib class functionality to choose between library variants,
+based on the command line args.
+---
+ clang/lib/Driver/ToolChains/Xtensa.cpp | 19 +++++++++++++++++--
+ 1 file changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index 003a10a0b9f6..a1f83801b561 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -29,6 +29,8 @@ using namespace clang::driver::toolchains;
+ using namespace clang;
+ using namespace llvm::opt;
+ 
++using tools::addMultilibFlag;
++
+ XtensaGCCToolchainDetector::XtensaGCCToolchainDetector(
+     const Driver &D, const llvm::Triple &HostTriple,
+     const llvm::opt::ArgList &Args) {
+@@ -105,15 +107,28 @@ XtensaToolChain::XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
+       IsIntegratedAsm = false;
+   }
+ 
++  Multilibs.push_back(Multilib());
++
++  Multilibs.push_back(
++      Multilib("no-rtti", {}, {}, 1).flag("+fno-rtti").flag("-frtti"));
++
++  Multilib::flags_list Flags;
++  addMultilibFlag(
++      Args.hasFlag(options::OPT_frtti, options::OPT_fno_rtti, false), "frtti",
++      Flags);
++
++  Multilibs.select(Flags, SelectedMultilib);
++
+   const std::string Slash = XtensaGCCToolchain.Slash;
+   std::string Libs =
+       XtensaGCCToolchain.GCCToolchainDir + Slash + "lib" + Slash + "gcc" +
+       Slash + XtensaGCCToolchain.GCCToolchainName + Slash +
+-      XtensaGCCToolchain.GCCLibAndIncVersion;
++      XtensaGCCToolchain.GCCLibAndIncVersion + SelectedMultilib.gccSuffix();
+   getFilePaths().push_back(Libs);
+ 
+   Libs = XtensaGCCToolchain.GCCToolchainDir + Slash +
+-         XtensaGCCToolchain.GCCToolchainName + Slash + "lib";
++         XtensaGCCToolchain.GCCToolchainName + Slash + "lib" +
++         SelectedMultilib.gccSuffix();
+   getFilePaths().push_back(Libs);
+ }
+ 
+-- 
+2.40.1
+

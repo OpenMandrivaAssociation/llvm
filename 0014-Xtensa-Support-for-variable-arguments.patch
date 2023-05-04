@@ -1,0 +1,484 @@
+From 3e3672bb1ffc73b147170d672bd156d35fcc5536 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:42 +0300
+Subject: [PATCH 014/140] [Xtensa] Support for variable arguments
+
+---
+ llvm/lib/Target/Xtensa/CMakeLists.txt         |   1 +
+ .../lib/Target/Xtensa/XtensaFrameLowering.cpp |   2 +-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 191 +++++++++++++++++-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |   7 +
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp    |   2 +-
+ .../Xtensa/XtensaMachineFunctionInfo.cpp      |  19 ++
+ .../Target/Xtensa/XtensaMachineFunctionInfo.h |  46 +++++
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp |   2 +-
+ .../lib/Target/Xtensa/XtensaTargetMachine.cpp |   7 +
+ llvm/lib/Target/Xtensa/XtensaTargetMachine.h  |   3 +
+ 10 files changed, 268 insertions(+), 12 deletions(-)
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h
+
+diff --git a/llvm/lib/Target/Xtensa/CMakeLists.txt b/llvm/lib/Target/Xtensa/CMakeLists.txt
+index d4300678a043..2208428f4c10 100644
+--- a/llvm/lib/Target/Xtensa/CMakeLists.txt
++++ b/llvm/lib/Target/Xtensa/CMakeLists.txt
+@@ -21,6 +21,7 @@ add_llvm_target(XtensaCodeGen
+   XtensaInstrInfo.cpp
+   XtensaISelDAGToDAG.cpp
+   XtensaISelLowering.cpp
++  XtensaMachineFunctionInfo.cpp
+   XtensaMCInstLower.cpp
+   XtensaRegisterInfo.cpp
+   XtensaSubtarget.cpp
+diff --git a/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp b/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+index e87f2809a51e..53d180cc0e58 100644
+--- a/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+@@ -14,8 +14,8 @@
+ 
+ #include "XtensaFrameLowering.h"
+ #include "XtensaInstrInfo.h"
++#include "XtensaMachineFunctionInfo.h"
+ #include "XtensaSubtarget.h"
+-#include "llvm/CodeGen/MachineFrameInfo.h"
+ #include "llvm/CodeGen/MachineInstrBuilder.h"
+ #include "llvm/CodeGen/MachineModuleInfo.h"
+ #include "llvm/CodeGen/MachineRegisterInfo.h"
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 5dd5459d22b1..2ea64259d231 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -15,10 +15,10 @@
+ 
+ #include "XtensaISelLowering.h"
+ #include "XtensaConstantPoolValue.h"
++#include "XtensaMachineFunctionInfo.h"
+ #include "XtensaSubtarget.h"
+ #include "XtensaTargetMachine.h"
+ #include "llvm/CodeGen/CallingConvLower.h"
+-#include "llvm/CodeGen/MachineFrameInfo.h"
+ #include "llvm/CodeGen/MachineInstrBuilder.h"
+ #include "llvm/CodeGen/MachineJumpTableInfo.h"
+ #include "llvm/CodeGen/MachineRegisterInfo.h"
+@@ -32,6 +32,9 @@ using namespace llvm;
+ 
+ #define DEBUG_TYPE "xtensa-lower"
+ 
++static const MCPhysReg XtensaArgRegs[6] = {Xtensa::A2, Xtensa::A3, Xtensa::A4,
++                                           Xtensa::A5, Xtensa::A6, Xtensa::A7};
++
+ // Return true if we must use long (in fact, indirect) function call.
+ // It's simplified version, production implimentation must
+ // resolve a functions in ROM (usually glibc functions)
+@@ -165,6 +168,14 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   setOperationAction(ISD::STACKSAVE, MVT::Other, Custom);
+   setOperationAction(ISD::STACKRESTORE, MVT::Other, Custom);
+ 
++  // VASTART and VACOPY need to deal with the Xtensa-specific varargs
++  // structure, but VAEND is a no-op.
++  setOperationAction(ISD::VASTART, MVT::Other, Custom);
++  // we use special va_list structure so we have to customize this
++  setOperationAction(ISD::VAARG, MVT::Other, Expand);
++  setOperationAction(ISD::VACOPY, MVT::Other, Custom);
++  setOperationAction(ISD::VAEND, MVT::Other, Expand);
++
+   // Compute derived properties from the register classes
+   computeRegisterProperties(STI.getRegisterInfo());
+ }
+@@ -180,6 +191,11 @@ bool XtensaTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT,
+   return false;
+ }
+ 
++unsigned XtensaTargetLowering::getVaListSizeInBits(const DataLayout &DL) const {
++  // 2 * sizeof(int*) + sizeof(int)
++  return 3 * 4;
++}
++
+ //===----------------------------------------------------------------------===//
+ // Calling conventions
+ //===----------------------------------------------------------------------===//
+@@ -303,14 +319,14 @@ SDValue XtensaTargetLowering::LowerFormalArguments(
+     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
+   MachineFunction &MF = DAG.getMachineFunction();
+   MachineFrameInfo &MFI = MF.getFrameInfo();
++  XtensaFunctionInfo *XtensaFI = MF.getInfo<XtensaFunctionInfo>();
++  EVT PtrVT = getPointerTy(MF.getDataLayout());
++
++  XtensaFI->setVarArgsFrameIndex(0);
+ 
+   // Used with vargs to acumulate store chains.
+   std::vector<SDValue> OutChains;
+ 
+-  if (IsVarArg) {
+-    llvm_unreachable("Var arg not supported by FormalArguments Lowering");
+-  }
+-
+   // Assign locations to all of the incoming arguments.
+   SmallVector<CCValAssign, 16> ArgLocs;
+   CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs,
+@@ -379,6 +395,66 @@ SDValue XtensaTargetLowering::LowerFormalArguments(
+     }
+   }
+ 
++  if (IsVarArg) {
++    ArrayRef<MCPhysReg> ArgRegs = ArrayRef(XtensaArgRegs);
++    unsigned Idx = CCInfo.getFirstUnallocated(ArgRegs);
++    const TargetRegisterClass *RC = &Xtensa::ARRegClass;
++    MachineFrameInfo &MFI = MF.getFrameInfo();
++    MachineRegisterInfo &RegInfo = MF.getRegInfo();
++    unsigned RegSize = 4;
++    MVT RegTy = MVT::getIntegerVT(RegSize * 8);
++
++    XtensaFI->setVarArgsFirstGPR(Idx + 2); // 2 - number of a2 register
++
++    XtensaFI->setVarArgsStackOffset(MFI.CreateFixedObject(
++        PtrVT.getSizeInBits() / 8, CCInfo.getNextStackOffset(), true));
++
++    // Offset of the first variable argument from stack pointer, and size of
++    // the vararg save area. For now, the varargs save area is either zero or
++    // large enough to hold a0-a7.
++    int VaArgOffset, VarArgsSaveSize;
++
++    // If all registers are allocated, then all varargs must be passed on the
++    // stack and we don't need to save any argregs.
++    if (ArgRegs.size() == Idx) {
++      VaArgOffset = CCInfo.getNextStackOffset();
++      VarArgsSaveSize = 0;
++    } else {
++      VarArgsSaveSize = RegSize * (ArgRegs.size() - Idx);
++      VaArgOffset = -VarArgsSaveSize;
++    }
++
++    // Record the frame index of the first variable argument
++    // which is a value necessary to VASTART.
++    int FI = MFI.CreateFixedObject(RegSize, VaArgOffset, true);
++    XtensaFI->setVarArgsFrameIndex(FI);
++
++    // Copy the integer registers that may have been used for passing varargs
++    // to the vararg save area.
++    for (unsigned I = Idx; I < ArgRegs.size(); ++I, VaArgOffset += RegSize) {
++      const unsigned Reg = RegInfo.createVirtualRegister(RC);
++      unsigned FrameReg = Subtarget.getRegisterInfo()->getFrameRegister(MF);
++
++      // Argument passed in FrameReg we save in A8 (in emitPrologue),
++      // so load argument from A8
++      if (ArgRegs[I] == FrameReg) {
++        RegInfo.addLiveIn(Xtensa::A8, Reg);
++      } else {
++        RegInfo.addLiveIn(ArgRegs[I], Reg);
++      }
++
++      SDValue ArgValue = DAG.getCopyFromReg(Chain, DL, Reg, RegTy);
++      FI = MFI.CreateFixedObject(RegSize, VaArgOffset, true);
++      SDValue PtrOff = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
++      SDValue Store = DAG.getStore(Chain, DL, ArgValue, PtrOff,
++                                   MachinePointerInfo::getFixedStack(MF, FI));
++      cast<StoreSDNode>(Store.getNode())
++          ->getMemOperand()
++          ->setValue((Value *)nullptr);
++      OutChains.push_back(Store);
++    }
++  }
++
+   // All stores are grouped in one node to allow the matching between
+   // the size of Ins and InVals. This only happens when on varg functions
+   if (!OutChains.empty()) {
+@@ -598,10 +674,6 @@ XtensaTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
+                                   const SmallVectorImpl<ISD::OutputArg> &Outs,
+                                   const SmallVectorImpl<SDValue> &OutVals,
+                                   const SDLoc &DL, SelectionDAG &DAG) const {
+-  if (IsVarArg) {
+-    report_fatal_error("VarArg not supported");
+-  }
+-
+   MachineFunction &MF = DAG.getMachineFunction();
+ 
+   // Assign locations to each returned value.
+@@ -841,6 +913,103 @@ SDValue XtensaTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
+   return DAG.getMergeValues(Ops, DL);
+ }
+ 
++SDValue XtensaTargetLowering::LowerVASTART(SDValue Op,
++                                           SelectionDAG &DAG) const {
++  MachineFunction &MF = DAG.getMachineFunction();
++  XtensaFunctionInfo *XtensaFI = MF.getInfo<XtensaFunctionInfo>();
++  EVT PtrVT = getPointerTy(DAG.getDataLayout());
++  SDLoc DL(Op);
++
++  SDValue Chain = Op.getOperand(0);
++  SDValue Addr = Op.getOperand(1);
++
++  // typedef struct __va_list_tag {
++  //   int32_t *__va_stk; /* Initialized to point  to the position of the
++  //                       * first argument in memory offset to account for
++  //                       the
++  //                       * arguments passed in registers and to account for
++  //                       * the size of the argument registers not being
++  //                       16-byte
++  //                       * aligned.  E.G., there are 6 argument registers
++  //                       * of 4 bytes each, but we want the __va_ndx for the
++  //                       * first stack argument to have the maximal
++  //                       * alignment of 16 bytes, so we offset the __va_stk
++  //                       address by
++  //                       * 32 bytes so that __va_stk[32] references the
++  //                       first
++  //                       * argument on the stack.
++  //                       */
++  //   int32_t  *__va_reg; /* Points to a stack-allocated region holding the
++  //                        * contents
++  //                        * of the incoming argument registers
++  //                        */
++  //   int32_t __va_ndx;   /* Index initialized to the position of the first
++  //                        * unnamed (variable) argument.  This same index is
++  //                        also
++  //                        * used to address the arguments passed in memory.
++  //                       */
++  //  } __va_list_tag[1];
++
++  SDValue ArgAR;
++  SDValue OverflowPtrAdvance;
++  SDValue StackOffsetFI =
++      DAG.getFrameIndex(XtensaFI->getVarArgsStackOffset(), PtrVT);
++
++  if (XtensaFI->getVarArgsFirstGPR() < 8) {
++    ArgAR =
++        DAG.getConstant(XtensaFI->getVarArgsFirstGPR() * 4 - 8, DL, MVT::i32);
++    OverflowPtrAdvance = DAG.getConstant(32, DL, PtrVT);
++  } else {
++    OverflowPtrAdvance = DAG.getNode(ISD::AND, DL, PtrVT, StackOffsetFI,
++                                     DAG.getConstant(0xf, DL, PtrVT));
++    OverflowPtrAdvance = DAG.getNode(ISD::ADD, DL, PtrVT, OverflowPtrAdvance,
++                                     DAG.getConstant(32, DL, PtrVT));
++    ArgAR = OverflowPtrAdvance;
++  }
++
++  SDValue FR = DAG.getFrameIndex(XtensaFI->getVarArgsFrameIndex(), PtrVT);
++
++  uint64_t FrameOffset = PtrVT.getSizeInBits() / 8;
++  SDValue ConstFrameOffset1 = DAG.getConstant(FrameOffset, DL, PtrVT);
++  SDValue ConstFrameOffset2 = DAG.getConstant(FrameOffset * 2, DL, PtrVT);
++
++  const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
++
++  // Store first word : arguments given in stack  (__va_stk)
++  // Advance Argument Overflow pointer down, lest it will point to start
++  // after register argument va_arg finished
++  SDValue StackOffsetFICorr =
++      DAG.getNode(ISD::SUB, DL, PtrVT, StackOffsetFI, OverflowPtrAdvance);
++  SDValue firstStore =
++      DAG.getStore(Chain, DL, StackOffsetFICorr, Addr, MachinePointerInfo(SV));
++
++  uint64_t nextOffset = FrameOffset;
++  SDValue nextPtr = DAG.getNode(ISD::ADD, DL, PtrVT, Addr, ConstFrameOffset1);
++
++  // Store second word : arguments given on registers  (__va_reg)
++  SDValue FRAdvance =
++      DAG.getConstant(XtensaFI->getVarArgsFirstGPR() * 4 - 8, DL, PtrVT);
++  SDValue FRDecr = DAG.getNode(ISD::SUB, DL, PtrVT, FR, FRAdvance);
++  SDValue secondStore = DAG.getStore(firstStore, DL, FRDecr, nextPtr,
++                                     MachinePointerInfo(SV, nextOffset));
++  nextOffset += FrameOffset;
++  nextPtr = DAG.getNode(ISD::ADD, DL, PtrVT, Addr, ConstFrameOffset2);
++
++  // Store first word : number of int regs  (__va_ndx)
++  return DAG.getStore(secondStore, DL, ArgAR, nextPtr,
++                      MachinePointerInfo(SV, nextOffset));
++}
++
++SDValue XtensaTargetLowering::LowerVACOPY(SDValue Op, SelectionDAG &DAG) const {
++  // We have to copy the entire va_list struct:
++  // 2*sizeof(int*) + sizeof(int) = 12 Byte
++  unsigned VAListSize = 12;
++  return DAG.getMemcpy(Op.getOperand(0), Op, Op.getOperand(1), Op.getOperand(2),
++                       DAG.getConstant(VAListSize, SDLoc(Op), MVT::i32), Align(8),
++                       false, true, false, MachinePointerInfo(),
++                       MachinePointerInfo());
++}
++
+ SDValue XtensaTargetLowering::LowerShiftLeftParts(SDValue Op,
+                                                   SelectionDAG &DAG) const {
+   SDLoc DL(Op);
+@@ -943,6 +1112,10 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+     return LowerSTACKRESTORE(Op, DAG);
+   case ISD::DYNAMIC_STACKALLOC:
+     return LowerDYNAMIC_STACKALLOC(Op, DAG);
++  case ISD::VASTART:
++    return LowerVASTART(Op, DAG);
++  case ISD::VACOPY:
++    return LowerVACOPY(Op, DAG);
+   case ISD::SHL_PARTS:
+     return LowerShiftLeftParts(Op, DAG);
+   case ISD::SRA_PARTS:
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index 00222e9bee39..e56cab673c59 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -76,6 +76,10 @@ public:
+   bool isFPImmLegal(const APFloat &Imm, EVT VT,
+                     bool ForCodeSize) const override;
+   const char *getTargetNodeName(unsigned Opcode) const override;
++
++  /// Returns the size of the platform's va_list object.
++  unsigned getVaListSizeInBits(const DataLayout &DL) const override;
++
+   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+   SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
+                                bool isVarArg,
+@@ -112,6 +116,9 @@ private:
+   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
+ 
++  SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerVACOPY(SDValue Op, SelectionDAG &DAG) const;
++
+   SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerSTACKSAVE(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerSTACKRESTORE(SDValue Op, SelectionDAG &DAG) const;
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+index 30134c9612fd..1bfd18b7ef3e 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+@@ -13,9 +13,9 @@
+ //===----------------------------------------------------------------------===//
+ 
+ #include "XtensaInstrInfo.h"
++#include "XtensaMachineFunctionInfo.h"
+ #include "XtensaTargetMachine.h"
+ #include "llvm/CodeGen/MachineConstantPool.h"
+-#include "llvm/CodeGen/MachineFrameInfo.h"
+ #include "llvm/CodeGen/MachineInstrBuilder.h"
+ #include "llvm/CodeGen/MachineRegisterInfo.h"
+ 
+diff --git a/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.cpp b/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.cpp
+new file mode 100644
+index 000000000000..1a285b2aa531
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.cpp
+@@ -0,0 +1,19 @@
++//===- XtensaMachineFunctionInfo.cpp - Private data used for Xtensa -------===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "XtensaMachineFunctionInfo.h"
++//#include "MCTargetDesc/XtensaBaseInfo.h"
++#include "XtensaInstrInfo.h"
++#include "XtensaSubtarget.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/IR/Function.h"
++
++using namespace llvm;
+diff --git a/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h b/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h
+new file mode 100644
+index 000000000000..ebc99f912ba0
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h
+@@ -0,0 +1,46 @@
++//==- XtensaMachineFunctionInfo.h - Xtensa machine function info --*- C++ -*-=//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file declares Xtensa-specific per-machine-function information.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSAMACHINEFUNCTIONINFO_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSAMACHINEFUNCTIONINFO_H
++
++#include "llvm/CodeGen/MachineFrameInfo.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/Target/TargetMachine.h"
++
++namespace llvm {
++
++class XtensaFunctionInfo : public MachineFunctionInfo {
++  unsigned VarArgsFirstGPR;
++  int VarArgsStackOffset;
++  unsigned VarArgsFrameIndex;
++
++public:
++  explicit XtensaFunctionInfo(const Function &F, const TargetSubtargetInfo *STI)
++      : VarArgsFirstGPR(0), VarArgsStackOffset(0), VarArgsFrameIndex(0) {}
++
++  unsigned getVarArgsFirstGPR() const { return VarArgsFirstGPR; }
++  void setVarArgsFirstGPR(unsigned GPR) { VarArgsFirstGPR = GPR; }
++
++  int getVarArgsStackOffset() const { return VarArgsStackOffset; }
++  void setVarArgsStackOffset(int Offset) { VarArgsStackOffset = Offset; }
++
++  // Get and set the frame index of the first stack vararg.
++  unsigned getVarArgsFrameIndex() const { return VarArgsFrameIndex; }
++  void setVarArgsFrameIndex(unsigned FI) { VarArgsFrameIndex = FI; }
++};
++
++} // namespace llvm
++
++#endif /* LLVM_LIB_TARGET_XTENSA_XTENSAMACHINEFUNCTIONINFO_H */
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
+index dc77c614f97e..011bd55c7de4 100644
+--- a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
+@@ -14,8 +14,8 @@
+ 
+ #include "XtensaRegisterInfo.h"
+ #include "XtensaInstrInfo.h"
++#include "XtensaMachineFunctionInfo.h"
+ #include "XtensaSubtarget.h"
+-#include "llvm/CodeGen/MachineFrameInfo.h"
+ #include "llvm/CodeGen/MachineInstrBuilder.h"
+ #include "llvm/CodeGen/MachineRegisterInfo.h"
+ #include "llvm/Support/Debug.h"
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+index 1b25a897ac16..d40f3c6768f1 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+@@ -12,6 +12,7 @@
+ //
+ //===----------------------------------------------------------------------===//
+ 
++#include "XtensaMachineFunctionInfo.h"
+ #include "XtensaTargetMachine.h"
+ #include "TargetInfo/XtensaTargetInfo.h"
+ #include "llvm/CodeGen/Passes.h"
+@@ -72,6 +73,12 @@ XtensaTargetMachine::getSubtargetImpl(const Function &F) const {
+   return &Subtarget;
+ }
+ 
++MachineFunctionInfo *XtensaTargetMachine::createMachineFunctionInfo(
++    BumpPtrAllocator &Allocator, const Function &F,
++    const TargetSubtargetInfo *STI) const {
++  return XtensaFunctionInfo::create<XtensaFunctionInfo>(Allocator, F, STI);
++}
++
+ namespace {
+ /// Xtensa Code Generator Pass Configuration Options.
+ class XtensaPassConfig : public TargetPassConfig {
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.h b/llvm/lib/Target/Xtensa/XtensaTargetMachine.h
+index 87145313438f..ac506c8f30d6 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.h
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.h
+@@ -43,6 +43,9 @@ public:
+   TargetLoweringObjectFile *getObjFileLowering() const override {
+     return TLOF.get();
+   }
++  MachineFunctionInfo *
++  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
++                            const TargetSubtargetInfo *STI) const override;
+ 
+ protected:
+   XtensaSubtarget Subtarget;
+-- 
+2.40.1
+

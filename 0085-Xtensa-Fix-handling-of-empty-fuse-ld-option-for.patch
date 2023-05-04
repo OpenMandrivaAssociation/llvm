@@ -1,0 +1,26 @@
+From 968ac9af6690b635ce730dd3e892919bd99a3c09 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:21 +0300
+Subject: [PATCH 085/140] [Xtensa]: Fix handling of empty '-fuse-ld' option for
+
+ ESP toolchain
+---
+ clang/lib/Driver/ToolChains/Xtensa.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index 46acba842901..87d569e9cde0 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -223,7 +223,7 @@ void xtensa::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+   if (ToolChain.GCCToolchainName == "")
+     llvm_unreachable("Unable to find Xtensa GCC linker");
+ 
+-  if (Args.hasArg(options::OPT_fuse_ld_EQ)) {
++  if (!Args.getLastArgValue(options::OPT_fuse_ld_EQ).empty()) {
+     Linker.assign(ToolChain.GetLinkerPath());
+   } else {
+     Linker.assign(ToolChain.GCCToolchainDir);
+-- 
+2.40.1
+

@@ -1,0 +1,170 @@
+From 6da5f94cd7d45cbe9aa321e857ffa931ee91a069 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:43 +0300
+Subject: [PATCH 015/140] [Xtensa] Implement lowering BR_JT operation
+
+---
+ llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp   | 11 ++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 36 +++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  3 ++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     |  6 ++++
+ llvm/lib/Target/Xtensa/XtensaOperators.td     |  4 +++
+ 5 files changed, 60 insertions(+)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+index 65a23506ad98..1935b86cfdc6 100644
+--- a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+@@ -21,6 +21,7 @@
+ #include "llvm/CodeGen/MachineModuleInfoImpls.h"
+ #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+ #include "llvm/MC/MCExpr.h"
++#include "llvm/MC/MCInstBuilder.h"
+ #include "llvm/MC/MCSectionELF.h"
+ #include "llvm/MC/MCStreamer.h"
+ #include "llvm/MC/MCSymbol.h"
+@@ -43,6 +44,16 @@ getModifierVariantKind(XtensaCP::XtensaCPModifier Modifier) {
+ void XtensaAsmPrinter::emitInstruction(const MachineInstr *MI) {
+   XtensaMCInstLower Lower(MF->getContext(), *this);
+   MCInst LoweredMI;
++  unsigned Opc = MI->getOpcode();
++
++  switch (Opc) {
++  case Xtensa::BR_JT: {
++    EmitToStreamer(
++        *OutStreamer,
++        MCInstBuilder(Xtensa::JX).addReg(MI->getOperand(0).getReg()));
++    return;
++  }
++  }
+   Lower.lower(MI, LoweredMI);
+   EmitToStreamer(*OutStreamer, LoweredMI);
+ }
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 2ea64259d231..9fe4c9c77cdd 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -95,6 +95,10 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   setOperationAction(ISD::SETCC, MVT::i32,
+                      Custom); // folds into brcond
+   setOperationAction(ISD::SETCC, MVT::i64, Expand);
++  
++  // Expand jump table branches as address arithmetic followed by an
++  // indirect jump.
++  setOperationAction(ISD::BR_JT, MVT::Other, Custom);
+ 
+   // make BRCOND legal, its actually only legal for a subset of conds
+   setOperationAction(ISD::BRCOND, MVT::Other, Legal);
+@@ -845,6 +849,35 @@ SDValue XtensaTargetLowering::LowerBlockAddress(BlockAddressSDNode *Node,
+   return CPWrap;
+ }
+ 
++SDValue XtensaTargetLowering::LowerBR_JT(SDValue Op, SelectionDAG &DAG) const {
++  SDValue Chain = Op.getOperand(0);
++  SDValue Table = Op.getOperand(1);
++  SDValue Index = Op.getOperand(2);
++  SDLoc DL(Op);
++  JumpTableSDNode *JT = cast<JumpTableSDNode>(Table);
++  MachineFunction &MF = DAG.getMachineFunction();
++  const MachineJumpTableInfo *MJTI = MF.getJumpTableInfo();
++
++  SDValue TargetJT = DAG.getTargetJumpTable(JT->getIndex(), MVT::i32);
++
++  const DataLayout &TD = DAG.getDataLayout();
++  EVT PTy = getPointerTy(TD);
++
++  unsigned EntrySize = MJTI->getEntrySize(TD);
++
++  Index = DAG.getNode(ISD::MUL, DL, Index.getValueType(), Index,
++                      DAG.getConstant(EntrySize, DL, Index.getValueType()));
++  SDValue Addr = DAG.getNode(ISD::ADD, DL, Index.getValueType(), Index, Table);
++
++  EVT MemVT = EVT::getIntegerVT(*DAG.getContext(), EntrySize * 8);
++  SDValue LD = DAG.getExtLoad(ISD::SEXTLOAD, DL, PTy, Chain, Addr,
++                              MachinePointerInfo::getJumpTable(MF), MemVT);
++  Addr = LD;
++
++  return DAG.getNode(XtensaISD::BR_JT, DL, MVT::Other, LD.getValue(1), Addr,
++                     TargetJT);
++}
++
+ SDValue XtensaTargetLowering::LowerJumpTable(JumpTableSDNode *JT,
+                                              SelectionDAG &DAG) const {
+   SDLoc DL(JT);
+@@ -1090,6 +1123,8 @@ SDValue XtensaTargetLowering::LowerShiftRightParts(SDValue Op,
+ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+                                              SelectionDAG &DAG) const {
+   switch (Op.getOpcode()) {
++  case ISD::BR_JT:
++    return LowerBR_JT(Op, DAG);
+   case ISD::Constant:
+     return LowerImmediate(Op, DAG);
+   case ISD::ConstantFP:
+@@ -1137,6 +1172,7 @@ const char *XtensaTargetLowering::getTargetNodeName(unsigned Opcode) const {
+     OPCODE(PCREL_WRAPPER);
+     OPCODE(SELECT);
+     OPCODE(SELECT_CC);
++    OPCODE(BR_JT);
+     OPCODE(SHL);
+     OPCODE(SRA);
+     OPCODE(SRL);
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index e56cab673c59..99febf0d453b 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -25,6 +25,8 @@ namespace XtensaISD {
+ enum {
+   FIRST_NUMBER = ISD::BUILTIN_OP_END,
+ 
++  BR_JT,
++
+   // Calls a function.  Operand 0 is the chain operand and operand 1
+   // is the target address.  The arguments start at operand 2.
+   // There is an optional glue operand at the end.
+@@ -106,6 +108,7 @@ public:
+ private:
+   const XtensaSubtarget &Subtarget;
+ 
++  SDValue LowerBR_JT(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerImmediate(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerImmediateFP(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index a8251f5af559..d21100181cf0 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -532,6 +532,12 @@ def : Pat<(Xtensa_call (i32 texternalsym:$dst)),
+ def : Pat<(Xtensa_call AR:$dst),
+           (CALLX0 AR:$dst)>;
+ 
++let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1, Size = 3 in {
++  def BR_JT: Pseudo<(outs), (ins AR:$s, i32imm:$jt),
++                    "!br_jt_p, $s, $jt",
++                    [(Xtensa_brjt AR:$s, tjumptable:$jt)]>;
++}
++
+ //===----------------------------------------------------------------------===//
+ // Mem barrier instructions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperators.td b/llvm/lib/Target/Xtensa/XtensaOperators.td
+index 3ed6b9791cf9..ca8ec55c5670 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperators.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperators.td
+@@ -23,6 +23,8 @@ def SDT_XtensaSelectCC            : SDTypeProfile<1, 5,
+                                                  [SDTCisSameAs<0, 1>,
+                                                   SDTCisSameAs<2, 3>,
+                                                   SDTCisVT<5, i32>]>;
++def SDT_XtensaBrJT                : SDTypeProfile<0, 2,
++                                                 [SDTCisPtrTy<0>, SDTCisVT<1, i32>]>;
+ 
+ def SDT_XtensaSHL                 : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+ def SDT_XtensaSRA                 : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+@@ -61,3 +63,5 @@ def Xtensa_srl: SDNode<"XtensaISD::SRL", SDT_XtensaSRL, [SDNPInGlue]>;
+ def Xtensa_src: SDNode<"XtensaISD::SRC", SDT_XtensaSRC, [SDNPInGlue]>;
+ def Xtensa_ssl: SDNode<"XtensaISD::SSL", SDT_XtensaSSL, [SDNPOutGlue]>;
+ def Xtensa_ssr: SDNode<"XtensaISD::SSR", SDT_XtensaSSR, [SDNPOutGlue]>;
++
++def Xtensa_brjt: SDNode<"XtensaISD::BR_JT", SDT_XtensaBrJT, [SDNPHasChain]>;
+-- 
+2.40.1
+

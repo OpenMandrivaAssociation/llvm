@@ -1,0 +1,235 @@
+From a7794a9179e3e2e0d7b5d97af3ae2fec4d7c6986 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:58 +0300
+Subject: [PATCH 040/140] [Xtensa] Emit literals
+
+Implement Xtensa specific streamer to support emit literals.
+---
+ .../Target/Xtensa/MCTargetDesc/CMakeLists.txt |  1 +
+ .../MCTargetDesc/XtensaMCTargetDesc.cpp       | 20 ++++
+ .../MCTargetDesc/XtensaTargetStreamer.cpp     | 97 +++++++++++++++++++
+ .../MCTargetDesc/XtensaTargetStreamer.h       | 53 ++++++++++
+ 4 files changed, 171 insertions(+)
+ create mode 100644 llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.h
+
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/CMakeLists.txt b/llvm/lib/Target/Xtensa/MCTargetDesc/CMakeLists.txt
+index 6841b44f9d56..dc12863394c7 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/CMakeLists.txt
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/CMakeLists.txt
+@@ -6,6 +6,7 @@ add_llvm_component_library(LLVMXtensaDesc
+   XtensaMCCodeEmitter.cpp
+   XtensaMCExpr.cpp
+   XtensaMCTargetDesc.cpp
++  XtensaTargetStreamer.cpp
+ 
+   LINK_COMPONENTS
+   MC
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
+index 48674d15bdfb..5c00ab25d3a8 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
+@@ -10,6 +10,7 @@
+ #include "XtensaMCTargetDesc.h"
+ #include "XtensaInstPrinter.h"
+ #include "XtensaMCAsmInfo.h"
++#include "XtensaTargetStreamer.h"
+ #include "TargetInfo/XtensaTargetInfo.h"
+ #include "llvm/ADT/STLExtras.h"
+ #include "llvm/MC/MCAsmInfo.h"
+@@ -62,6 +63,17 @@ static MCSubtargetInfo *
+ createXtensaMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
+   return createXtensaMCSubtargetInfoImpl(TT, CPU, CPU, FS);
+ }
++ 
++static MCTargetStreamer *
++createXtensaAsmTargetStreamer(MCStreamer &S, formatted_raw_ostream &OS,
++                              MCInstPrinter *InstPrint, bool isVerboseAsm) {
++  return new XtensaTargetAsmStreamer(S, OS);
++}
++
++static MCTargetStreamer *
++createXtensaObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
++  return new XtensaTargetELFStreamer(S);
++}
+ 
+ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTargetMC() {
+   // Register the MCAsmInfo.
+@@ -89,4 +101,12 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTargetMC() {
+   // Register the MCAsmBackend.
+   TargetRegistry::RegisterMCAsmBackend(getTheXtensaTarget(),
+                                        createXtensaMCAsmBackend);
++
++  // Register the asm target streamer.
++  TargetRegistry::RegisterAsmTargetStreamer(getTheXtensaTarget(),
++                                            createXtensaAsmTargetStreamer);
++
++  // Register the ELF target streamer.
++  TargetRegistry::RegisterObjectTargetStreamer(
++      getTheXtensaTarget(), createXtensaObjectTargetStreamer);
+ }
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.cpp
+new file mode 100644
+index 000000000000..645491d8f971
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.cpp
+@@ -0,0 +1,97 @@
++//===-- XtensaTargetStreamer.cpp - Xtensa Target Streamer Methods ---------===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file provides Xtensa specific target streamer methods.
++//
++//===----------------------------------------------------------------------===//
++
++#include "XtensaTargetStreamer.h"
++#include "XtensaInstPrinter.h"
++#include "llvm/BinaryFormat/ELF.h"
++#include "llvm/MC/MCAssembler.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCObjectFileInfo.h"
++#include "llvm/MC/MCSectionELF.h"
++#include "llvm/Support/FormattedStream.h"
++
++using namespace llvm;
++
++XtensaTargetStreamer::XtensaTargetStreamer(MCStreamer &S)
++    : MCTargetStreamer(S) {}
++
++XtensaTargetAsmStreamer::XtensaTargetAsmStreamer(MCStreamer &S,
++                                                 formatted_raw_ostream &OS)
++    : XtensaTargetStreamer(S), OS(OS) {}
++
++void XtensaTargetAsmStreamer::emitLiteral(std::string str) { OS << str; }
++
++XtensaTargetELFStreamer::XtensaTargetELFStreamer(MCStreamer &S)
++    : XtensaTargetStreamer(S) {}
++
++void XtensaTargetELFStreamer::emitLiteralLabel(MCSymbol *LblSym, SMLoc L) {
++  MCContext &Context = getStreamer().getContext();
++  MCStreamer &OutStreamer = getStreamer();
++  MCSectionELF *CS = (MCSectionELF *)OutStreamer.getCurrentSectionOnly();
++  std::string CSectionName = CS->getName().str();
++  std::size_t Pos = CSectionName.find(".text");
++  std::string SectionName;
++  if (Pos != std::string::npos) {
++    SectionName = ".literal";
++    SectionName += CSectionName.substr(Pos);
++  } else {
++    SectionName = CSectionName;
++    SectionName += ".literal";
++  }
++
++  MCSection *ConstSection = Context.getELFSection(
++      SectionName, ELF::SHT_PROGBITS, ELF::SHF_EXECINSTR | ELF::SHF_ALLOC);
++  ConstSection->setAlignment(Align(4));
++
++  OutStreamer.pushSection();
++  OutStreamer.switchSection(ConstSection);
++  OutStreamer.emitLabel(LblSym, L);
++  OutStreamer.popSection();
++}
++
++void XtensaTargetELFStreamer::emitLiteral(MCSymbol *LblSym, const MCExpr *Value,
++                                          SMLoc L) {
++  MCStreamer &OutStreamer = getStreamer();
++
++  OutStreamer.emitLabel(LblSym, L);
++  OutStreamer.emitValue(Value, 4, L);
++}
++
++void XtensaTargetELFStreamer::emitLiteral(const MCExpr *Value, SMLoc L) {
++  MCContext &Context = getStreamer().getContext();
++  MCStreamer &OutStreamer = getStreamer();
++  MCSectionELF *CS = (MCSectionELF *)OutStreamer.getCurrentSectionOnly();
++  std::string CSectionName = CS->getName().str();
++  std::size_t Pos = CSectionName.find(".text");
++  std::string SectionName;
++  if (Pos != std::string::npos) {
++    SectionName = ".literal";
++    SectionName += CSectionName.substr(Pos);
++  } else {
++    SectionName = CSectionName;
++    SectionName += ".literal";
++  }
++
++  MCSection *ConstSection = Context.getELFSection(
++      SectionName, ELF::SHT_PROGBITS, ELF::SHF_EXECINSTR | ELF::SHF_ALLOC);
++
++  OutStreamer.pushSection();
++  OutStreamer.switchSection(ConstSection);
++  OutStreamer.emitValue(Value, 4, L);
++  OutStreamer.popSection();
++}
++
++MCELFStreamer &XtensaTargetELFStreamer::getStreamer() {
++  return static_cast<MCELFStreamer &>(Streamer);
++}
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.h b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.h
+new file mode 100644
+index 000000000000..962da002a997
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaTargetStreamer.h
+@@ -0,0 +1,53 @@
++//===-- XtensaTargetStreamer.h - Xtensa Target Streamer --------*- C++ -*--===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSATARGETSTREAMER_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSATARGETSTREAMER_H
++
++#include "XtensaConstantPoolValue.h"
++#include "llvm/MC/MCELFStreamer.h"
++#include "llvm/MC/MCStreamer.h"
++#include "llvm/Support/SMLoc.h"
++
++namespace llvm {
++class formatted_raw_ostream;
++
++class XtensaTargetStreamer : public MCTargetStreamer {
++public:
++  XtensaTargetStreamer(MCStreamer &S);
++  virtual void emitLiteral(MCSymbol *LblSym, const MCExpr *Value, SMLoc L) = 0;
++  virtual void emitLiteralLabel(MCSymbol *LblSym, SMLoc L) = 0;
++  virtual void emitLiteral(const MCExpr *Value, SMLoc L) = 0;
++  virtual void emitLiteral(std::string str) = 0;
++};
++
++class XtensaTargetAsmStreamer : public XtensaTargetStreamer {
++  formatted_raw_ostream &OS;
++
++public:
++  XtensaTargetAsmStreamer(MCStreamer &S, formatted_raw_ostream &OS);
++  void emitLiteral(MCSymbol *LblSym, const MCExpr *Value, SMLoc L) override {}
++  void emitLiteralLabel(MCSymbol *LblSym, SMLoc L) override {}
++  void emitLiteral(const MCExpr *Value, SMLoc L) override {}
++  void emitLiteral(std::string str) override;
++};
++
++class XtensaTargetELFStreamer : public XtensaTargetStreamer {
++public:
++  XtensaTargetELFStreamer(MCStreamer &S);
++  MCELFStreamer &getStreamer();
++  void emitLiteral(MCSymbol *LblSym, const MCExpr *Value, SMLoc L) override;
++  void emitLiteralLabel(MCSymbol *LblSym, SMLoc L) override;
++  void emitLiteral(const MCExpr *Value, SMLoc L) override;
++  void emitLiteral(std::string str) override {}
++};
++} // end namespace llvm
++
++#endif
+-- 
+2.40.1
+

@@ -1,0 +1,365 @@
+From bc9e7d698c10cff54af47f6441823c4460ed13fe Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:50 +0300
+Subject: [PATCH 030/140] [Xtensa] Implement Loop, SEXT and NSA features.
+
+---
+ .../Xtensa/AsmParser/XtensaAsmParser.cpp      |  5 ++
+ .../Disassembler/XtensaDisassembler.cpp       | 13 ++++-
+ .../Xtensa/MCTargetDesc/XtensaInstPrinter.cpp | 11 ++++
+ .../Xtensa/MCTargetDesc/XtensaInstPrinter.h   |  1 +
+ .../MCTargetDesc/XtensaMCCodeEmitter.cpp      | 20 ++++++-
+ llvm/lib/Target/Xtensa/Xtensa.td              | 15 +++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 18 ++++--
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     | 56 +++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaOperands.td      |  8 +++
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.td  |  8 ++-
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp    |  3 +
+ llvm/lib/Target/Xtensa/XtensaSubtarget.h      | 15 +++++
+ 12 files changed, 163 insertions(+), 10 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+index 11c04964f540..a5a3bcf0cdfd 100644
+--- a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
++++ b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+@@ -253,6 +253,8 @@ public:
+     return false;
+   }
+ 
++  bool isseimm7_22() const { return isImm(7, 22); }
++
+   /// getStartLoc - Gets location of the first token of this operand
+   SMLoc getStartLoc() const override { return StartLoc; }
+   /// getEndLoc - Gets location of the last token of this operand
+@@ -455,6 +457,9 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
+   case Match_Invalidentry_imm12:
+     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                  "expected immediate in range [0, 32760]");
++  case Match_Invalidseimm7_22:
++    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
++                 "expected immediate in range [7, 22]");
+   }
+ 
+   report_fatal_error("Unknown match type detected!");
+diff --git a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+index 8dbefb16318a..ebcab090d420 100644
+--- a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
++++ b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+@@ -108,8 +108,9 @@ static DecodeStatus DecodeBRRegisterClass(MCInst &Inst, uint64_t RegNo,
+ }
+ 
+ static const unsigned SRDecoderTable[] = {
+-    Xtensa::SAR,         3,  Xtensa::BREG,        4,
+-    Xtensa ::WINDOWBASE, 72, Xtensa::WINDOWSTART, 73};
++    Xtensa::LBEG,        0, Xtensa::LEND, 1, Xtensa::LCOUNT,      2,
++    Xtensa::SAR,         3, Xtensa::BREG, 4, Xtensa ::WINDOWBASE, 72,
++    Xtensa::WINDOWSTART, 73};
+ 
+ static DecodeStatus DecodeSRRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                           uint64_t Address,
+@@ -302,6 +303,14 @@ static DecodeStatus decodeShimm1_31Operand(MCInst &Inst, uint64_t Imm,
+   return MCDisassembler::Success;
+ }
+ 
++static DecodeStatus decodeSeimm7_22Operand(MCInst &Inst, uint64_t Imm,
++                                           int64_t Address,
++                                           const void *Decoder) {
++  assert(isUInt<4>(Imm) && "Invalid immediate");
++  Inst.addOperand(MCOperand::createImm(Imm + 7));
++  return MCDisassembler::Success;
++}
++
+ static int64_t TableB4const[16] = {-1, 1,  2,  3,  4,  5,  6,   7,
+                                    8,  10, 12, 16, 32, 64, 128, 256};
+ static DecodeStatus decodeB4constOperand(MCInst &Inst, uint64_t Imm,
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
+index d1308ed56aa0..89343d203e9e 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.cpp
+@@ -413,3 +413,14 @@ void XtensaInstPrinter::printB4constu_AsmOperand(const MCInst *MI, int OpNum,
+   } else
+     printOperand(MI, OpNum, O);
+ }
++
++void XtensaInstPrinter::printSeimm7_22_AsmOperand(const MCInst *MI, int OpNum,
++                                                  raw_ostream &O) {
++  if (MI->getOperand(OpNum).isImm()) {
++    int64_t Value = MI->getOperand(OpNum).getImm();
++    assert((Value >= 7 && Value <= 22) &&
++           "Invalid argument, value must be in range <7,22>");
++    O << Value;
++  } else
++    printOperand(MI, OpNum, O);
++}
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
+index f8a9f592e011..f6858b383cbf 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaInstPrinter.h
+@@ -71,6 +71,7 @@ private:
+   void printEntry_Imm12_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printB4const_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+   void printB4constu_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
++  void printSeimm7_22_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+ };
+ } // end namespace llvm
+ 
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+index 379783761f58..4870cd5361ef 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+@@ -134,6 +134,10 @@ private:
+   uint32_t getB4constuOpValue(const MCInst &MI, unsigned OpNo,
+                               SmallVectorImpl<MCFixup> &Fixups,
+                               const MCSubtargetInfo &STI) const;
++
++  uint32_t getSeimm7_22OpValue(const MCInst &MI, unsigned OpNo,
++                               SmallVectorImpl<MCFixup> &Fixups,
++                               const MCSubtargetInfo &STI) const;
+ };
+ } // namespace
+ 
+@@ -284,7 +288,7 @@ XtensaMCCodeEmitter::getMemRegEncoding(const MCInst &MI, unsigned OpNo,
+     Res >>= 2;
+     break;
+   }
+-  
++
+   switch (MI.getOpcode()) {
+   case Xtensa::S32I_N:
+   case Xtensa::L32I_N:
+@@ -550,4 +554,18 @@ XtensaMCCodeEmitter::getB4constuOpValue(const MCInst &MI, unsigned OpNo,
+ 
+   return Res;
+ }
++
++uint32_t
++XtensaMCCodeEmitter::getSeimm7_22OpValue(const MCInst &MI, unsigned OpNo,
++                                         SmallVectorImpl<MCFixup> &Fixups,
++                                         const MCSubtargetInfo &STI) const {
++  const MCOperand &MO = MI.getOperand(OpNo);
++  uint32_t res = static_cast<uint32_t>(MO.getImm());
++
++  res -= 7;
++  assert(((res & 0xf) == res) && "Unexpected operand value!");
++
++  return res;
++}
++
+ #include "XtensaGenMCCodeEmitter.inc"
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.td b/llvm/lib/Target/Xtensa/Xtensa.td
+index a4ed90783fdc..4ab0786e16d7 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.td
++++ b/llvm/lib/Target/Xtensa/Xtensa.td
+@@ -37,6 +37,21 @@ def FeatureBoolean          : SubtargetFeature<"bool", "HasBoolean", "true",
+ def HasBoolean              : Predicate<"Subtarget->hasBoolean()">,
+                                          AssemblerPredicate<(all_of FeatureBoolean)>;
+ 
++def FeatureLoop             : SubtargetFeature<"loop", "HasLoop", "true",
++                                               "Enable Xtensa Loop extension">;
++def HasLoop                 : Predicate<"Subtarget->hasLoop()">,
++                                         AssemblerPredicate<(all_of FeatureLoop)>;
++
++def FeatureSEXT             : SubtargetFeature<"sext", "HasSEXT", "true",
++                                              "Enable Xtensa Sign Extend option">;
++def HasSEXT                 : Predicate<"Subtarget->hasSEXT()">,
++                                         AssemblerPredicate<(all_of FeatureSEXT)>;
++
++def FeatureNSA              : SubtargetFeature<"nsa", "HasNSA", "true",
++                                               "Enable Xtensa NSA option">;
++def HasNSA                  : Predicate<"Subtarget->hasNSA()">,
++                                         AssemblerPredicate<(all_of FeatureNSA)>;
++
+ //===----------------------------------------------------------------------===//
+ // Xtensa supported processors.
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 24e8aa0d74e8..c70d2045c44d 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -1928,14 +1928,22 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
+ 
+     BuildMI(*MBB, MI, DL, TII.get(Xtensa::L8UI), R1).add(Op1).add(Op2);
+ 
+-    unsigned R2 = MRI.createVirtualRegister(RC);
+-    BuildMI(*MBB, MI, DL, TII.get(Xtensa::SLLI), R2).addReg(R1).addImm(24);
+-    BuildMI(*MBB, MI, DL, TII.get(Xtensa::SRAI), R.getReg())
+-        .addReg(R2)
+-        .addImm(24);
++    if (Subtarget.hasSEXT()) {
++      BuildMI(*MBB, MI, DL, TII.get(Xtensa::SEXT), R.getReg())
++          .addReg(R1)
++          .addImm(7);
++    } else {
++      unsigned R2 = MRI.createVirtualRegister(RC);
++      BuildMI(*MBB, MI, DL, TII.get(Xtensa::SLLI), R2).addReg(R1).addImm(24);
++      BuildMI(*MBB, MI, DL, TII.get(Xtensa::SRAI), R.getReg())
++          .addReg(R2)
++          .addImm(24);
++    }
++
+     MI.eraseFromParent();
+     return MBB;
+   }
++
+   case Xtensa::S8I:
+   case Xtensa::S16I:
+   case Xtensa::S32I:
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index add781633b5c..840b34c621c0 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -1117,3 +1117,59 @@ let usesCustomInserter = 1 in {
+                               "!select_cc_fp_fp $dst, $lhs, $rhs, $t, $f, $cond",
+                               [(set FPR:$dst, (Xtensa_select_cc_fp FPR:$lhs, FPR:$rhs, FPR:$t, FPR:$f, imm:$cond))]>;
+ }
++
++//===----------------------------------------------------------------------===//
++// Loop Instructions
++//===----------------------------------------------------------------------===//
++
++def LOOP : RRI8_Inst<0x06, (outs), (ins AR:$s, mem8:$uimm8),
++                    "loop\t$$s, $uimm8", []>, Requires<[HasLoop]> {
++  bits<8> uimm8;
++
++  let r = 0x08;
++  let t = 0x07;
++  let imm8 = uimm8;
++}
++
++def LOOPGTZ : RRI8_Inst<0x06, (outs), (ins AR:$s, mem8:$uimm8),
++                       "loopgtz\t$$s, $uimm8", []>, Requires<[HasLoop]> {
++  bits<8> uimm8;
++
++  let r = 0x0A;
++  let t = 0x07;
++  let imm8 = uimm8;
++}
++
++def LOOPNEZ : RRI8_Inst<0x06, (outs), (ins AR:$s, mem8:$uimm8),
++                       "loopnez\t$$s, $uimm8", []>, Requires<[HasLoop]> {
++  bits<8> uimm8;
++
++  let r = 0x09;
++  let t = 0x07;
++  let imm8 = uimm8;
++}
++
++//===----------------------------------------------------------------------===//
++// SEXT Instructions
++//===----------------------------------------------------------------------===//
++
++def SEXT : RRR_Inst<0x00, 0x03, 0x02, (outs AR:$r), (ins AR:$s, seimm7_22:$imm),
++                   "sext\t$r, $s, $imm", []>, Requires<[HasSEXT]> {
++  bits<4> imm;
++
++  let t = imm;
++}
++
++//===----------------------------------------------------------------------===//
++// NSA Instructions
++//===----------------------------------------------------------------------===//
++
++def NSA : RRR_Inst<0x00, 0x00, 0x04, (outs AR:$t), (ins AR:$s),
++                  "nsa\t$t, $s", []>, Requires<[HasNSA]> {
++  let r = 0xE;
++}
++
++def NSAU : RRR_Inst<0x00, 0x00, 0x04, (outs AR:$t), (ins AR:$s),
++                   "nsau\t$t, $s", []>, Requires<[HasNSA]> {
++  let r = 0xF;
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperands.td b/llvm/lib/Target/Xtensa/XtensaOperands.td
+index 47946596282a..1ea3eeab0e36 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperands.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperands.td
+@@ -167,6 +167,14 @@ def b4constu: Immediate<i32,
+   let EncoderMethod = "getB4constuOpValue";
+   let DecoderMethod = "decodeB4constuOperand";
+ }
++
++// seimm7_22 predicate - Immediate in the range [7,22] for sign extend
++def Seimm7_22_AsmOperand: ImmAsmOperand<"seimm7_22">;
++def seimm7_22: Immediate<i32, [{ return Imm >= 7 && Imm <= 22; }], "Seimm7_22_AsmOperand"> {
++  let EncoderMethod = "getSeimm7_22OpValue";
++  let DecoderMethod = "decodeSeimm7_22Operand";
++}
++
+ //===----------------------------------------------------------------------===//
+ // Memory address operands
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+index 18341287347d..d7fbdcff09b9 100644
+--- a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+@@ -72,6 +72,10 @@ class SRReg<bits<8> num, string n, list<string> alt = []> : XtensaReg<n> {
+   let AltNames = alt;
+ }
+ 
++def LBEG : SRReg<0, "lbeg", ["LBEG", "0"]>;
++def LEND : SRReg<1, "lend", ["LEND", "1"]>;
++def LCOUNT : SRReg<2, "lcount", ["LCOUNT", "2"]>;
++
+ // Shift Amount Register
+ def SAR : SRReg<3, "sar", ["SAR","3"]>;
+ 
+@@ -80,8 +84,8 @@ def BREG : SRReg<4, "br", ["BR", "4"]>;
+ def WINDOWBASE : SRReg<72, "windowbase", ["WINDOWBASE", "72"]>;
+ def WINDOWSTART : SRReg<73, "windowstart", ["WINDOWSTART", "73"]>;
+ 
+-def SR :  RegisterClass<"Xtensa", [i32], 32, (add SAR,
+- BREG, WINDOWBASE, WINDOWSTART)>;
++def SR :  RegisterClass<"Xtensa", [i32], 32, (add LBEG, LEND, LCOUNT,
++  SAR, BREG, WINDOWBASE, WINDOWSTART)>;
+ 
+ //===----------------------------------------------------------------------===//
+ // USER registers
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+index a878477726da..d6cc451e0268 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -36,6 +36,9 @@ XtensaSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
+   HasSingleFloat = false;
+   HasWindowed = false;
+   HasBoolean = false;
++  HasLoop = false;
++  HasSEXT = false;
++  HasNSA = false;
+ 
+   // Parse features string.
+   ParseSubtargetFeatures(CPUName, CPUName, FS);
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.h b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+index 3e2cbbee972f..ba619caffc0f 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.h
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+@@ -50,6 +50,15 @@ private:
+   // Enabled Xtensa Boolean extension
+   bool HasBoolean;
+ 
++  // Enabled Xtensa Loop extension
++  bool HasLoop;
++
++  // Enable Xtensa Sign Extend option
++  bool HasSEXT;
++
++  // Enable Xtensa NSA option
++  bool HasNSA;
++
+   XtensaSubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
+ 
+ public:
+@@ -75,6 +84,12 @@ public:
+ 
+   bool hasBoolean() const { return HasBoolean; }
+ 
++  bool hasLoop() const { return HasLoop; }
++
++  bool hasSEXT() const { return HasSEXT; }
++
++  bool hasNSA() const { return HasNSA; }
++
+   // Automatically generated by tblgen.
+   void ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
+ };
+-- 
+2.40.1
+

@@ -1,0 +1,295 @@
+From f2fb065bfd0005856a7a08b3ed0ea40a14053125 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:48 +0300
+Subject: [PATCH 026/140] [Xtensa] Implement Boolean feature operations
+
+---
+ .../Disassembler/XtensaDisassembler.cpp       | 19 +++++-
+ llvm/lib/Target/Xtensa/Xtensa.td              |  6 ++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp |  4 ++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp    | 28 ++++++++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     | 65 +++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.td  | 19 +++++-
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp    |  1 +
+ llvm/lib/Target/Xtensa/XtensaSubtarget.h      |  5 ++
+ 8 files changed, 145 insertions(+), 2 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+index 550ce337eca8..4e5cee6870cc 100644
+--- a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
++++ b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+@@ -75,8 +75,25 @@ static DecodeStatus DecodeARRegisterClass(MCInst &Inst, uint64_t RegNo,
+   return MCDisassembler::Success;
+ }
+ 
++static const unsigned BRDecoderTable[] = {
++    Xtensa::B0,  Xtensa::B1,  Xtensa::B2,  Xtensa::B3, Xtensa::B4,  Xtensa::B5,
++    Xtensa::B6,  Xtensa::B7,  Xtensa::B8,  Xtensa::B9, Xtensa::B10, Xtensa::B11,
++    Xtensa::B12, Xtensa::B13, Xtensa::B14, Xtensa::B15};
++
++static DecodeStatus DecodeBRRegisterClass(MCInst &Inst, uint64_t RegNo,
++                                          uint64_t Address,
++                                          const void *Decoder) {
++  if (RegNo >= std::size(BRDecoderTable))
++    return MCDisassembler::Fail;
++
++  unsigned Reg = BRDecoderTable[RegNo];
++  Inst.addOperand(MCOperand::createReg(Reg));
++  return MCDisassembler::Success;
++}
++
+ static const unsigned SRDecoderTable[] = {
+-    Xtensa::SAR, 3, Xtensa::WINDOWBASE, 72, Xtensa::WINDOWSTART, 73};
++    Xtensa::SAR,         3,  Xtensa::BREG,        4,
++    Xtensa ::WINDOWBASE, 72, Xtensa::WINDOWSTART, 73};
+ 
+ static DecodeStatus DecodeSRRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                           uint64_t Address,
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.td b/llvm/lib/Target/Xtensa/Xtensa.td
+index 8a9f0778337f..8e3532dac415 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.td
++++ b/llvm/lib/Target/Xtensa/Xtensa.td
+@@ -26,6 +26,12 @@ def FeatureWindowed         : SubtargetFeature<"windowed", "HasWindowed", "true"
+                                                "Enable Xtensa Windowed Register option">;
+ def HasWindowed             : Predicate<"Subtarget->hasWindowed()">,
+                                          AssemblerPredicate<(all_of FeatureWindowed)>; 
++
++def FeatureBoolean          : SubtargetFeature<"bool", "HasBoolean", "true",
++                                               "Enable Xtensa Boolean extension">;
++def HasBoolean              : Predicate<"Subtarget->hasBoolean()">,
++                                         AssemblerPredicate<(all_of FeatureBoolean)>;
++
+ //===----------------------------------------------------------------------===//
+ // Xtensa supported processors.
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 049699d9938a..52c73a735774 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -191,6 +191,10 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+ 
+   // Compute derived properties from the register classes
+   computeRegisterProperties(STI.getRegisterInfo());
++
++  if (Subtarget.hasBoolean()) {
++    addRegisterClass(MVT::i1, &Xtensa::BRRegClass);
++  }
+ }
+ 
+ bool XtensaTargetLowering::isOffsetFoldingLegal(
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+index 28cccd9d4807..a43dabd4b800 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+@@ -236,6 +236,12 @@ bool XtensaInstrInfo::reverseBranchCondition(
+     Cond[0].setImm(Xtensa::BLTZ);
+     return false;
+ 
++  case Xtensa::BF:
++    Cond[0].setImm(Xtensa::BT);
++    return false;
++  case Xtensa::BT:
++    Cond[0].setImm(Xtensa::BF);
++    return false;
+   default:
+     llvm_unreachable("Invalid branch condition!");
+   }
+@@ -272,6 +278,10 @@ XtensaInstrInfo::getBranchDestBlock(const MachineInstr &MI) const {
+   case Xtensa::BGEZ:
+     return MI.getOperand(1).getMBB();
+ 
++  case Xtensa::BT:
++  case Xtensa::BF:
++    return MI.getOperand(1).getMBB();
++
+   default:
+     llvm_unreachable("Unknown branch opcode");
+   }
+@@ -307,6 +317,10 @@ bool XtensaInstrInfo::isBranchOffsetInRange(unsigned BranchOp,
+   case Xtensa::BGEZ:
+     BrOffset -= 4;
+     return isIntN(12, BrOffset);
++  case Xtensa::BT:
++  case Xtensa::BF:
++    BrOffset -= 4;
++    return isIntN(8, BrOffset);
+   default:
+     llvm_unreachable("Unknown branch opcode");
+   }
+@@ -531,6 +545,10 @@ unsigned XtensaInstrInfo::InsertConstBranchAtInst(
+   case Xtensa::BGEZ:
+     MI = BuildMI(MBB, I, DL, get(BR_C)).addImm(offset).addReg(Cond[1].getReg());
+     break;
++  case Xtensa::BT:
++  case Xtensa::BF:
++    MI = BuildMI(MBB, I, DL, get(BR_C)).addImm(offset).addReg(Cond[1].getReg());
++    break;
+   default:
+     llvm_unreachable("Invalid branch type!");
+   }
+@@ -591,6 +609,10 @@ unsigned XtensaInstrInfo::InsertBranchAtInst(MachineBasicBlock &MBB,
+   case Xtensa::BGEZ:
+     MI = BuildMI(MBB, I, DL, get(BR_C)).addReg(Cond[1].getReg()).addMBB(TBB);
+     break;
++  case Xtensa::BT:
++  case Xtensa::BF:
++    MI = BuildMI(MBB, I, DL, get(BR_C)).addReg(Cond[1].getReg()).addMBB(TBB);
++    break;
+   default:
+     llvm_unreachable("Invalid branch type!");
+   }
+@@ -639,6 +661,12 @@ bool XtensaInstrInfo::isBranch(const MachineBasicBlock::iterator &MI,
+     Target = &MI->getOperand(1);
+     return true;
+ 
++  case Xtensa::BT:
++  case Xtensa::BF:
++    Cond[0].setImm(OpCode);
++    Target = &MI->getOperand(1);
++    return true;
++
+   default:
+     assert(!MI->getDesc().isBranch() && "Unknown branch opcode");
+     return false;
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index d547e7bffb28..560f50b59cc9 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -838,3 +838,68 @@ def ROTW : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins imm8n_7:$imm),
+   let s = 0x0;
+   let t = imm{3-0};
+ }
++
++//===----------------------------------------------------------------------===//
++// Boolean Instructions
++//===----------------------------------------------------------------------===//
++
++def ALL4 : RRR_Inst<0x00, 0x00, 0x00, (outs BR:$t), (ins BR:$s),
++                   "all4\t$t, $s", []>, Requires<[HasBoolean]> {
++  let r = 0x9;
++}
++
++def ALL8 : RRR_Inst<0x00, 0x00, 0x00, (outs BR:$t), (ins BR:$s),
++                   "all8\t$t, $s", []>, Requires<[HasBoolean]> {
++  let r = 0xB;
++}
++
++def ANDB : RRR_Inst<0x00, 0x02, 0x00, (outs BR:$r), (ins BR:$s, BR:$t),
++                   "andb\t$r, $s, $t", []>, Requires<[HasBoolean]>;
++def ANDBC : RRR_Inst<0x00, 0x02, 0x01, (outs BR:$r), (ins BR:$s, BR:$t),
++                    "andbc\t$r, $s, $t", []>, Requires<[HasBoolean]>;
++
++def ANY4 : RRR_Inst<0x00, 0x00, 0x00, (outs BR:$t), (ins BR:$s),
++                   "any4\t$t, $s", []>, Requires<[HasBoolean]> {
++  let r = 0x8;
++}
++
++def ANY8 : RRR_Inst<0x00, 0x00, 0x00, (outs BR:$t), (ins BR:$s),
++                   "any8\t$t, $s", []>, Requires<[HasBoolean]> {
++  let r = 0xA;
++}
++
++let isBranch = 1, isTerminator = 1, Predicates = [HasBoolean] in {
++  def BT : RRI8_Inst<0x06, (outs), (ins BR:$b, brtarget:$target), 
++                    "bt\t$b, $target", []> {
++    bits<8> target;
++    bits<4> b;
++
++    let r = 0x1;
++    let s = b;
++    let t = 0x7; 
++    let imm8 = target;
++  }
++
++  def BF : RRI8_Inst<0x06, (outs), (ins BR:$b, brtarget:$target), 
++                    "bf\t$b, $target", []> {
++    bits<8> target;
++    bits<4> b;
++
++    let r = 0x0;
++    let s = b;
++    let t = 0x7; 
++    let imm8 = target;
++  }
++}
++
++def MOVF : RRR_Inst<0x00, 0x03, 0x0C, (outs AR:$r), (ins AR:$s, BR:$t),
++                   "movf\t$r, $s, $t", []>, Requires<[HasBoolean]>;
++def MOVT : RRR_Inst<0x00, 0x03, 0x0D, (outs AR:$r), (ins AR:$s, BR:$t),
++                   "movt\t$r, $s, $t", []>, Requires<[HasBoolean]>;
++
++def ORB : RRR_Inst<0x00, 0x02, 0x02, (outs BR:$r), (ins BR:$s, BR:$t),
++                  "orb\t$r, $s, $t", []>, Requires<[HasBoolean]>;
++def ORBC : RRR_Inst<0x00, 0x02, 0x03, (outs BR:$r), (ins BR:$s, BR:$t),
++                   "orbc\t$r, $s, $t", []>, Requires<[HasBoolean]>;
++def XORB : RRR_Inst<0x00, 0x02, 0x04, (outs BR:$r), (ins BR:$s, BR:$t),
++                   "xorb\t$r, $s, $t", []>, Requires<[HasBoolean]>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+index 9939d19ef190..5b87a83786ac 100644
+--- a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+@@ -75,8 +75,25 @@ class SRReg<bits<8> num, string n, list<string> alt = []> : XtensaReg<n> {
+ // Shift Amount Register
+ def SAR : SRReg<3, "sar", ["SAR","3"]>;
+ 
++def BREG : SRReg<4, "br", ["BR", "4"]>;
++
+ def WINDOWBASE : SRReg<72, "windowbase", ["WINDOWBASE", "72"]>;
+ def WINDOWSTART : SRReg<73, "windowstart", ["WINDOWSTART", "73"]>;
+ 
+ def SR :  RegisterClass<"Xtensa", [i32], 32, (add SAR,
+- WINDOWBASE, WINDOWSTART)>;
++ BREG, WINDOWBASE, WINDOWSTART)>;
++
++//===----------------------------------------------------------------------===//
++// Boolean registers
++//===----------------------------------------------------------------------===//
++class BReg<bits<4> num, string n> : XtensaReg<n> {
++  let HWEncoding{3-0} = num;
++}
++
++foreach i = 0-15 in {
++  def B#i  : BReg<i, "b"#i>,  DwarfRegNum<[i]>;
++}
++
++// Boolean register class
++def BR : RegisterClass<"Xtensa", [i1], 0, (add B0, B1,
++B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13, B14, B15)>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+index fe47de0f9527..df8e248dbfdf 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -34,6 +34,7 @@ XtensaSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
+ 
+   HasDensity = false;
+   HasWindowed = false;
++  HasBoolean = false;
+ 
+   // Parse features string.
+   ParseSubtargetFeatures(CPUName, CPUName, FS);
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.h b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+index aea0a9ed9b45..cf014f5371d1 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.h
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+@@ -44,6 +44,9 @@ private:
+   // Enabled Xtensa Windowed Register option
+   bool HasWindowed;
+ 
++  // Enabled Xtensa Boolean extension
++  bool HasBoolean;
++
+   XtensaSubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
+ 
+ public:
+@@ -65,6 +68,8 @@ public:
+ 
+   bool hasWindowed() const { return HasWindowed; }
+ 
++  bool hasBoolean() const { return HasBoolean; }
++
+   // Automatically generated by tblgen.
+   void ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
+ };
+-- 
+2.40.1
+

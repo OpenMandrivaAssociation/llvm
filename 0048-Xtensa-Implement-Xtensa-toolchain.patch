@@ -1,0 +1,423 @@
+From 82738a6b2bd5eb356206e2ba5fc9618011a87b69 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:02 +0300
+Subject: [PATCH 048/140] [Xtensa] Implement Xtensa toolchain.
+
+---
+ clang/lib/Driver/CMakeLists.txt        |   1 +
+ clang/lib/Driver/Driver.cpp            |   4 +
+ clang/lib/Driver/ToolChains/Xtensa.cpp | 266 +++++++++++++++++++++++++
+ clang/lib/Driver/ToolChains/Xtensa.h   |  94 +++++++++
+ 4 files changed, 365 insertions(+)
+ create mode 100644 clang/lib/Driver/ToolChains/Xtensa.cpp
+ create mode 100644 clang/lib/Driver/ToolChains/Xtensa.h
+
+diff --git a/clang/lib/Driver/CMakeLists.txt b/clang/lib/Driver/CMakeLists.txt
+index ba56a9323400..e9e2e099604c 100644
+--- a/clang/lib/Driver/CMakeLists.txt
++++ b/clang/lib/Driver/CMakeLists.txt
+@@ -84,6 +84,7 @@ add_clang_library(clangDriver
+   ToolChains/VEToolchain.cpp
+   ToolChains/WebAssembly.cpp
+   ToolChains/XCore.cpp
++  ToolChains/Xtensa.cpp
+   ToolChains/PPCLinux.cpp
+   ToolChains/PPCFreeBSD.cpp
+   ToolChains/InterfaceStubs.cpp
+diff --git a/clang/lib/Driver/Driver.cpp b/clang/lib/Driver/Driver.cpp
+index a268f2fa8fc5..1f58377f5172 100644
+--- a/clang/lib/Driver/Driver.cpp
++++ b/clang/lib/Driver/Driver.cpp
+@@ -51,6 +51,7 @@
+ #include "ToolChains/VEToolchain.h"
+ #include "ToolChains/WebAssembly.h"
+ #include "ToolChains/XCore.h"
++#include "ToolChains/Xtensa.h"
+ #include "ToolChains/ZOS.h"
+ #include "clang/Basic/TargetID.h"
+ #include "clang/Basic/Version.h"
+@@ -6150,6 +6151,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
+       case llvm::Triple::csky:
+         TC = std::make_unique<toolchains::CSKYToolChain>(*this, Target, Args);
+         break;
++      case llvm::Triple::xtensa:
++        TC = std::make_unique<toolchains::XtensaToolChain>(*this, Target, Args);
++        break;
+       default:
+         if (Target.getVendor() == llvm::Triple::Myriad)
+           TC = std::make_unique<toolchains::MyriadToolChain>(*this, Target,
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+new file mode 100644
+index 000000000000..003a10a0b9f6
+--- /dev/null
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -0,0 +1,266 @@
++//===--- Xtensa.cpp - Xtensa ToolChain Implementations ----------*- C++ -*-===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "Xtensa.h"
++#include "CommonArgs.h"
++#include "clang/Driver/InputInfo.h"
++#include "clang/Basic/Cuda.h"
++#include "clang/Config/config.h"
++#include "clang/Driver/Compilation.h"
++#include "clang/Driver/Distro.h"
++#include "clang/Driver/Driver.h"
++#include "clang/Driver/DriverDiagnostic.h"
++#include "clang/Driver/Options.h"
++#include "llvm/Option/ArgList.h"
++#include "llvm/Support/Path.h"
++#include "llvm/Support/VirtualFileSystem.h"
++#include <system_error>
++
++using namespace clang::driver;
++using namespace clang::driver::tools;
++using namespace clang::driver::toolchains;
++using namespace clang;
++using namespace llvm::opt;
++
++XtensaGCCToolchainDetector::XtensaGCCToolchainDetector(
++    const Driver &D, const llvm::Triple &HostTriple,
++    const llvm::opt::ArgList &Args) {
++  std::string InstalledDir;
++  InstalledDir = D.getInstalledDir();
++  StringRef CPUName = XtensaToolChain::GetTargetCPUVersion(Args);
++  std::string Dir;
++  std::string ToolchainName;
++  std::string ToolchainDir;
++
++  if (CPUName.equals("esp32"))
++    ToolchainName = "xtensa-esp32-elf";
++  else if (CPUName.equals("esp32-s2"))
++    ToolchainName = "xtensa-esp32s2-elf";
++  else if (CPUName.equals("esp8266"))
++    ToolchainName = "xtensa-lx106-elf";
++
++  Slash = llvm::sys::path::get_separator().str();
++
++  ToolchainDir = InstalledDir + Slash + "..";
++  Dir = ToolchainDir + Slash + "lib" + Slash + "gcc" + Slash + ToolchainName +
++        Slash;
++  GCCLibAndIncVersion = "";
++
++  if (D.getVFS().exists(Dir)) {
++    std::error_code EC;
++    for (llvm::vfs::directory_iterator LI = D.getVFS().dir_begin(Dir, EC), LE;
++         !EC && LI != LE; LI = LI.increment(EC)) {
++      StringRef VersionText = llvm::sys::path::filename(LI->path());
++      auto GCCVersion = Generic_GCC::GCCVersion::Parse(VersionText);
++      if (GCCVersion.Major == -1)
++        continue;
++      GCCLibAndIncVersion = GCCVersion.Text;
++    }
++    if (GCCLibAndIncVersion == "")
++      llvm_unreachable("Unexpected Xtensa GCC toolchain version");
++
++  } else {
++    // Unable to find Xtensa GCC toolchain;
++    GCCToolchainName = "";
++    return;
++  }
++  GCCToolchainDir = ToolchainDir;
++  GCCToolchainName = ToolchainName;
++}
++
++/// Xtensa Toolchain
++XtensaToolChain::XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
++                                 const ArgList &Args)
++    : Generic_ELF(D, Triple, Args), XtensaGCCToolchain(D, getTriple(), Args) {
++  for (auto *A : Args) {
++    std::string Str = A->getAsString(Args);
++    if (!Str.compare("-mlongcalls"))
++      A->claim();
++    if (!Str.compare("-fno-tree-switch-conversion"))
++      A->claim();
++
++    // Currently don't use integrated assembler for assembler input files
++    if ((IsIntegratedAsm) && (Str.length() > 2)) {
++      std::string ExtSubStr = Str.substr(Str.length() - 2);
++      if (!ExtSubStr.compare(".s"))
++        IsIntegratedAsm = false;
++      if (!ExtSubStr.compare(".S"))
++        IsIntegratedAsm = false;
++    }
++  }
++
++  // Currently don't use integrated assembler for assembler input files
++  if (IsIntegratedAsm) {
++    if (Args.getLastArgValue(options::OPT_x).equals("assembler"))
++      IsIntegratedAsm = false;
++
++    if (Args.getLastArgValue(options::OPT_x).equals("assembler-with-cpp"))
++      IsIntegratedAsm = false;
++  }
++
++  const std::string Slash = XtensaGCCToolchain.Slash;
++  std::string Libs =
++      XtensaGCCToolchain.GCCToolchainDir + Slash + "lib" + Slash + "gcc" +
++      Slash + XtensaGCCToolchain.GCCToolchainName + Slash +
++      XtensaGCCToolchain.GCCLibAndIncVersion;
++  getFilePaths().push_back(Libs);
++
++  Libs = XtensaGCCToolchain.GCCToolchainDir + Slash +
++         XtensaGCCToolchain.GCCToolchainName + Slash + "lib";
++  getFilePaths().push_back(Libs);
++}
++
++Tool *XtensaToolChain::buildLinker() const {
++  return new tools::Xtensa::Linker(*this);
++}
++
++Tool *XtensaToolChain::buildAssembler() const {
++  return new tools::Xtensa::Assembler(*this);
++}
++
++void XtensaToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
++                                                ArgStringList &CC1Args) const {
++  if (DriverArgs.hasArg(clang::driver::options::OPT_nostdinc) ||
++      DriverArgs.hasArg(options::OPT_nostdlibinc))
++    return;
++
++  if (!XtensaGCCToolchain.IsValid())
++    return;
++
++  std::string Slash = XtensaGCCToolchain.Slash;
++
++  std::string Path1 = getDriver().ResourceDir.c_str() + Slash + "include";
++  std::string Path2 = XtensaGCCToolchain.GCCToolchainDir + Slash +
++                      XtensaGCCToolchain.GCCToolchainName + Slash +
++                      "sys-include";
++  std::string Path3 = XtensaGCCToolchain.GCCToolchainDir + Slash +
++                      XtensaGCCToolchain.GCCToolchainName + Slash + "include";
++
++  const StringRef Paths[] = {Path1, Path2, Path3};
++  addSystemIncludes(DriverArgs, CC1Args, Paths);
++}
++
++void XtensaToolChain::addLibStdCxxIncludePaths(
++    const llvm::opt::ArgList &DriverArgs,
++    llvm::opt::ArgStringList &CC1Args) const {
++  if (!XtensaGCCToolchain.IsValid())
++    return;
++
++  std::string Slash = XtensaGCCToolchain.Slash;
++
++  std::string BaseDir = XtensaGCCToolchain.GCCToolchainDir + Slash +
++                        XtensaGCCToolchain.GCCToolchainName + Slash +
++                        "include" + Slash + "c++" + Slash +
++                        XtensaGCCToolchain.GCCLibAndIncVersion;
++  std::string TargetDir = BaseDir + Slash + XtensaGCCToolchain.GCCToolchainName;
++  addLibStdCXXIncludePaths(BaseDir, "", "", DriverArgs, CC1Args);
++  addLibStdCXXIncludePaths(TargetDir, "", "", DriverArgs, CC1Args);
++  TargetDir = BaseDir + Slash + "backward";
++  addLibStdCXXIncludePaths(TargetDir, "", "", DriverArgs, CC1Args);
++}
++
++ToolChain::CXXStdlibType
++XtensaToolChain::GetCXXStdlibType(const ArgList &Args) const {
++  Arg *A = Args.getLastArg(options::OPT_stdlib_EQ);
++  if (!A)
++    return ToolChain::CST_Libstdcxx;
++
++  StringRef Value = A->getValue();
++  if (Value != "libstdc++")
++    getDriver().Diag(diag::err_drv_invalid_stdlib_name) << A->getAsString(Args);
++
++  return ToolChain::CST_Libstdcxx;
++}
++
++const StringRef XtensaToolChain::GetTargetCPUVersion(const ArgList &Args) {
++  if (Arg *A = Args.getLastArg(clang::driver::options::OPT_mcpu_EQ)) {
++    StringRef CPUName = A->getValue();
++    return CPUName;
++  }
++  return "esp32";
++}
++
++void tools::Xtensa::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
++                                            const InputInfo &Output,
++                                            const InputInfoList &Inputs,
++                                            const ArgList &Args,
++                                            const char *LinkingOutput) const {
++  const auto &TC =
++      static_cast<const toolchains::XtensaToolChain &>(getToolChain());
++
++  if (!TC.XtensaGCCToolchain.IsValid())
++    llvm_unreachable("Unable to find Xtensa GCC assembler");
++
++  claimNoWarnArgs(Args);
++  ArgStringList CmdArgs;
++
++  CmdArgs.push_back("-o");
++  CmdArgs.push_back(Output.getFilename());
++
++  CmdArgs.push_back("-c");
++
++  if (Args.hasArg(options::OPT_v))
++    CmdArgs.push_back("-v");
++
++  if (Arg *A = Args.getLastArg(options::OPT_g_Group))
++    if (!A->getOption().matches(options::OPT_g0))
++      CmdArgs.push_back("-g");
++
++  if (Args.hasFlag(options::OPT_fverbose_asm, options::OPT_fno_verbose_asm,
++                   false))
++    CmdArgs.push_back("-fverbose-asm");
++
++  Args.AddAllArgValues(CmdArgs, options::OPT_Wa_COMMA, options::OPT_Xassembler);
++
++  for (const auto &II : Inputs)
++    CmdArgs.push_back(II.getFilename());
++
++  std::string Slash = TC.XtensaGCCToolchain.Slash;
++
++  const char *Asm =
++      Args.MakeArgString(getToolChain().getDriver().Dir + Slash +
++                         TC.XtensaGCCToolchain.GCCToolchainName + "-as");
++  C.addCommand(std::make_unique<Command>(
++      JA, *this, ResponseFileSupport::AtFileCurCP(), Asm, CmdArgs, Inputs));
++}
++
++void Xtensa::Linker::ConstructJob(Compilation &C, const JobAction &JA,
++                                  const InputInfo &Output,
++                                  const InputInfoList &Inputs,
++                                  const ArgList &Args,
++                                  const char *LinkingOutput) const {
++  const auto &TC =
++      static_cast<const toolchains::XtensaToolChain &>(getToolChain());
++  std::string Slash = TC.XtensaGCCToolchain.Slash;
++
++  if (!TC.XtensaGCCToolchain.IsValid())
++    llvm_unreachable("Unable to find Xtensa GCC linker");
++
++  std::string Linker = getToolChain().getDriver().Dir + Slash +
++                       TC.XtensaGCCToolchain.GCCToolchainName + "-ld";
++  ArgStringList CmdArgs;
++
++  Args.AddAllArgs(CmdArgs, options::OPT_L);
++  TC.AddFilePathLibArgs(Args, CmdArgs);
++
++  Args.AddAllArgs(CmdArgs,
++                  {options::OPT_T_Group, options::OPT_e, options::OPT_s,
++                   options::OPT_t, options::OPT_u_Group});
++
++  AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
++
++  CmdArgs.push_back("-lgcc");
++
++  CmdArgs.push_back("-o");
++  CmdArgs.push_back(Output.getFilename());
++  C.addCommand(
++      std::make_unique<Command>(JA, *this, ResponseFileSupport::AtFileCurCP(),
++                                Args.MakeArgString(Linker), CmdArgs, Inputs));
++}
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.h b/clang/lib/Driver/ToolChains/Xtensa.h
+new file mode 100644
+index 000000000000..663dc63f6d27
+--- /dev/null
++++ b/clang/lib/Driver/ToolChains/Xtensa.h
+@@ -0,0 +1,94 @@
++//===--- Xtensa.h - Xtensa Tool and ToolChain Implementations ---*- C++ -*-===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_Xtensa_H
++#define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_Xtensa_H
++
++#include "Gnu.h"
++#include "clang/Driver/InputInfo.h"
++#include "clang/Driver/Tool.h"
++#include "clang/Driver/ToolChain.h"
++
++namespace clang {
++namespace driver {
++namespace toolchains {
++
++class XtensaGCCToolchainDetector {
++public:
++  std::string GCCLibAndIncVersion;
++  std::string GCCToolchainName;
++  std::string GCCToolchainDir;
++  std::string Slash;
++
++  XtensaGCCToolchainDetector(const Driver &D, const llvm::Triple &HostTriple,
++                             const llvm::opt::ArgList &Args);
++
++  bool IsValid() const { return GCCToolchainName != ""; }
++};
++
++class LLVM_LIBRARY_VISIBILITY XtensaToolChain : public Generic_ELF {
++protected:
++  Tool *buildLinker() const override;
++  Tool *buildAssembler() const override;
++
++public:
++  XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
++                  const llvm::opt::ArgList &Args);
++  void
++  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
++                            llvm::opt::ArgStringList &CC1Args) const override;
++  void
++  addLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
++                           llvm::opt::ArgStringList &CC1Args) const override;
++  CXXStdlibType GetCXXStdlibType(const llvm::opt::ArgList &Args) const override;
++  bool IsIntegratedAssemblerDefault() const override {
++    return (IsIntegratedAsm || (XtensaGCCToolchain.GCCToolchainName == ""));
++  }
++
++  static const StringRef GetTargetCPUVersion(const llvm::opt::ArgList &Args);
++
++  XtensaGCCToolchainDetector XtensaGCCToolchain;
++  bool IsIntegratedAsm = true;
++};
++
++} // end namespace toolchains
++
++namespace tools {
++namespace Xtensa {
++class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
++public:
++  Linker(const ToolChain &TC)
++      : Tool("Xtensa::Linker", "xtensa-esp32-elf-ld", TC) {}
++  bool hasIntegratedCPP() const override { return false; }
++  bool isLinkJob() const override { return true; }
++  void ConstructJob(Compilation &C, const JobAction &JA,
++                    const InputInfo &Output, const InputInfoList &Inputs,
++                    const llvm::opt::ArgList &TCArgs,
++                    const char *LinkingOutput) const override;
++};
++
++class LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
++public:
++  Assembler(const ToolChain &TC)
++      : Tool("Xtensa::Assembler", "xtensa-esp32-elf-as", TC) {}
++
++  bool hasIntegratedCPP() const override { return false; }
++  void ConstructJob(Compilation &C, const JobAction &JA,
++                    const InputInfo &Output, const InputInfoList &Inputs,
++                    const llvm::opt::ArgList &TCArgs,
++                    const char *LinkingOutput) const override;
++};
++
++} // end namespace Xtensa
++} // end namespace tools
++} // end namespace driver
++} // end namespace clang
++
++#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_Xtensa_H
+-- 
+2.40.1
+

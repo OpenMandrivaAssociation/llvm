@@ -1,0 +1,25 @@
+From 2e7b5ae112be545b94bfd1e2728edc5b3b0c4341 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:16 +0300
+Subject: [PATCH 076/140] [Xtensa] Fix atomic swap for 8/16 bit operands.
+
+---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 4e10303f433d..a1c193690e24 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -2416,7 +2416,7 @@ XtensaTargetLowering::emitAtomicSwap(MachineInstr &MI, MachineBasicBlock *BB,
+   unsigned R8 = MRI.createVirtualRegister(RC);
+ 
+   BuildMI(*BB, St, DL, TII.get(Xtensa::SSR)).addReg(BitOffs);
+-  BuildMI(*BB, St, DL, TII.get(Xtensa::SLL), R8).addReg(AtomValLoop);
++  BuildMI(*BB, St, DL, TII.get(Xtensa::SRL), R8).addReg(AtomValLoop);
+ 
+   if (isByteOperand) {
+     BuildMI(*BB, St, DL, TII.get(Xtensa::SEXT), Res.getReg())
+-- 
+2.40.1
+

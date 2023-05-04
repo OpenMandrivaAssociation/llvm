@@ -1,0 +1,59 @@
+From b5ba5c96e36834872ea38f252a6ca559a443e6bc Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:05 +0300
+Subject: [PATCH 054/140] [Xtensa] Correct Call ABI for function return
+
+ arguments.
+---
+ clang/lib/CodeGen/TargetInfo.cpp | 12 +++++++++---
+ clang/test/CodeGen/xtensa-abi.c  | 14 ++++++++++++++
+ 2 files changed, 23 insertions(+), 3 deletions(-)
+ create mode 100644 clang/test/CodeGen/xtensa-abi.c
+
+diff --git a/clang/lib/CodeGen/TargetInfo.cpp b/clang/lib/CodeGen/TargetInfo.cpp
+index f595ce2c4b15..4ef05b97c06b 100644
+--- a/clang/lib/CodeGen/TargetInfo.cpp
++++ b/clang/lib/CodeGen/TargetInfo.cpp
+@@ -12287,10 +12287,16 @@ ABIArgInfo XtensaABIInfo::classifyArgumentType(QualType Ty,
+ ABIArgInfo XtensaABIInfo::classifyReturnType(QualType RetTy) const {
+   if (RetTy->isVoidType())
+     return ABIArgInfo::getIgnore();
++
+   int ArgGPRsLeft = MaxNumRetGPRs;
+-  // The rules for return and argument types are the same, so defer to
+-  // classifyArgumentType.
+-  return classifyArgumentType(RetTy, ArgGPRsLeft);
++  auto RetSize = llvm::alignTo(getContext().getTypeSize(RetTy), 32) / 32;
++
++  // The rules for return and argument with type size more then 4 bytes
++  // are the same, so defer to classifyArgumentType.
++  if (RetSize > 1)
++    return classifyArgumentType(RetTy, ArgGPRsLeft);
++
++  return DefaultABIInfo::classifyReturnType(RetTy);
+ }
+ 
+ Address XtensaABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
+diff --git a/clang/test/CodeGen/xtensa-abi.c b/clang/test/CodeGen/xtensa-abi.c
+new file mode 100644
+index 000000000000..4ce59e8466c8
+--- /dev/null
++++ b/clang/test/CodeGen/xtensa-abi.c
+@@ -0,0 +1,14 @@
++// RUN: %clang_cc1 -no-opaque-pointers -triple xtensa -O0 -emit-llvm %s -o - | FileCheck %s
++
++#define	__malloc_like	__attribute__((__malloc__))
++char *bufalloc () __malloc_like ;//__result_use_check;
++extern void* malloc (unsigned size);
++
++char *bufalloc ()
++{
++  char* buf = malloc(1024);
++
++  return buf;
++}
++
++// CHECK: define dso_local noalias i8* @bufalloc() #0 {
+-- 
+2.40.1
+

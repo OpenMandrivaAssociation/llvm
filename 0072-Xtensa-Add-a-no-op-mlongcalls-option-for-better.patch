@@ -1,0 +1,30 @@
+From f6a084b2ac688a63daecb7129d370d0c8eb09734 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:14 +0300
+Subject: [PATCH 072/140] [Xtensa] Add a no-op -mlongcalls option for better
+
+ compatibility
+
+Many projects targeting Xtensa architecture use GCC-specific
+-mlongcalls option. The current behavior of LLVM for Xtensa is
+equivalent to this option being set, so accept this option without
+changing the behavior.
+---
+ clang/include/clang/Driver/Options.td | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/clang/include/clang/Driver/Options.td b/clang/include/clang/Driver/Options.td
+index cf9c39ce899c..56bf1babc835 100644
+--- a/clang/include/clang/Driver/Options.td
++++ b/clang/include/clang/Driver/Options.td
+@@ -4807,6 +4807,7 @@ def mfix_esp32_psram_cache_issue : Flag<["-"], "mfix-esp32-psram-cache-issue">,
+ def mfix_esp32_psram_cache_strategy_EQ : Joined<["-"], "mfix-esp32-psram-cache-strategy=">, Group<m_xtensa_Features_Group>,
+     HelpText<" Psram cache fix strategies : memw, nops">,
+     Values<"memw, nops">;
++def mlongcalls : Flag<["-"], "mlongcalls">, Group<m_xtensa_Features_Group>;
+ 
+ // These are legacy user-facing driver-level option spellings. They are always
+ // aliases for options that are spelled using the more common Unix / GNU flag
+-- 
+2.40.1
+

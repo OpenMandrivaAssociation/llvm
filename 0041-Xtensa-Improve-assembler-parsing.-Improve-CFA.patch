@@ -1,0 +1,201 @@
+From f6cb727e784e0dee148d0bb539fe400d6abb8b05 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:58 +0300
+Subject: [PATCH 041/140] [Xtensa] Improve assembler parsing. Improve CFA
+
+ support.
+
+Implement special processing of MOVI and L32R instructions in assembler
+parser. The MOVI assembler expression now can have 32-bit immediate
+values, so also correct xtensa-invalid.s test.
+Also implement computation of CFA during XtensaMCAsmInfo creation.
+---
+ .../Xtensa/AsmParser/XtensaAsmParser.cpp      | 90 ++++++++++++++++++-
+ .../MCTargetDesc/XtensaMCTargetDesc.cpp       |  4 +
+ llvm/test/MC/Xtensa/Core/invalid.s            |  4 -
+ 3 files changed, 90 insertions(+), 8 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+index 6a0b9aabb909..b66e96dfb63f 100644
+--- a/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
++++ b/llvm/lib/Target/Xtensa/AsmParser/XtensaAsmParser.cpp
+@@ -8,7 +8,9 @@
+ //
+ //===----------------------------------------------------------------------===//
+ 
++#include "MCTargetDesc/XtensaMCExpr.h"
+ #include "MCTargetDesc/XtensaMCTargetDesc.h"
++#include "MCTargetDesc/XtensaTargetStreamer.h"
+ #include "TargetInfo/XtensaTargetInfo.h"
+ #include "llvm/ADT/STLExtras.h"
+ #include "llvm/ADT/StringSwitch.h"
+@@ -34,6 +36,11 @@ struct XtensaOperand;
+ class XtensaAsmParser : public MCTargetAsmParser {
+ 
+   SMLoc getLoc() const { return getParser().getTok().getLoc(); }
++ 
++  XtensaTargetStreamer &getTargetStreamer() {
++    MCTargetStreamer &TS = *getParser().getStreamer().getTargetStreamer();
++    return static_cast<XtensaTargetStreamer &>(TS);
++  }
+ 
+   // Override MCTargetAsmParser.
+   bool ParseDirective(AsmToken DirectiveID) override;
+@@ -48,6 +55,9 @@ class XtensaAsmParser : public MCTargetAsmParser {
+   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
+                                       unsigned Kind) override;
+ 
++  bool processInstruction(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
++                          const MCSubtargetInfo *STI);
++
+ // Auto-generated instruction matching functions
+ #define GET_ASSEMBLER_HEADER
+ #include "XtensaGenAsmMatcher.inc"
+@@ -233,7 +243,13 @@ public:
+ 
+   bool isImm12() const { return isImm(-2048, 2047); }
+ 
+-  bool isImm12m() const { return isImm(-2048, 2047); }
++  // Convert MOVI to literal load, when immediate is not in range (-2048, 2047)
++  bool isImm12m() const {
++    //Process special case when operand is symbol
++    if ((Kind == Immediate) && (getImm()->getKind() == MCExpr::SymbolRef))
++      return true;
++    return  isImm(LONG_MIN, LONG_MAX);
++  }
+ 
+   bool isOffset4m32() const {
+     return isImm(0, 60) &&
+@@ -446,6 +462,74 @@ static SMLoc RefineErrorLoc(const SMLoc Loc, const OperandVector &Operands,
+   return Loc;
+ }
+ 
++bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
++                                         MCStreamer &Out,
++                                         const MCSubtargetInfo *STI) {
++  Inst.setLoc(IDLoc);
++  const unsigned Opcode = Inst.getOpcode();
++
++  switch (Opcode) {
++  case Xtensa::L32R: {
++    const MCSymbolRefExpr *OpExpr =
++        (const MCSymbolRefExpr *)Inst.getOperand(1).getExpr();
++    XtensaMCExpr::VariantKind Kind = XtensaMCExpr::VK_Xtensa_None;
++    const MCExpr *NewOpExpr = XtensaMCExpr::create(OpExpr, Kind, getContext());
++    Inst.getOperand(1).setExpr(NewOpExpr);
++  } break;
++  case Xtensa::MOVI: {
++    XtensaTargetStreamer &TS = this->getTargetStreamer();
++
++    //In the case of asm output, simply pass the representation of
++    //the MOVI instruction as is
++    if (TS.getStreamer().hasRawTextSupport())
++      break;
++
++    //Expand MOVI operand
++    if (!Inst.getOperand(1).isExpr()) {
++      uint64_t ImmOp64 = Inst.getOperand(1).getImm();
++      int32_t Imm = ImmOp64;
++      if ((Imm < -2048) || (Imm > 2047)) {
++        XtensaTargetStreamer &TS = this->getTargetStreamer();
++        MCInst TmpInst;
++        TmpInst.setLoc(IDLoc);
++        TmpInst.setOpcode(Xtensa::L32R);
++        const MCExpr *Value = MCConstantExpr::create(ImmOp64, getContext());
++        MCSymbol *Sym = getContext().createTempSymbol();
++        const MCExpr *Expr = MCSymbolRefExpr::create(
++            Sym, MCSymbolRefExpr::VK_None, getContext());
++        const MCExpr *OpExpr = XtensaMCExpr::create(
++            Expr, XtensaMCExpr::VK_Xtensa_None, getContext());
++        TmpInst.addOperand(Inst.getOperand(0));
++        MCOperand Op1 = MCOperand::createExpr(OpExpr);
++        TmpInst.addOperand(Op1);
++        TS.emitLiteralLabel(Sym, IDLoc);
++        TS.emitLiteral(Value, IDLoc);
++        Inst = TmpInst;
++      }
++    } else {
++      MCInst TmpInst;
++      TmpInst.setLoc(IDLoc);
++      TmpInst.setOpcode(Xtensa::L32R);
++      const MCExpr *Value = Inst.getOperand(1).getExpr();
++      MCSymbol *Sym = getContext().createTempSymbol();
++      const MCExpr *Expr =
++          MCSymbolRefExpr::create(Sym, MCSymbolRefExpr::VK_None, getContext());
++      const MCExpr *OpExpr = XtensaMCExpr::create(
++          Expr, XtensaMCExpr::VK_Xtensa_None, getContext());
++      TmpInst.addOperand(Inst.getOperand(0));
++      MCOperand Op1 = MCOperand::createExpr(OpExpr);
++      TmpInst.addOperand(Op1);
++      Inst = TmpInst;
++      TS.emitLiteralLabel(Sym, IDLoc);
++      TS.emitLiteral(Value, IDLoc);
++    }
++  } break;
++  default:
++    break;
++  }
++  return true;
++}
++
+ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
+                                               OperandVector &Operands,
+                                               MCStreamer &Out,
+@@ -459,6 +543,7 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
+   default:
+     break;
+   case Match_Success:
++    processInstruction(Inst, IDLoc, Out, STI);
+     Inst.setLoc(IDLoc);
+     Out.emitInstruction(Inst, getSTI());
+     return false;
+@@ -494,9 +579,6 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
+   case Match_InvalidImm12:
+     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                  "expected immediate in range [-2048, 2047]");
+-  case Match_InvalidImm12m:
+-    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+-                 "expected immediate in range [-2048, 2047]");
+   case Match_InvalidImm1_16:
+     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                  "expected immediate in range [1, 16]");
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
+index 5c00ab25d3a8..8832cdf7dc01 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCTargetDesc.cpp
+@@ -14,6 +14,7 @@
+ #include "TargetInfo/XtensaTargetInfo.h"
+ #include "llvm/ADT/STLExtras.h"
+ #include "llvm/MC/MCAsmInfo.h"
++#include "llvm/MC/MCDwarf.h"
+ #include "llvm/MC/MCInstrInfo.h"
+ #include "llvm/MC/MCRegisterInfo.h"
+ #include "llvm/MC/MCStreamer.h"
+@@ -36,6 +37,9 @@ static MCAsmInfo *createXtensaMCAsmInfo(const MCRegisterInfo &MRI,
+                                         const Triple &TT,
+                                         const MCTargetOptions &Options) {
+   MCAsmInfo *MAI = new XtensaMCAsmInfo(TT);
++  MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(
++      nullptr, MRI.getDwarfRegNum(Xtensa::SP, true), 0);
++  MAI->addInitialFrameState(Inst);
+   return MAI;
+ }
+ 
+diff --git a/llvm/test/MC/Xtensa/Core/invalid.s b/llvm/test/MC/Xtensa/Core/invalid.s
+index d3d8fba8169a..c7473e90c10b 100644
+--- a/llvm/test/MC/Xtensa/Core/invalid.s
++++ b/llvm/test/MC/Xtensa/Core/invalid.s
+@@ -4,10 +4,6 @@ LBL0:
+ 
+ # Out of range immediates
+ 
+-# imm12m
+-movi a1, 3000
+-# CHECK: :[[#@LINE-1]]:10: error: expected immediate in range [-2048, 2047]
+-
+ # imm8
+ addi a1, a2, 300
+ # CHECK: :[[#@LINE-1]]:14: error: expected immediate in range [-128, 127]
+-- 
+2.40.1
+

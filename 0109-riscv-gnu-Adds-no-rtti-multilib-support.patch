@@ -1,0 +1,174 @@
+From 52aeb026c7f5b80c36e36927707454eae3290d82 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:32 +0300
+Subject: [PATCH 109/140] riscv/gnu: Adds `no-rtti` multilib support
+
+---
+ clang/lib/Driver/ToolChains/Gnu.cpp           | 45 +++++++++++++++----
+ .../8.4.0/rv32i/ilp32/no-rtti/crtbegin.o      |  0
+ .../8.4.0/rv32i/ilp32/no-rtti/crtend.o        |  0
+ .../8.4.0/rv32imac/ilp32/no-rtti/crtbegin.o   |  0
+ .../8.4.0/rv32imac/ilp32/no-rtti/crtend.o     |  0
+ .../8.4.0/rv32imafc/ilp32f/no-rtti/crtbegin.o |  0
+ .../8.4.0/rv32imafc/ilp32f/no-rtti/crtend.o   |  0
+ .../8.4.0/rv32imc/ilp32/no-rtti/crtbegin.o    |  0
+ .../8.4.0/rv32imc/ilp32/no-rtti/crtend.o      |  0
+ .../lib/rv32i/ilp32/no-rtti/crt0.o            |  0
+ .../lib/rv32imac/ilp32/no-rtti/crt0.o         |  0
+ .../lib/rv32imafc/ilp32f/no-rtti/crt0.o       |  0
+ .../lib/rv32imc/ilp32/no-rtti/crt0.o          |  0
+ clang/test/Driver/riscv32-esp-toolchain.c     | 19 ++++++++
+ 14 files changed, 55 insertions(+), 9 deletions(-)
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32i/ilp32/no-rtti/crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32i/ilp32/no-rtti/crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imac/ilp32/no-rtti/crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imac/ilp32/no-rtti/crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imafc/ilp32f/no-rtti/crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imafc/ilp32f/no-rtti/crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imc/ilp32/no-rtti/crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imc/ilp32/no-rtti/crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32i/ilp32/no-rtti/crt0.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32imac/ilp32/no-rtti/crt0.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32imafc/ilp32f/no-rtti/crt0.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32imc/ilp32/no-rtti/crt0.o
+
+diff --git a/clang/lib/Driver/ToolChains/Gnu.cpp b/clang/lib/Driver/ToolChains/Gnu.cpp
+index 4392bb31e147..30906e33a5eb 100644
+--- a/clang/lib/Driver/ToolChains/Gnu.cpp
++++ b/clang/lib/Driver/ToolChains/Gnu.cpp
+@@ -1049,6 +1049,10 @@ static Multilib makeMultilib(StringRef commonSuffix) {
+   return Multilib(commonSuffix, commonSuffix, commonSuffix);
+ }
+ 
++static Multilib makeMultilib(StringRef commonSuffix, int Priority) {
++  return Multilib(commonSuffix, commonSuffix, commonSuffix, Priority);
++}
++
+ static bool findMipsCsMultilibs(const Multilib::flags_list &Flags,
+                                 FilterNonExistent &NonExistent,
+                                 DetectedMultilibs &Result) {
+@@ -1699,16 +1703,33 @@ static void findRISCVBareMetalMultilibs(const Driver &D,
+       {"rv64imafdc", "lp64d"}};
+ 
+   std::vector<Multilib> Ms;
+-
+-  if (TargetTriple.getVendor() == llvm::Triple::Espressif)
+-    Ms.emplace_back(Multilib({}, {}, {}, -1));
+-
++  if (TargetTriple.getVendor() == llvm::Triple::Espressif) {
++    Ms.emplace_back(Multilib());
++    Ms.emplace_back(makeMultilib("no-rtti", 1)
++                    .flag("+fno-rtti")
++                    .flag("-frtti"));
++  }
+   for (auto Element : RISCVMultilibSet) {
+-    // multilib path rule is ${march}/${mabi}
+-    Ms.emplace_back(
+-        makeMultilib((Twine(Element.march) + "/" + Twine(Element.mabi)).str())
+-            .flag(Twine("+march=", Element.march).str())
+-            .flag(Twine("+mabi=", Element.mabi).str()));
++    if (TargetTriple.getVendor() == llvm::Triple::Espressif) {
++      // multilib path rule is ${march}/${mabi}
++      Ms.emplace_back(
++          makeMultilib((Twine(Element.march) + "/" + Twine(Element.mabi)).str(), 2)
++              .flag(Twine("+march=", Element.march).str())
++              .flag(Twine("+mabi=", Element.mabi).str()));
++      /* no-rtti version for every ${march}/${mabi} */
++      Ms.emplace_back(
++          makeMultilib((Twine(Element.march) + "/" + Twine(Element.mabi) + "/no-rtti").str(), 3)
++              .flag(Twine("+march=", Element.march).str())
++              .flag(Twine("+mabi=", Element.mabi).str())
++              .flag("+fno-rtti")
++              .flag("-frtti"));
++    } else {
++      // multilib path rule is ${march}/${mabi}
++      Ms.emplace_back(
++          makeMultilib((Twine(Element.march) + "/" + Twine(Element.mabi)).str())
++              .flag(Twine("+march=", Element.march).str())
++              .flag(Twine("+mabi=", Element.mabi).str()));
++    }
+   }
+   MultilibSet RISCVMultilibs =
+       MultilibSet()
+@@ -1745,6 +1766,12 @@ static void findRISCVBareMetalMultilibs(const Driver &D,
+     }
+   }
+ 
++  if (TargetTriple.getVendor() == llvm::Triple::Espressif) {
++    addMultilibFlag(
++        Args.hasFlag(options::OPT_frtti, options::OPT_fno_rtti, true), "frtti",
++        Flags);
++  }
++
+   if (RISCVMultilibs.select(Flags, Result.SelectedMultilib))
+     Result.Multilibs = RISCVMultilibs;
+ }
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32i/ilp32/no-rtti/crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32i/ilp32/no-rtti/crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32i/ilp32/no-rtti/crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32i/ilp32/no-rtti/crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imac/ilp32/no-rtti/crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imac/ilp32/no-rtti/crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imac/ilp32/no-rtti/crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imac/ilp32/no-rtti/crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imafc/ilp32f/no-rtti/crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imafc/ilp32f/no-rtti/crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imafc/ilp32f/no-rtti/crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imafc/ilp32f/no-rtti/crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imc/ilp32/no-rtti/crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imc/ilp32/no-rtti/crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imc/ilp32/no-rtti/crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imc/ilp32/no-rtti/crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32i/ilp32/no-rtti/crt0.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32i/ilp32/no-rtti/crt0.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32imac/ilp32/no-rtti/crt0.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32imac/ilp32/no-rtti/crt0.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32imafc/ilp32f/no-rtti/crt0.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32imafc/ilp32f/no-rtti/crt0.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32imc/ilp32/no-rtti/crt0.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib/rv32imc/ilp32/no-rtti/crt0.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/riscv32-esp-toolchain.c b/clang/test/Driver/riscv32-esp-toolchain.c
+index 5c34c0a3bf7a..34ef6871f30f 100644
+--- a/clang/test/Driver/riscv32-esp-toolchain.c
++++ b/clang/test/Driver/riscv32-esp-toolchain.c
+@@ -81,6 +81,25 @@
+ // CXX-RV32IMAC-BAREMETAL-MULTI-NOSYSROOT-ILP32: "-lstdc++" "-lm" "--start-group" "-lc" "-lgloss" "-lnosys" "--end-group" "-lgcc"
+ // CXX-RV32IMAC-BAREMETAL-MULTI-NOSYSROOT-ILP32: "{{.*}}/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imac/ilp32{{/|\\\\}}crtend.o"
+ 
++// RUN: %clangxx %s -### -no-canonical-prefixes -target riscv32-esp-elf \
++// RUN:   -ffreestanding -stdlib=libstdc++ --rtlib=libgcc --ld-path=riscv32-esp-elf-ld \
++// RUN:   --gcc-toolchain=%S/Inputs/multilib_riscv_esp_elf_sdk \
++// RUN:   --sysroot=%S/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf \
++// RUN:   -fno-rtti 2>&1 \
++// RUN:   | FileCheck -check-prefix=CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32 %s
++
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "-internal-isystem" "{{.*}}Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/include/c++{{/|\\\\}}8.4.0"
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "{{.*}}Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}riscv32-esp-elf-as"
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "-mabi" "ilp32" "-march" "rv32imac"
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "{{.*}}Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}riscv32-esp-elf-ld"
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "--sysroot={{.*}}/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf"
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "-m" "elf32lriscv"
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "{{.*}}/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imac/ilp32/no-rtti{{/|\\\\}}crtbegin.o"
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "-L{{.*}}/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0"
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "-L{{.*}}/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf/lib"
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "-lstdc++" "-lm" "--start-group" "-lc" "-lgloss" "-lnosys" "--end-group" "-lgcc"
++// CXX-RV32IMAC-BAREMETAL-MULTI-NORTTI-ILP32: "{{.*}}/Inputs/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/rv32imac/ilp32/no-rtti{{/|\\\\}}crtend.o"
++
+ // RUN: %clang %s -### -no-canonical-prefixes -target riscv32-esp-elf \
+ // RUN:   -march=rv32i -mabi=ilp32 \
+ // RUN:   -ffreestanding --rtlib=libgcc --ld-path=riscv32-esp-elf-ld --sysroot= \
+-- 
+2.40.1
+

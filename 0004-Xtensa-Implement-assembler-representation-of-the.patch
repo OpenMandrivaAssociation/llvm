@@ -1,0 +1,222 @@
+From 04fd42c63fd5e72541b6368ccde3d82fadc96022 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:37 +0300
+Subject: [PATCH 004/140] [Xtensa] Implement assembler representation of the
+
+ Constant Pool.
+---
+ llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp | 170 ++++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaAsmPrinter.h   |   2 +
+ 2 files changed, 172 insertions(+)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+index e633b77ff620..65a23506ad98 100644
+--- a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+@@ -14,6 +14,7 @@
+ //===----------------------------------------------------------------------===//
+ 
+ #include "XtensaAsmPrinter.h"
++#include "XtensaConstantPoolValue.h"
+ #include "XtensaMCInstLower.h"
+ #include "TargetInfo/XtensaTargetInfo.h"
+ #include "llvm/BinaryFormat/ELF.h"
+@@ -28,6 +29,17 @@
+ 
+ using namespace llvm;
+ 
++static MCSymbolRefExpr::VariantKind
++getModifierVariantKind(XtensaCP::XtensaCPModifier Modifier) {
++  switch (Modifier) {
++  case XtensaCP::no_modifier:
++    return MCSymbolRefExpr::VK_None;
++  case XtensaCP::TPOFF:
++    return MCSymbolRefExpr::VK_TPOFF;
++  }
++  llvm_unreachable("Invalid XtensaCPModifier!");
++}
++
+ void XtensaAsmPrinter::emitInstruction(const MachineInstr *MI) {
+   XtensaMCInstLower Lower(MF->getContext(), *this);
+   MCInst LoweredMI;
+@@ -35,6 +47,164 @@ void XtensaAsmPrinter::emitInstruction(const MachineInstr *MI) {
+   EmitToStreamer(*OutStreamer, LoweredMI);
+ }
+ 
++/// EmitConstantPool - Print to the current output stream assembly
++/// representations of the constants in the constant pool MCP. This is
++/// used to print out constants which have been "spilled to memory" by
++/// the code generator.
++void XtensaAsmPrinter::emitConstantPool() {
++  const Function &F = MF->getFunction();
++  const MachineConstantPool *MCP = MF->getConstantPool();
++  const std::vector<MachineConstantPoolEntry> &CP = MCP->getConstants();
++  if (CP.empty())
++    return;
++
++  for (unsigned i = 0, e = CP.size(); i != e; ++i) {
++    const MachineConstantPoolEntry &CPE = CP[i];
++
++    if (i == 0) {
++      if (OutStreamer->hasRawTextSupport()) {
++        OutStreamer->switchSection(
++            getObjFileLowering().SectionForGlobal(&F, TM));
++        OutStreamer->emitRawText(StringRef("\t.literal_position\n"));
++      } else {
++        MCSectionELF *CS =
++            (MCSectionELF *)getObjFileLowering().SectionForGlobal(&F, TM);
++        std::string CSectionName = CS->getName().str();
++        std::size_t Pos = CSectionName.find(".text");
++        std::string SectionName;
++        if (Pos != std::string::npos) {
++          if (Pos > 0)
++            SectionName = CSectionName.substr(0, Pos + 5);
++          else
++            SectionName = "";
++          SectionName += ".literal";
++          SectionName += CSectionName.substr(Pos + 5);
++        } else {
++          SectionName = CSectionName;
++          SectionName += ".literal";
++        }
++
++        MCSectionELF *S =
++            OutContext.getELFSection(SectionName, ELF::SHT_PROGBITS,
++                                     ELF::SHF_EXECINSTR | ELF::SHF_ALLOC);
++        S->setAlignment(Align(4));
++        OutStreamer->switchSection(S);
++      }
++    }
++
++    if (CPE.isMachineConstantPoolEntry()) {
++      XtensaConstantPoolValue *ACPV =
++          static_cast<XtensaConstantPoolValue *>(CPE.Val.MachineCPVal);
++      ACPV->setLabelId(i);
++      emitMachineConstantPoolValue(CPE.Val.MachineCPVal);
++    } else {
++      MCSymbol *LblSym = GetCPISymbol(i);
++      // TODO find a better way to check whether we emit data to .s file
++      if (OutStreamer->hasRawTextSupport()) {
++        std::string str("\t.literal ");
++        str += LblSym->getName();
++        str += ", ";
++        const Constant *C = CPE.Val.ConstVal;
++
++        Type *Ty = C->getType();
++        if (const auto *CFP = dyn_cast<ConstantFP>(C)) {
++          str += toString(CFP->getValueAPF().bitcastToAPInt(), 10, true);
++        } else if (const auto *CI = dyn_cast<ConstantInt>(C)) {
++          str += toString(CI->getValue(), 10, true);
++        } else if (isa<PointerType>(Ty)) {
++          const MCExpr *ME = lowerConstant(C);
++          const MCSymbolRefExpr &SRE = cast<MCSymbolRefExpr>(*ME);
++          const MCSymbol &Sym = SRE.getSymbol();
++          str += Sym.getName();
++        } else {
++          unsigned NumElements;
++          if (isa<VectorType>(Ty))
++            NumElements = (cast<FixedVectorType>(Ty))->getNumElements();
++          else
++            NumElements = Ty->getArrayNumElements();
++
++          for (unsigned I = 0; I < NumElements; I++) {
++            const Constant *CAE = C->getAggregateElement(I);
++            if (I > 0)
++              str += ", ";
++            if (const auto *CFP = dyn_cast<ConstantFP>(CAE)) {
++              str += toString(CFP->getValueAPF().bitcastToAPInt(), 10, true);
++            } else if (const auto *CI = dyn_cast<ConstantInt>(CAE)) {
++              str += toString(CI->getValue(), 10, true);
++            }
++          }
++        }
++
++        OutStreamer->emitRawText(StringRef(str));
++      } else {
++        OutStreamer->emitLabel(LblSym);
++        emitGlobalConstant(getDataLayout(), CPE.Val.ConstVal);
++      }
++    }
++  }
++}
++
++void XtensaAsmPrinter::emitMachineConstantPoolValue(
++    MachineConstantPoolValue *MCPV) {
++  XtensaConstantPoolValue *ACPV = static_cast<XtensaConstantPoolValue *>(MCPV);
++
++  MCSymbol *MCSym;
++  if (ACPV->isBlockAddress()) {
++    const BlockAddress *BA =
++        cast<XtensaConstantPoolConstant>(ACPV)->getBlockAddress();
++    MCSym = GetBlockAddressSymbol(BA);
++  } else if (ACPV->isGlobalValue()) {
++    const GlobalValue *GV = cast<XtensaConstantPoolConstant>(ACPV)->getGV();
++    // TODO some modifiers
++    MCSym = getSymbol(GV);
++  } else if (ACPV->isMachineBasicBlock()) {
++    const MachineBasicBlock *MBB = cast<XtensaConstantPoolMBB>(ACPV)->getMBB();
++    MCSym = MBB->getSymbol();
++  } else if (ACPV->isJumpTable()) {
++    unsigned idx = cast<XtensaConstantPoolJumpTable>(ACPV)->getIndex();
++    MCSym = this->GetJTISymbol(idx, false);
++  } else {
++    assert(ACPV->isExtSymbol() && "unrecognized constant pool value");
++    XtensaConstantPoolSymbol *XtensaSym = cast<XtensaConstantPoolSymbol>(ACPV);
++    const char *Sym = XtensaSym->getSymbol();
++    // TODO it's a trick to distinguish static references and generated rodata
++    // references Some clear method required
++    {
++      std::string SymName(Sym);
++      if (XtensaSym->isPrivateLinkage())
++        SymName = ".L" + SymName;
++      MCSym = GetExternalSymbolSymbol(StringRef(SymName));
++    }
++  }
++
++  MCSymbol *LblSym = GetCPISymbol(ACPV->getLabelId());
++  // TODO find a better way to check whether we emit data to .s file
++  if (OutStreamer->hasRawTextSupport()) {
++    std::string SymName("\t.literal ");
++    SymName += LblSym->getName();
++    SymName += ", ";
++    SymName += MCSym->getName();
++
++    StringRef Modifier = ACPV->getModifierText();
++    SymName += Modifier;
++
++    OutStreamer->emitRawText(StringRef(SymName));
++  } else {
++    MCSymbolRefExpr::VariantKind VK =
++        getModifierVariantKind(ACPV->getModifier());
++
++    if (ACPV->getModifier() != XtensaCP::no_modifier) {
++      std::string SymName(MCSym->getName());
++      MCSym = GetExternalSymbolSymbol(StringRef(SymName));
++    }
++
++    const MCExpr *Expr = MCSymbolRefExpr::create(MCSym, VK, OutContext);
++    uint64_t Size = getDataLayout().getTypeAllocSize(ACPV->getType());
++    OutStreamer->emitLabel(LblSym);
++    OutStreamer->emitValue(Expr, Size);
++  }
++}
++
+ // Force static initialization.
+ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaAsmPrinter() {
+   RegisterAsmPrinter<XtensaAsmPrinter> A(getTheXtensaTarget());
+diff --git a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.h b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.h
+index d23fa5dbeadb..0ba80bc18c1c 100644
+--- a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.h
++++ b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.h
+@@ -36,6 +36,8 @@ public:
+   // Override AsmPrinter.
+   StringRef getPassName() const override { return "Xtensa Assembly Printer"; }
+   void emitInstruction(const MachineInstr *MI) override;
++  void emitConstantPool() override;
++  void emitMachineConstantPoolValue(MachineConstantPoolValue *MCPV) override;
+ };
+ } // end namespace llvm
+ 
+-- 
+2.40.1
+

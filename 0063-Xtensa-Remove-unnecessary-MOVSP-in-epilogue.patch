@@ -1,0 +1,32 @@
+From adeba4b218b6dc24d42ce7fc8318e1b3989fc99b Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:10 +0300
+Subject: [PATCH 063/140] [Xtensa] Remove unnecessary MOVSP in epilogue.
+
+---
+ llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp b/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+index 31ae43565974..aabdc73b2f6e 100644
+--- a/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+@@ -247,8 +247,13 @@ void XtensaFrameLowering::emitEpilogue(MachineFunction &MF,
+     for (unsigned i = 0; i < MFI.getCalleeSavedInfo().size(); ++i)
+       --I;
+     if (STI.isWinABI()) {
+-      // Insert instruction "movsp $sp, $fp" at this location.
+-      BuildMI(MBB, I, dl, TII.get(Xtensa::MOVSP), SP).addReg(FP);
++      // In most architectures, we need to explicitly restore the stack pointer
++      // before returning.
++      //
++      // For Xtensa Windowed Register option, it is not needed to explicitly
++      // restore the stack pointer. Reason being is that on function return,
++      // the window of the caller (including the old stack pointer) gets
++      // restored anyways.
+     } else {
+       BuildMI(MBB, I, dl, TII.get(Xtensa::OR), SP).addReg(FP).addReg(FP);
+     }
+-- 
+2.40.1
+

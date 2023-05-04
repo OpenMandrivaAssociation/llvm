@@ -1,0 +1,1429 @@
+From 6551c0d9f7ba0e1eeb1a7661cf44f7f23fda92e7 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:36 +0300
+Subject: [PATCH 001/140] [Xtensa] Initial support of the ALU operations.
+
+Initial codegen support for simple ALU operations.
+---
+ llvm/lib/Target/Xtensa/CMakeLists.txt         |  11 +
+ llvm/lib/Target/Xtensa/Xtensa.h               |  30 ++
+ llvm/lib/Target/Xtensa/Xtensa.td              |   6 +
+ llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp   |  41 +++
+ llvm/lib/Target/Xtensa/XtensaAsmPrinter.h     |  42 +++
+ llvm/lib/Target/Xtensa/XtensaCallingConv.td   |  34 ++
+ .../lib/Target/Xtensa/XtensaFrameLowering.cpp |  44 +++
+ llvm/lib/Target/Xtensa/XtensaFrameLowering.h  |  34 ++
+ llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp |  86 +++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 314 ++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  65 ++++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp    |  27 ++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.h      |  43 +++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     |   3 +-
+ llvm/lib/Target/Xtensa/XtensaMCInstLower.cpp  |  63 ++++
+ llvm/lib/Target/Xtensa/XtensaMCInstLower.h    |  43 +++
+ llvm/lib/Target/Xtensa/XtensaOperators.td     |  15 +
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp |  70 ++++
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.h   |  56 ++++
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp    |  46 +++
+ llvm/lib/Target/Xtensa/XtensaSubtarget.h      |  66 ++++
+ .../lib/Target/Xtensa/XtensaTargetMachine.cpp |  30 +-
+ llvm/lib/Target/Xtensa/XtensaTargetMachine.h  |   6 +
+ 23 files changed, 1172 insertions(+), 3 deletions(-)
+ create mode 100644 llvm/lib/Target/Xtensa/Xtensa.h
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaAsmPrinter.h
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaCallingConv.td
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaFrameLowering.h
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaISelLowering.h
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaInstrInfo.h
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaMCInstLower.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaMCInstLower.h
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaOperators.td
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaRegisterInfo.h
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaSubtarget.h
+
+diff --git a/llvm/lib/Target/Xtensa/CMakeLists.txt b/llvm/lib/Target/Xtensa/CMakeLists.txt
+index 7192f7392072..bb1e09cb0652 100644
+--- a/llvm/lib/Target/Xtensa/CMakeLists.txt
++++ b/llvm/lib/Target/Xtensa/CMakeLists.txt
+@@ -4,6 +4,8 @@ set(LLVM_TARGET_DEFINITIONS Xtensa.td)
+ 
+ tablegen(LLVM XtensaGenAsmMatcher.inc -gen-asm-matcher)
+ tablegen(LLVM XtensaGenAsmWriter.inc -gen-asm-writer)
++tablegen(LLVM XtensaGenCallingConv.inc -gen-callingconv)
++tablegen(LLVM XtensaGenDAGISel.inc -gen-dag-isel)
+ tablegen(LLVM XtensaGenDisassemblerTables.inc -gen-disassembler)
+ tablegen(LLVM XtensaGenInstrInfo.inc -gen-instr-info)
+ tablegen(LLVM XtensaGenMCCodeEmitter.inc -gen-emitter)
+@@ -13,6 +15,14 @@ tablegen(LLVM XtensaGenSubtargetInfo.inc -gen-subtarget)
+ add_public_tablegen_target(XtensaCommonTableGen)
+ 
+ add_llvm_target(XtensaCodeGen
++  XtensaAsmPrinter.cpp
++  XtensaFrameLowering.cpp
++  XtensaInstrInfo.cpp
++  XtensaISelDAGToDAG.cpp
++  XtensaISelLowering.cpp
++  XtensaMCInstLower.cpp
++  XtensaRegisterInfo.cpp
++  XtensaSubtarget.cpp
+   XtensaTargetMachine.cpp
+ 
+   LINK_COMPONENTS
+@@ -20,6 +30,7 @@ add_llvm_target(XtensaCodeGen
+   CodeGen
+   Core
+   MC
++  SelectionDAG
+   Support
+   Target
+   XtensaDesc
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.h b/llvm/lib/Target/Xtensa/Xtensa.h
+new file mode 100644
+index 000000000000..43eadf88c779
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/Xtensa.h
+@@ -0,0 +1,30 @@
++//===- Xtensa.h - Top-level interface for Xtensa representation -*- C++ -*-===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains the entry points for global functions defined in
++// the LLVM Xtensa back-end.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSA_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSA_H
++
++#include "MCTargetDesc/XtensaMCTargetDesc.h"
++#include "llvm/PassRegistry.h"
++#include "llvm/Support/CodeGen.h"
++
++namespace llvm {
++class XtensaTargetMachine;
++class FunctionPass;
++
++FunctionPass *createXtensaISelDag(XtensaTargetMachine &TM,
++                                  CodeGenOpt::Level OptLevel);
++} // namespace llvm
++#endif /* LLVM_LIB_TARGET_XTENSA_XTENSA_H */
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.td b/llvm/lib/Target/Xtensa/Xtensa.td
+index b953540be94d..460a15e808b3 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.td
++++ b/llvm/lib/Target/Xtensa/Xtensa.td
+@@ -35,6 +35,12 @@ def : Proc<"generic", []>;
+ 
+ include "XtensaRegisterInfo.td"
+ 
++//===----------------------------------------------------------------------===//
++// Calling Convention Description
++//===----------------------------------------------------------------------===//
++
++include "XtensaCallingConv.td"
++
+ //===----------------------------------------------------------------------===//
+ // Instruction Descriptions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+new file mode 100644
+index 000000000000..e633b77ff620
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.cpp
+@@ -0,0 +1,41 @@
++//===- XtensaAsmPrinter.cpp Xtensa LLVM Assembly Printer ------------------===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains a printer that converts from our internal representation
++// of machine-dependent LLVM code to GAS-format Xtensa assembly language.
++//
++//===----------------------------------------------------------------------===//
++
++#include "XtensaAsmPrinter.h"
++#include "XtensaMCInstLower.h"
++#include "TargetInfo/XtensaTargetInfo.h"
++#include "llvm/BinaryFormat/ELF.h"
++#include "llvm/CodeGen/MachineModuleInfoImpls.h"
++#include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
++#include "llvm/MC/MCExpr.h"
++#include "llvm/MC/MCSectionELF.h"
++#include "llvm/MC/MCStreamer.h"
++#include "llvm/MC/MCSymbol.h"
++#include "llvm/MC/MCSymbolELF.h"
++#include "llvm/MC/TargetRegistry.h"
++
++using namespace llvm;
++
++void XtensaAsmPrinter::emitInstruction(const MachineInstr *MI) {
++  XtensaMCInstLower Lower(MF->getContext(), *this);
++  MCInst LoweredMI;
++  Lower.lower(MI, LoweredMI);
++  EmitToStreamer(*OutStreamer, LoweredMI);
++}
++
++// Force static initialization.
++extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaAsmPrinter() {
++  RegisterAsmPrinter<XtensaAsmPrinter> A(getTheXtensaTarget());
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaAsmPrinter.h b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.h
+new file mode 100644
+index 000000000000..d23fa5dbeadb
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaAsmPrinter.h
+@@ -0,0 +1,42 @@
++//===- XtensaAsmPrinter.h - Xtensa LLVM Assembly Printer --------*- C++-*--===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Xtensa Assembly printer class.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSAASMPRINTER_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSAASMPRINTER_H
++
++#include "XtensaTargetMachine.h"
++#include "llvm/CodeGen/AsmPrinter.h"
++#include "llvm/Support/Compiler.h"
++
++namespace llvm {
++class MCStreamer;
++class MachineBasicBlock;
++class MachineInstr;
++class Module;
++class raw_ostream;
++
++class LLVM_LIBRARY_VISIBILITY XtensaAsmPrinter : public AsmPrinter {
++  const MCSubtargetInfo *STI;
++public:
++  explicit XtensaAsmPrinter(TargetMachine &TM,
++                            std::unique_ptr<MCStreamer> Streamer)
++      : AsmPrinter(TM, std::move(Streamer)), STI(TM.getMCSubtargetInfo()) {}
++
++  // Override AsmPrinter.
++  StringRef getPassName() const override { return "Xtensa Assembly Printer"; }
++  void emitInstruction(const MachineInstr *MI) override;
++};
++} // end namespace llvm
++
++#endif /* LLVM_LIB_TARGET_XTENSA_XTENSAASMPRINTER_H */
+diff --git a/llvm/lib/Target/Xtensa/XtensaCallingConv.td b/llvm/lib/Target/Xtensa/XtensaCallingConv.td
+new file mode 100644
+index 000000000000..c39eb665b4d3
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaCallingConv.td
+@@ -0,0 +1,34 @@
++//===- XtensaCallingConv.td - Xtensa Calling Conventions -*- tablegen ---*-===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++// This describes the calling conventions for the Xtensa ABI.
++//===----------------------------------------------------------------------===//
++
++/// CCIfAlign - Match of the original alignment of the arg
++class CCIfAlign<string Align, CCAction A>
++  : CCIf<!strconcat("ArgFlags.getNonZeroOrigAlign() == ", Align), A>;
++
++//===----------------------------------------------------------------------===//
++// Xtensa return value calling convention
++//===----------------------------------------------------------------------===//
++def RetCC_Xtensa : CallingConv<[
++  CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
++  CCIfType<[f32], CCBitConvertToType<i32>>,
++
++  //First two return values go in a2, a3, a4, a5
++  CCIfType<[i32], CCAssignToReg<[A2, A3, A4, A5]>>,
++  CCIfType<[f32], CCAssignToReg<[A2, A3, A4, A5]>>,
++  CCIfType<[i64], CCAssignToRegWithShadow<[A2, A4], [A3, A5]>>
++]>;
++
++//===----------------------------------------------------------------------===//
++// Callee-saved register lists.
++//===----------------------------------------------------------------------===//
++
++def CSR_Xtensa : CalleeSavedRegs<(add A0, A12, A13, A14, A15)>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp b/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+new file mode 100644
+index 000000000000..b201b99813ce
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+@@ -0,0 +1,44 @@
++//===- XtensaFrameLowering.cpp - Xtensa Frame Information -----------------===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains the Xtensa implementation of TargetFrameLowering class.
++//
++//===----------------------------------------------------------------------===//
++
++#include "XtensaFrameLowering.h"
++#include "XtensaInstrInfo.h"
++#include "XtensaSubtarget.h"
++#include "llvm/CodeGen/MachineFrameInfo.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/CodeGen/MachineModuleInfo.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/CodeGen/RegisterScavenging.h"
++#include "llvm/IR/Function.h"
++
++using namespace llvm;
++
++XtensaFrameLowering::XtensaFrameLowering()
++    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(4), 0,
++                          Align(4)) {}
++
++// hasFP - Return true if the specified function should have a dedicated frame
++// pointer register.  This is true if the function has variable sized allocas or
++// if frame pointer elimination is disabled.
++bool XtensaFrameLowering::hasFP(const MachineFunction &MF) const {
++  const MachineFrameInfo &MFI = MF.getFrameInfo();
++  return MF.getTarget().Options.DisableFramePointerElim(MF) ||
++         MFI.hasVarSizedObjects();
++}
++
++void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
++                                       MachineBasicBlock &MBB) const {}
++
++void XtensaFrameLowering::emitEpilogue(MachineFunction &MF,
++                                       MachineBasicBlock &MBB) const {}
+diff --git a/llvm/lib/Target/Xtensa/XtensaFrameLowering.h b/llvm/lib/Target/Xtensa/XtensaFrameLowering.h
+new file mode 100644
+index 000000000000..a5dfc83b9405
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaFrameLowering.h
+@@ -0,0 +1,34 @@
++//===- XtensaFrameLowering.h - Define frame lowering for Xtensa --*- C++ -*-==//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===-----------------------------------------------------------------------==//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSAFRAMELOWERING_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSAFRAMELOWERING_H
++
++#include "llvm/CodeGen/TargetFrameLowering.h"
++
++namespace llvm {
++class XtensaTargetMachine;
++class XtensaSubtarget;
++
++class XtensaFrameLowering : public TargetFrameLowering {
++public:
++  XtensaFrameLowering();
++
++  bool hasFP(const MachineFunction &MF) const override;
++
++  /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
++  /// the function.
++  void emitPrologue(MachineFunction &, MachineBasicBlock &) const override;
++  void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
++};
++
++} // namespace llvm
++
++#endif /* LLVM_LIB_TARGET_XTENSA_XTENSAFRAMELOWERING_H */
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp b/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp
+new file mode 100644
+index 000000000000..18a8ead6afd0
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp
+@@ -0,0 +1,86 @@
++//===- XtensaISelDAGToDAG.cpp - A dag to dag inst selector for Xtensa -----===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file defines an instruction selector for the Xtensa target.
++//
++//===----------------------------------------------------------------------===//
++
++#include "Xtensa.h"
++#include "XtensaTargetMachine.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/CodeGen/SelectionDAGISel.h"
++#include "llvm/Support/Debug.h"
++#include "llvm/Support/raw_ostream.h"
++
++using namespace llvm;
++
++#define DEBUG_TYPE "xtensa-isel"
++
++namespace {
++
++class XtensaDAGToDAGISel : public SelectionDAGISel {
++public:
++  static char ID;
++
++  XtensaDAGToDAGISel(XtensaTargetMachine &TM, CodeGenOpt::Level OptLevel)
++      : SelectionDAGISel(ID, TM, OptLevel) {}
++
++  // Override MachineFunctionPass.
++  StringRef getPassName() const override {
++    return "Xtensa DAG->DAG Pattern Instruction Selection";
++  }
++
++  // Override SelectionDAGISel.
++  void Select(SDNode *Node) override;
++
++  bool selectMemRegAddr(SDValue Addr, SDValue &Base, SDValue &Offset,
++                        int Scale) {
++    report_fatal_error("MemReg address is not implemented yet");
++    return true;
++  }
++
++  bool selectMemRegAddrISH1(SDValue Addr, SDValue &Base, SDValue &Offset) {
++    return selectMemRegAddr(Addr, Base, Offset, 1);
++  }
++
++  bool selectMemRegAddrISH2(SDValue Addr, SDValue &Base, SDValue &Offset) {
++    return selectMemRegAddr(Addr, Base, Offset, 2);
++  }
++
++  bool selectMemRegAddrISH4(SDValue Addr, SDValue &Base, SDValue &Offset) {
++    return selectMemRegAddr(Addr, Base, Offset, 4);
++  }
++
++// Include the pieces autogenerated from the target description.
++#include "XtensaGenDAGISel.inc"
++}; // namespace
++} // end anonymous namespace
++
++char XtensaDAGToDAGISel::ID = 0;
++
++FunctionPass *llvm::createXtensaISelDag(XtensaTargetMachine &TM,
++                                        CodeGenOpt::Level OptLevel) {
++  return new XtensaDAGToDAGISel(TM, OptLevel);
++}
++
++void XtensaDAGToDAGISel::Select(SDNode *Node) {
++  SDLoc DL(Node);
++  // Dump information about the Node being selected
++  LLVM_DEBUG(errs() << "Selecting: "; Node->dump(CurDAG); errs() << "\n");
++
++  // If we have a custom node, we already have selected!
++  if (Node->isMachineOpcode()) {
++    LLVM_DEBUG(errs() << "== "; Node->dump(CurDAG); errs() << "\n");
++    return;
++  }
++
++  SelectCode(Node);
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+new file mode 100644
+index 000000000000..a9ab9e407a4a
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -0,0 +1,314 @@
++//===- XtensaISelLowering.cpp - Xtensa DAG Lowering Implementation --------===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file defines the interfaces that Xtensa uses to lower LLVM code into a
++// selection DAG.
++//
++//===----------------------------------------------------------------------===//
++
++#include "XtensaISelLowering.h"
++#include "XtensaSubtarget.h"
++#include "XtensaTargetMachine.h"
++#include "llvm/CodeGen/CallingConvLower.h"
++#include "llvm/CodeGen/MachineFrameInfo.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/CodeGen/MachineJumpTableInfo.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
++#include "llvm/Support/Debug.h"
++#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/raw_ostream.h"
++
++using namespace llvm;
++
++#define DEBUG_TYPE "xtensa-lower"
++
++XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
++                                           const XtensaSubtarget &STI)
++    : TargetLowering(tm), Subtarget(STI) {
++  // Set up the register classes.
++  addRegisterClass(MVT::i32, &Xtensa::ARRegClass);
++
++  // Set up special registers.
++  setStackPointerRegisterToSaveRestore(Xtensa::SP);
++
++  setSchedulingPreference(Sched::RegPressure);
++  
++  setBooleanContents(ZeroOrOneBooleanContent);
++  setBooleanVectorContents(ZeroOrOneBooleanContent);
++
++  setMinFunctionAlignment(Align(4));
++
++  // Compute derived properties from the register classes
++  computeRegisterProperties(STI.getRegisterInfo());
++}
++
++//===----------------------------------------------------------------------===//
++// Calling conventions
++//===----------------------------------------------------------------------===//
++
++#include "XtensaGenCallingConv.inc"
++
++static bool CC_Xtensa_Custom(unsigned ValNo, MVT ValVT, MVT LocVT,
++                             CCValAssign::LocInfo LocInfo,
++                             ISD::ArgFlagsTy ArgFlags, CCState &State) {
++  static const MCPhysReg IntRegs[] = {Xtensa::A2, Xtensa::A3, Xtensa::A4,
++                                      Xtensa::A5, Xtensa::A6, Xtensa::A7};
++
++  if (ArgFlags.isByVal()) {
++    Align ByValAlign = ArgFlags.getNonZeroByValAlign();
++    unsigned Offset = State.AllocateStack(ArgFlags.getByValSize(), ByValAlign);
++    State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT, LocInfo));
++    // Allocate rest of registers, because rest part is not used to pass
++    // arguments
++    while (State.AllocateReg(IntRegs)) {
++    }
++    return false;
++  }
++
++  // Promote i8 and i16
++  if (LocVT == MVT::i8 || LocVT == MVT::i16) {
++    LocVT = MVT::i32;
++    if (ArgFlags.isSExt())
++      LocInfo = CCValAssign::SExt;
++    else if (ArgFlags.isZExt())
++      LocInfo = CCValAssign::ZExt;
++    else
++      LocInfo = CCValAssign::AExt;
++  }
++
++  unsigned Reg;
++
++  Align OrigAlign = ArgFlags.getNonZeroOrigAlign();
++  bool isI64 = (ValVT == MVT::i32 && OrigAlign == Align(8));
++
++  if (ValVT == MVT::i32 || ValVT == MVT::f32) {
++    Reg = State.AllocateReg(IntRegs);
++    // If this is the first part of an i64 arg,
++    // the allocated register must be either A2, A4 or A6.
++    if (isI64 && (Reg == Xtensa::A3 || Reg == Xtensa::A5 || Reg == Xtensa::A7))
++      Reg = State.AllocateReg(IntRegs);
++    LocVT = MVT::i32;
++  } else if (ValVT == MVT::f64) {
++    // Allocate int register and shadow next int register.
++    Reg = State.AllocateReg(IntRegs);
++    if (Reg == Xtensa::A3 || Reg == Xtensa::A5 || Reg == Xtensa::A7)
++      Reg = State.AllocateReg(IntRegs);
++    State.AllocateReg(IntRegs);
++    LocVT = MVT::i32;
++  } else
++    llvm_unreachable("Cannot handle this ValVT.");
++
++  if (!Reg) {
++    unsigned Offset = State.AllocateStack(ValVT.getStoreSize(), OrigAlign);
++    State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT, LocInfo));
++  } else
++    State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
++
++  return false;
++}
++
++CCAssignFn *XtensaTargetLowering::CCAssignFnForCall(CallingConv::ID CC,
++                                                    bool IsVarArg) const {
++  return CC_Xtensa_Custom;
++}
++
++// Value is a value of type VA.getValVT() that we need to copy into
++// the location described by VA.  Return a copy of Value converted to
++// VA.getValVT().  The caller is responsible for handling indirect values.
++static SDValue convertValVTToLocVT(SelectionDAG &DAG, SDLoc DL, CCValAssign &VA,
++                                   SDValue Value) {
++  switch (VA.getLocInfo()) {
++  case CCValAssign::SExt:
++    return DAG.getNode(ISD::SIGN_EXTEND, DL, VA.getLocVT(), Value);
++  case CCValAssign::ZExt:
++    return DAG.getNode(ISD::ZERO_EXTEND, DL, VA.getLocVT(), Value);
++  case CCValAssign::AExt:
++    return DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), Value);
++  case CCValAssign::BCvt:
++    return DAG.getNode(ISD::BITCAST, DL, VA.getLocVT(), Value);
++  case CCValAssign::Full:
++    return Value;
++  default:
++    llvm_unreachable("Unhandled getLocInfo()");
++  }
++}
++
++SDValue XtensaTargetLowering::LowerFormalArguments(
++    SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
++    const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
++    SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
++  MachineFunction &MF = DAG.getMachineFunction();
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++
++  // Used with vargs to acumulate store chains.
++  std::vector<SDValue> OutChains;
++
++  if (IsVarArg) {
++    llvm_unreachable("Var arg not supported by FormalArguments Lowering");
++  }
++
++  // Assign locations to all of the incoming arguments.
++  SmallVector<CCValAssign, 16> ArgLocs;
++  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs,
++                 *DAG.getContext());
++
++  CCInfo.AnalyzeFormalArguments(Ins, CCAssignFnForCall(CallConv, IsVarArg));
++
++  for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
++    CCValAssign &VA = ArgLocs[i];
++    // Arguments stored on registers
++    if (VA.isRegLoc()) {
++      EVT RegVT = VA.getLocVT();
++      const TargetRegisterClass *RC;
++
++      if (RegVT == MVT::i32) {
++        RC = &Xtensa::ARRegClass;
++      } else
++        llvm_unreachable("RegVT not supported by FormalArguments Lowering");
++
++      // Transform the arguments stored on
++      // physical registers into virtual ones
++      unsigned Reg = MF.addLiveIn(VA.getLocReg(), RC);
++      SDValue ArgValue = DAG.getCopyFromReg(Chain, DL, Reg, RegVT);
++
++      // If this is an 8 or 16-bit value, it has been passed promoted
++      // to 32 bits.  Insert an assert[sz]ext to capture this, then
++      // truncate to the right size.
++      if (VA.getLocInfo() != CCValAssign::Full) {
++        unsigned Opcode = 0;
++        if (VA.getLocInfo() == CCValAssign::SExt)
++          Opcode = ISD::AssertSext;
++        else if (VA.getLocInfo() == CCValAssign::ZExt)
++          Opcode = ISD::AssertZext;
++        if (Opcode)
++          ArgValue = DAG.getNode(Opcode, DL, RegVT, ArgValue,
++                                 DAG.getValueType(VA.getValVT()));
++        if (VA.getValVT() == MVT::f32)
++          ArgValue = DAG.getNode(ISD::BITCAST, DL, VA.getValVT(), ArgValue);
++        else
++          ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
++      }
++
++      InVals.push_back(ArgValue);
++
++    } else { // !VA.isRegLoc()
++      // sanity check
++      assert(VA.isMemLoc());
++
++      EVT ValVT = VA.getValVT();
++
++      // The stack pointer offset is relative to the caller stack frame.
++      int FI = MFI.CreateFixedObject(ValVT.getSizeInBits() / 8,
++                                     VA.getLocMemOffset(), true);
++
++      if (Ins[VA.getValNo()].Flags.isByVal()) {
++        // Assume that in this case load operation is created
++        SDValue FIN = DAG.getFrameIndex(FI, MVT::i32);
++        InVals.push_back(FIN);
++      } else {
++        // Create load nodes to retrieve arguments from the stack
++        SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
++        InVals.push_back(DAG.getLoad(
++            ValVT, DL, Chain, FIN,
++            MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI)));
++      }
++    }
++  }
++
++  // All stores are grouped in one node to allow the matching between
++  // the size of Ins and InVals. This only happens when on varg functions
++  if (!OutChains.empty()) {
++    OutChains.push_back(Chain);
++    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, OutChains);
++  }
++
++  return Chain;
++}
++
++bool XtensaTargetLowering::CanLowerReturn(
++    CallingConv::ID CallConv, MachineFunction &MF, bool IsVarArg,
++    const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context) const {
++  SmallVector<CCValAssign, 16> RVLocs;
++  CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, Context);
++  return CCInfo.CheckReturn(Outs, RetCC_Xtensa);
++}
++
++SDValue
++XtensaTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
++                                  bool IsVarArg,
++                                  const SmallVectorImpl<ISD::OutputArg> &Outs,
++                                  const SmallVectorImpl<SDValue> &OutVals,
++                                  const SDLoc &DL, SelectionDAG &DAG) const {
++  if (IsVarArg) {
++    report_fatal_error("VarArg not supported");
++  }
++
++  MachineFunction &MF = DAG.getMachineFunction();
++
++  // Assign locations to each returned value.
++  SmallVector<CCValAssign, 16> RetLocs;
++  CCState RetCCInfo(CallConv, IsVarArg, MF, RetLocs, *DAG.getContext());
++  RetCCInfo.AnalyzeReturn(Outs, RetCC_Xtensa);
++
++  SDValue Glue;
++  // Quick exit for void returns
++  if (RetLocs.empty())
++    return DAG.getNode(XtensaISD::RET_FLAG, DL, MVT::Other, Chain);
++
++  // Copy the result values into the output registers.
++  SmallVector<SDValue, 4> RetOps;
++  RetOps.push_back(Chain);
++  for (unsigned I = 0, E = RetLocs.size(); I != E; ++I) {
++    CCValAssign &VA = RetLocs[I];
++    SDValue RetValue = OutVals[I];
++
++    // Make the return register live on exit.
++    assert(VA.isRegLoc() && "Can only return in registers!");
++
++    // Promote the value as required.
++    RetValue = convertValVTToLocVT(DAG, DL, VA, RetValue);
++
++    // Chain and glue the copies together.
++    unsigned Reg = VA.getLocReg();
++    Chain = DAG.getCopyToReg(Chain, DL, Reg, RetValue, Glue);
++    Glue = Chain.getValue(1);
++    RetOps.push_back(DAG.getRegister(Reg, VA.getLocVT()));
++  }
++
++  // Update chain and glue.
++  RetOps[0] = Chain;
++  if (Glue.getNode())
++    RetOps.push_back(Glue);
++
++  return DAG.getNode(XtensaISD::RET_FLAG, DL, MVT::Other, RetOps);
++}
++
++SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
++                                             SelectionDAG &DAG) const {
++  switch (Op.getOpcode()) {
++  default:
++    llvm_unreachable("Unexpected node to lower");
++  }
++}
++
++const char *XtensaTargetLowering::getTargetNodeName(unsigned Opcode) const {
++#define OPCODE(NAME)                                                           \
++  case XtensaISD::NAME:                                                        \
++    return "XtensaISD::" #NAME
++  switch (Opcode) {
++  case XtensaISD::FIRST_NUMBER:
++    break;
++  case XtensaISD::RET_FLAG:
++    return "XtensaISD::RET_FLAG";
++  }
++  return NULL;
++#undef OPCODE
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+new file mode 100644
+index 000000000000..2df2a074fe25
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -0,0 +1,65 @@
++//===- XtensaISelLowering.h - Xtensa DAG Lowering Interface -----*- C++ -*-===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file defines the interfaces that Xtensa uses to lower LLVM code into a
++// selection DAG.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSAISELLOWERING_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSAISELLOWERING_H
++
++#include "llvm/CodeGen/CallingConvLower.h"
++#include "llvm/CodeGen/SelectionDAG.h"
++#include "llvm/CodeGen/TargetLowering.h"
++
++namespace llvm {
++namespace XtensaISD {
++enum {
++  FIRST_NUMBER = ISD::BUILTIN_OP_END,
++  // Return with a flag operand.  Operand 0 is the chain operand.
++  RET_FLAG
++};
++}
++
++class XtensaSubtarget;
++
++class XtensaTargetLowering : public TargetLowering {
++public:
++  explicit XtensaTargetLowering(const TargetMachine &TM,
++                                const XtensaSubtarget &STI);
++
++  const char *getTargetNodeName(unsigned Opcode) const override;
++  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
++  SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
++                               bool isVarArg,
++                               const SmallVectorImpl<ISD::InputArg> &Ins,
++                               const SDLoc &DL, SelectionDAG &DAG,
++                               SmallVectorImpl<SDValue> &InVals) const override;
++
++  bool CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
++                      bool isVarArg,
++                      const SmallVectorImpl<ISD::OutputArg> &Outs,
++                      LLVMContext &Context) const override;
++
++  SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
++                      const SmallVectorImpl<ISD::OutputArg> &Outs,
++                      const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
++                      SelectionDAG &DAG) const override;
++
++private:
++  const XtensaSubtarget &Subtarget;
++
++  CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
++};
++
++} // end namespace llvm
++
++#endif /* LLVM_LIB_TARGET_XTENSA_XTENSAISELLOWERING_H */
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+new file mode 100644
+index 000000000000..52a87fe4b934
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+@@ -0,0 +1,27 @@
++//===- XtensaInstrInfo.cpp - Xtensa Instruction Information ---------------===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains the Xtensa implementation of the TargetInstrInfo class.
++//
++//===----------------------------------------------------------------------===//
++
++#include "XtensaInstrInfo.h"
++#include "XtensaTargetMachine.h"
++#include "llvm/CodeGen/MachineConstantPool.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
++
++#define GET_INSTRINFO_CTOR_DTOR
++#include "XtensaGenInstrInfo.inc"
++
++using namespace llvm;
++
++XtensaInstrInfo::XtensaInstrInfo(XtensaSubtarget &sti)
++    : XtensaGenInstrInfo(), RI(sti), STI(sti) {}
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.h b/llvm/lib/Target/Xtensa/XtensaInstrInfo.h
+new file mode 100644
+index 000000000000..7225886b2ce1
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.h
+@@ -0,0 +1,43 @@
++//===-- XtensaInstrInfo.h - Xtensa Instruction Information ------*- C++ -*-===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains the Xtensa implementation of the TargetInstrInfo class.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSAINSTRINFO_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSAINSTRINFO_H
++
++#include "Xtensa.h"
++#include "XtensaRegisterInfo.h"
++#include "llvm/CodeGen/TargetInstrInfo.h"
++#include "llvm/CodeGen/TargetRegisterInfo.h"
++
++#define GET_INSTRINFO_HEADER
++
++#include "XtensaGenInstrInfo.inc"
++
++namespace llvm {
++
++class XtensaTargetMachine;
++class XtensaSubtarget;
++class XtensaInstrInfo : public XtensaGenInstrInfo {
++  const XtensaRegisterInfo RI;
++  XtensaSubtarget &STI;
++
++public:
++  XtensaInstrInfo(XtensaSubtarget &STI);
++
++  // Return the XtensaRegisterInfo, which this class owns.
++  const XtensaRegisterInfo &getRegisterInfo() const { return RI; }
++};
++} // end namespace llvm
++
++#endif /* LLVM_LIB_TARGET_XTENSA_XTENSAINSTRINFO_H */
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 268a9943d8c1..5a0f3f8d033d 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -14,6 +14,7 @@
+ 
+ include "XtensaInstrFormats.td"
+ include "XtensaOperands.td"
++include "XtensaOperators.td"
+ 
+ //===----------------------------------------------------------------------===//
+ // Arithmetic & Logical instructions
+@@ -426,7 +427,7 @@ let isReturn = 1, isTerminator = 1,
+     isBarrier = 1, Uses = [A0] in {
+ 
+   def RET : CALLX_Inst<0x00, 0x00, 0x00, (outs), (ins),
+-                      "ret", []> {
++                      "ret", [(Xtensa_retflag)]> {
+     let m = 0x2;
+     let n = 0x0;
+     let s = 0;
+diff --git a/llvm/lib/Target/Xtensa/XtensaMCInstLower.cpp b/llvm/lib/Target/Xtensa/XtensaMCInstLower.cpp
+new file mode 100644
+index 000000000000..114c562b6f4e
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaMCInstLower.cpp
+@@ -0,0 +1,63 @@
++//===- XtensaMCInstLower.cpp - Convert Xtensa MachineInstr to MCInst ------===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains code to lower Xtensa MachineInstrs to their corresponding
++// MCInst records.
++//
++//===----------------------------------------------------------------------===//
++
++#include "XtensaMCInstLower.h"
++#include "MCTargetDesc/XtensaMCExpr.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineInstr.h"
++#include "llvm/IR/Mangler.h"
++#include "llvm/MC/MCExpr.h"
++#include "llvm/MC/MCInst.h"
++#include "llvm/MC/MCStreamer.h"
++
++using namespace llvm;
++
++XtensaMCInstLower::XtensaMCInstLower(MCContext &ctx,
++                                     XtensaAsmPrinter &asmPrinter)
++    : Ctx(ctx), Printer(asmPrinter) {}
++
++
++MCOperand XtensaMCInstLower::lowerOperand(const MachineOperand &MO,
++                                          unsigned Offset) const {
++  MachineOperand::MachineOperandType MOTy = MO.getType();
++
++  switch (MOTy) {
++  case MachineOperand::MO_Register:
++    // Ignore all implicit register operands.
++    if (MO.isImplicit())
++      break;
++    return MCOperand::createReg(MO.getReg());
++  case MachineOperand::MO_Immediate:
++    return MCOperand::createImm(MO.getImm() + Offset);
++  case MachineOperand::MO_RegisterMask:
++    break;
++  default:
++    llvm_unreachable("unknown operand type");
++  }
++
++  return MCOperand();
++}
++
++void XtensaMCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) const {
++  OutMI.setOpcode(MI->getOpcode());
++
++  for (unsigned i = 0, e = MI->getNumOperands(); i != e; ++i) {
++    const MachineOperand &MO = MI->getOperand(i);
++    MCOperand MCOp = lowerOperand(MO);
++
++    if (MCOp.isValid())
++      OutMI.addOperand(MCOp);
++  }
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaMCInstLower.h b/llvm/lib/Target/Xtensa/XtensaMCInstLower.h
+new file mode 100644
+index 000000000000..2b238417ae3e
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaMCInstLower.h
+@@ -0,0 +1,43 @@
++//===- XtensaMCInstLower.h - Lower MachineInstr to MCInst ------*- C++ -*--===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSAMCINSTLOWER_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSAMCINSTLOWER_H
++
++#include "XtensaAsmPrinter.h"
++#include "llvm/CodeGen/MachineOperand.h"
++#include "llvm/Support/Compiler.h"
++#include "llvm/Support/DataTypes.h"
++
++namespace llvm {
++class MCContext;
++class MCInst;
++class MCOperand;
++class MCSymbol;
++class MachineInstr;
++class MachineOperand;
++class XtensaAsmPrinter;
++
++class LLVM_LIBRARY_VISIBILITY XtensaMCInstLower {
++  MCContext &Ctx;
++  XtensaAsmPrinter &Printer;
++
++public:
++  XtensaMCInstLower(MCContext &ctx, XtensaAsmPrinter &asmPrinter);
++
++  // Lower MachineInstr MI to MCInst OutMI.
++  void lower(const MachineInstr *MI, MCInst &OutMI) const;
++
++  // Return an MCOperand for MO.  Return an empty operand if MO is implicit.
++  MCOperand lowerOperand(const MachineOperand &MO, unsigned Offset = 0) const;
++};
++} // end namespace llvm
++
++#endif /* LLVM_LIB_TARGET_XTENSA_XTENSAMCINSTLOWER_H */
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperators.td b/llvm/lib/Target/Xtensa/XtensaOperators.td
+new file mode 100644
+index 000000000000..6b1f8e4f9b08
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaOperators.td
+@@ -0,0 +1,15 @@
++//===- XtensaOperators.td - Xtensa-specific operators ---------*- tblgen-*-===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++//===----------------------------------------------------------------------===//
++// Node definitions
++//===----------------------------------------------------------------------===//
++def Xtensa_retflag: SDNode<"XtensaISD::RET_FLAG", SDTNone,
++                                 [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
+new file mode 100644
+index 000000000000..5cebe4a3346b
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.cpp
+@@ -0,0 +1,70 @@
++//===- XtensaRegisterInfo.cpp - Xtensa Register Information ---------------===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains the Xtensa implementation of the TargetRegisterInfo class.
++//
++//===----------------------------------------------------------------------===//
++
++#include "XtensaRegisterInfo.h"
++#include "XtensaInstrInfo.h"
++#include "XtensaSubtarget.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/Support/Debug.h"
++#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/raw_ostream.h"
++
++#define DEBUG_TYPE "xtensa-reg-info"
++
++#define GET_REGINFO_TARGET_DESC
++#include "XtensaGenRegisterInfo.inc"
++
++using namespace llvm;
++
++XtensaRegisterInfo::XtensaRegisterInfo(const XtensaSubtarget &STI)
++    : XtensaGenRegisterInfo(Xtensa::A0), Subtarget(STI) {}
++
++const uint16_t *
++XtensaRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
++  return CSR_Xtensa_SaveList;
++}
++
++const uint32_t *
++XtensaRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
++                                         CallingConv::ID) const {
++  return CSR_Xtensa_RegMask;
++}
++
++BitVector XtensaRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
++  BitVector Reserved(getNumRegs());
++  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
++
++  Reserved.set(Xtensa::A0);
++  if (TFI->hasFP(MF)) {
++    // Reserve frame pointer.
++    Reserved.set(getFrameRegister(MF));
++  }
++
++  // Reserve stack pointer.
++  Reserved.set(Xtensa::SP);
++  return Reserved;
++}
++
++bool XtensaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
++                                             int SPAdj, unsigned FIOperandNum,
++                                             RegScavenger *RS) const {
++  report_fatal_error("Eliminate frame index not supported yet");
++  return false;
++}
++
++Register XtensaRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
++  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
++  return TFI->hasFP(MF) ? (Xtensa::A15) : Xtensa::SP;
++}
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.h b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.h
+new file mode 100644
+index 000000000000..4f5426acf7a5
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.h
+@@ -0,0 +1,56 @@
++//===-- XtensaRegisterInfo.h - Xtensa Register Information Impl -*- C++ -*-===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains the Xtensa implementation of the TargetRegisterInfo class.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSAREGISTERINFO_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSAREGISTERINFO_H
++
++#include "Xtensa.h"
++#include "llvm/CodeGen/TargetRegisterInfo.h"
++
++#define GET_REGINFO_HEADER
++#include "XtensaGenRegisterInfo.inc"
++
++namespace llvm {
++class TargetRegisterClass;
++class XtensaInstrInfo;
++class XtensaSubtarget;
++
++struct XtensaRegisterInfo : public XtensaGenRegisterInfo {
++public:
++  const XtensaSubtarget &Subtarget;
++
++  XtensaRegisterInfo(const XtensaSubtarget &STI);
++
++  bool requiresRegisterScavenging(const MachineFunction &MF) const override {
++    return true;
++  }
++
++  bool requiresFrameIndexScavenging(const MachineFunction &MF) const override {
++    return true;
++  }
++
++  const uint16_t *
++  getCalleeSavedRegs(const MachineFunction *MF = 0) const override;
++  const uint32_t *getCallPreservedMask(const MachineFunction &MF,
++                                       CallingConv::ID) const override;
++  BitVector getReservedRegs(const MachineFunction &MF) const override;
++  bool eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
++                           unsigned FIOperandNum,
++                           RegScavenger *RS = nullptr) const override;
++  Register getFrameRegister(const MachineFunction &MF) const override;
++};
++
++} // end namespace llvm
++
++#endif /* LLVM_LIB_TARGET_XTENSA_REGISTERINFO_H */
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+new file mode 100644
+index 000000000000..f76af66cac1e
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -0,0 +1,46 @@
++//===- XtensaSubtarget.cpp - Xtensa Subtarget Information -----------------===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file implements the Xtensa specific subclass of TargetSubtargetInfo.
++//
++//===----------------------------------------------------------------------===//
++
++#include "XtensaSubtarget.h"
++#include "llvm/IR/GlobalValue.h"
++#include "llvm/Support/Debug.h"
++
++#define DEBUG_TYPE "xtensa-subtarget"
++
++#define GET_SUBTARGETINFO_TARGET_DESC
++#define GET_SUBTARGETINFO_CTOR
++#include "XtensaGenSubtargetInfo.inc"
++
++using namespace llvm;
++
++XtensaSubtarget &
++XtensaSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
++  StringRef CPUName = CPU;
++  if (CPUName.empty()) {
++    // set default cpu name
++    CPUName = "generic";
++  }
++
++  HasDensity = false;
++
++  // Parse features string.
++  ParseSubtargetFeatures(CPUName, CPUName, FS);
++  return *this;
++}
++
++XtensaSubtarget::XtensaSubtarget(const Triple &TT, const std::string &CPU,
++                                 const std::string &FS, const TargetMachine &TM)
++    : XtensaGenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS), TargetTriple(TT),
++      InstrInfo(initializeSubtargetDependencies(CPU, FS)), TLInfo(TM, *this),
++      TSInfo(), FrameLowering() {}
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.h b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+new file mode 100644
+index 000000000000..476f1f943a9e
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+@@ -0,0 +1,66 @@
++//===-- XtensaSubtarget.h - Define Subtarget for the Xtensa ----*- C++ -*--===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file declares the Xtensa specific subclass of TargetSubtargetInfo.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_XTENSA_XTENSASUBTARGET_H
++#define LLVM_LIB_TARGET_XTENSA_XTENSASUBTARGET_H
++
++#include "XtensaFrameLowering.h"
++#include "XtensaISelLowering.h"
++#include "XtensaInstrInfo.h"
++#include "XtensaRegisterInfo.h"
++#include "llvm/CodeGen/SelectionDAGTargetInfo.h"
++#include "llvm/CodeGen/TargetSubtargetInfo.h"
++#include "llvm/IR/DataLayout.h"
++#include "llvm/Target/TargetMachine.h"
++
++#define GET_SUBTARGETINFO_HEADER
++#include "XtensaGenSubtargetInfo.inc"
++
++namespace llvm {
++class StringRef;
++
++class XtensaSubtarget : public XtensaGenSubtargetInfo {
++private:
++  Triple TargetTriple;
++  XtensaInstrInfo InstrInfo;
++  XtensaTargetLowering TLInfo;
++  SelectionDAGTargetInfo TSInfo;
++  XtensaFrameLowering FrameLowering;
++
++  // Enabled Xtensa Density extension
++  bool HasDensity;
++
++  XtensaSubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
++
++public:
++  XtensaSubtarget(const Triple &TT, const std::string &CPU,
++                  const std::string &FS, const TargetMachine &TM);
++
++  const TargetFrameLowering *getFrameLowering() const override { return &FrameLowering; }
++  const XtensaInstrInfo *getInstrInfo() const override { return &InstrInfo; }
++  const XtensaRegisterInfo *getRegisterInfo() const override {
++    return &InstrInfo.getRegisterInfo();
++  }
++
++  const XtensaTargetLowering *getTargetLowering() const override { return &TLInfo; }
++  const SelectionDAGTargetInfo *getSelectionDAGInfo() const override { return &TSInfo; }
++
++  bool hasDensity() const { return HasDensity; }
++
++  // Automatically generated by tblgen.
++  void ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
++};
++} // end namespace llvm
++
++#endif /* LLVM_LIB_TARGET_XTENSA_XTENSASUBTARGET_H */
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+index 31e63461176d..1b25a897ac16 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+@@ -54,7 +54,8 @@ XtensaTargetMachine::XtensaTargetMachine(const Target &T, const Triple &TT,
+     : LLVMTargetMachine(T, computeDataLayout(TT, CPU, Options, IsLittle), TT,
+                         CPU, FS, Options, getEffectiveRelocModel(JIT, RM),
+                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
+-      TLOF(std::make_unique<TargetLoweringObjectFileELF>()) {
++      TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
++      Subtarget(TT, std::string(CPU), std::string(FS), *this) {
+   initAsmInfo();
+ }
+ 
+@@ -66,6 +67,31 @@ XtensaTargetMachine::XtensaTargetMachine(const Target &T, const Triple &TT,
+                                          CodeGenOpt::Level OL, bool JIT)
+     : XtensaTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL, JIT, true) {}
+ 
++const XtensaSubtarget *
++XtensaTargetMachine::getSubtargetImpl(const Function &F) const {
++  return &Subtarget;
++}
++
++namespace {
++/// Xtensa Code Generator Pass Configuration Options.
++class XtensaPassConfig : public TargetPassConfig {
++public:
++  XtensaPassConfig(XtensaTargetMachine &TM, PassManagerBase &PM)
++      : TargetPassConfig(TM, PM) {}
++
++  XtensaTargetMachine &getXtensaTargetMachine() const {
++    return getTM<XtensaTargetMachine>();
++  }
++
++  bool addInstSelector() override;
++};
++} // end anonymous namespace
++
++bool XtensaPassConfig::addInstSelector() {
++  addPass(createXtensaISelDag(getXtensaTargetMachine(), getOptLevel()));
++  return false;
++}
++
+ TargetPassConfig *XtensaTargetMachine::createPassConfig(PassManagerBase &PM) {
+-  return new TargetPassConfig(*this, PM);
++  return new XtensaPassConfig(*this, PM);
+ }
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.h b/llvm/lib/Target/Xtensa/XtensaTargetMachine.h
+index 866ccdc1e85d..87145313438f 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.h
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.h
+@@ -15,6 +15,7 @@
+ #ifndef LLVM_LIB_TARGET_XTENSA_XTENSATARGETMACHINE_H
+ #define LLVM_LIB_TARGET_XTENSA_XTENSATARGETMACHINE_H
+ 
++#include "XtensaSubtarget.h"
+ #include "llvm/Target/TargetMachine.h"
+ #include <optional>
+ 
+@@ -36,10 +37,15 @@ public:
+                       std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL,
+                       bool JIT);
+ 
++  const XtensaSubtarget *getSubtargetImpl() const { return &Subtarget; }
++  const XtensaSubtarget *getSubtargetImpl(const Function &F) const override;
+   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
+   TargetLoweringObjectFile *getObjFileLowering() const override {
+     return TLOF.get();
+   }
++
++protected:
++  XtensaSubtarget Subtarget;
+ };
+ } // end namespace llvm
+ 
+-- 
+2.40.1
+

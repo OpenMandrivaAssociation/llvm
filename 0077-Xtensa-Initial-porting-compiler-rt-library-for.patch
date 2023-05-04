@@ -1,0 +1,109 @@
+From 7df63b6e9212295e43b58a82cc23be8ec4390f7a Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:17 +0300
+Subject: [PATCH 077/140] [Xtensa] Initial porting compiler-rt library for
+
+ Xtensa.
+---
+ compiler-rt/cmake/Modules/CompilerRTUtils.cmake |  2 ++
+ compiler-rt/cmake/base-config-ix.cmake          |  2 ++
+ compiler-rt/cmake/builtin-config-ix.cmake       |  3 ++-
+ compiler-rt/lib/builtins/CMakeLists.txt         |  2 ++
+ compiler-rt/lib/crt/crtbegin.c                  | 14 ++++++++++++++
+ 5 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/compiler-rt/cmake/Modules/CompilerRTUtils.cmake b/compiler-rt/cmake/Modules/CompilerRTUtils.cmake
+index eefc466a4610..f0b21630606f 100644
+--- a/compiler-rt/cmake/Modules/CompilerRTUtils.cmake
++++ b/compiler-rt/cmake/Modules/CompilerRTUtils.cmake
+@@ -214,6 +214,8 @@ macro(detect_target_arch)
+     add_default_target_arch(sparc)
+   elseif(__WEBASSEMBLY32)
+     add_default_target_arch(wasm32)
++  elseif(__XTENSA)
++    add_default_target_arch(xtensa)
+   elseif(__WEBASSEMBLY64)
+     add_default_target_arch(wasm64)
+   elseif(__VE)
+diff --git a/compiler-rt/cmake/base-config-ix.cmake b/compiler-rt/cmake/base-config-ix.cmake
+index c6e95055b002..3a0b3b776322 100644
+--- a/compiler-rt/cmake/base-config-ix.cmake
++++ b/compiler-rt/cmake/base-config-ix.cmake
+@@ -265,6 +265,8 @@ macro(test_targets)
+       test_target_arch(riscv64 "" "")
+     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "wasm32")
+       test_target_arch(wasm32 "" "--target=wasm32-unknown-unknown")
++    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "xtensa")
++      test_target_arch(xtensa "" "--target=xtensa")
+     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "wasm64")
+       test_target_arch(wasm64 "" "--target=wasm64-unknown-unknown")
+     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "ve")
+diff --git a/compiler-rt/cmake/builtin-config-ix.cmake b/compiler-rt/cmake/builtin-config-ix.cmake
+index e045c81a0f74..15455e4187db 100644
+--- a/compiler-rt/cmake/builtin-config-ix.cmake
++++ b/compiler-rt/cmake/builtin-config-ix.cmake
+@@ -46,6 +46,7 @@ set(SPARCV9 sparcv9)
+ set(WASM32 wasm32)
+ set(WASM64 wasm64)
+ set(VE ve)
++set(XTENSA xtensa)
+ 
+ if(APPLE)
+   set(ARM64 arm64 arm64e)
+@@ -57,7 +58,7 @@ set(ALL_BUILTIN_SUPPORTED_ARCH
+   ${X86} ${X86_64} ${ARM32} ${ARM64} ${AVR}
+   ${HEXAGON} ${MIPS32} ${MIPS64} ${PPC32} ${PPC64}
+   ${RISCV32} ${RISCV64} ${SPARC} ${SPARCV9}
+-  ${WASM32} ${WASM64} ${VE} ${LOONGARCH64})
++  ${WASM32} ${WASM64} ${VE} ${LOONGARCH64} ${XTENSA})
+ 
+ include(CompilerRTUtils)
+ include(CompilerRTDarwinUtils)
+diff --git a/compiler-rt/lib/builtins/CMakeLists.txt b/compiler-rt/lib/builtins/CMakeLists.txt
+index 2fc70522895f..28eecc30fc22 100644
+--- a/compiler-rt/lib/builtins/CMakeLists.txt
++++ b/compiler-rt/lib/builtins/CMakeLists.txt
+@@ -715,6 +715,8 @@ set(riscv64_SOURCES
+ set(sparc_SOURCES ${GENERIC_SOURCES} ${GENERIC_TF_SOURCES})
+ set(sparcv9_SOURCES ${GENERIC_SOURCES} ${GENERIC_TF_SOURCES})
+ 
++set(xtensa_SOURCES ${GENERIC_SOURCES} ${GENERIC_TF_SOURCES})
++
+ set(wasm32_SOURCES
+   ${GENERIC_TF_SOURCES}
+   ${GENERIC_SOURCES}
+diff --git a/compiler-rt/lib/crt/crtbegin.c b/compiler-rt/lib/crt/crtbegin.c
+index 7b041ff00b6b..20de68c4620c 100644
+--- a/compiler-rt/lib/crt/crtbegin.c
++++ b/compiler-rt/lib/crt/crtbegin.c
+@@ -69,6 +69,13 @@ __asm__(".pushsection .init,\"ax\",@progbits\n\t"
+ __asm__(".pushsection .init,\"ax\",@progbits\n\t"
+     "call " __USER_LABEL_PREFIX__ "__do_init\n\t"
+     ".popsection");
++#elif defined(__xtensa__)
++__asm__(".pushsection .init.literal,\"ax\",@progbits\n\t"
++    ".popsection\n\t"
++    ".pushsection .init,\"ax\",@progbits\n\t"
++    "movi a8, __do_init\n\t"
++    "callx8 a8\n\t"
++    ".popsection");
+ #else
+ #error "crtbegin without .init_fini array unimplemented for this architecture"
+ #endif // CRT_HAS_INITFINI_ARRAY
+@@ -122,6 +129,13 @@ __asm__(".pushsection .fini,\"ax\",@progbits\n\t"
+ __asm__(".pushsection .fini,\"ax\",@progbits\n\t"
+     "call " __USER_LABEL_PREFIX__ "__do_fini\n\t"
+     ".popsection");
++#elif defined(__xtensa__)
++__asm__(".pushsection .fini.literal,\"ax\",@progbits\n\t"
++    ".popsection\n\t"
++    ".pushsection .fini,\"ax\",@progbits\n\t"
++    "movi a8, __do_fini\n\t"
++    "callx8 a8\n\t"
++    ".popsection");
+ #else
+ #error "crtbegin without .init_fini array unimplemented for this architecture"
+ #endif  // CRT_HAS_INIT_FINI_ARRAY
+-- 
+2.40.1
+

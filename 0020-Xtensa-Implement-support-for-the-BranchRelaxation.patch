@@ -1,0 +1,315 @@
+From 2a09da5bd7835a66cf6c948afb8e9d9acb73bd9e Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:45 +0300
+Subject: [PATCH 020/140] [Xtensa] Implement support for the BranchRelaxation
+
+---
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp    | 181 ++++++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.h      |  16 +-
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.h   |   4 +
+ .../lib/Target/Xtensa/XtensaTargetMachine.cpp |   3 +
+ 4 files changed, 202 insertions(+), 2 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+index ded4df096d94..9d37a866cf9a 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+@@ -13,11 +13,13 @@
+ //===----------------------------------------------------------------------===//
+ 
+ #include "XtensaInstrInfo.h"
++#include "XtensaConstantPoolValue.h"
+ #include "XtensaMachineFunctionInfo.h"
+ #include "XtensaTargetMachine.h"
+ #include "llvm/CodeGen/MachineConstantPool.h"
+ #include "llvm/CodeGen/MachineInstrBuilder.h"
+ #include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/CodeGen/RegisterScavenging.h"
+ 
+ #define GET_INSTRINFO_CTOR_DTOR
+ #include "XtensaGenInstrInfo.inc"
+@@ -162,6 +164,18 @@ void XtensaInstrInfo::loadImmediate(MachineBasicBlock &MBB,
+   }
+ }
+ 
++unsigned XtensaInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
++  switch (MI.getOpcode()) {
++  case TargetOpcode::INLINEASM: { // Inline Asm: Variable size.
++    const MachineFunction *MF = MI.getParent()->getParent();
++    const char *AsmStr = MI.getOperand(0).getSymbolName();
++    return getInlineAsmLength(AsmStr, *MF->getTarget().getMCAsmInfo());
++  }
++  default:
++    return MI.getDesc().getSize();
++  }
++}
++
+ bool XtensaInstrInfo::reverseBranchCondition(
+     SmallVectorImpl<MachineOperand> &Cond) const {
+   assert(Cond.size() <= 4 && "Invalid branch condition!");
+@@ -223,6 +237,77 @@ bool XtensaInstrInfo::reverseBranchCondition(
+   }
+ }
+ 
++MachineBasicBlock *
++XtensaInstrInfo::getBranchDestBlock(const MachineInstr &MI) const {
++  unsigned OpCode = MI.getOpcode();
++  switch (OpCode) {
++  case Xtensa::BR_JT:
++  case Xtensa::JX:
++    return nullptr;
++  case Xtensa::J:
++    return MI.getOperand(0).getMBB();
++  case Xtensa::BEQ:
++  case Xtensa::BNE:
++  case Xtensa::BLT:
++  case Xtensa::BLTU:
++  case Xtensa::BGE:
++  case Xtensa::BGEU:
++    return MI.getOperand(2).getMBB();
++
++  case Xtensa::BEQI:
++  case Xtensa::BNEI:
++  case Xtensa::BLTI:
++  case Xtensa::BLTUI:
++  case Xtensa::BGEI:
++  case Xtensa::BGEUI:
++    return MI.getOperand(2).getMBB();
++
++  case Xtensa::BEQZ:
++  case Xtensa::BNEZ:
++  case Xtensa::BLTZ:
++  case Xtensa::BGEZ:
++    return MI.getOperand(1).getMBB();
++
++  default:
++    llvm_unreachable("Unknown branch opcode");
++  }
++}
++
++bool XtensaInstrInfo::isBranchOffsetInRange(unsigned BranchOp,
++                                            int64_t BrOffset) const {
++  switch (BranchOp) {
++  case Xtensa::J:
++    BrOffset -= 4;
++    return isIntN(18, BrOffset);
++  case Xtensa::JX:
++    return true;
++  case Xtensa::BR_JT:
++    return true;
++  case Xtensa::BEQ:
++  case Xtensa::BNE:
++  case Xtensa::BLT:
++  case Xtensa::BLTU:
++  case Xtensa::BGE:
++  case Xtensa::BGEU:
++  case Xtensa::BEQI:
++  case Xtensa::BNEI:
++  case Xtensa::BLTI:
++  case Xtensa::BLTUI:
++  case Xtensa::BGEI:
++  case Xtensa::BGEUI:
++    BrOffset -= 4;
++    return isIntN(8, BrOffset);
++  case Xtensa::BEQZ:
++  case Xtensa::BNEZ:
++  case Xtensa::BLTZ:
++  case Xtensa::BGEZ:
++    BrOffset -= 4;
++    return isIntN(12, BrOffset);
++  default:
++    llvm_unreachable("Unknown branch opcode");
++  }
++}
++
+ bool XtensaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
+                                     MachineBasicBlock *&TBB,
+                                     MachineBasicBlock *&FBB,
+@@ -355,6 +440,102 @@ unsigned XtensaInstrInfo::insertBranch(
+   return Count;
+ }
+ 
++void XtensaInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
++                                           MachineBasicBlock &DestBB,
++                                           MachineBasicBlock &RestoreBB,
++                                           const DebugLoc &DL,
++                                           int64_t BrOffset,
++                                           RegScavenger *RS) const {
++  assert(RS && "RegScavenger required for long branching");
++  assert(MBB.empty() &&
++         "new block should be inserted for expanding unconditional branch");
++  assert(MBB.pred_size() == 1);
++
++  MachineFunction *MF = MBB.getParent();
++  MachineRegisterInfo &MRI = MF->getRegInfo();
++  MachineConstantPool *ConstantPool = MF->getConstantPool();
++
++  if (!isInt<32>(BrOffset))
++    report_fatal_error(
++        "Branch offsets outside of the signed 32-bit range not supported");
++  XtensaConstantPoolValue *C =
++      XtensaConstantPoolMBB::Create(MF->getFunction().getContext(), &DestBB, 0);
++  unsigned Idx = ConstantPool->getConstantPoolIndex(C, Align(4));
++
++  // FIXME: A virtual register must be used initially, as the register
++  // scavenger won't work with empty blocks (SIInstrInfo::insertIndirectBranch
++  // uses the same workaround).
++  Register ScratchReg = MRI.createVirtualRegister(&Xtensa::ARRegClass);
++  auto II = MBB.end();
++
++  MachineInstr &L32R = *BuildMI(MBB, II, DL, get(Xtensa::L32R), ScratchReg)
++                            .addConstantPoolIndex(Idx);
++  BuildMI(MBB, II, DL, get(Xtensa::JX)).addReg(ScratchReg, RegState::Kill);
++  RS->enterBasicBlockEnd(MBB);
++  unsigned Scav = RS->scavengeRegisterBackwards(Xtensa::ARRegClass,
++                                                L32R.getIterator(), false, 0);
++  MRI.replaceRegWith(ScratchReg, Scav);
++  MRI.clearVirtRegs();
++  RS->setRegUsed(Scav);
++}
++
++unsigned XtensaInstrInfo::InsertConstBranchAtInst(
++    MachineBasicBlock &MBB, MachineInstr *I, int64_t offset,
++    ArrayRef<MachineOperand> Cond, DebugLoc DL, int *BytesAdded) const {
++  // Shouldn't be a fall through.
++  assert(&MBB && "InsertBranch must not be told to insert a fallthrough");
++  assert(Cond.size() <= 4 &&
++         "Xtensa branch conditions have less than four components!");
++
++  if (Cond.empty() || (Cond[0].getImm() == Xtensa::J)) {
++    // Unconditional branch
++    MachineInstr *MI = BuildMI(MBB, I, DL, get(Xtensa::J)).addImm(offset);
++    if (BytesAdded && MI)
++      *BytesAdded += getInstSizeInBytes(*MI);
++    return 1;
++  }
++
++  unsigned Count = 0;
++  unsigned BR_C = Cond[0].getImm();
++  MachineInstr *MI = nullptr;
++  switch (BR_C) {
++  case Xtensa::BEQ:
++  case Xtensa::BNE:
++  case Xtensa::BLT:
++  case Xtensa::BLTU:
++  case Xtensa::BGE:
++  case Xtensa::BGEU:
++    MI = BuildMI(MBB, I, DL, get(BR_C))
++             .addImm(offset)
++             .addReg(Cond[1].getReg())
++             .addReg(Cond[2].getReg());
++    break;
++  case Xtensa::BEQI:
++  case Xtensa::BNEI:
++  case Xtensa::BLTI:
++  case Xtensa::BLTUI:
++  case Xtensa::BGEI:
++  case Xtensa::BGEUI:
++    MI = BuildMI(MBB, I, DL, get(BR_C))
++             .addImm(offset)
++             .addReg(Cond[1].getReg())
++             .addImm(Cond[2].getImm());
++    break;
++  case Xtensa::BEQZ:
++  case Xtensa::BNEZ:
++  case Xtensa::BLTZ:
++  case Xtensa::BGEZ:
++    MI = BuildMI(MBB, I, DL, get(BR_C)).addImm(offset).addReg(Cond[1].getReg());
++    break;
++  default:
++    llvm_unreachable("Invalid branch type!");
++  }
++  if (BytesAdded && MI)
++    *BytesAdded += getInstSizeInBytes(*MI);
++  ++Count;
++  return Count;
++}
++
+ unsigned XtensaInstrInfo::InsertBranchAtInst(MachineBasicBlock &MBB,
+                                              MachineBasicBlock::iterator I,
+                                              MachineBasicBlock *TBB,
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.h b/llvm/lib/Target/Xtensa/XtensaInstrInfo.h
+index 09c40487dd38..d9092c63c371 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.h
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.h
+@@ -37,6 +37,7 @@ public:
+ 
+   void adjustStackPtr(unsigned SP, int64_t Amount, MachineBasicBlock &MBB,
+                       MachineBasicBlock::iterator I) const;
++  unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
+ 
+   // Return the XtensaRegisterInfo, which this class owns.
+   const XtensaRegisterInfo &getRegisterInfo() const { return RI; }
+@@ -66,6 +67,10 @@ public:
+                      unsigned *Reg, int64_t Value) const;
+   bool
+   reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
++  MachineBasicBlock *getBranchDestBlock(const MachineInstr &MI) const override;
++
++  bool isBranchOffsetInRange(unsigned BranchOpc,
++                             int64_t BrOffset) const override;
+   bool analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
+                      MachineBasicBlock *&FBB,
+                      SmallVectorImpl<MachineOperand> &Cond,
+@@ -76,13 +81,20 @@ public:
+                         MachineBasicBlock *FBB, ArrayRef<MachineOperand> Cond,
+                         const DebugLoc &DL,
+                         int *BytesAdded = nullptr) const override;
+-
++  void insertIndirectBranch(MachineBasicBlock &MBB,
++                            MachineBasicBlock &DestBB,
++                            MachineBasicBlock &RestoreBB, const DebugLoc &DL,
++                            int64_t BrOffset = 0,
++                            RegScavenger *RS = nullptr) const override;
+   unsigned InsertBranchAtInst(MachineBasicBlock &MBB,
+                               MachineBasicBlock::iterator I,
+                               MachineBasicBlock *TBB,
+                               ArrayRef<MachineOperand> Cond, const DebugLoc &DL,
+                               int *BytesAdded) const;
+-
++  unsigned InsertConstBranchAtInst(MachineBasicBlock &MBB, MachineInstr *I,
++                                   int64_t offset,
++                                   ArrayRef<MachineOperand> Cond, DebugLoc DL,
++                                   int *BytesAdded) const;
+   // Return true if MI is a conditional or unconditional branch.
+   // When returning true, set Cond to the mask of condition-code
+   // values on which the instruction will branch, and set Target
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.h b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.h
+index ba5557c446b6..d5403ff35a19 100644
+--- a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.h
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.h
+@@ -40,6 +40,10 @@ public:
+     return true;
+   }
+ 
++  bool trackLivenessAfterRegAlloc(const MachineFunction &) const override {
++    return true;
++  }
++
+   const uint16_t *
+   getCalleeSavedRegs(const MachineFunction *MF = 0) const override;
+   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+index d40f3c6768f1..59793d19c077 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+@@ -91,6 +91,7 @@ public:
+   }
+ 
+   bool addInstSelector() override;
++  void addPreEmitPass() override;
+ };
+ } // end anonymous namespace
+ 
+@@ -99,6 +100,8 @@ bool XtensaPassConfig::addInstSelector() {
+   return false;
+ }
+ 
++void XtensaPassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
++
+ TargetPassConfig *XtensaTargetMachine::createPassConfig(PassManagerBase &PM) {
+   return new XtensaPassConfig(*this, PM);
+ }
+-- 
+2.40.1
+

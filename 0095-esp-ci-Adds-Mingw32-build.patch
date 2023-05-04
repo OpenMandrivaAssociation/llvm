@@ -1,0 +1,278 @@
+From a057fb27ccf27986dab5d2ab62165d61ccabe468 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:25 +0300
+Subject: [PATCH 095/140] esp/ci: Adds Mingw32 build
+
+---
+ .gitlab-ci.yml | 145 +++++++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 123 insertions(+), 22 deletions(-)
+
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 2a7be284f5b8..f2923ed513b8 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -4,20 +4,21 @@ stages:
+   - test
+   - public_deploy
+ 
+-image: ${CI_DOCKER_REGISTRY}/llvm-build:4-e2c59838
++image: ${CI_DOCKER_REGISTRY}/llvm-build:3
+ 
+ variables:
+ 
+   # move all these to CI/CD settings
+   GCC_REL_NAME: "esp-2021r2-patch3"
+   GCC_REL_VER: "gcc8_4_0"
+-  XTENSA_CLANG_TOOLCHAIN_REF: "build_newlib_and_toolchain"
+   NEWLIB_REPO: "newlib-cygwin"
+   NEWLIB_REF: "esp_based_on_3_3_0"
+   BINUTILS_REPO: "binutils-gdb"
+   BINUTILS_REF: "esp_based_on_binutils-2_35"
+   XTENSA_OVERLAYS_REPO: "xtensa-overlays"
+   XTENSA_OVERLAYS_REF: "master"
++  # TODO: update vars below to tags names after related branches are merged in those repos
++  XTENSA_CLANG_TOOLCHAIN_REF: "release_universal_clang_14.0.0_gcc_8.4.0"
+   LLVM_GCC_TESTSUITE_REF: "feature/toolchain_build_script"
+ 
+   PLATFORM_NAME_LINUX: "linux-amd64"
+@@ -27,16 +28,20 @@ variables:
+   ARCHIVE_TOOL_LINUX: "tar -cJf"
+   UNARCHIVE_TOOL_LINUX: "tar -xf"
+   ARCHIVE_EXT_LINUX: "tar.xz"
++  GCC_ARCHIVE_EXT_LINUX: "tar.gz"
+ 
+   ARCHIVE_TOOL_WIN: "zip -9 -r"
+   UNARCHIVE_TOOL_WIN: "unzip"
+   ARCHIVE_EXT_WIN: "zip"
++  GCC_ARCHIVE_EXT_WIN: "zip"
+ 
+   ARCHIVE_TOOL_MACOS: "tar -cJf"
+   UNARCHIVE_TOOL_MACOS: "tar -xf"
+   ARCHIVE_EXT_MACOS: "tar.xz"
++  GCC_ARCHIVE_EXT_MACOS: "tar.gz"
+ 
+   DIST_DIR: "dist"
++  BUILD_DIR: "_build"
+   DOWNLOADS_DIR: "_downloads"
+ 
+ ###########################################################################
+@@ -77,11 +82,11 @@ before_script:
+                          "esp32s3")
+   for ((i = 0; i < ${#XTENSA_CPUS[@]}; i++)); do
+     XTENSA_CPU=${XTENSA_CPUS[$i]}
+-    GCC_TOOLCHAIN_ARCH=xtensa-${XTENSA_CPU}-elf-${GCC_REL_VER}-${GCC_REL_NAME}-linux-amd64.tar.gz
++    GCC_TOOLCHAIN_ARCH=xtensa-${XTENSA_CPU}-elf-${GCC_REL_VER}-${GCC_REL_NAME}-${PLATFORM_NAME}.${GCC_ARCHIVE_EXT}
+     wget --no-verbose https://dl.espressif.com/github_assets/espressif/crosstool-NG/releases/download/${GCC_REL_NAME}/${GCC_TOOLCHAIN_ARCH}
+     ${UNARCHIVE_TOOL} ${GCC_TOOLCHAIN_ARCH}
+   done;
+-  GCC_TOOLCHAIN_ARCH=riscv32-esp-elf-${GCC_REL_VER}-${GCC_REL_NAME}-linux-amd64.tar.gz
++  GCC_TOOLCHAIN_ARCH=riscv32-esp-elf-${GCC_REL_VER}-${GCC_REL_NAME}-${PLATFORM_NAME}.${GCC_ARCHIVE_EXT}
+   wget --no-verbose https://dl.espressif.com/github_assets/espressif/crosstool-NG/releases/download/${GCC_REL_NAME}/${GCC_TOOLCHAIN_ARCH}
+   ${UNARCHIVE_TOOL} ${GCC_TOOLCHAIN_ARCH}
+ 
+@@ -95,7 +100,7 @@ before_script:
+ 
+ # Pack the toolchain
+ .package_toolchain: &package_toolchain |
+-  ${ARCHIVE_TOOL} ${ARCHIVE_NAME} esp-elf-clang/
++  ${ARCHIVE_TOOL} ${ARCHIVE_NAME} esp-clang/
+   mkdir -p ${DISTRO_DIR}
+   mv ${ARCHIVE_NAME} ${DISTRO_DIR}/
+   echo "${ARCHIVE_NAME}" > ${DISTRO_DIR}/file_${PLATFORM_NAME}
+@@ -106,9 +111,15 @@ before_script:
+   artifacts:
+     paths:
+       - ${DIST_DIR}/
+-      - _build_Release/tests.log
++      - ${BUILD_DIR}/clang_tests.log
++      - ${BUILD_DIR}/clang_build.log
+     when: always
+     expire_in: 1 day
++  variables:
++    BUILD_TOOLCHAIN_CMD_ARGS: ""
++    # use separate dist dir for universal toolchain
++    # TODO: remove this var after switching to universal toolchain builds
++    DIST_DIR: "dist_new"
+   script:
+     - *get_release_name
+     - mkdir ${DOWNLOADS_DIR}
+@@ -126,19 +137,99 @@ before_script:
+     - *fix_origin_remote_for_public
+     - export ESP_GCC_TOOLCHAIN_REL_VER=${GCC_REL_NAME}
+     - export LLVM_PROJECT_PATH=$PWD
+-    - export ESP_CLANG_BUILD_TYPE=Release
+-    - export BUILD_PATH=$PWD/_build_$ESP_CLANG_BUILD_TYPE
+-    - ./build_toolchain.sh 2>&1 > /dev/null
+-    # Run tests as non-root user
+-    # permission tests fail when run by root
+-    - useradd -m test_runner
+-    - chown -R test_runner $BUILD_PATH
+-    - runuser -l test_runner -c 'cmake --build '$BUILD_PATH'/clang --target check-all 2>&1 > '$BUILD_PATH'/tests.log'
++    - export BUILD_PATH=$PWD/${BUILD_DIR}
++    - mkdir -p ${BUILD_PATH}
++    - export USE_PARALLEL_LINK_JOBS=2
++    - ${BUILD_TOOLCHAIN_CMD} --llvm-path=${LLVM_PROJECT_PATH} --newlib-path=${NEWLIB_PATH}
++      --gcc-toolchains-path=${ESP_GCC_TOOLCHAIN_DIST_BASE} --binutils-path=${BINUTILS_PATH}
++      --xtensa-overlays-path=${XTENSA_OVERLAYS_PATH} ${BUILD_TOOLCHAIN_CMD_ARGS} ${BUILD_PATH} 2>&1 > ${BUILD_PATH}/clang_build.log
++    # Run unit tests for native build only.
++    # Run as non-root user because permission tests fail when run by root.
++    - export BUILD_HOST=$(gcc -dumpmachine)
++    - export LLVM_BUILD_PATH=${LLVM_PROJECT_PATH}/llvm/build-Release-${CONF_HOST}
++    - if [ "${CONF_HOST}" == "${BUILD_HOST}" ]; then
++        echo "Run unit tests for native build";
++        useradd -m test_runner;
++        chown -R test_runner ${LLVM_BUILD_PATH};
++        touch ${BUILD_PATH}/clang_tests.log;
++        chmod o+w ${BUILD_PATH}/clang_tests.log;
++        runuser -l test_runner -c 'cmake --build '${LLVM_BUILD_PATH}' --target check-all 2>&1 > '${BUILD_PATH}'/clang_tests.log';
++      fi
+     - export DISTRO_DIR=$PWD/$DIST_DIR
+-    - pushd $BUILD_PATH
++    - pushd ${BUILD_PATH}
+     - *package_toolchain
+     - popd
+ 
++build_x86_64-linux-gnu:
++  extends: .build_template
++  variables:
++    CONF_HOST: "x86_64-linux-gnu"
++    PLATFORM_NAME: "${PLATFORM_NAME_LINUX}"
++    ARCHIVE_TOOL: "${ARCHIVE_TOOL_LINUX}"
++    UNARCHIVE_TOOL: "${UNARCHIVE_TOOL_LINUX}"
++    ARCHIVE_EXT: "${ARCHIVE_EXT_LINUX}"
++    GCC_ARCHIVE_EXT: "${GCC_ARCHIVE_EXT_LINUX}"
++    BUILD_TOOLCHAIN_CMD: "./build-toolchain.sh"
++
++build_x86_64-w64-mingw32:
++  extends: .build_template
++  needs:
++    - job: build_x86_64-linux-gnu
++  before_script:
++    - *use_ci_tools
++    - *add_gitlab_key
++    # get ARCHIVE_NAME for Linux release. Modify vars to make get_release_name working properly
++    - export PLATFORM_NAME_ORIG=${PLATFORM_NAME}
++    - export ARCHIVE_EXT_ORIG=${ARCHIVE_EXT}
++    - export PLATFORM_NAME=${PLATFORM_NAME_LINUX}
++    - export ARCHIVE_EXT=${ARCHIVE_EXT_LINUX}
++    - *get_release_name
++    # restore modified vars 
++    - export PLATFORM_NAME=${PLATFORM_NAME_ORIG}
++    - export ARCHIVE_EXT=${ARCHIVE_EXT_ORIG}
++    # unpack Linux release to re-use it as native Clang for Windows build
++    - mkdir -p esp-clang-${PLATFORM_NAME_LINUX}
++    - ${UNARCHIVE_TOOL_LINUX} ${DIST_DIR}/${ARCHIVE_NAME} -C esp-clang-${PLATFORM_NAME_LINUX}
++    # we do not want to keep artifacts from 'x86_64-linux-gnu' job
++    - rm -rf ${DIST_DIR}
++    - rm -rf ${BUILD_DIR}
++    # add build command args speciifc for Windows build
++    - export BUILD_TOOLCHAIN_CMD_ARGS="--host=${CONF_HOST} --native-esp-clang-path=$PWD/esp-clang-${PLATFORM_NAME_LINUX}"
++  variables:
++    CONF_HOST: "x86_64-w64-mingw32"
++    PLATFORM_NAME: "${PLATFORM_NAME_WIN}"
++    ARCHIVE_TOOL: "${ARCHIVE_TOOL_WIN}"
++    UNARCHIVE_TOOL: "${UNARCHIVE_TOOL_WIN}"
++    ARCHIVE_EXT: "${ARCHIVE_EXT_WIN}"
++    GCC_ARCHIVE_EXT: "${GCC_ARCHIVE_EXT_WIN}"
++    BUILD_TOOLCHAIN_CMD: "./build-toolchain-win.sh"
++
++test_x86_64-linux-gnu:
++  stage: test
++  tags: [ "amd64", "build" ]
++  needs:
++    - job: build_x86_64-linux-gnu
++  variables:
++    PLATFORM_NAME: "${PLATFORM_NAME_LINUX}"
++    ARCHIVE_TOOL: "${ARCHIVE_TOOL_LINUX}"
++    UNARCHIVE_TOOL: "${UNARCHIVE_TOOL_LINUX}"
++    ARCHIVE_EXT: "${ARCHIVE_EXT_LINUX}"
++    # use separate dist dir for universal toolchain
++    # TODO: remove this var after switching to universal toolchain builds
++    DIST_DIR: "dist_new"
++  script:
++    - *get_release_name
++    - ${UNARCHIVE_TOOL} ${DIST_DIR}/${ARCHIVE_NAME}
++    # getting testsuite
++    - git clone -b ${LLVM_GCC_TESTSUITE_REF} --depth 1 $GITLAB_SSH_SERVER/idf/llvm-xtensa-testsuite.git
++    # preparing testsuite
++    - export PATH=${PWD}/esp-clang/bin:$PATH
++    - cd llvm-xtensa-testsuite
++    # qemu
++    - ./qemu_esp32_install.sh
++    # run testsuite for esp32
++    - ./run_esp32_tests.sh
++
+ ###########################################################################
+ #################### START OF TEMPORARY LEGACY CODE #######################
+ # TODO: the code below is to be removed after migration to new build script
+@@ -172,6 +263,9 @@ before_script:
+       - ${DIST_DIR}/
+     when: always
+     expire_in: 10 day
++  variables:
++    XTENSA_CLANG_TOOLCHAIN_REF: "esp-20220415-r14.0.0"
++    GCC_REL_NAME: "gcc8_4_0-esp-2021r2-patch3"
+   script:
+     - *get_release_name_old
+     - *get_gcc_toolchain_old
+@@ -179,16 +273,16 @@ before_script:
+     - *get_clang_toolchain_build_scripts
+     - ${BUILD_TOOLCHAIN_CMD} "${XTENSA_CLANG_TOOLCHAIN}"
+     - *package_toolchain_old
+-##################### END OF TEMPORARY LEGACY CODE ########################
+-###########################################################################
+ 
+ linux_amd64_build:
+-  extends: .build_template
++  extends: .build_template_old
+   variables:
+     PLATFORM_NAME: "${PLATFORM_NAME_LINUX}"
+     ARCHIVE_TOOL: "${ARCHIVE_TOOL_LINUX}"
+     UNARCHIVE_TOOL: "${UNARCHIVE_TOOL_LINUX}"
+     ARCHIVE_EXT: "${ARCHIVE_EXT_LINUX}"
++    XTENSA_GCC_TOOLCHAIN: "xtensa-esp32-elf-${GCC_REL_NAME}-linux-amd64.tar.gz"
++    BUILD_TOOLCHAIN_CMD: "./build-toolchain-linux.sh"
+ 
+ win64_build:
+   extends: .build_template_old
+@@ -213,26 +307,33 @@ macos_amd64_build:
+ linux_amd64_testsuite:
+   stage: test
+   tags: [ "amd64", "build" ]
+-  dependencies:
+-    - linux_amd64_build
++  needs:
++    - job: linux_amd64_build
+   variables:
+     PLATFORM_NAME: "${PLATFORM_NAME_LINUX}"
+     ARCHIVE_TOOL: "${ARCHIVE_TOOL_LINUX}"
+     UNARCHIVE_TOOL: "${UNARCHIVE_TOOL_LINUX}"
+     ARCHIVE_EXT: "${ARCHIVE_EXT_LINUX}"
+   script:
+-    - *get_release_name
++    - *get_release_name_old
+     - ${UNARCHIVE_TOOL} ${DIST_DIR}/${ARCHIVE_NAME}
++
+     # getting testsuite
+     - git clone -b ${LLVM_GCC_TESTSUITE_REF} --depth 1 $GITLAB_SSH_SERVER/idf/llvm-xtensa-testsuite.git
++
+     # preparing testsuite
+-    - export PATH=${PWD}/esp-elf-clang/bin:$PATH
++    - export PATH=$PATH:${PWD}/${XTENSA_CLANG_TOOLCHAIN}/bin/
+     - cd llvm-xtensa-testsuite
++
+     # qemu
+     - ./qemu_esp32_install.sh
++
+     # run testsuite for esp32
+     - ./run_esp32_tests.sh
+ 
++##################### END OF TEMPORARY LEGACY CODE ########################
++###########################################################################
++
+ upload_to_http:
+   stage: private_deploy
+   when: manual
+-- 
+2.40.1
+

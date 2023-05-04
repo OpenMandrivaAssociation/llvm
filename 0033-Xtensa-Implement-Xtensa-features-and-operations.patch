@@ -1,0 +1,350 @@
+From 083b30fcb8176872ca5cbd22452d93c1b2a51454 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:51 +0300
+Subject: [PATCH 033/140] [Xtensa] Implement Xtensa features and operations.
+
+Implement Debug, DFPAccel, S32C1I, THREADPTR, Extended L32R, ATOMCTL, MEMCTL features.
+---
+ .../Disassembler/XtensaDisassembler.cpp       | 21 ++++++--
+ .../MCTargetDesc/XtensaMCCodeEmitter.cpp      |  1 +
+ llvm/lib/Target/Xtensa/Xtensa.td              | 35 +++++++++++++
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp |  2 +
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     | 39 +++++++++++++++
+ llvm/lib/Target/Xtensa/XtensaRegisterInfo.td  | 49 ++++++++++++++++++-
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp    |  7 +++
+ llvm/lib/Target/Xtensa/XtensaSubtarget.h      | 35 +++++++++++++
+ llvm/test/MC/Xtensa/xtensa-valid-dbg.s        |  9 ++++
+ 9 files changed, 191 insertions(+), 7 deletions(-)
+ create mode 100644 llvm/test/MC/Xtensa/xtensa-valid-dbg.s
+
+diff --git a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+index e470ed8d2766..1f54c9549069 100644
+--- a/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
++++ b/llvm/lib/Target/Xtensa/Disassembler/XtensaDisassembler.cpp
+@@ -148,10 +148,19 @@ static DecodeStatus DecodeMR23RegisterClass(MCInst &Inst, uint64_t RegNo,
+ }
+ 
+ static const unsigned SRDecoderTable[] = {
+-    Xtensa::LEND, 1,  Xtensa::LCOUNT,      2,  Xtensa::SAR,         3,
+-    Xtensa::BREG, 4,  Xtensa::ACCLO,       16, Xtensa::ACCHI,       17,
+-    Xtensa::M0,   32, Xtensa::M1,          33, Xtensa::M2,          34,
+-    Xtensa::M3,   35, Xtensa ::WINDOWBASE, 72, Xtensa::WINDOWSTART, 73};
++    Xtensa::LBEG,         0,   Xtensa::LEND,        1,
++    Xtensa::LCOUNT,       2,   Xtensa::SAR,         3,
++    Xtensa::BREG,         4,   Xtensa::LITBASE,     5,
++    Xtensa::ACCLO,        16,  Xtensa::ACCHI,       17,
++    Xtensa::M0,           32,  Xtensa::M1,          33,
++    Xtensa::M2,           34,  Xtensa::M3,          35,
++    Xtensa::WINDOWBASE,   72,  Xtensa::WINDOWSTART, 73,
++    Xtensa::IBREAKENABLE, 96,  Xtensa::MEMCTL,      97,
++    Xtensa::ATOMCTL,      99,  Xtensa::IBREAKA0,    128,
++    Xtensa::IBREAKA1,     129, Xtensa::DBREAKA0,    144,
++    Xtensa::DBREAKA1,     145, Xtensa::DBREAKC0,    160,
++    Xtensa::DBREAKC1,     161, Xtensa::DEBUGCAUSE,  233,
++    Xtensa::ICOUNT,       236, Xtensa::ICOUNTLEVEL, 237};
+ 
+ static DecodeStatus DecodeSRRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                           uint64_t Address,
+@@ -170,7 +179,9 @@ static DecodeStatus DecodeSRRegisterClass(MCInst &Inst, uint64_t RegNo,
+   return MCDisassembler::Fail;
+ }
+ 
+-static const unsigned URDecoderTable[] = {Xtensa::FCR, 232, Xtensa::FSR, 233};
++static const unsigned URDecoderTable[] = {
++    Xtensa::THREADPTR, 231, Xtensa::FCR,     232, Xtensa::FSR,  233,
++    Xtensa::F64R_LO,   234, Xtensa::F64R_HI, 235, Xtensa::F64S, 236};
+ 
+ static DecodeStatus DecodeURRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                           uint64_t Address,
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+index 4870cd5361ef..c204e0866e44 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+@@ -282,6 +282,7 @@ XtensaMCCodeEmitter::getMemRegEncoding(const MCInst &MI, unsigned OpNo,
+   case Xtensa::L32I_N:
+   case Xtensa::S32F:
+   case Xtensa::L32F:
++  case Xtensa::S32C1I:
+     if (Res & 0x3) {
+       report_fatal_error("Unexpected operand value!");
+     }
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.td b/llvm/lib/Target/Xtensa/Xtensa.td
+index 5468b91e2494..6d4254a49251 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.td
++++ b/llvm/lib/Target/Xtensa/Xtensa.td
+@@ -72,6 +72,41 @@ def FeatureMAC16            : SubtargetFeature<"mac16", "HasMAC16", "true",
+ def HasMAC16                : Predicate<"Subtarget->hasMAC16()">,
+                                          AssemblerPredicate<(all_of FeatureMAC16)>;
+ 
++def FeatureDFPAccel         : SubtargetFeature<"dfpaccel", "HasDFPAccel", "true",
++                                               "Enable Xtensa Double Precision FP acceleration">;
++def HasDFPAccel             : Predicate<"Subtarget->hasDFPAccel()">,
++                                        AssemblerPredicate<(all_of FeatureDFPAccel)>;
++
++def FeatureS32C1I           : SubtargetFeature<"s32c1i", "HasS32C1I", "true",
++                                               "Enable Xtensa S32C1I option">;
++def HasS32C1I               : Predicate<"Subtarget->hasS32C1I()">,
++                                         AssemblerPredicate<(all_of FeatureS32C1I)>;
++
++def FeatureTHREADPTR         : SubtargetFeature<"threadptr", "HasTHREADPTR", "true",
++                                                "Enable Xtensa THREADPTR option">;
++def HasTHREADPTR             : Predicate<"Subtarget->hasTHREADPTR()">,
++                                          AssemblerPredicate<(all_of FeatureTHREADPTR)>;
++
++def FeatureExtendedL32R      : SubtargetFeature<"extendedl32r", "HasExtendedL32R", "true",
++                                                "Enable Xtensa Extended L32R option">;
++def HasExtendedL32R          : Predicate<"Subtarget->hasExtendedL32R()">,
++                                          AssemblerPredicate<(all_of FeatureExtendedL32R)>;
++
++def FeatureATOMCTL           : SubtargetFeature<"atomctl", "HasATOMCTL", "true",
++                                                "Enable Xtensa ATOMCTL option">;
++def HasATOMCTL               : Predicate<"Subtarget->hasATOMCTL()">,
++                                          AssemblerPredicate<(all_of FeatureATOMCTL)>;
++
++def FeatureMEMCTL           : SubtargetFeature<"memctl", "HasMEMCTL", "true",
++                                                "Enable Xtensa MEMCTL option">;
++def HasMEMCTL               : Predicate<"Subtarget->hasMEMCTL()">,
++                                          AssemblerPredicate<(all_of FeatureMEMCTL)>;
++
++def FeatureDebug             : SubtargetFeature<"debug", "HasDebug", "true",
++                                                "Enable Xtensa Debug option">;
++def HasDebug                 : Predicate<"Subtarget->hasDebug()">,
++                                          AssemblerPredicate<(all_of FeatureDebug)>;
++
+ //===----------------------------------------------------------------------===//
+ // Xtensa supported processors.
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index fc222f47b81b..d848823dd758 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -301,6 +301,8 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   setOperationAction(ISD::VACOPY, MVT::Other, Custom);
+   setOperationAction(ISD::VAEND, MVT::Other, Expand);
+ 
++  setOperationAction(ISD::TRAP, MVT::Other, Legal);
++
+   // Compute derived properties from the register classes
+   computeRegisterProperties(STI.getRegisterInfo());
+ 
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index fa15b7833575..9f641f99de22 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -1191,6 +1191,45 @@ def QUOU : ArithLogic_RRR<0x0C, 0x02, "quou", udiv>, Requires<[HasDiv32]>;
+ def REMS : ArithLogic_RRR<0x0F, 0x02, "rems", srem>, Requires<[HasDiv32]>;
+ def REMU : ArithLogic_RRR<0x0E, 0x02, "remu", urem>, Requires<[HasDiv32]>;
+ 
++//===----------------------------------------------------------------------===//
++// S32C1I
++//===----------------------------------------------------------------------===//
++
++let mayStore = 1, mayLoad = 1, Predicates = [HasS32C1I] in {
++  def S32C1I : RRI8_Inst<0x02, (outs AR:$a), (ins AR:$t, mem32:$addr),
++                        "s32c1i\t$t, $addr", []> {
++    bits<12> addr;
++
++    let r = 0x0e;
++    let Uses = [SCOMPARE1];
++    let Constraints = "$a = $t";
++    let imm8{7-0} = addr{11-4};
++    let s{3-0} = addr{3-0};
++  }
++}
++
++//===----------------------------------------------------------------------===//
++// Debug instructions
++//===----------------------------------------------------------------------===//
++
++let isBarrier = 1, isTerminator = 1 in {
++  def BREAK : RRR_Inst<0x00, 0x00, 0x00, (outs), (ins uimm4:$s, uimm4:$t),
++                      "break\t$s, $t", []>, Requires<[HasDebug]> {
++    let r = 0x04;
++  }
++
++  def BREAK_N : RRRN_Inst<0x0C, (outs), (ins uimm4:$imm),
++                         "break.n\t$imm", []>, Requires<[HasDensity, HasDebug]> {
++    bits<4> imm;
++
++    let r = 0xf;
++    let s = imm;
++    let t = 0x2;
++  }
++}
++
++def : Pat<(trap), (BREAK (i32 1), (i32 15))>;
++
+ //===----------------------------------------------------------------------===//
+ // DSP Instructions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+index 4e953f7bfe15..b5d371c2e315 100644
+--- a/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaRegisterInfo.td
+@@ -80,6 +80,10 @@ def LCOUNT : SRReg<2, "lcount", ["LCOUNT", "2"]>;
+ def SAR : SRReg<3, "sar", ["SAR","3"]>;
+ 
+ def BREG : SRReg<4, "br", ["BR", "4"]>;
++def LITBASE : SRReg<5, "litbase", ["LITBASE", "5"]>;
++
++// Expected data value for S32C1I operation
++def SCOMPARE1 : SRReg<12, "scompare1", ["SCOMPARE1", "12"]>;
+ 
+ def ACCLO : SRReg<16, "acclo", ["ACCLO", "16"]>;
+ def ACCHI : SRReg<17, "acchi", ["ACCHI", "17"]>;
+@@ -90,12 +94,46 @@ def M3 : SRReg<35, "m3", ["M3", "35"]>;
+ def WINDOWBASE : SRReg<72, "windowbase", ["WINDOWBASE", "72"]>;
+ def WINDOWSTART : SRReg<73, "windowstart", ["WINDOWSTART", "73"]>;
+ 
++// Instuction breakpoint enable register
++def IBREAKENABLE : SRReg<96, "ibreakenable", ["IBREAKENABLE", "96"]>;
++
++// Memory Control Register
++def MEMCTL : SRReg<97, "memctl", ["MEMCTL", "97"]>;
++
++def ATOMCTL : SRReg<99, "atomctl", ["ATOMCTL", "99"]>;
++
++// Instuction break address register 0
++def IBREAKA0 : SRReg<128, "ibreaka0", ["IBREAKA0", "128"]>;
++
++// Instuction break address register 1
++def IBREAKA1 : SRReg<129, "ibreaka1", ["IBREAKA1", "129"]>;
++
++// Data break address register 0
++def DBREAKA0 : SRReg<144, "dbreaka0", ["DBREAKA0", "144"]>;
++
++// Data break address register 1
++def DBREAKA1 : SRReg<145, "dbreaka1", ["DBREAKA1", "145"]>;
++
++// Data breakpoint control register 0
++def DBREAKC0 : SRReg<160, "dbreakc0", ["DBREAKC0", "160"]>;
++
++// Data breakpoint control register 1
++def DBREAKC1 : SRReg<161, "dbreakc1", ["DBREAKC1", "161"]>;
++
++// Cause of last debug exception register
++def DEBUGCAUSE : SRReg<233, "debugcause", ["DEBUGCAUSE", "233"]>;
++
++def ICOUNT : SRReg<236, "icount", ["ICOUNT", "236"]>;
++def ICOUNTLEVEL : SRReg<237, "icountlevel", ["ICOUNTLEVEL", "237"]>;
++
+ def MR01 :  RegisterClass<"Xtensa", [i32], 32, (add M0, M1)>;
+ def MR23 :  RegisterClass<"Xtensa", [i32], 32, (add M2, M3)>;
+ def MR :  RegisterClass<"Xtensa", [i32], 32, (add MR01, MR23)>;
+ 
+ def SR :  RegisterClass<"Xtensa", [i32], 32, (add LBEG, LEND, LCOUNT,
+-  SAR, BREG, MR, WINDOWBASE, WINDOWSTART)>;
++  SAR, BREG, LITBASE, SCOMPARE1, ACCLO, ACCHI, MR, WINDOWBASE, WINDOWSTART,
++  IBREAKENABLE, MEMCTL, ATOMCTL, IBREAKA0, IBREAKA1, DBREAKA0, DBREAKA1,
++  DBREAKC0, DBREAKC1, DEBUGCAUSE, ICOUNT, ICOUNTLEVEL)>;
+ 
+ //===----------------------------------------------------------------------===//
+ // USER registers
+@@ -105,10 +143,17 @@ class URReg<bits<8> num, string n, list<string> alt = []> : XtensaReg<n> {
+   let AltNames = alt;
+ }
+ 
++// Thread Pointer register
++def THREADPTR : URReg<231, "threadptr", ["THREADPTR"]>;
++
+ def FCR : URReg<232, "fcr", ["FCR"]>;
+ def FSR : URReg<233, "fsr", ["FSR"]>;
++def F64R_LO : URReg<234, "f64r_lo", ["F64R_LO"]>;
++def F64R_HI : URReg<235, "f64r_hi", ["F64R_HI"]>;
++def F64S : URReg<236, "f64s", ["F64S"]>;
+ 
+-def UR :  RegisterClass<"Xtensa", [i32], 32, (add FCR, FSR)>;
++def UR :  RegisterClass<"Xtensa", [i32], 32, (add THREADPTR, FCR,
++  FSR, F64R_LO, F64R_HI, F64S)>; 
+ 
+ //===----------------------------------------------------------------------===//
+ // Floating-Point registers
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+index b23346ea4335..800c62d9cefc 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -43,6 +43,13 @@ XtensaSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
+   HasMul32High = false;
+   HasDiv32 = false;
+   HasMAC16 = false;
++  HasDFPAccel = false;
++  HasS32C1I = false;
++  HasTHREADPTR = false;
++  HasExtendedL32R = false;
++  HasATOMCTL = false;
++  HasMEMCTL = false;
++  HasDebug = false;
+ 
+   // Parse features string.
+   ParseSubtargetFeatures(CPUName, CPUName, FS);
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.h b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+index a4bfd2ae3956..eed24f28be15 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.h
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.h
+@@ -71,6 +71,27 @@ private:
+   // Enabled Xtensa MAC16 instructions
+   bool HasMAC16;
+ 
++  // Enable Xtensa Xtensa Double Precision FP acceleration
++  bool HasDFPAccel;
++
++  // Enable Xtensa S32C1I option
++  bool HasS32C1I;
++
++  // Enable Xtensa THREADPTR option
++  bool HasTHREADPTR;
++
++  // Enable Xtensa Extended L32R option
++  bool HasExtendedL32R;
++
++  // Enable Xtensa ATOMCTL option
++  bool HasATOMCTL;
++
++  // Enable Xtensa ATOMCTL option
++  bool HasMEMCTL;
++
++  // Enable Xtensa Debug option
++  bool HasDebug;
++
+   XtensaSubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
+ 
+ public:
+@@ -110,6 +131,20 @@ public:
+ 
+   bool hasMAC16() const { return HasMAC16; }
+ 
++  bool hasDFPAccel() const { return HasDFPAccel; }
++
++  bool hasS32C1I() const { return HasS32C1I; }
++
++  bool hasTHREADPTR() const { return HasTHREADPTR; }
++
++  bool hasExtendedL32R() const { return HasExtendedL32R; }
++
++  bool hasATOMCTL() const { return HasATOMCTL; }
++
++  bool hasMEMCTL() const { return HasMEMCTL; }
++
++  bool hasDebug() const { return HasDebug; }
++
+   // Automatically generated by tblgen.
+   void ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
+ };
+diff --git a/llvm/test/MC/Xtensa/xtensa-valid-dbg.s b/llvm/test/MC/Xtensa/xtensa-valid-dbg.s
+new file mode 100644
+index 000000000000..9391c60e43f6
+--- /dev/null
++++ b/llvm/test/MC/Xtensa/xtensa-valid-dbg.s
+@@ -0,0 +1,9 @@
++# RUN: llvm-mc %s -triple=xtensa -mattr=+debug -show-encoding \
++# RUN:     | FileCheck -check-prefixes=CHECK,CHECK-INST %s
++
++.align	4
++LBL0:
++
++# CHECK-INST:  break     1, 2
++# CHECK: encoding: [0x20,0x41,0x00]
++ break 1, 2
+-- 
+2.40.1
+

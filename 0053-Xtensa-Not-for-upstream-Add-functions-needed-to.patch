@@ -1,0 +1,32 @@
+From bae37341724fdda2ce711919880dfb931550ba26 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:04 +0300
+Subject: [PATCH 053/140] [Xtensa][Not for upstream] Add functions needed to
+
+ use as rust submodule.
+---
+ llvm/include/llvm/MC/MCSubtargetInfo.h | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/llvm/include/llvm/MC/MCSubtargetInfo.h b/llvm/include/llvm/MC/MCSubtargetInfo.h
+index 0b1f35960911..cf36781e2876 100644
+--- a/llvm/include/llvm/MC/MCSubtargetInfo.h
++++ b/llvm/include/llvm/MC/MCSubtargetInfo.h
+@@ -230,6 +230,14 @@ public:
+     return Found != ProcDesc.end() && StringRef(Found->Key) == CPU;
+   }
+ 
++  ArrayRef<SubtargetSubTypeKV> getCPUTable() const {
++    return ProcDesc;
++  }
++
++  ArrayRef<SubtargetFeatureKV> getFeatureTable() const {
++    return ProcFeatures;
++  }
++
+   virtual unsigned getHwMode() const { return 0; }
+ 
+   /// Return the cache size in bytes for the given level of cache.
+-- 
+2.40.1
+

@@ -1,0 +1,667 @@
+From 0160ecc75be41deb92da5d291c622b8db897857c Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:08 +0300
+Subject: [PATCH 061/140] [Xtensa] Implement esp32 psram cache fixes.
+
+---
+ clang/include/clang/Driver/Options.td         |   9 +
+ clang/lib/Driver/ToolChains/Clang.cpp         |  32 ++
+ clang/lib/Driver/ToolChains/Clang.h           |   2 +
+ clang/lib/Driver/ToolChains/Xtensa.cpp        |  16 +
+ llvm/lib/Target/Xtensa/CMakeLists.txt         |   1 +
+ llvm/lib/Target/Xtensa/Xtensa.h               |   1 +
+ .../lib/Target/Xtensa/XtensaESP32PSRAMFix.cpp | 353 ++++++++++++++++++
+ .../lib/Target/Xtensa/XtensaTargetMachine.cpp |   1 +
+ llvm/test/CodeGen/Xtensa/psram_memw.ll        |  50 +++
+ llvm/test/CodeGen/Xtensa/psram_nops.ll        |  60 +++
+ 10 files changed, 525 insertions(+)
+ create mode 100644 llvm/lib/Target/Xtensa/XtensaESP32PSRAMFix.cpp
+ create mode 100644 llvm/test/CodeGen/Xtensa/psram_memw.ll
+ create mode 100644 llvm/test/CodeGen/Xtensa/psram_nops.ll
+
+diff --git a/clang/include/clang/Driver/Options.td b/clang/include/clang/Driver/Options.td
+index 652c15afcce8..cf9c39ce899c 100644
+--- a/clang/include/clang/Driver/Options.td
++++ b/clang/include/clang/Driver/Options.td
+@@ -186,6 +186,8 @@ def m_x86_Features_Group : OptionGroup<"<x86 features group>">,
+                            Group<m_Group>, Flags<[CoreOption]>, DocName<"X86">;
+ def m_riscv_Features_Group : OptionGroup<"<riscv features group>">,
+                              Group<m_Group>, DocName<"RISCV">;
++def m_xtensa_Features_Group : OptionGroup<"<xtensa features group>">,
++                              Group<m_Group>, Flags<[CoreOption]>, DocName<"Xtensa">;
+ 
+ def m_libc_Group : OptionGroup<"<m libc group>">, Group<m_mips_Features_Group>,
+                    Flags<[HelpHidden]>;
+@@ -4799,6 +4801,13 @@ def mno_retpoline_external_thunk : Flag<["-"], "mno-retpoline-external-thunk">,
+ def mvzeroupper : Flag<["-"], "mvzeroupper">, Group<m_x86_Features_Group>;
+ def mno_vzeroupper : Flag<["-"], "mno-vzeroupper">, Group<m_x86_Features_Group>;
+ 
++// Xtensa feature flags
++def malways_memw : Flag<["-"], "malways-memw">, Group<m_xtensa_Features_Group>;
++def mfix_esp32_psram_cache_issue : Flag<["-"], "mfix-esp32-psram-cache-issue">, Group<m_xtensa_Features_Group>;
++def mfix_esp32_psram_cache_strategy_EQ : Joined<["-"], "mfix-esp32-psram-cache-strategy=">, Group<m_xtensa_Features_Group>,
++    HelpText<" Psram cache fix strategies : memw, nops">,
++    Values<"memw, nops">;
++
+ // These are legacy user-facing driver-level option spellings. They are always
+ // aliases for options that are spelled using the more common Unix / GNU flag
+ // style of double-dash and equals-joined flags.
+diff --git a/clang/lib/Driver/ToolChains/Clang.cpp b/clang/lib/Driver/ToolChains/Clang.cpp
+index 68525264d6e6..d8396e1d071e 100644
+--- a/clang/lib/Driver/ToolChains/Clang.cpp
++++ b/clang/lib/Driver/ToolChains/Clang.cpp
+@@ -1743,6 +1743,10 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
+   case llvm::Triple::ve:
+     AddVETargetArgs(Args, CmdArgs);
+     break;
++
++  case llvm::Triple::xtensa:
++    AddXtensaTargetArgs(Args, CmdArgs);
++    break;
+   }
+ }
+ 
+@@ -2309,6 +2313,34 @@ void Clang::AddVETargetArgs(const ArgList &Args, ArgStringList &CmdArgs) const {
+   CmdArgs.push_back("hard");
+ }
+ 
++void Clang::AddXtensaTargetArgs(const ArgList &Args,
++                                ArgStringList &CmdArgs) const {
++  const Driver &D = getToolChain().getDriver();
++
++  if (Args.getLastArg(options::OPT_malways_memw) != nullptr) {
++    CmdArgs.push_back("-mllvm");
++    CmdArgs.push_back("-malways-memw");
++  }
++
++  if (Args.getLastArg(options::OPT_mfix_esp32_psram_cache_issue) != nullptr) {
++    CmdArgs.push_back("-mllvm");
++    CmdArgs.push_back("-mfix-esp32-psram-cache-issue");
++
++    if (Arg *A =
++            Args.getLastArg(options::OPT_mfix_esp32_psram_cache_strategy_EQ)) {
++      StringRef Value = A->getValue();
++      if (Value == "memw" || Value == "nops") {
++        CmdArgs.push_back("-mllvm");
++        CmdArgs.push_back(
++            Args.MakeArgString("-mfix-esp32-psram-cache-strategy=" + Value));
++      } else {
++        D.Diag(diag::err_drv_unsupported_option_argument)
++            << A->getOption().getName() << Value;
++      }
++    }
++  }
++}
++
+ void Clang::DumpCompilationDatabase(Compilation &C, StringRef Filename,
+                                     StringRef Target, const InputInfo &Output,
+                                     const InputInfo &Input, const ArgList &Args) const {
+diff --git a/clang/lib/Driver/ToolChains/Clang.h b/clang/lib/Driver/ToolChains/Clang.h
+index a7625dba6646..a4f75e270903 100644
+--- a/clang/lib/Driver/ToolChains/Clang.h
++++ b/clang/lib/Driver/ToolChains/Clang.h
+@@ -81,6 +81,8 @@ private:
+                                 llvm::opt::ArgStringList &CmdArgs) const;
+   void AddVETargetArgs(const llvm::opt::ArgList &Args,
+                        llvm::opt::ArgStringList &CmdArgs) const;
++  void AddXtensaTargetArgs(const llvm::opt::ArgList &Args,
++                       llvm::opt::ArgStringList &CmdArgs) const;
+ 
+   enum RewriteKind { RK_None, RK_Fragile, RK_NonFragile };
+ 
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index a1f83801b561..c3919ff8c8e9 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -107,16 +107,32 @@ XtensaToolChain::XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
+       IsIntegratedAsm = false;
+   }
+ 
++  bool IsESP32 = XtensaToolChain::GetTargetCPUVersion(Args).equals("esp32");
+   Multilibs.push_back(Multilib());
++  if (IsESP32)
++    Multilibs.push_back(Multilib("esp32-psram", {}, {}, 2)
++                            .flag("+mfix-esp32-psram-cache-issue"));
+ 
+   Multilibs.push_back(
+       Multilib("no-rtti", {}, {}, 1).flag("+fno-rtti").flag("-frtti"));
+ 
++  if (IsESP32)
++    Multilibs.push_back(Multilib("esp32-psram/no-rtti", {}, {}, 3)
++                            .flag("+fno-rtti")
++                            .flag("-frtti")
++                            .flag("+mfix-esp32-psram-cache-issue"));
++
+   Multilib::flags_list Flags;
+   addMultilibFlag(
+       Args.hasFlag(options::OPT_frtti, options::OPT_fno_rtti, false), "frtti",
+       Flags);
+ 
++  if (IsESP32)
++    addMultilibFlag(Args.hasFlag(options::OPT_mfix_esp32_psram_cache_issue,
++                                 options::OPT_mfix_esp32_psram_cache_issue,
++                                 false),
++                    "mfix-esp32-psram-cache-issue", Flags);
++
+   Multilibs.select(Flags, SelectedMultilib);
+ 
+   const std::string Slash = XtensaGCCToolchain.Slash;
+diff --git a/llvm/lib/Target/Xtensa/CMakeLists.txt b/llvm/lib/Target/Xtensa/CMakeLists.txt
+index 6b035e8cb41d..fccdde013bbc 100644
+--- a/llvm/lib/Target/Xtensa/CMakeLists.txt
++++ b/llvm/lib/Target/Xtensa/CMakeLists.txt
+@@ -17,6 +17,7 @@ add_public_tablegen_target(XtensaCommonTableGen)
+ add_llvm_target(XtensaCodeGen
+   XtensaAsmPrinter.cpp
+   XtensaConstantPoolValue.cpp
++  XtensaESP32PSRAMFix.cpp
+   XtensaFixupHWLoops.cpp
+   XtensaFrameLowering.cpp
+   XtensaHardwareLoops.cpp
+diff --git a/llvm/lib/Target/Xtensa/Xtensa.h b/llvm/lib/Target/Xtensa/Xtensa.h
+index 2966e085634f..f9b06c6e79fa 100644
+--- a/llvm/lib/Target/Xtensa/Xtensa.h
++++ b/llvm/lib/Target/Xtensa/Xtensa.h
+@@ -29,5 +29,6 @@ FunctionPass *createXtensaISelDag(XtensaTargetMachine &TM,
+ FunctionPass *createXtensaSizeReductionPass();
+ FunctionPass *createXtensaHardwareLoops();
+ FunctionPass *createXtensaFixupHwLoops();
++FunctionPass *createXtensaPSRAMCacheFixPass();
+ } // namespace llvm
+ #endif /* LLVM_LIB_TARGET_XTENSA_XTENSA_H */
+diff --git a/llvm/lib/Target/Xtensa/XtensaESP32PSRAMFix.cpp b/llvm/lib/Target/Xtensa/XtensaESP32PSRAMFix.cpp
+new file mode 100644
+index 000000000000..5f22c2ea0e20
+--- /dev/null
++++ b/llvm/lib/Target/Xtensa/XtensaESP32PSRAMFix.cpp
+@@ -0,0 +1,353 @@
++//===- XtensaPSRAMFIx.cpp - Fixup PSRAM Cache issues   --------------------===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// This file is distributed under the University of Illinois Open Source
++// License. See LICENSE.TXT for details.
++//
++//===----------------------------------------------------------------------===//
++
++#include "Xtensa.h"
++#include "XtensaInstrInfo.h"
++#include "XtensaSubtarget.h"
++#include "llvm/ADT/Statistic.h"
++#include "llvm/CodeGen//MachineInstrBuilder.h"
++#include "llvm/CodeGen/MachineFunctionPass.h"
++#include "llvm/Support/Debug.h"
++#include "llvm/Support/MathExtras.h"
++#include "llvm/Target/TargetMachine.h"
++
++using namespace llvm;
++
++#define DEBUG_TYPE "xtensa-fix-esp32-psram-cache-pass"
++
++enum PSRAMFixChoice {
++  ESP32_PSRAM_FIX_MEMW,
++  ESP32_PSRAM_FIX_NOPS
++};
++
++static cl::opt<bool> AlwaysMembarrier("malways-memw", cl::init(false),
++                                      cl::Hidden);
++
++static cl::opt<bool> FixESP32PSRAMCacheIssue("mfix-esp32-psram-cache-issue",
++                                             cl::init(false), cl::Hidden);
++
++static cl::opt<PSRAMFixChoice> ESP32PSRAMFixStrat(
++    "mfix-esp32-psram-cache-strategy", cl::init(ESP32_PSRAM_FIX_MEMW),
++    cl::desc(""),
++    cl::values(clEnumValN(ESP32_PSRAM_FIX_MEMW, "memw", ""),
++               clEnumValN(ESP32_PSRAM_FIX_NOPS, "nops", "")));
++
++STATISTIC(NumAdded, "Number of instructions added");
++
++class createXtensaPSRAMCacheFix : public MachineFunctionPass {
++public:
++  static char ID;
++  createXtensaPSRAMCacheFix() : MachineFunctionPass(ID) {}
++
++  const XtensaSubtarget *Subtarget;
++  static const XtensaInstrInfo *XtensaII;
++
++  bool runOnMachineFunction(MachineFunction &MF) override;
++
++  llvm::StringRef getPassName() const override {
++    return "Xtensa fix PSRAM cache issue in the ESP32 chips";
++  }
++
++private:
++  bool xtensaPSRAMCacheFixNopReorg(MachineFunction &MF);
++  /*
++  Alternative fix to xtensaPSRAMCacheFixNopReorg. Tries to solve the 32-bit
++  load/store inversion by explicitly inserting a memory barrier instead of nops.
++  Slower than nops, but faster than just adding memws everywhere.
++  */
++  bool xtensaPSRAMCacheFixMemwReorg(MachineFunction &MF);
++  // Emits a memw before every load/store instruction. Hard-handed approach to
++  // get rid of any pipeline/memory issues...
++  bool xtensaInsertMemwReorg(MachineFunction &MF);
++};
++
++char createXtensaPSRAMCacheFix::ID = 0;
++const XtensaInstrInfo *createXtensaPSRAMCacheFix::XtensaII;
++
++// Affected piece of pipeline is 5 entries long; the load/store itself fills
++// one.
++#define LOAD_STORE_OFF 4
++
++bool createXtensaPSRAMCacheFix::xtensaPSRAMCacheFixNopReorg(
++    MachineFunction &MF) {
++  MachineFunction::iterator I = MF.begin(), E = MF.end();
++  MachineInstr *LastHIQIStore = nullptr;
++  MachineInstr *StoreInsn = nullptr;
++  int InsnsSinceStore = 0;
++  bool Modified = false;
++
++  for (; I != E; ++I) {
++    MachineBasicBlock &MBB = *I;
++    MachineBasicBlock::instr_iterator MII = MBB.instr_begin(),
++                                      MIE = MBB.instr_end();
++    MachineBasicBlock::instr_iterator NextMII;
++
++    // Iterate through the instructions in the basic block
++    for (; MII != MIE; MII = NextMII) {
++      MachineInstr *MI = &*MII;
++      unsigned Opcode = MI->getOpcode();
++      NextMII = std::next(MII);
++
++      if (MI->isCall() || MI->isBranch() || MI->isReturn()) {
++        if (LastHIQIStore) {
++          DebugLoc dl = LastHIQIStore->getDebugLoc();
++          const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++          BuildMI(*LastHIQIStore->getParent(), LastHIQIStore, dl, NewMCID);
++          LastHIQIStore = nullptr;
++          Modified = true;
++          NumAdded++;
++        }
++        if (!(MI->isBranch() && (MI->getOpcode() != Xtensa::J) &&
++              (MI->getOpcode() != Xtensa::JX))) {
++          StoreInsn = nullptr;
++        }
++        continue;
++      }
++
++      switch (Opcode) {
++      case Xtensa::LSI:
++      case Xtensa::L32I_N:
++      case Xtensa::L32I:
++      case Xtensa::L16SI:
++      case Xtensa::L16UI:
++      case Xtensa::L8UI:
++        if (StoreInsn) {
++          while (InsnsSinceStore++ < LOAD_STORE_OFF) {
++            DebugLoc dl = MII->getDebugLoc();
++            const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::NOP);
++            BuildMI(MBB, MII, dl, NewMCID);
++            Modified = true;
++            NumAdded++;
++          }
++        }
++        if (LastHIQIStore) {
++          DebugLoc dl = LastHIQIStore->getDebugLoc();
++          const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++          BuildMI(*LastHIQIStore->getParent(),
++                  std::next(LastHIQIStore->getIterator()), dl, NewMCID);
++          LastHIQIStore = nullptr;
++          Modified = true;
++          NumAdded++;
++        }
++        break;
++      case Xtensa::SSI:
++      case Xtensa::S32I_N:
++      case Xtensa::S32I: {
++        LastHIQIStore = nullptr;
++        InsnsSinceStore = 0;
++        StoreInsn = MI;
++      } break;
++      case Xtensa::S16I:
++      case Xtensa::S8I: {
++        LastHIQIStore = MI;
++        InsnsSinceStore = 0;
++        StoreInsn = MI;
++      } break;
++      default:
++        InsnsSinceStore++;
++        break;
++      }
++    }
++  }
++  return Modified;
++}
++
++bool createXtensaPSRAMCacheFix::xtensaPSRAMCacheFixMemwReorg(
++    MachineFunction &MF) {
++  MachineFunction::iterator I = MF.begin(), E = MF.end();
++  MachineInstr *LastHIQIStore = nullptr;
++  MachineInstr *StoreInsn = nullptr;
++  bool Modified = false;
++
++  for (; I != E; ++I) {
++    MachineBasicBlock &MBB = *I;
++
++    MachineBasicBlock::instr_iterator MII = MBB.instr_begin(),
++                                      MIE = MBB.instr_end();
++    MachineBasicBlock::instr_iterator NextMII;
++
++    // Iterate through the instructions in the basic block
++    for (; MII != MIE; MII = NextMII) {
++      NextMII = std::next(MII);
++      MachineInstr *MI = &*MII;
++      unsigned Opcode = MI->getOpcode();
++
++      // Don't process bundled instructions or pseudo operations
++      if (MI->isBundle() || MI->isTransient())
++        continue;
++
++      if (MI->isCall() || MI->isBranch() || MI->isReturn()) {
++        if (StoreInsn) {
++          if (!(MI->isBranch() && (MI->getOpcode() != Xtensa::J) &&
++                (MI->getOpcode() != Xtensa::JX))) {
++            DebugLoc dl = MI->getDebugLoc();
++            const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++            MachineBasicBlock::instr_iterator BranchI = MI->getIterator();
++            while (((*BranchI).isBranch() || (*BranchI).isCall() ||
++                    (*BranchI).isReturn()) &&
++                   (BranchI != MBB.instr_begin()))
++              BranchI = std::prev(BranchI);
++
++            if (BranchI != MBB.instr_begin())
++              BranchI = std::next(BranchI);
++
++            BuildMI(MBB, BranchI, dl, NewMCID);
++            Modified = true;
++            StoreInsn = nullptr;
++            NumAdded++;
++          }
++        }
++        if (LastHIQIStore) {
++          DebugLoc dl = LastHIQIStore->getDebugLoc();
++          const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++          BuildMI(*LastHIQIStore->getParent(),
++                  std::next(LastHIQIStore->getIterator()), dl, NewMCID);
++          LastHIQIStore = nullptr;
++          Modified = true;
++          NumAdded++;
++        }
++        continue;
++      }
++
++      switch (Opcode) {
++      case Xtensa::LSI:
++      case Xtensa::L32I_N:
++      case Xtensa::L32I:
++      case Xtensa::L16SI:
++      case Xtensa::L16UI:
++      case Xtensa::L8UI:
++        if (StoreInsn) {
++          MachineMemOperand *MMO = *MII->memoperands_begin();
++          if (!MMO->isVolatile()) {
++            DebugLoc dl = MII->getDebugLoc();
++            const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++            BuildMI(MBB, MII, dl, NewMCID);
++            Modified = true;
++            StoreInsn = nullptr;
++            NumAdded++;
++          }
++        }
++        if (LastHIQIStore) {
++          DebugLoc dl = LastHIQIStore->getDebugLoc();
++          const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++          BuildMI(*LastHIQIStore->getParent(),
++                  std::next(LastHIQIStore->getIterator()), dl, NewMCID);
++          LastHIQIStore = nullptr;
++          Modified = true;
++          NumAdded++;
++        }
++        break;
++      case Xtensa::SSI:
++      case Xtensa::S32I_N:
++      case Xtensa::S32I: {
++        LastHIQIStore = nullptr;
++        StoreInsn = MI;
++      } break;
++      case Xtensa::S16I:
++      case Xtensa::S8I: {
++        MachineMemOperand *MMO = *MII->memoperands_begin();
++        if (!MMO->isVolatile()) {
++          LastHIQIStore = MI;
++        }
++        StoreInsn = MI;
++      } break;
++      }
++    }
++  }
++  return Modified;
++}
++
++bool createXtensaPSRAMCacheFix::xtensaInsertMemwReorg(MachineFunction &MF) {
++  MachineFunction::iterator I = MF.begin(), E = MF.end();
++  bool Modified = false;
++  bool HadMemw = false;
++
++  for (; I != E; ++I) {
++    MachineBasicBlock &MBB = *I;
++
++    MachineBasicBlock::instr_iterator MII = MBB.instr_begin(),
++                                      MIE = MBB.instr_end();
++    MachineBasicBlock::instr_iterator NextMII;
++
++    // Iterate through the instructions in the basic block
++    for (; MII != MIE; MII = NextMII) {
++      NextMII = std::next(MII);
++      MachineInstr *MI = &*MII;
++      unsigned Opcode = MI->getOpcode();
++
++      // Don't process bundled instructions or pseudo operations
++      if (MI->isBundle() || MI->isTransient())
++        continue;
++
++      switch (Opcode) {
++      case Xtensa::LSI:
++      case Xtensa::L32I_N:
++      case Xtensa::L32I:
++      case Xtensa::L16SI:
++      case Xtensa::L16UI:
++      case Xtensa::L8UI: {
++        MachineMemOperand *MMO = *MII->memoperands_begin();
++        if (!MMO->isVolatile() && (!HadMemw)) {
++          DebugLoc dl = MII->getDebugLoc();
++          const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++          BuildMI(MBB, MII, dl, NewMCID);
++          Modified = true;
++          NumAdded++;
++        }
++        HadMemw = false;
++      } break;
++      case Xtensa::SSI:
++      case Xtensa::S32I_N:
++      case Xtensa::S32I:
++      case Xtensa::S16I:
++      case Xtensa::S8I: {
++        MachineMemOperand *MMO = *MII->memoperands_begin();
++        if (!MMO->isVolatile()) {
++          DebugLoc dl = MII->getDebugLoc();
++          const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++          BuildMI(MBB, NextMII, dl, NewMCID);
++          Modified = true;
++          NumAdded++;
++        }
++        HadMemw = true;
++      } break;
++      default:
++        HadMemw = false;
++        break;
++      }
++    }
++  }
++  return Modified;
++}
++
++bool createXtensaPSRAMCacheFix::runOnMachineFunction(MachineFunction &MF) {
++
++  Subtarget = &static_cast<const XtensaSubtarget &>(MF.getSubtarget());
++  XtensaII = static_cast<const XtensaInstrInfo *>(Subtarget->getInstrInfo());
++  bool Modified = false;
++
++  if (AlwaysMembarrier)
++    return xtensaInsertMemwReorg(MF);
++
++  if (!FixESP32PSRAMCacheIssue)
++    return false;
++
++  if (ESP32PSRAMFixStrat == ESP32_PSRAM_FIX_MEMW) {
++    Modified = xtensaPSRAMCacheFixMemwReorg(MF);
++  } else if (ESP32PSRAMFixStrat == ESP32_PSRAM_FIX_NOPS) {
++    Modified = xtensaPSRAMCacheFixNopReorg(MF);
++  }
++
++  return Modified;
++}
++
++FunctionPass *llvm::createXtensaPSRAMCacheFixPass() {
++  return new createXtensaPSRAMCacheFix();
++}
++
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+index a6c7716214d5..51fe73ce220a 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+@@ -129,6 +129,7 @@ void XtensaPassConfig::addPreRegAlloc() {
+ }
+ 
+ void XtensaPassConfig::addPreEmitPass() {
++  addPass(createXtensaPSRAMCacheFixPass());
+   addPass(createXtensaSizeReductionPass());
+   addPass(createXtensaFixupHwLoops());
+   addPass(&BranchRelaxationPassID);
+diff --git a/llvm/test/CodeGen/Xtensa/psram_memw.ll b/llvm/test/CodeGen/Xtensa/psram_memw.ll
+new file mode 100644
+index 000000000000..f10417ec779e
+--- /dev/null
++++ b/llvm/test/CodeGen/Xtensa/psram_memw.ll
+@@ -0,0 +1,50 @@
++; RUN: llc -O1 -mtriple=xtensa -mcpu=esp32 -mfix-esp32-psram-cache-issue  -mfix-esp32-psram-cache-strategy=memw %s -o - | FileCheck %s
++
++@a = dso_local local_unnamed_addr global i32 0, align 4
++@b = dso_local local_unnamed_addr global i32 0, align 4
++
++; Function Attrs: nofree norecurse nounwind
++define dso_local void @f(i32 %a1.coerce, i32 %a2.coerce, i32 %a3.coerce, i32 %a4.coerce, i32 %cond) local_unnamed_addr #0 {
++entry:
++  %coerce.val.ip = inttoptr i32 %a1.coerce to i8*
++  %coerce.val.ip1 = inttoptr i32 %a2.coerce to i16*
++  %coerce.val.ip2 = inttoptr i32 %a3.coerce to i32*
++  %coerce.val.ip3 = inttoptr i32 %a4.coerce to i32*
++  %0 = load i32, i32* %coerce.val.ip2, align 4
++  %conv = trunc i32 %0 to i8
++  store i8 %conv, i8* %coerce.val.ip, align 1
++  %tobool.not = icmp eq i32 %cond, 0
++  br i1 %tobool.not, label %if.end, label %if.then
++; CHECK:	s8i	a8, a2, 0
++; CHECK:	memw
++
++if.then:                                          ; preds = %entry
++  %1 = load i32, i32* %coerce.val.ip2, align 4
++  %conv8 = trunc i32 %1 to i16
++  store i16 %conv8, i16* %coerce.val.ip1, align 2
++  %2 = load i32, i32* %coerce.val.ip3, align 4
++  store i32 %2, i32* %coerce.val.ip2, align 4
++  %conv10 = trunc i32 %2 to i8
++  store i8 %conv10, i8* %coerce.val.ip, align 1
++  br label %return
++; CHECK:	l32i.n	a8, a4, 0
++; CHECK:	s16i	a8, a3, 0
++; CHECK:	memw
++; CHECK:	memw
++; CHECK:	l32i.n	a8, a5, 0
++; CHECK:	s32i.n	a8, a4, 0
++; CHECK:	s8i	a8, a2, 0
++; CHECK:	memw
++
++if.end:                                           ; preds = %entry
++  %3 = load i32, i32* %coerce.val.ip3, align 4
++  %conv9 = trunc i32 %3 to i16
++  store i16 %conv9, i16* %coerce.val.ip1, align 2
++  br label %return
++; CHECK:		l32i.n	a8, a5, 0
++; CHECK:		s16i	a8, a3, 0
++; CHECK:		memw
++
++return:                                           ; preds = %if.then, %if.end
++  ret void
++}
+diff --git a/llvm/test/CodeGen/Xtensa/psram_nops.ll b/llvm/test/CodeGen/Xtensa/psram_nops.ll
+new file mode 100644
+index 000000000000..ece7d6f6432c
+--- /dev/null
++++ b/llvm/test/CodeGen/Xtensa/psram_nops.ll
+@@ -0,0 +1,60 @@
++; RUN: llc -O1 -mtriple=xtensa -mcpu=esp32 -mfix-esp32-psram-cache-issue  -mfix-esp32-psram-cache-strategy=nops %s -o - | FileCheck %s
++
++@a = dso_local local_unnamed_addr global i32 0, align 4
++@b = dso_local local_unnamed_addr global i32 0, align 4
++
++; Function Attrs: nofree norecurse nounwind
++define dso_local void @f(i32 %a1.coerce, i32 %a2.coerce, i32 %a3.coerce, i32 %a4.coerce, i32 %cond) local_unnamed_addr #0 {
++entry:
++  %coerce.val.ip = inttoptr i32 %a1.coerce to i8*
++  %coerce.val.ip1 = inttoptr i32 %a2.coerce to i16*
++  %coerce.val.ip2 = inttoptr i32 %a3.coerce to i32*
++  %coerce.val.ip3 = inttoptr i32 %a4.coerce to i32*
++  %0 = load i32, i32* %coerce.val.ip2, align 4
++  %conv = trunc i32 %0 to i8
++  store i8 %conv, i8* %coerce.val.ip, align 1
++  %tobool.not = icmp eq i32 %cond, 0
++  br i1 %tobool.not, label %if.end, label %if.then
++; CHECK:	l32i.n	a8, a4, 0
++; CHECK:	memw
++; CHECK:	s8i	a8, a2, 0
++
++
++if.then:                                          ; preds = %entry
++  %1 = load i32, i32* %coerce.val.ip2, align 4
++  %conv8 = trunc i32 %1 to i16
++  store i16 %conv8, i16* %coerce.val.ip1, align 2
++  %2 = load i32, i32* %coerce.val.ip3, align 4
++  store i32 %2, i32* %coerce.val.ip2, align 4
++  %conv10 = trunc i32 %2 to i8
++  store i8 %conv10, i8* %coerce.val.ip, align 1
++  br label %return
++; CHECK:	nop
++; CHECK:	nop
++; CHECK:	nop
++; CHECK:	nop
++; CHECK:	l32i.n	a8, a4, 0
++; CHECK:	s16i	a8, a3, 0
++; CHECK:	memw
++; CHECK:	nop
++; CHECK:	nop
++; CHECK:	nop
++; CHECK:	nop
++; CHECK:	l32i.n	a8, a5, 0
++; CHECK:	s32i.n	a8, a4, 0
++; CHECK:	memw
++; CHECK:	s8i	a8, a2, 0
++
++if.end:                                           ; preds = %entry
++  %3 = load i32, i32* %coerce.val.ip3, align 4
++  %conv9 = trunc i32 %3 to i16
++  store i16 %conv9, i16* %coerce.val.ip1, align 2
++  br label %return
++; CHECK:	l32i.n	a8, a5, 0
++; CHECK:	memw
++; CHECK:	s16i	a8, a3, 0
++
++
++return:                                           ; preds = %if.then, %if.end
++  ret void
++}
+-- 
+2.40.1
+

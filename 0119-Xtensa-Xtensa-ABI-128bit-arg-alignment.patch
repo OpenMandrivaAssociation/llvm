@@ -1,0 +1,71 @@
+From 89c81d04955cc8f3dc17da28387a5c600734262d Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:37 +0300
+Subject: [PATCH 119/140] [Xtensa] Xtensa ABI 128bit arg alignment
+
+- Forces 128bit arguments to have 128bit alignment as per the Xtensa ABI
+  in LLVM & Clang.
+- Adds a check in the Xtensa calling convention to ensure 128bit aligned
+  arguments are always passed as the first argument _or_ passed via the
+  stack.
+---
+ clang/lib/Basic/Targets/Xtensa.h               | 2 +-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp  | 9 +++++++--
+ llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp | 2 +-
+ 3 files changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/clang/lib/Basic/Targets/Xtensa.h b/clang/lib/Basic/Targets/Xtensa.h
+index d58aa0e06949..609e5aae435c 100644
+--- a/clang/lib/Basic/Targets/Xtensa.h
++++ b/clang/lib/Basic/Targets/Xtensa.h
+@@ -50,7 +50,7 @@ public:
+     WIntType = UnsignedInt;
+     UseZeroLengthBitfieldAlignment = true;
+     MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 32;
+-    resetDataLayout("e-m:e-p:32:32-i8:8:32-i16:16:32-i64:64-n32");
++    resetDataLayout("e-m:e-p:32:32-i8:8:32-i16:16:32-i64:64-i128:128-n32");
+   }
+ 
+   void getTargetDefines(const LangOptions &Opts,
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 778268c3699c..5d7c5d3cdf8b 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -755,14 +755,19 @@ static bool CC_Xtensa_Custom(unsigned ValNo, MVT ValVT, MVT LocVT,
+   unsigned Reg;
+ 
+   Align OrigAlign = ArgFlags.getNonZeroOrigAlign();
+-  bool isI64 = (ValVT == MVT::i32 && OrigAlign == Align(8));
++  bool needs64BitAlign = (ValVT == MVT::i32 && OrigAlign == Align(8));
++  bool needs128BitAlign = (ValVT == MVT::i32 && OrigAlign == Align(16));
+ 
+   if (ValVT == MVT::i32 || ValVT == MVT::f32) {
+     Reg = State.AllocateReg(IntRegs);
+     // If this is the first part of an i64 arg,
+     // the allocated register must be either A2, A4 or A6.
+-    if (isI64 && (Reg == Xtensa::A3 || Reg == Xtensa::A5 || Reg == Xtensa::A7))
++    if (needs64BitAlign && (Reg == Xtensa::A3 || Reg == Xtensa::A5 || Reg == Xtensa::A7))
+       Reg = State.AllocateReg(IntRegs);
++    // arguments with 16byte alignment must be passed in the first register or passed via stack
++    if (needs128BitAlign && Reg != Xtensa::A2)
++      while ( (Reg = State.AllocateReg(IntRegs)) ) {
++      }
+     LocVT = MVT::i32;
+   } else if (ValVT == MVT::f64) {
+     // Allocate int register and shadow next int register.
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+index 5dd3d6b32dac..e2df87486caf 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+@@ -36,7 +36,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTarget() {
+ static std::string computeDataLayout(const Triple &TT, StringRef CPU,
+                                      const TargetOptions &Options,
+                                      bool IsLittle) {
+-  std::string Ret = "e-m:e-p:32:32-i8:8:32-i16:16:32-i64:64-n32";
++  std::string Ret = "e-m:e-p:32:32-i8:8:32-i16:16:32-i64:64-i128:128-n32";
+   return Ret;
+ }
+ 
+-- 
+2.40.1
+

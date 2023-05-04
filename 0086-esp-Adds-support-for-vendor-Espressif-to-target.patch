@@ -1,0 +1,292 @@
+From 4b7aa3e1855a4cf969256f07915ce25b9b72ccac Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:21 +0300
+Subject: [PATCH 086/140] esp: Adds support for vendor 'Espressif' to target
+
+ triple
+---
+ clang/lib/Driver/ToolChains/Gnu.cpp           |   3 +-
+ clang/lib/Driver/ToolChains/Xtensa.cpp        |  14 ++-
+ .../bin/xtensa-esp32s2-elf-ld                 |   1 +
+ .../bin/xtensa-esp32s3-elf-ld                 |   1 +
+ .../gcc/xtensa-esp32s2-elf/8.4.0/crtbegin.o   |   0
+ .../lib/gcc/xtensa-esp32s2-elf/8.4.0/crtend.o |   0
+ .../8.4.0/no-rtti/crtbegin.o                  |   0
+ .../xtensa-esp32s2-elf/8.4.0/no-rtti/crtend.o |   0
+ .../gcc/xtensa-esp32s3-elf/8.4.0/crtbegin.o   |   0
+ .../lib/gcc/xtensa-esp32s3-elf/8.4.0/crtend.o |   0
+ .../8.4.0/no-rtti/crtbegin.o                  |   0
+ .../xtensa-esp32s3-elf/8.4.0/no-rtti/crtend.o |   0
+ .../xtensa-esp32s2-elf/lib/crt0.o             |   0
+ .../xtensa-esp32s2-elf/lib/no-rtti/crt0.o     |   0
+ .../xtensa-esp32s3-elf/lib/crt0.o             |   0
+ .../xtensa-esp32s3-elf/lib/no-rtti/crt0.o     |   0
+ clang/test/Driver/xtensa-toolchain.c          | 105 +++++++++++++-----
+ llvm/include/llvm/TargetParser/Triple.h       |   1 +
+ llvm/lib/TargetParser/Triple.cpp              |   2 +
+ 19 files changed, 97 insertions(+), 30 deletions(-)
+ create mode 100755 clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld
+ create mode 100755 clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/crt0.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/no-rtti/crt0.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/crt0.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/no-rtti/crt0.o
+
+diff --git a/clang/lib/Driver/ToolChains/Gnu.cpp b/clang/lib/Driver/ToolChains/Gnu.cpp
+index 21ee62e94ecb..2aec52a41bed 100644
+--- a/clang/lib/Driver/ToolChains/Gnu.cpp
++++ b/clang/lib/Driver/ToolChains/Gnu.cpp
+@@ -2376,8 +2376,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
+ 
+   static const char *const XtensaLibDirs[] = {"/lib"};
+   static const char *const XtensaTriples[] = {
+-      "xtensa-unknown-elf", "xtensa-esp32-elf", "xtensa-esp32s2-elf",
+-      "xtensa-esp32s3-elf"};
++      "xtensa-esp-elf", "xtensa-esp-unknown-elf"};
+ 
+   using std::begin;
+   using std::end;
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index 87d569e9cde0..5f6b959af309 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -36,8 +36,20 @@ XtensaToolChain::XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
+                                  const ArgList &Args)
+     : Generic_ELF(D, Triple, Args) {
+ 
+-  GCCInstallation.init(Triple, Args);
++  std::vector<std::string> ExtraAliases;
+ 
++  if (Triple.getVendor() == llvm::Triple::Espressif) {
++    std::string ESPCpuName = "esp32";
++    if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
++      ESPCpuName = A->getValue();
++    }
++    ExtraAliases = {std::string("xtensa-") + ESPCpuName + "-elf"};
++    if (Args.hasArg(options::OPT_v)) {
++      llvm::errs() << "Use GCC target extra alias: " << ExtraAliases[0] << "\n";
++    }
++  }
++
++  GCCInstallation.init(Triple, Args, ExtraAliases);
+   if (!GCCInstallation.isValid()) {
+     llvm_unreachable("Unexpected Xtensa GCC toolchain version");
+   }
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld b/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld
+new file mode 100755
+index 000000000000..b23e55619b2f
+--- /dev/null
++++ b/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld
+@@ -0,0 +1 @@
++#!/bin/true
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld b/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld
+new file mode 100755
+index 000000000000..b23e55619b2f
+--- /dev/null
++++ b/clang/test/Driver/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld
+@@ -0,0 +1 @@
++#!/bin/true
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/no-rtti/crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/no-rtti/crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/crt0.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/crt0.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/no-rtti/crt0.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf/lib/no-rtti/crt0.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/crt0.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/crt0.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/no-rtti/crt0.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf/lib/no-rtti/crt0.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/xtensa-toolchain.c b/clang/test/Driver/xtensa-toolchain.c
+index 0570c1d0f0b5..aa753abcf636 100644
+--- a/clang/test/Driver/xtensa-toolchain.c
++++ b/clang/test/Driver/xtensa-toolchain.c
+@@ -1,42 +1,93 @@
+ // A basic clang -cc1 command-line, and simple environment check.
+ 
+-// RUN: %clang %s -### -no-canonical-prefixes -target xtensa \
++// RUN: %clang %s -### -no-canonical-prefixes -target xtensa-esp-elf \
+ // RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree 2>&1 \
+-// RUN:   | FileCheck -check-prefix=CC1 %s
+-// CC1: clang{{.*}} "-cc1" "-triple" "xtensa"
++// RUN:   | FileCheck -check-prefix=CC1-ESP-DEFAULT %s
++// CC1-ESP-DEFAULT: clang{{.*}} "-cc1" "-triple" "xtensa-esp-unknown-elf"
+ 
+-// RUN: %clang %s -### -no-canonical-prefixes \
+-// RUN:   -target xtensa --rtlib=platform \
++// RUN: %clang %s -### -no-canonical-prefixes -target xtensa-esp-elf -mcpu=esp32\
+ // RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree 2>&1 \
+-// RUN:   | FileCheck -check-prefix=C-XTENSA-BAREMETAL %s
++// RUN:   | FileCheck -check-prefix=CC1-ESP32 %s
++// CC1-ESP32: clang{{.*}} "-cc1" "-triple" "xtensa-esp-unknown-elf" {{.*}}"-target-cpu" "esp32"
+ 
+-// C-XTENSA-BAREMETAL: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
+-// C-XTENSA-BAREMETAL: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0/no-rtti"
+-// C-XTENSA-BAREMETAL: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib/no-rtti"
++// RUN: %clang %s -### -no-canonical-prefixes -target xtensa-esp-elf -mcpu=esp32s2\
++// RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree 2>&1 \
++// RUN:   | FileCheck -check-prefix=CC1-ESP32S2 %s
++// CC1-ESP32S2: clang{{.*}} "-cc1" "-triple" "xtensa-esp-unknown-elf" {{.*}}"-target-cpu" "esp32s2"
++
++// RUN: %clang %s -### -no-canonical-prefixes -target xtensa-esp-elf -mcpu=esp32s3\
++// RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree 2>&1 \
++// RUN:   | FileCheck -check-prefix=CC1-ESP32S3 %s
++// CC1-ESP32S3: clang{{.*}} "-cc1" "-triple" "xtensa-esp-unknown-elf" {{.*}}"-target-cpu" "esp32s3"
++
++// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN:   -target xtensa-esp-elf --rtlib=platform \
++// RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree 2>&1 \
++// RUN:   | FileCheck -check-prefix=C-XTENSA-ESP32-BAREMETAL %s
+ 
+-// RUN: %clang %s -### -no-canonical-prefixes \
+-// RUN:   -target xtensa --rtlib=platform \
++// C-XTENSA-ESP32-BAREMETAL: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
++// C-XTENSA-ESP32-BAREMETAL: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0/no-rtti"
++// C-XTENSA-ESP32-BAREMETAL: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib/no-rtti"
++
++// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN:   -target xtensa-esp-elf --rtlib=platform \
+ // RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree -frtti 2>&1 \
+-// RUN:   | FileCheck -check-prefix=C-XTENSA-BAREMETAL-RTTI %s
++// RUN:   | FileCheck -check-prefix=C-XTENSA-ESP32-BAREMETAL-RTTI %s
+ 
+-// C-XTENSA-BAREMETAL-RTTI: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
+-// C-XTENSA-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0"
+-// C-XTENSA-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib"
++// C-XTENSA-ESP32-BAREMETAL-RTTI: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
++// C-XTENSA-ESP32-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0"
++// C-XTENSA-ESP32-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib"
+ 
+-// RUN: %clang %s -### -no-canonical-prefixes \
+-// RUN:   -target xtensa --rtlib=platform \
++// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN:   -target xtensa-esp-elf --rtlib=platform \
+ // RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree -mfix-esp32-psram-cache-issue 2>&1 \
+-// RUN:   | FileCheck -check-prefix=C-XTENSA-BAREMETAL-PSRAM %s
++// RUN:   | FileCheck -check-prefix=C-XTENSA-ESP32-BAREMETAL-PSRAM %s
+ 
+-// C-XTENSA-BAREMETAL-PSRAM: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
+-// C-XTENSA-BAREMETAL-PSRAM: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0/esp32-psram/no-rtti"
+-// C-XTENSA-BAREMETAL-PSRAM: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib/esp32-psram/no-rtti"
++// C-XTENSA-ESP32-BAREMETAL-PSRAM: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
++// C-XTENSA-ESP32-BAREMETAL-PSRAM: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0/esp32-psram/no-rtti"
++// C-XTENSA-ESP32-BAREMETAL-PSRAM: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib/esp32-psram/no-rtti"
+ 
+-// RUN: %clang %s -### -no-canonical-prefixes \
+-// RUN:   -target xtensa --rtlib=platform \
++// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN:   -target xtensa-esp-elf --rtlib=platform \
+ // RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree -mfix-esp32-psram-cache-issue -frtti 2>&1 \
+-// RUN:   | FileCheck -check-prefix=C-XTENSA-BAREMETAL-PSRAM-RTTI %s
++// RUN:   | FileCheck -check-prefix=C-XTENSA-ESP32-BAREMETAL-PSRAM-RTTI %s
++
++// C-XTENSA-ESP32-BAREMETAL-PSRAM-RTTI: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
++// C-XTENSA-ESP32-BAREMETAL-PSRAM-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0/esp32-psram"
++// C-XTENSA-ESP32-BAREMETAL-PSRAM-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib/esp32-psram"
++
++// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN:   -target xtensa-esp-elf -mcpu=esp32s2 --rtlib=platform \
++// RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree 2>&1 \
++// RUN:   | FileCheck -check-prefix=C-XTENSA-ESP32S2-BAREMETAL %s
++
++// C-XTENSA-ESP32S2-BAREMETAL: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32s2-elf-ld"
++// C-XTENSA-ESP32S2-BAREMETAL: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32s2-elf{{/|\\\\}}8.4.0/no-rtti"
++// C-XTENSA-ESP32S2-BAREMETAL: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32s2-elf{{/|\\\\}}lib/no-rtti"
++
++// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN:   -target xtensa-esp-elf -mcpu=esp32s2 --rtlib=platform \
++// RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree -frtti 2>&1 \
++// RUN:   | FileCheck -check-prefix=C-XTENSA-ESP32S2-BAREMETAL-RTTI %s
++
++// C-XTENSA-ESP32S2-BAREMETAL-RTTI: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32s2-elf-ld"
++// C-XTENSA-ESP32S2-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32s2-elf{{/|\\\\}}8.4.0"
++// C-XTENSA-ESP32S2-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32s2-elf{{/|\\\\}}lib"
++
++// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN:   -target xtensa-esp-elf -mcpu=esp32s3 --rtlib=platform \
++// RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree 2>&1 \
++// RUN:   | FileCheck -check-prefix=C-XTENSA-ESP32S3-BAREMETAL %s
++
++// C-XTENSA-ESP32S3-BAREMETAL: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32s3-elf-ld"
++// C-XTENSA-ESP32S3-BAREMETAL: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32s3-elf{{/|\\\\}}8.4.0/no-rtti"
++// C-XTENSA-ESP32S3-BAREMETAL: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32s3-elf{{/|\\\\}}lib/no-rtti"
++
++// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
++// RUN:   -target xtensa-esp-elf -mcpu=esp32s3 --rtlib=platform \
++// RUN:   --gcc-toolchain=%S/Inputs/multilib_xtensa_tree -frtti 2>&1 \
++// RUN:   | FileCheck -check-prefix=C-XTENSA-ESP32S3-BAREMETAL-RTTI %s
+ 
+-// C-XTENSA-BAREMETAL-PSRAM-RTTI: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
+-// C-XTENSA-BAREMETAL-PSRAM-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}8.4.0/esp32-psram"
+-// C-XTENSA-BAREMETAL-PSRAM-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32-elf{{/|\\\\}}lib/esp32-psram"
++// C-XTENSA-ESP32S3-BAREMETAL-RTTI: "{{.*}}Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32s3-elf-ld"
++// C-XTENSA-ESP32S3-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}lib{{/|\\\\}}gcc{{/|\\\\}}xtensa-esp32s3-elf{{/|\\\\}}8.4.0"
++// C-XTENSA-ESP32S3-BAREMETAL-RTTI: "-L{{.*}}/Inputs/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}xtensa-esp32s3-elf{{/|\\\\}}lib"
+diff --git a/llvm/include/llvm/TargetParser/Triple.h b/llvm/include/llvm/TargetParser/Triple.h
+index 59513fa2f206..49f513f434d3 100644
+--- a/llvm/include/llvm/TargetParser/Triple.h
++++ b/llvm/include/llvm/TargetParser/Triple.h
+@@ -180,6 +180,7 @@ public:
+     Mesa,
+     SUSE,
+     OpenEmbedded,
++    Espressif,
+     LastVendorType = OpenEmbedded
+   };
+   enum OSType {
+diff --git a/llvm/lib/TargetParser/Triple.cpp b/llvm/lib/TargetParser/Triple.cpp
+index a68035989a93..bcb015095e50 100644
+--- a/llvm/lib/TargetParser/Triple.cpp
++++ b/llvm/lib/TargetParser/Triple.cpp
+@@ -196,6 +196,7 @@ StringRef Triple::getVendorTypeName(VendorType Kind) {
+   case PC: return "pc";
+   case SCEI: return "scei";
+   case SUSE: return "suse";
++  case Espressif: return "esp";
+   }
+ 
+   llvm_unreachable("Invalid VendorType!");
+@@ -552,6 +553,7 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
+     .Case("mesa", Triple::Mesa)
+     .Case("suse", Triple::SUSE)
+     .Case("oe", Triple::OpenEmbedded)
++    .Case("esp", Triple::Espressif)
+     .Default(Triple::UnknownVendor);
+ }
+ 
+-- 
+2.40.1
+

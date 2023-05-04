@@ -1,0 +1,606 @@
+From cb2c4f98f300db020c14ac8f0a660c9bd4f1c520 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:05 +0300
+Subject: [PATCH 055/140] [Xtensa] Implement rest part of FP instructions.
+
+Add FP instructions test, format FP instruction descriptions.
+---
+ .../MCTargetDesc/XtensaMCCodeEmitter.cpp      |   6 +-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp |  10 +-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp    |   4 +-
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     | 263 ++++++++++++------
+ llvm/test/MC/Xtensa/xtensa-valid-float.s      | 178 ++++++++++++
+ 5 files changed, 366 insertions(+), 95 deletions(-)
+ create mode 100644 llvm/test/MC/Xtensa/xtensa-valid-float.s
+
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+index c204e0866e44..8d30edafb54a 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaMCCodeEmitter.cpp
+@@ -280,8 +280,10 @@ XtensaMCCodeEmitter::getMemRegEncoding(const MCInst &MI, unsigned OpNo,
+   case Xtensa::L32I:
+   case Xtensa::S32I_N:
+   case Xtensa::L32I_N:
+-  case Xtensa::S32F:
+-  case Xtensa::L32F:
++  case Xtensa::SSI:
++  case Xtensa::SSIP:
++  case Xtensa::LSI:
++  case Xtensa::LSIP:
+   case Xtensa::S32C1I:
+     if (Res & 0x3) {
+       report_fatal_error("Unexpected operand value!");
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index a45cb71ad11c..73a56363493a 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -3185,13 +3185,19 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
+   case Xtensa::S16I:
+   case Xtensa::S32I:
+   case Xtensa::S32I_N:
+-  case Xtensa::S32F:
++  case Xtensa::SSI:
++  case Xtensa::SSIP:
++  case Xtensa::SSX:
++  case Xtensa::SSXP:
+   case Xtensa::L8UI:
+   case Xtensa::L16SI:
+   case Xtensa::L16UI:
+   case Xtensa::L32I:
+   case Xtensa::L32I_N:
+-  case Xtensa::L32F: {
++  case Xtensa::LSI:
++  case Xtensa::LSIP:
++  case Xtensa::LSX:
++  case Xtensa::LSXP: {
+     const MachineMemOperand &MMO = **MI.memoperands_begin();
+     if (MMO.isVolatile()) {
+       BuildMI(*MBB, MI, DL, TII.get(Xtensa::MEMW));
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+index e957609c337d..6aea91163420 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp
+@@ -146,8 +146,8 @@ void XtensaInstrInfo::getLoadStoreOpcodes(const TargetRegisterClass *RC,
+     LoadOpcode = Xtensa::L32I;
+     StoreOpcode = Xtensa::S32I;
+   } else if (RC == &Xtensa::FPRRegClass) {
+-    LoadOpcode = Xtensa::L32F;
+-    StoreOpcode = Xtensa::S32F;
++    LoadOpcode = Xtensa::LSI;
++    StoreOpcode = Xtensa::SSI;
+   } else
+     llvm_unreachable("Unsupported regclass to load or store");
+ }
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index 38e8fac327cb..743d1c4a7573 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -962,85 +962,63 @@ def ADD_S : FPArith_RRR<0x00, 0x0A, "add.s", fadd, 1>;
+ def SUB_S : FPArith_RRR<0x01, 0x0A, "sub.s", fsub>;
+ def MUL_S : FPArith_RRR<0x02, 0x0A, "mul.s", fmul, 1>;
+ 
+-def ABS_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+-                    "abs.s\t$r, $s",
+-                    [(set FPR:$r, (fabs FPR:$s))]> {
+-  let t = 0x01;
+-}
+-
+-def NEG_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+-                    "neg.s\t$r, $s",
+-                    [(set FPR:$r, (fneg FPR:$s))]> {
+-  let t = 0x06;
+-}
++// FP load instructions
++let mayLoad = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
++  def LSI : RRI8_Inst<0x03, (outs FPR:$t), (ins mem32:$addr),
++                     "lsi\t$t, $addr", []> {
++    bits<12> addr;
+ 
+-def TRUNC_S : RRR_Inst<0x00, 0x0A, 0x09, (outs AR:$r), (ins FPR:$s),
+-                      "trunc.s\t$r, $s, 0",
+-                      [(set AR:$r, (fp_to_sint FPR:$s))]> {
+-  let t = 0x00;
+-}
++    let r = 0x00;
++    let imm8{7-0} = addr{11-4};
++    let s{3-0} = addr{3-0};
++  }
+ 
+-def UTRUNC_S : RRR_Inst<0x00, 0x0A, 0x0e, (outs AR:$r), (ins FPR:$s),
+-                       "utrunc.s\t$r, $s, 0",
+-                       [(set AR:$r, (fp_to_uint FPR:$s))]> {
+-  let t = 0x00;
+-}
++  def LSIP : RRI8_Inst<0x03, (outs FPR:$t), (ins mem32:$addr),
++                      "lsip\t$t, $addr", []> {
++    bits<12> addr;
+ 
+-def FLOAT_S : RRR_Inst<0x00, 0x0A, 0x0c, (outs FPR:$r), (ins AR:$s),
+-                      "float.s\t$r, $s, 0",
+-                      [(set FPR:$r, (sint_to_fp AR:$s))]> {
+-  let t = 0x00;
+-}
++    let r = 0x08;
++    let imm8{7-0} = addr{11-4};
++    let s{3-0} = addr{3-0};
++  }
+ 
+-def UFLOAT_S : RRR_Inst<0x00, 0x0A, 0x0D, (outs FPR:$r), (ins AR:$s),
+-                       "ufloat.s\t$r, $s, 0",
+-                       [(set FPR:$r, (uint_to_fp AR:$s))]> {
+-  let t = 0x00;
+-}
++  def LSX : RRR_Inst<0x00, 0x08, 0x00, (outs), (ins FPR:$r, AR:$s, AR:$t),
++                    "lsx\t$r, $s, $t", []>;
+ 
+-def RFR : RRR_Inst<0x00, 0x0A, 0x0f, (outs AR:$r), (ins FPR:$s),
+-                  "rfr\t$r, $s",
+-                  [(set AR:$r, (bitconvert FPR:$s))]> {
+-  let t = 0x04;
++  def LSXP : RRR_Inst<0x00, 0x08, 0x01, (outs), (ins FPR:$r, AR:$s, AR:$t),
++                     "lsxp\t$r, $s, $t", []>;
+ }
+ 
+-def WFR : RRR_Inst<0x00, 0x0A, 0x0f, (outs FPR:$r), (ins AR:$s),
+-                  "wfr\t$r, $s",
+-                  [(set FPR:$r, (bitconvert AR:$s))]> {
+-  let t = 0x05;
+-}
++def : Pat<(f32 (load addr_ish4:$addr)), (f32 (LSI mem32:$addr))>;
+ 
+-// FP load instructions
+-let mayLoad = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
+-  class LoadF_RRI8<bits<4> oper, string instrAsm, SDPatternOperator opNode,
+-                  ComplexPattern addrOp,Operand memOp>: RRI8_Inst<0x03, (outs FPR:$t), (ins memOp:$addr),
+-                   instrAsm#"\t$t, $addr",
+-                  [(set FPR:$t, (opNode addrOp:$addr))]> {
++// FP store instructions
++let mayStore = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
++  def SSI : RRI8_Inst<0x03, (outs), (ins FPR:$t, mem32:$addr),
++                     "ssi\t$t, $addr", []> {
+     bits<12> addr;
+ 
+-    let r = oper;
++    let r = 0x04;
+     let imm8{7-0} = addr{11-4};
+     let s{3-0} = addr{3-0};
+   }
+-}
+-
+-def L32F : LoadF_RRI8<0x00, "lsi", load, addr_ish4, mem32>, Requires<[]>;
+ 
+-// FP store instructions
+-let mayStore = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
+-  class StoreF_RRI8<bits<4> oper, string instrAsm, SDPatternOperator opNode,
+-                   ComplexPattern addrOp, Operand memOp>: RRI8_Inst<0x03, (outs), (ins FPR:$t, memOp:$addr),
+-                    instrAsm#"\t$t, $addr",
+-                   [(opNode FPR:$t, addrOp:$addr)]> {
++  def SSIP : RRI8_Inst<0x03, (outs), (ins FPR:$t, mem32:$addr),
++                      "ssip\t$t, $addr", []> {
+     bits<12> addr;
+ 
+-    let r = oper;
++    let r = 0x0C;
+     let imm8{7-0} = addr{11-4};
+     let s{3-0} = addr{3-0};
+   }
++
++  def SSX: RRR_Inst<0x00, 0x08, 0x04, (outs), (ins FPR:$r, AR:$s, AR:$t),
++                   "ssx\t$r, $s, $t", []>;
++
++  def SSXP: RRR_Inst<0x00, 0x08, 0x05, (outs), (ins FPR:$r, AR:$s, AR:$t),
++                    "ssxp\t$r, $s, $t", []>;
+ }
+ 
+-def S32F : StoreF_RRI8<0x04, "ssi", store, addr_ish4, mem32>;
++def : Pat<(store FPR:$t, addr_ish4:$addr), (SSI FPR:$t, mem32:$addr)>;
+ 
+ // FP compare instructions
+ let isCompare = 1, Predicates = [HasSingleFloat] in {
+@@ -1064,31 +1042,27 @@ def ULT_S :  FCompare<0x05, 0x0b, "ult.s", Xtensa_cmpult, 0>;
+ def ULE_S :  FCompare<0x07, 0x0b, "ule.s", Xtensa_cmpule, 0>;
+ def UN_S  :  FCompare<0x01, 0x0b, "un.s",  Xtensa_cmpuo, 1>;
+ 
+-//FP complex operations
+-def MADD_S : RRR_Inst<0x00, 0x0A, 0x04, (outs FPR:$r), (ins FPR:$a, FPR:$s, FPR:$t),
+-                     "madd.s\t$r, $s, $t",
+-                     [(set FPR:$r, (Xtensa_madd FPR:$a, FPR:$s, FPR:$t))]>, 
+-                     Requires<[HasSingleFloat]> {
+-  let isCommutable = 0;
+-  let isReMaterializable = 0;
+-  let Constraints = "$r = $a";
++def ABS_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                    "abs.s\t$r, $s",
++                    [(set FPR:$r, (fabs FPR:$s))]> {
++  let t = 0x01;
+ }
+ 
+-def MSUB_S : RRR_Inst<0x00, 0x0A, 0x05, (outs FPR:$r), (ins FPR:$a, FPR:$s, FPR:$t),
+-                     "msub.s\t$r, $s, $t",
+-                     [(set FPR:$r, (Xtensa_msub FPR:$a, FPR:$s, FPR:$t))]>, 
+-                     Requires<[HasSingleFloat]> {
+-  let isCommutable = 0;
+-  let isReMaterializable = 0;
+-  let Constraints = "$r = $a";
++def ADDEXP_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                       "addexp.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x0E;
+ }
+ 
+-//FP move operations
+-def MOV_S : RRR_Inst<0x00, 0x0A, 0x0f, (outs FPR:$r), (ins FPR:$s),
+-                    "mov.s\t$r, $s",
+-                    [(set FPR:$r, (Xtensa_movs FPR:$s))]>, Requires<[HasSingleFloat]>
+-{
+-  let t = 0x00;
++def ADDEXPM_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                        "addexpm.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x0F;
++}
++
++def CEIL_S : RRR_Inst<0x00, 0x0A, 0x0B, (outs AR:$r), (ins FPR:$s, uimm4:$imm),
++                     "ceil.s\t$r, $s, $imm", []>, Requires<[HasSingleFloat]> {
++  bits<4> imm;
++
++  let t = imm;
+ }
+ 
+ def CONST_S : RRR_Inst<0x00, 0x0a, 0x0f, (outs FPR:$r), (ins uimm4:$imm),
+@@ -1104,11 +1078,40 @@ def DIV0_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+   let t = 0x7;
+ }
+ 
++def DIVN_S : RRR_Inst<0x00, 0x0A, 0x07, (outs FPR:$r), (ins FPR:$s, FPR:$t),
++                     "divn.s\t$r, $s, $t", []>, Requires<[HasSingleFloat]>;
++
++def FLOAT_S : RRR_Inst<0x00, 0x0A, 0x0c, (outs FPR:$r), (ins AR:$s, uimm4:$imm),
++                      "float.s\t$r, $s, $imm", []> {
++  bits<4> imm;
++
++  let t = imm;
++}
++
++def : Pat<(f32 (sint_to_fp AR:$s)), (FLOAT_S AR:$s, 0)>;
++
++def FLOOR_S : RRR_Inst<0x00, 0x0A, 0x0A, (outs AR:$r), (ins FPR:$s, uimm4:$imm),
++                      "floor.s\t$r, $s, $imm", []>, Requires<[HasSingleFloat]> {
++  bits<4> imm;
++
++  let t = imm;
++}
++
+ def MADDN_S : RRR_Inst<0x00, 0x0A, 0x06, (outs FPR:$r), (ins FPR:$s, FPR:$t),
+                       "maddn.s\t$r, $s, $t", []>, Requires<[HasSingleFloat]> {
+   let isCommutable = 0;
+ }
+ 
++// FP multipy-add
++def MADD_S : RRR_Inst<0x00, 0x0A, 0x04, (outs FPR:$r), (ins FPR:$a, FPR:$s, FPR:$t),
++                     "madd.s\t$r, $s, $t",
++                     [(set FPR:$r, (Xtensa_madd FPR:$a, FPR:$s, FPR:$t))]>, 
++                     Requires<[HasSingleFloat]> {
++  let isCommutable = 0;
++  let isReMaterializable = 0;
++  let Constraints = "$r = $a";
++}
++
+ def MKDADJ_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+                        "mkdadj.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
+   let t = 0x0D;
+@@ -1119,29 +1122,112 @@ def MKSADJ_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+   let t = 0x0C;
+ }
+ 
+-def ADDEXP_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+-                       "addexp.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
+-  let t = 0x0E;
++// FP move instructions
++def MOV_S : RRR_Inst<0x00, 0x0A, 0x0f, (outs FPR:$r), (ins FPR:$s),
++                    "mov.s\t$r, $s",
++                    [(set FPR:$r, (Xtensa_movs FPR:$s))]>, Requires<[HasSingleFloat]> {
++  let t = 0x00;
+ }
+ 
+-def ADDEXPM_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+-                        "addexpm.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
+-  let t = 0x0F;
+-}
++def MOVEQZ_S : RRR_Inst<0x00, 0x0B, 0x08, (outs FPR:$r), (ins FPR:$s, AR:$t),
++                       "moveqz.s\t$r, $s, $t", []>, Requires<[HasSingleFloat]>;
+ 
+-def DIVN_S : RRR_Inst<0x00, 0x0A, 0x07, (outs FPR:$r), (ins FPR:$s, FPR:$t),
+-                     "divn.s\t$r, $s, $t", []>, Requires<[HasSingleFloat]>;
++def MOVF_S   : RRR_Inst<0x00, 0x0B, 0x0C, (outs FPR:$r), (ins FPR:$s, BR:$t),
++                       "movf.s\t$r, $s, $t", []>, Requires<[HasBoolean, HasSingleFloat]>;
++
++def MOVGEZ_S : RRR_Inst<0x00, 0x0B, 0x0B, (outs FPR:$r), (ins FPR:$s, AR:$t),
++                       "movgez.s\t$r, $s, $t", []>, Requires<[HasSingleFloat]>;
++
++def MOVLTZ_S : RRR_Inst<0x00, 0x0B, 0x0A, (outs FPR:$r), (ins FPR:$s, AR:$t),
++                       "movltz.s\t$r, $s, $t", []>, Requires<[HasSingleFloat]>;
++
++def MOVNEZ_S : RRR_Inst<0x00, 0x0B, 0x09, (outs FPR:$r), (ins FPR:$s, AR:$t),
++                       "movnez.s\t$r, $s, $t", []>, Requires<[HasSingleFloat]>;
++
++def MOVT_S   : RRR_Inst<0x00, 0x0B, 0x0D, (outs FPR:$r), (ins FPR:$s, BR:$t),
++                       "movt.s\t$r, $s, $t", []>, Requires<[HasBoolean, HasSingleFloat]>;
++
++// FP multipy-sub
++def MSUB_S : RRR_Inst<0x00, 0x0A, 0x05, (outs FPR:$r), (ins FPR:$a, FPR:$s, FPR:$t),
++                     "msub.s\t$r, $s, $t",
++                     [(set FPR:$r, (Xtensa_msub FPR:$a, FPR:$s, FPR:$t))]>, Requires<[HasSingleFloat]> {
++  let isCommutable = 0;
++  let isReMaterializable = 0;
++  let Constraints = "$r = $a";
++}
+ 
+ def NEXP01_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+                        "nexp01.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
+   let t = 0x0B;
+ }
+ 
++def NEG_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                    "neg.s\t$r, $s",
++                    [(set FPR:$r, (fneg FPR:$s))]> {
++  let t = 0x06;
++}
++
++def RECIP0_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                       "recip0.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x08;
++}
++
++def RFR : RRR_Inst<0x00, 0x0A, 0x0f, (outs AR:$r), (ins FPR:$s),
++                  "rfr\t$r, $s",
++                  [(set AR:$r, (bitconvert FPR:$s))]> {
++  let t = 0x04;
++}
++
++def ROUND_S : RRR_Inst<0x00, 0x0A, 0x08, (outs AR:$r), (ins FPR:$s, uimm4:$imm),
++                      "round.s\t$r, $s, $imm", []>, Requires<[HasSingleFloat]> {
++  bits<4> imm;
++
++  let t = imm;
++}
++
++def RSQRT0_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
++                       "rsqrt0.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
++  let t = 0x0A;
++}
++
+ def SQRT0_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
+                       "sqrt0.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
+   let t = 0x09;
+ }
+ 
++def TRUNC_S : RRR_Inst<0x00, 0x0A, 0x09, (outs AR:$r), (ins FPR:$s, uimm4:$imm),
++                      "trunc.s\t$r, $s, $imm", []> {
++  bits<4> imm;
++
++  let t = imm;
++}
++
++def : Pat<(i32 (fp_to_sint FPR:$s)), (TRUNC_S FPR:$s, 0)>;
++
++def UFLOAT_S : RRR_Inst<0x00, 0x0A, 0x0D, (outs FPR:$r), (ins AR:$s, uimm4:$imm),
++                       "ufloat.s\t$r, $s, $imm", []> {
++  bits<4> imm;
++
++  let t = imm;
++}
++
++def : Pat<(f32 (uint_to_fp AR:$s)), (UFLOAT_S AR:$s, 0)>;
++
++def UTRUNC_S : RRR_Inst<0x00, 0x0A, 0x0e, (outs AR:$r), (ins FPR:$s, uimm4:$imm),
++                       "utrunc.s\t$r, $s, $imm", []> {
++  bits<4> imm;
++
++  let t = imm;
++}
++
++def : Pat<(i32 (fp_to_uint FPR:$s)), (UTRUNC_S FPR:$s, 0)>;
++
++def WFR : RRR_Inst<0x00, 0x0A, 0x0f, (outs FPR:$r), (ins AR:$s),
++                  "wfr\t$r, $s",
++                  [(set FPR:$r, (bitconvert AR:$s))]> {
++  let t = 0x05;
++}
++
+ // FP select operations
+ let usesCustomInserter = 1 in {
+   def SELECT_CC_FP_INT : Pseudo<(outs AR:$dst), (ins FPR:$lhs, FPR:$rhs, AR:$t, AR:$f, i32imm:$cond),
+@@ -1154,7 +1240,6 @@ let usesCustomInserter = 1 in {
+                               "!select_cc_fp_fp $dst, $lhs, $rhs, $t, $f, $cond",
+                               [(set FPR:$dst, (Xtensa_select_cc_fp FPR:$lhs, FPR:$rhs, FPR:$t, FPR:$f, imm:$cond))]>;
+ }
+-
+ //===----------------------------------------------------------------------===//
+ // Loop Instructions
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/test/MC/Xtensa/xtensa-valid-float.s b/llvm/test/MC/Xtensa/xtensa-valid-float.s
+new file mode 100644
+index 000000000000..40405e93c584
+--- /dev/null
++++ b/llvm/test/MC/Xtensa/xtensa-valid-float.s
+@@ -0,0 +1,178 @@
++# RUN: llvm-mc %s -triple=xtensa -mattr=+fp -mattr=+bool -show-encoding \
++# RUN:     | FileCheck -check-prefixes=CHECK,CHECK-INST %s
++
++.align	4
++LBL0:
++
++# CHECK-INST: abs.s	f2, f3
++# CHECK: encoding: [0x10,0x23,0xfa]
++	abs.s	f2, f3
++# CHECK-INST: add.s	f2, f3, f4
++# CHECK: encoding: [0x40,0x23,0x0a]
++	add.s	f2, f3, f4
++# CHECK-INST: addexp.s	f2, f3
++# CHECK: encoding: [0xe0,0x23,0xfa]
++	addexp.s	f2, f3
++# CHECK-INST: addexpm.s	f2, f3
++# CHECK: encoding: [0xf0,0x23,0xfa]
++	addexpm.s	f2, f3
++
++# CHECK-INST: ceil.s a2, f3, 5
++# CHECK: encoding: [0x50,0x23,0xba]
++	ceil.s	a2, f3, 5
++# CHECK-INST: const.s	f3, 5
++# CHECK: encoding: [0x30,0x35,0xfa]
++	const.s	f3, 5
++
++# CHECK-INST: div0.s f2, f3
++# CHECK: encoding: [0x70,0x23,0xfa]
++	div0.s f2, f3
++# CHECK-INST: divn.s f2, f3, f4
++# CHECK: encoding: [0x40,0x23,0x7a]
++	divn.s f2, f3, f4
++
++# CHECK-INST: float.s	f2, a3, 5
++# CHECK: encoding: [0x50,0x23,0xca]
++	float.s	f2, a3, 5
++# CHECK-INST: floor.s a2, f3, 5
++# CHECK: encoding: [0x50,0x23,0xaa]
++	floor.s	a2, f3, 5
++
++# CHECK-INST: lsi f2, a3, 8
++# CHECK: encoding: [0x23,0x03,0x02]
++	lsi f2, a3, 8
++# CHECK-INST: lsip f2, a3, 8
++# CHECK: encoding: [0x23,0x83,0x02]
++	lsip f2, a3, 8
++# CHECK-INST: lsx f2, a3, a4
++# CHECK: encoding: [0x40,0x23,0x08]
++	lsx f2, a3, a4
++# CHECK-INST: lsxp f2, a3, a4
++# CHECK: encoding: [0x40,0x23,0x18]
++	lsxp f2, a3, a4
++
++# CHECK-INST: madd.s f2, f3, f4
++# CHECK: encoding: [0x40,0x23,0x4a]
++	madd.s f2, f3, f4
++# CHECK-INST: maddn.s f2, f3, f4
++# CHECK: encoding: [0x40,0x23,0x6a]
++	maddn.s f2, f3, f4
++# CHECK-INST: mkdadj.s f2, f3
++# CHECK: encoding: [0xd0,0x23,0xfa]
++	mkdadj.s f2, f3
++# CHECK-INST: mksadj.s f2, f3
++# CHECK: encoding: [0xc0,0x23,0xfa]
++	mksadj.s f2, f3
++
++# CHECK-INST: mov.s f2, f3
++# CHECK: encoding: [0x00,0x23,0xfa]
++	mov.s f2, f3
++
++# CHECK-INST: moveqz.s f2, f3, a4
++# CHECK: encoding: [0x40,0x23,0x8b]
++	moveqz.s f2, f3, a4
++# CHECK-INST: movf.s f2, f3, b0
++# CHECK: encoding: [0x00,0x23,0xcb]
++	movf.s f2, f3, b0
++# CHECK-INST: movgez.s f2, f3, a4
++# CHECK: encoding: [0x40,0x23,0xbb]
++	movgez.s f2, f3, a4
++# CHECK-INST: movltz.s f2, f3, a4
++# CHECK: encoding: [0x40,0x23,0xab]
++	movltz.s f2, f3, a4
++# CHECK-INST: movnez.s f2, f3, a4
++# CHECK: encoding: [0x40,0x23,0x9b]
++	movnez.s f2, f3, a4
++# CHECK-INST: movt.s f2, f3, b0
++# CHECK: encoding: [0x00,0x23,0xdb]
++	movt.s f2, f3, b0
++
++# CHECK-INST: msub.s f2, f3, f4
++# CHECK: encoding: [0x40,0x23,0x5a]
++	msub.s f2, f3, f4
++# CHECK-INST: mul.s	f2, f3, f4
++# CHECK: encoding: [0x40,0x23,0x2a]
++	mul.s	f2, f3, f4
++# CHECK-INST: neg.s f2, f3
++# CHECK: encoding: [0x60,0x23,0xfa]
++	neg.s f2, f3
++
++# CHECK-INST: nexp01.s f2, f3
++# CHECK: encoding: [0xb0,0x23,0xfa]
++	nexp01.s f2, f3
++
++# CHECK-INST: oeq.s b0, f2, f3
++# CHECK: encoding: [0x30,0x02,0x2b]
++	oeq.s b0, f2, f3
++# CHECK-INST: ole.s b0, f2, f3
++# CHECK: encoding: [0x30,0x02,0x6b]
++	ole.s b0, f2, f3
++# CHECK-INST: olt.s b0, f2, f3
++# CHECK: encoding: [0x30,0x02,0x4b]
++	olt.s b0, f2, f3
++
++# CHECK-INST: recip0.s f2, f3
++# CHECK: encoding: [0x80,0x23,0xfa]
++	recip0.s f2, f3
++
++# CHECK-INST: rfr a2, f3
++# CHECK: encoding: [0x40,0x23,0xfa]
++	rfr a2, f3
++
++# CHECK-INST: round.s a2, f3, 5
++# CHECK: encoding: [0x50,0x23,0x8a]
++	round.s	a2, f3, 5
++# CHECK-INST: rsqrt0.s f2, f3
++# CHECK: encoding: [0xa0,0x23,0xfa]
++	rsqrt0.s f2, f3
++# CHECK-INST: sqrt0.s f2, f3
++# CHECK: encoding: [0x90,0x23,0xfa]
++	sqrt0.s f2, f3
++
++# CHECK-INST: ssi f2, a3, 8
++# CHECK: encoding: [0x23,0x43,0x02]
++	ssi f2, a3, 8
++# CHECK-INST: ssip f2, a3, 8
++# CHECK: encoding: [0x23,0xc3,0x02]
++	ssip f2, a3, 8
++# CHECK-INST: ssx f2, a3, a4
++# CHECK: encoding: [0x40,0x23,0x48]
++	ssx f2, a3, a4
++# CHECK-INST: ssxp f2, a3, a4
++# CHECK: encoding: [0x40,0x23,0x58]
++	ssxp f2, a3, a4
++
++# CHECK-INST: sub.s	f2, f3, f4
++# CHECK: encoding: [0x40,0x23,0x1a]
++	sub.s	f2, f3, f4
++	
++# CHECK-INST: trunc.s a2, f3, 5
++# CHECK: encoding: [0x50,0x23,0x9a]
++	trunc.s	a2, f3, 5	
++
++# CHECK-INST: ueq.s b0, f2, f3
++# CHECK: encoding: [0x30,0x02,0x3b]
++	ueq.s b0, f2, f3
++
++# CHECK-INST: ufloat.s	f2, a3, 5
++# CHECK: encoding: [0x50,0x23,0xda]
++	ufloat.s	f2, a3, 5
++
++# CHECK-INST: ule.s b0, f2, f3
++# CHECK: encoding: [0x30,0x02,0x7b]
++	ule.s b0, f2, f3
++# CHECK-INST: ult.s b0, f2, f3
++# CHECK: encoding: [0x30,0x02,0x5b]
++	ult.s b0, f2, f3
++# CHECK-INST: un.s b0, f2, f3
++# CHECK: encoding: [0x30,0x02,0x1b]
++	un.s b0, f2, f3
++
++# CHECK-INST: utrunc.s a2, f3, 5
++# CHECK: encoding: [0x50,0x23,0xea]
++	utrunc.s	a2, f3, 5	
++
++# CHECK-INST: wfr f2, a3
++# CHECK: encoding: [0x50,0x23,0xfa]
++	wfr f2, a3
++
+-- 
+2.40.1
+

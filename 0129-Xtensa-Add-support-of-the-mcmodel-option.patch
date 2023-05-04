@@ -1,0 +1,29 @@
+From 69495c0a7219cb0a5d35bf3d0cd878f30bb78c73 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:43 +0300
+Subject: [PATCH 129/140] [Xtensa] Add support of the mcmodel option.
+
+For large mcmodel always emit contsant pool just before code.
+---
+ llvm/lib/Target/Xtensa/XtensaSubtarget.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+index 0fd2a2582611..311b757d55be 100644
+--- a/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaSubtarget.cpp
+@@ -29,6 +29,11 @@ static cl::opt<bool> TextSectionLiterals("mtext-section-literals",
+ 
+ bool XtensaSubtarget::useTextSectionLiterals() const
+ {
++  // If code model is large then always place literals in
++  // test section.
++  if (TLInfo.getTargetMachine().getCodeModel() == CodeModel::Large)
++    return true;
++
+   return TextSectionLiterals;
+ }
+ 
+-- 
+2.40.1
+

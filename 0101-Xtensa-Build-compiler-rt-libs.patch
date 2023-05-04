@@ -1,0 +1,52 @@
+From a11e834a0823c9d1ac0c613dba219526a864ff0b Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:28 +0300
+Subject: [PATCH 101/140] [Xtensa] Build compiler-rt libs.
+
+Include compiler-rt libs to the esp32 clang toolchains.
+---
+ .gitlab-ci.yml | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 81bfcf25648b..7397e0c2d708 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -244,7 +244,14 @@ test_x86_64-linux-gnu:
+ .get_gcc_toolchain_old: &get_gcc_toolchain_old |
+   wget --no-verbose https://dl.espressif.com/github_assets/espressif/crosstool-NG/releases/download/esp-2021r2-patch3/${XTENSA_GCC_TOOLCHAIN}
+   ${UNARCHIVE_TOOL} ${XTENSA_GCC_TOOLCHAIN}
+-  mv xtensa-esp32-elf ${XTENSA_CLANG_TOOLCHAIN}
++  if [[ "$XTENSA_GCC_TOOLCHAIN" == *"linux"* ]]; then
++    cp -r xtensa-esp32-elf ${XTENSA_CLANG_TOOLCHAIN}
++  else
++    mv xtensa-esp32-elf ${XTENSA_CLANG_TOOLCHAIN}
++    wget --no-verbose https://dl.espressif.com/github_assets/espressif/crosstool-NG/releases/download/esp-2021r2-patch3/xtensa-esp32-elf-${GCC_REL_NAME}-linux-amd64.tar.gz
++    tar -xf xtensa-esp32-elf-${GCC_REL_NAME}-linux-amd64.tar.gz
++  fi
++  export GCC_ESP32_LINUX_TOOLCHAIN="xtensa-esp32-elf"
+ 
+ .package_toolchain_old: &package_toolchain_old |
+   ${ARCHIVE_TOOL} ${ARCHIVE_NAME} ${XTENSA_CLANG_TOOLCHAIN}/
+@@ -261,7 +268,7 @@ test_x86_64-linux-gnu:
+     when: always
+     expire_in: 10 day
+   variables:
+-    XTENSA_CLANG_TOOLCHAIN_REF: "esp-20220415-r14.0.0"
++    XTENSA_CLANG_TOOLCHAIN_REF: "esp-20220708-r14.0.0"
+     GCC_REL_NAME: "gcc8_4_0-esp-2021r2-patch3"
+   script:
+     - *get_release_name_old
+@@ -328,6 +335,9 @@ linux_amd64_testsuite:
+     # run testsuite for esp32
+     - ./run_esp32_tests.sh
+ 
++    # run testsuite for compiler_rt library
++    - ./run_esp32_crt_tests.sh ../$XTENSA_CLANG_TOOLCHAIN
++
+ ##################### END OF TEMPORARY LEGACY CODE ########################
+ ###########################################################################
+ 
+-- 
+2.40.1
+

@@ -1,0 +1,99 @@
+From 5fbced8a929d598ca4998657b2852587fb3098b8 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:07 +0300
+Subject: [PATCH 059/140] [Xtensa] Change using of Frame Pointer.
+
+Do not use Frame Pointer by default.
+Also improve storing function argument from a7 register to a8 register.
+Corrected funnel shift test.
+---
+ clang/lib/Driver/ToolChains/Clang.cpp              | 1 +
+ llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp     | 9 ++++++---
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp      | 2 ++
+ llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h | 4 ++++
+ 4 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/clang/lib/Driver/ToolChains/Clang.cpp b/clang/lib/Driver/ToolChains/Clang.cpp
+index ec6860113b7e..68525264d6e6 100644
+--- a/clang/lib/Driver/ToolChains/Clang.cpp
++++ b/clang/lib/Driver/ToolChains/Clang.cpp
+@@ -455,6 +455,7 @@ static bool useFramePointerForTargetByDefault(const ArgList &Args,
+   case llvm::Triple::csky:
+   case llvm::Triple::loongarch32:
+   case llvm::Triple::loongarch64:
++  case llvm::Triple::xtensa:
+     return !areOptimizationsEnabled(Args);
+   default:
+     break;
+diff --git a/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp b/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+index 53b6b7e1b018..31ae43565974 100644
+--- a/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaFrameLowering.cpp
+@@ -100,6 +100,7 @@ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
+   unsigned FP = RegInfo->getFrameRegister(MF);
+   MachineModuleInfo &MMI = MF.getMMI();
+   const MCRegisterInfo *MRI = MMI.getContext().getRegisterInfo();
++  XtensaFunctionInfo *XtensaFI = MF.getInfo<XtensaFunctionInfo>();
+ 
+   // First, compute final stack size.
+   uint64_t StackSize = MFI.getStackSize();
+@@ -133,9 +134,11 @@ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
+ 
+     // Store FP register in A8, because FP may be used to pass function
+     // arguments
+-    BuildMI(MBB, MBBI, dl, TII.get(Xtensa::OR), Xtensa::A8)
+-        .addReg(FP)
+-        .addReg(FP);
++    if (XtensaFI->isSaveFrameRegister()) {
++      BuildMI(MBB, MBBI, dl, TII.get(Xtensa::OR), Xtensa::A8)
++          .addReg(FP)
++          .addReg(FP);
++    }
+ 
+     // if framepointer enabled, set it to point to the stack pointer.
+     if (hasFP(MF)) {
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 48f3fed4f909..e7642afebe78 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -793,6 +793,7 @@ SDValue XtensaTargetLowering::LowerFormalArguments(
+       // so load argument from A8
+       if (Subtarget.isWinABI() && (VA.getLocReg() == FrameReg)) {
+         Reg = MF.addLiveIn(Xtensa::A8, RC);
++        XtensaFI->setSaveFrameRegister();
+       } else {
+         Reg = MF.addLiveIn(VA.getLocReg(), RC);
+       }
+@@ -887,6 +888,7 @@ SDValue XtensaTargetLowering::LowerFormalArguments(
+       // so load argument from A8
+       if (ArgRegs[I] == FrameReg) {
+         RegInfo.addLiveIn(Xtensa::A8, Reg);
++        XtensaFI->setSaveFrameRegister();
+       } else {
+         RegInfo.addLiveIn(ArgRegs[I], Reg);
+       }
+diff --git a/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h b/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h
+index ebc99f912ba0..10d11fcb21bf 100644
+--- a/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h
++++ b/llvm/lib/Target/Xtensa/XtensaMachineFunctionInfo.h
+@@ -25,6 +25,7 @@ class XtensaFunctionInfo : public MachineFunctionInfo {
+   unsigned VarArgsFirstGPR;
+   int VarArgsStackOffset;
+   unsigned VarArgsFrameIndex;
++  bool SaveFrameRegister = false;
+ 
+ public:
+   explicit XtensaFunctionInfo(const Function &F, const TargetSubtargetInfo *STI)
+@@ -39,6 +40,9 @@ public:
+   // Get and set the frame index of the first stack vararg.
+   unsigned getVarArgsFrameIndex() const { return VarArgsFrameIndex; }
+   void setVarArgsFrameIndex(unsigned FI) { VarArgsFrameIndex = FI; }
++
++  bool isSaveFrameRegister() const { return SaveFrameRegister; }
++  void setSaveFrameRegister() { SaveFrameRegister = true; }
+ };
+ 
+ } // namespace llvm
+-- 
+2.40.1
+

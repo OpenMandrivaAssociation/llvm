@@ -1,0 +1,102 @@
+From d3eaf0a7fae4a28cf55c89aeb767c98c9c810524 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:59:11 +0300
+Subject: [PATCH 065/140] [Xtensa] Correction of the  PSRAM fix pass
+
+---
+ .../lib/Target/Xtensa/XtensaESP32PSRAMFix.cpp | 58 +++++++++++--------
+ 1 file changed, 33 insertions(+), 25 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/XtensaESP32PSRAMFix.cpp b/llvm/lib/Target/Xtensa/XtensaESP32PSRAMFix.cpp
+index 5f22c2ea0e20..0c4433ed0012 100644
+--- a/llvm/lib/Target/Xtensa/XtensaESP32PSRAMFix.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaESP32PSRAMFix.cpp
+@@ -223,14 +223,16 @@ bool createXtensaPSRAMCacheFix::xtensaPSRAMCacheFixMemwReorg(
+       case Xtensa::L16UI:
+       case Xtensa::L8UI:
+         if (StoreInsn) {
+-          MachineMemOperand *MMO = *MII->memoperands_begin();
+-          if (!MMO->isVolatile()) {
+-            DebugLoc dl = MII->getDebugLoc();
+-            const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
+-            BuildMI(MBB, MII, dl, NewMCID);
+-            Modified = true;
+-            StoreInsn = nullptr;
+-            NumAdded++;
++          if (!MII->memoperands_empty()) {
++            MachineMemOperand *MMO = *MII->memoperands_begin();
++            if (!MMO->isVolatile()) {
++              DebugLoc dl = MII->getDebugLoc();
++              const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++              BuildMI(MBB, MII, dl, NewMCID);
++              Modified = true;
++              StoreInsn = nullptr;
++              NumAdded++;
++            }
+           }
+         }
+         if (LastHIQIStore) {
+@@ -251,9 +253,11 @@ bool createXtensaPSRAMCacheFix::xtensaPSRAMCacheFixMemwReorg(
+       } break;
+       case Xtensa::S16I:
+       case Xtensa::S8I: {
+-        MachineMemOperand *MMO = *MII->memoperands_begin();
+-        if (!MMO->isVolatile()) {
+-          LastHIQIStore = MI;
++        if (!MII->memoperands_empty()) {
++          MachineMemOperand *MMO = *MII->memoperands_begin();
++          if (!MMO->isVolatile()) {
++            LastHIQIStore = MI;
++          }
+         }
+         StoreInsn = MI;
+       } break;
+@@ -292,13 +296,15 @@ bool createXtensaPSRAMCacheFix::xtensaInsertMemwReorg(MachineFunction &MF) {
+       case Xtensa::L16SI:
+       case Xtensa::L16UI:
+       case Xtensa::L8UI: {
+-        MachineMemOperand *MMO = *MII->memoperands_begin();
+-        if (!MMO->isVolatile() && (!HadMemw)) {
+-          DebugLoc dl = MII->getDebugLoc();
+-          const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
+-          BuildMI(MBB, MII, dl, NewMCID);
+-          Modified = true;
+-          NumAdded++;
++        if (!MII->memoperands_empty()) {
++          MachineMemOperand *MMO = *MII->memoperands_begin();
++          if (!MMO->isVolatile() && (!HadMemw)) {
++            DebugLoc dl = MII->getDebugLoc();
++            const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++            BuildMI(MBB, MII, dl, NewMCID);
++            Modified = true;
++            NumAdded++;
++          }
+         }
+         HadMemw = false;
+       } break;
+@@ -307,13 +313,15 @@ bool createXtensaPSRAMCacheFix::xtensaInsertMemwReorg(MachineFunction &MF) {
+       case Xtensa::S32I:
+       case Xtensa::S16I:
+       case Xtensa::S8I: {
+-        MachineMemOperand *MMO = *MII->memoperands_begin();
+-        if (!MMO->isVolatile()) {
+-          DebugLoc dl = MII->getDebugLoc();
+-          const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
+-          BuildMI(MBB, NextMII, dl, NewMCID);
+-          Modified = true;
+-          NumAdded++;
++        if (!MII->memoperands_empty()) {
++          MachineMemOperand *MMO = *MII->memoperands_begin();
++          if (!MMO->isVolatile()) {
++            DebugLoc dl = MII->getDebugLoc();
++            const MCInstrDesc &NewMCID = XtensaII->get(Xtensa::MEMW);
++            BuildMI(MBB, NextMII, dl, NewMCID);
++            Modified = true;
++            NumAdded++;
++          }
+         }
+         HadMemw = true;
+       } break;
+-- 
+2.40.1
+

@@ -1,0 +1,173 @@
+From 32d6cbd18830c679b1a9e0ed2f31677399176c69 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 5 Apr 2023 00:58:59 +0300
+Subject: [PATCH 043/140] [Xtensa] Lowering GLobalTLSAddress operation.
+
+---
+ .../MCTargetDesc/XtensaELFObjectWriter.cpp    |  6 ++-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 44 ++++++++++++++++++-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.h   |  4 ++
+ llvm/lib/Target/Xtensa/XtensaInstrInfo.td     |  2 +-
+ llvm/lib/Target/Xtensa/XtensaOperators.td     |  4 ++
+ 5 files changed, 57 insertions(+), 3 deletions(-)
+
+diff --git a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaELFObjectWriter.cpp b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaELFObjectWriter.cpp
+index 7788790ee66c..439f0d7041de 100644
+--- a/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaELFObjectWriter.cpp
++++ b/llvm/lib/Target/Xtensa/MCTargetDesc/XtensaELFObjectWriter.cpp
+@@ -46,10 +46,14 @@ XtensaObjectWriter::~XtensaObjectWriter() {}
+ unsigned XtensaObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
+                                           const MCFixup &Fixup,
+                                           bool IsPCRel) const {
++  MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
+ 
+   switch ((unsigned)Fixup.getKind()) {
+   case FK_Data_4:
+-    return ELF::R_XTENSA_32;
++    if (Modifier == MCSymbolRefExpr::VariantKind::VK_TPOFF)
++      return ELF::R_XTENSA_TLS_TPOFF;
++    else
++      return ELF::R_XTENSA_32;
+   default:
+     return ELF::R_XTENSA_SLOT0_OP;
+   }
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index 4fd119ea7f05..eb09b3c7457f 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -67,7 +67,7 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   setStackPointerRegisterToSaveRestore(Xtensa::SP);
+ 
+   setSchedulingPreference(Sched::RegPressure);
+-  
++
+   setBooleanContents(ZeroOrOneBooleanContent);
+   setBooleanVectorContents(ZeroOrOneBooleanContent);
+ 
+@@ -88,6 +88,7 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
+   // Handle the various types of symbolic address.
+   setOperationAction(ISD::ConstantPool, PtrVT, Custom);
+   setOperationAction(ISD::GlobalAddress, PtrVT, Custom);
++  setOperationAction(ISD::GlobalTLSAddress, PtrVT, Custom);
+   setOperationAction(ISD::BlockAddress, PtrVT, Custom);
+   setOperationAction(ISD::JumpTable, PtrVT, Custom);
+ 
+@@ -1305,6 +1306,44 @@ SDValue XtensaTargetLowering::LowerGlobalAddress(SDValue Op,
+   llvm_unreachable("invalid global addresses to lower");
+ }
+ 
++SDValue XtensaTargetLowering::LowerGlobalTLSAddress(GlobalAddressSDNode *GA,
++                                                    SelectionDAG &DAG) const {
++  SDLoc DL(GA);
++  const GlobalValue *GV = GA->getGlobal();
++  EVT PtrVT = getPointerTy(DAG.getDataLayout());
++
++  if (DAG.getTarget().useEmulatedTLS())
++    return LowerToTLSEmulatedModel(GA, DAG);
++
++  TLSModel::Model model = getTargetMachine().getTLSModel(GV);
++
++  if (!Subtarget.hasTHREADPTR()) {
++    llvm_unreachable("only emulated TLS supported");
++  }
++
++  if ((model == TLSModel::LocalExec) || (model == TLSModel::InitialExec)) {
++    auto PtrVt = getPointerTy(DAG.getDataLayout());
++
++    bool Priv = GV->isPrivateLinkage(GV->getLinkage());
++    // Create a constant pool entry for the callee address
++    XtensaConstantPoolValue *CPV = XtensaConstantPoolSymbol::Create(
++        *DAG.getContext(), GV->getName().str().c_str() /* Sym */,
++        0 /* XtensaCLabelIndex */, Priv, XtensaCP::TPOFF);
++
++    // Get the address of the callee into a register
++    SDValue CPAddr = DAG.getTargetConstantPool(CPV, PtrVt, Align(4));
++    SDValue CPWrap = getAddrPCRel(CPAddr, DAG);
++
++    SDValue TPRegister = DAG.getRegister(Xtensa::THREADPTR, MVT::i32);
++    SDValue ThreadPointer =
++        DAG.getNode(XtensaISD::RUR, DL, MVT::i32, TPRegister);
++    return DAG.getNode(ISD::ADD, DL, PtrVT, ThreadPointer, CPWrap);
++  } else
++    llvm_unreachable("only local-exec and initial-exec TLS mode supported");
++
++  return SDValue();
++}
++
+ SDValue XtensaTargetLowering::LowerBlockAddress(BlockAddressSDNode *Node,
+                                                 SelectionDAG &DAG) const {
+   const BlockAddress *BA = Node->getBlockAddress();
+@@ -1636,6 +1675,8 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
+     return LowerSELECT_CC(Op, DAG);
+   case ISD::GlobalAddress:
+     return LowerGlobalAddress(Op, DAG);
++  case ISD::GlobalTLSAddress:
++    return LowerGlobalTLSAddress(cast<GlobalAddressSDNode>(Op), DAG);
+   case ISD::BlockAddress:
+     return LowerBlockAddress(cast<BlockAddressSDNode>(Op), DAG);
+   case ISD::JumpTable:
+@@ -1692,6 +1733,7 @@ const char *XtensaTargetLowering::getTargetNodeName(unsigned Opcode) const {
+     OPCODE(MSUB);
+     OPCODE(MOVS);
+     OPCODE(MOVSP);
++    OPCODE(RUR);
+     OPCODE(SHL);
+     OPCODE(SRA);
+     OPCODE(SRL);
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.h b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+index 222a07611334..a6da5a0296db 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.h
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.h
+@@ -63,6 +63,8 @@ enum {
+   // WinABI Return
+   RETW_FLAG,
+ 
++  RUR,
++
+   // Selects between operand 0 and operand 1.  Operand 2 is the
+   // mask of condition-code values for which operand 0 should be
+   // chosen over operand 1; it has the same form as BR_CCMASK.
+@@ -164,6 +166,8 @@ private:
+   SDValue LowerImmediate(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerImmediateFP(SDValue Op, SelectionDAG &DAG) const;
+   SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerGlobalTLSAddress(GlobalAddressSDNode *Node,
++                                SelectionDAG &DAG) const;
+   SDValue LowerBlockAddress(BlockAddressSDNode *Node, SelectionDAG &DAG) const;
+   SDValue LowerJumpTable(JumpTableSDNode *JT, SelectionDAG &DAG) const;
+   SDValue LowerConstantPool(ConstantPoolSDNode *CP, SelectionDAG &DAG) const;
+diff --git a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+index a3de1b724906..bfca64dd6f1e 100644
+--- a/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
++++ b/llvm/lib/Target/Xtensa/XtensaInstrInfo.td
+@@ -624,7 +624,7 @@ def WUR : RRR_Inst<0x00, 0x03, 0x0F, (outs UR:$ur), (ins AR:$t),
+ }
+ 
+ def RUR : RRR_Inst<0x00, 0x03, 0x0E, (outs AR:$r), (ins UR:$ur),
+-                  "rur\t$r, $ur", []> {
++                  "rur\t$r, $ur", [(set AR:$r, (Xtensa_rur UR:$ur))]> {
+   bits<8> ur;
+ 
+   let s = ur{7-4};
+diff --git a/llvm/lib/Target/Xtensa/XtensaOperators.td b/llvm/lib/Target/Xtensa/XtensaOperators.td
+index fcb82e400a39..3107137c9ad1 100644
+--- a/llvm/lib/Target/Xtensa/XtensaOperators.td
++++ b/llvm/lib/Target/Xtensa/XtensaOperators.td
+@@ -40,6 +40,7 @@ def SDT_XtensaSRC                 : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCi
+                                                          SDTCisVT<2, i32>]>;
+ def SDT_XtensaSSL                 : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
+ def SDT_XtensaSSR                 : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
++def SDT_XtensaRUR                : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+ 
+ //===----------------------------------------------------------------------===//
+ // Node definitions
+@@ -97,3 +98,6 @@ def Xtensa_ssr: SDNode<"XtensaISD::SSR", SDT_XtensaSSR, [SDNPOutGlue]>;
+ def Xtensa_brjt: SDNode<"XtensaISD::BR_JT", SDT_XtensaBrJT, [SDNPHasChain]>;
+ def Xtensa_callw: SDNode<"XtensaISD::CALLW", SDT_XtensaCall,
+                         [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
++
++def Xtensa_rur: SDNode<"XtensaISD::RUR", SDT_XtensaRUR,
++                            [SDNPInGlue]>;
+-- 
+2.40.1
+
