@@ -26,16 +26,15 @@
 %define build_lto 1
 %define _disable_ld_no_undefined 1
 
+%if %{cross_compiling}
+# Since the build system forces HOST cflags == TARGET cflags,
+# we have to get rid of any -march= stuff. Might as well play it safe.
+%global optflags -O2 -fno-semantic-interposition
+%else
 # (tpg) optimize it a bit
 # And reduce debug level to save some space
-%if ! %{cross_compiling}
 %global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Qunused-arguments -Wl,-Bsymbolic-functions -g1
 %global build_ldflags %{build_ldflags} -fno-semantic-interposition -Wl,-Bsymbolic-functions
-%endif
-
-%ifarch %{riscv}
-# Workaround for broken previous version
-%global optflags %{optflags} -fpermissive
 %endif
 
 # clang header paths are hard-coded at compile time
@@ -89,14 +88,13 @@
 %bcond_without libcxx
 %endif
 %endif
-%ifarch %{riscv}
-# Disabled until we get a RISC-V implementation of NativeRegisterContext
-# lldb/source/Plugins/Process/Linux/NativeRegisterContext*
-%bcond_with lldb
-%else
 %bcond_without lldb
-%endif
+%if %{cross_compiling}
+# FIXME openmp doesn't crosscompile in 16.0.4
+%bcond_with openmp
+%else
 %bcond_without openmp
+%endif
 %bcond_without unwind
 %bcond_without lld
 
@@ -138,7 +136,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	16.0.3
+Version:	16.0.4
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -191,8 +189,9 @@ Patch11:	bolt-no-underlinking.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
 Patch14:	llvm-10.0-fix-m32.patch
+Patch15:	spirv-llvm-translator-16.0.3-workaround-spirv-tools-crosscompile.patch
 Patch16:	clang-rename-fix-linkage.patch
-#Patch17:	lld-4.0.0-fix-build-with-libstdc++.patch
+Patch17:	llvm-16.0.3-plugin-api-searchpath-hack.patch
 # Enable --no-undefined, --as-needed, --enable-new-dtags,
 # --hash-style=gnu, --warn-common, --icf=safe, --build-id=sha1,
 # -O by default
@@ -242,6 +241,13 @@ Source62:	llvm-10-default-compiler-rt.patch
 Patch91:	SPRIV-Tools-soname.patch
 Patch92:	spirv-tools-compile.patch
 Patch93:	spirv-headers-install-even-if-not-toplevel.patch
+
+# This needs to be cleaned up before sending it upstream
+Patch95:	spirv-llvm-translator-use-just-built-spirv-tools.patch
+Patch96:	mlir-riscv-libatomic.patch
+Patch97:	flang-riscv-libatomic.patch
+Patch98:	lldb-riscv-libatomic.patch
+Patch99:	bootstrap-gcc-nostdlib.patch
 
 # Patches for Xtensa support from
 # https://github.com/espressif/llvm-project
@@ -2136,7 +2142,7 @@ CPROCESSES="$PROCESSES"
 	-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR:BOOL=ON \
 	-DLLVM_ENABLE_RUNTIMES="$RUNTIMES" \
 	-DLLVM_ENABLE_LLD:BOOL=ON \
-%if %{build_lto}
+%if %{build_lto} && ! %{cross_compiling}
 	-DLLVM_ENABLE_LTO=Thin \
 %else
 	-DLLVM_ENABLE_LTO=OFF \
@@ -2157,6 +2163,10 @@ CPROCESSES="$PROCESSES"
 %else
 	-DCLANG_DEFAULT_RTLIB=libgcc \
 %endif
+%ifarch %{riscv}
+	-DCOMPILER_RT_BUILD_SANITIZERS:BOOL=OFF \
+	-DCOMPILER_RT_BUILD_PROFILE:BOOL=OFF \
+%endif
 %if %{with ffi}
 	-DLLVM_ENABLE_FFI:BOOL=ON \
 %else
@@ -2172,7 +2182,12 @@ CPROCESSES="$PROCESSES"
 	-DLLVM_INCLUDE_DOCS:BOOL=ON \
 	-DLLVM_ENABLE_EH:BOOL=ON \
 	-DLLVM_INSTALL_UTILS:BOOL=ON \
+%if %{cross_compiling}
+	-DLLVM_BINUTILS_INCDIR=%{_prefix}/%{_target_platform}/include \
+	-DLIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIR=%{_prefix}/%{_target_platform}/include \
+%else
 	-DLLVM_BINUTILS_INCDIR=%{_includedir} \
+%endif
 	-DLLVM_BUILD_DOCS:BOOL=ON \
 	-DLLVM_BUILD_EXAMPLES:BOOL=OFF \
 	-DLLVM_BUILD_RUNTIME:BOOL=ON \
@@ -2237,6 +2252,7 @@ CPROCESSES="$PROCESSES"
 %if %{with mlir}
 	-DMLIR_BUILD_MLIR_C_DYLIB:BOOL=ON \
 %endif
+	-DSPIRV_TOOLS_BUILD_STATIC:BOOL=OFF \
 	-G Ninja \
 	../llvm
 
@@ -2259,25 +2275,6 @@ cd ..
 %if %{with compat32}
 TOP="$(pwd)"
 gccver="$(i686-openmandriva-linux-gnu-gcc --version |head -n1 |cut -d' ' -f3)"
-%if 0
-#! %{with skip64}
-cat >xc <<EOF
-#!/bin/sh
-%if %{with bootstrap32}
-exec $TOP/build/bin/clang --rtlib=libgcc --unwindlib=libgcc -m32 "\$@"
-%else
-exec $TOP/build/bin/clang -m32 "\$@"
-%endif
-EOF
-cat >xc++ <<EOF
-#!/bin/sh
-%if %{with bootstrap32}
-exec $TOP/build/bin/clang++ -std=gnu++17 --rtlib=libgcc --unwindlib=libgcc -m32 -isystem %{_includedir}/c++/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
-%else
-exec $TOP/build/bin/clang++ -std=gnu++17 -m32 -isystem %{_includedir}/c++/${gccver}/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
-%endif
-EOF
-%else
 cat >xc <<EOF
 #!/bin/sh
 %if %{with bootstrap32}
@@ -2294,7 +2291,6 @@ exec %{_bindir}/clang++ -std=gnu++17 --rtlib=libgcc --unwindlib=libgcc -m32 -isy
 exec %{_bindir}/clang++ -std=gnu++17 -m32 -isystem %{_includedir}/c++/${gccver}/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
 %endif
 EOF
-%endif
 chmod +x xc xc++
 cat >cmake-i686.toolchain <<EOF
 set(CMAKE_SYSTEM_NAME Linux)
@@ -2306,7 +2302,7 @@ EOF
 
 %if %{with compat32}
 # FIXME libc in LLVM_ENABLE_RUNTIMES breaks the build
-# FIXME -DLIBUNWIND_USE_COMPILER_RT:BOOL=ON breaks the build (adds -lNOTFOUND)§
+# FIXME -DLIBUNWIND_USE_COMPILER_RT:BOOL=ON breaks the build (adds -lNOTFOUND)
 %cmake32 \
 	-DCMAKE_BUILD_TYPE=MinSizeRel \
 	-DLLVM_LIBGCC_EXPLICIT_OPT_IN=Yes \
@@ -2472,10 +2468,6 @@ if [ -n "$XCRTARCHES" ]; then
 		gccver="$(${arch}-openmandriva-linux-${LIBC}-gcc --version |head -n1 |cut -d' ' -f3)"
 		LFLAGS="-O3 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}"
 		FLAGS="$LFLAGS -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
-		if echo $arch |grep -q riscv; then
-			# Workaround of lack of linker relaxation support in lld
-			LFLAGS="$LFLAGS -fuse-ld=bfd"
-		fi
 		cmake \
 			../compiler-rt \
 			-G Ninja \

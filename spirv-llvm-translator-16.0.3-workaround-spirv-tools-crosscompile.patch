@@ -1,0 +1,16 @@
+diff -up llvm-project-16.0.3.src/llvm/projects/SPIRV-LLVM-Translator/tools/llvm-spirv/CMakeLists.txt.omv~ llvm-project-16.0.3.src/llvm/projects/SPIRV-LLVM-Translator/tools/llvm-spirv/CMakeLists.txt
+--- llvm-project-16.0.3.src/llvm/projects/SPIRV-LLVM-Translator/tools/llvm-spirv/CMakeLists.txt.omv~	2023-05-17 00:19:50.377740612 +0200
++++ llvm-project-16.0.3.src/llvm/projects/SPIRV-LLVM-Translator/tools/llvm-spirv/CMakeLists.txt	2023-05-17 00:30:54.624322321 +0200
+@@ -28,6 +28,12 @@ target_include_directories(llvm-spirv
+ 
+ if(SPIRV_TOOLS_FOUND)
+   target_compile_definitions(llvm-spirv PRIVATE LLVM_SPIRV_HAVE_SPIRV_TOOLS=1)
++  # SPIRV_TOOLS_INCLUDE_DIRS is empty despite SPIRV_TOOLS_FOUND
++  # when cross-compiling. At some point we should fix this properly,
++  # for now the workaround will suffice
++  if("${SPIRV_TOOLS_INCLUDE_DIRS}" STREQUAL "")
++    set(SPIRV_TOOLS_INCLUDE_DIRS "${LLVM_MAIN_SRC_DIR}/projects/SPIRV-Tools/include")
++  endif()
+   target_include_directories(llvm-spirv PRIVATE ${SPIRV_TOOLS_INCLUDE_DIRS})
+   target_link_libraries(llvm-spirv PRIVATE ${SPIRV_TOOLS_LDFLAGS})
+ endif(SPIRV_TOOLS_FOUND)

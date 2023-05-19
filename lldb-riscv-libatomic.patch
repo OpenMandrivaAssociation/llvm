@@ -1,0 +1,38 @@
+diff -up llvm-project-16.0.4.src/lldb/CMakeLists.txt.omv~ llvm-project-16.0.4.src/lldb/CMakeLists.txt
+--- llvm-project-16.0.4.src/lldb/CMakeLists.txt.omv~	2023-05-19 00:04:56.480455007 +0200
++++ llvm-project-16.0.4.src/lldb/CMakeLists.txt	2023-05-19 00:07:49.629138453 +0200
+@@ -28,6 +28,12 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURR
+   endif()
+ endif()
+ 
++if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "riscv64")
++  set(atomic_libs "atomic")
++else()
++  set(atomic_libs)
++endif()
++
+ # Must go below project(..)
+ include(GNUInstallDirs)
+ 
+diff -up llvm-project-16.0.4.src/lldb/source/API/CMakeLists.txt.omv~ llvm-project-16.0.4.src/lldb/source/API/CMakeLists.txt
+--- llvm-project-16.0.4.src/lldb/source/API/CMakeLists.txt.omv~	2023-05-19 00:06:31.980383516 +0200
++++ llvm-project-16.0.4.src/lldb/source/API/CMakeLists.txt	2023-05-19 00:07:34.483991206 +0200
+@@ -103,6 +103,7 @@ add_lldb_library(liblldb SHARED ${option
+     lldbUtility
+     lldbVersion
+     ${LLDB_ALL_PLUGINS}
++    ${atomic_libs}
+   LINK_COMPONENTS
+     Support
+ 
+diff -up llvm-project-16.0.4.src/lldb/tools/lldb-server/CMakeLists.txt.omv~ llvm-project-16.0.4.src/lldb/tools/lldb-server/CMakeLists.txt
+--- llvm-project-16.0.4.src/lldb/tools/lldb-server/CMakeLists.txt.omv~	2023-05-19 00:10:01.784423296 +0200
++++ llvm-project-16.0.4.src/lldb/tools/lldb-server/CMakeLists.txt	2023-05-19 00:10:10.367506742 +0200
+@@ -56,6 +56,7 @@ add_lldb_tool(lldb-server
+       lldbPluginInstructionMIPS64
+       lldbPluginInstructionRISCV
+       ${LLDB_SYSTEM_LIBS}
++      ${atomic_libs}
+ 
+     LINK_COMPONENTS
+       Option

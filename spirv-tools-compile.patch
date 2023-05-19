@@ -1,14 +1,14 @@
 diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp
 --- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.omv~	2023-01-12 20:22:29.085438581 +0100
 +++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp	2023-01-12 20:22:53.995578641 +0100
-@@ -237,8 +237,8 @@ std::ostream& operator<<(std::ostream& o
+@@ -237,8 +237,10 @@ std::ostream& operator<<(std::ostream& o
        return os << "partially uniform";
      case DivergenceAnalysis::DivergenceLevel::kDivergent:
        return os << "divergent";
--    default:
--      return os << "<invalid divergence level>";
-+/*    default:
-+      return os << "<invalid divergence level>"; */
++#ifndef __clang__ // clang complains about unreachable code, gcc complains about missing return
+     default:
+       return os << "<invalid divergence level>";
++#endif
    }
  }
  

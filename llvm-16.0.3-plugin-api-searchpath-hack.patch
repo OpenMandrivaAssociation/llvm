@@ -1,0 +1,26 @@
+diff -up llvm-project-16.0.3.src/llvm/tools/gold/CMakeLists.txt.omv~ llvm-project-16.0.3.src/llvm/tools/gold/CMakeLists.txt
+--- llvm-project-16.0.3.src/llvm/tools/gold/CMakeLists.txt.omv~	2023-05-17 04:34:48.373222324 +0200
++++ llvm-project-16.0.3.src/llvm/tools/gold/CMakeLists.txt	2023-05-17 04:46:38.028096016 +0200
+@@ -1,7 +1,9 @@
+ set(LLVM_EXPORTED_SYMBOL_FILE ${CMAKE_CURRENT_SOURCE_DIR}/gold.exports)
+ 
+ if( LLVM_ENABLE_PIC AND LLVM_BINUTILS_INCDIR )
+-  include_directories( ${LLVM_BINUTILS_INCDIR} )
++  # Upstream does include_directories(${LLVM_BINUTILS_INCDIR}), but
++  # -I/usr/include is evil for various reasons (esp. when crosscompiling)
++  add_definitions( "-DBINUTILS_HEADER=\"${LLVM_BINUTILS_INCDIR}/plugin-api.h\"" )
+ 
+   set(LLVM_LINK_COMPONENTS
+      ${LLVM_TARGETS_TO_BUILD}
+diff -up llvm-project-16.0.3.src/llvm/tools/gold/gold-plugin.cpp.omv~ llvm-project-16.0.3.src/llvm/tools/gold/gold-plugin.cpp
+--- llvm-project-16.0.3.src/llvm/tools/gold/gold-plugin.cpp.omv~	2023-05-17 04:22:38.603718573 +0200
++++ llvm-project-16.0.3.src/llvm/tools/gold/gold-plugin.cpp	2023-05-17 04:45:40.338673088 +0200
+@@ -35,7 +35,7 @@
+ #include "llvm/Support/raw_ostream.h"
+ #include <list>
+ #include <map>
+-#include <plugin-api.h>
++#include BINUTILS_HEADER
+ #include <string>
+ #include <system_error>
+ #include <utility>

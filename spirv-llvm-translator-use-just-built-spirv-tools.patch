@@ -1,0 +1,13 @@
+diff -up llvm-project-16.0.4.src/llvm/projects/SPIRV-LLVM-Translator/CMakeLists.txt.36~ llvm-project-16.0.4.src/llvm/projects/SPIRV-LLVM-Translator/CMakeLists.txt
+--- llvm-project-16.0.4.src/llvm/projects/SPIRV-LLVM-Translator/CMakeLists.txt.36~	2023-05-18 08:22:41.911263338 +0200
++++ llvm-project-16.0.4.src/llvm/projects/SPIRV-LLVM-Translator/CMakeLists.txt	2023-05-18 08:23:45.317908247 +0200
+@@ -130,6 +130,9 @@ if (NOT SPIRV_TOOLS_FOUND)
+           "--spirv-tools-dis support.")
+ endif()
+ 
++# FIXME -- HACK -- we want to use the just-built SPIRV-Tools, not any
++# version already in the system
++set(SPIRV_TOOLS_LDFLAGS "-L${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} -lSPIRV-Tools-opt -lSPIRV-Tools -lSPIRV-Tools-link")
+ 
+ add_subdirectory(lib/SPIRV)
+ add_subdirectory(tools/llvm-spirv)
