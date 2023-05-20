@@ -2478,15 +2478,23 @@ if [ -n "$XCRTARCHES" ]; then
 			-DLLVM_INCLUDE_DIR="${TOP}/llvm/include/llvm" \
 			-DCMAKE_CROSSCOMPILING:BOOL=ON \
 			-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{major1} \
+%if ! %{cross_compiling}
 			-DCMAKE_AR=${BINDIR}/llvm-ar \
 			-DCMAKE_NM=${BINDIR}/llvm-nm \
 			-DCMAKE_RANLIB=${BINDIR}/llvm-ranlib \
+			-DCMAKE_C_COMPILER=${BINDIR}/clang \
+			-DCMAKE_CXX_COMPILER=${BINDIR}/clang++ \
+%else
+			-DCMAKE_AR=%{_bindir}/llvm-ar \
+			-DCMAKE_NM=%{_bindir}/llvm-nm \
+			-DCMAKE_RANLIB=%{_bindir}/llvm-ranlib \
+			-DCMAKE_C_COMPILER=%{_bindir}/clang \
+			-DCMAKE_CXX_COMPILER=%{_bindir}/clang++ \
+%endif
 			-DCMAKE_ASM_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
 			-DCMAKE_C_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
 			-DCMAKE_CXX_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
 			-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=${arch}-openmandriva-linux-${LIBC} \
-			-DCMAKE_C_COMPILER=${BINDIR}/clang \
-			-DCMAKE_CXX_COMPILER=${BINDIR}/clang++ \
 			-DCMAKE_ASM_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
 			-DCMAKE_C_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
 			-DCMAKE_CXX_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
