@@ -610,8 +610,10 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-nm
 %{_bindir}/llvm-objdump
 %{_bindir}/llvm-objcopy
+%if %{with openmp}
 %{_bindir}/llvm-omp-device-info
 %{_bindir}/llvm-omp-kernel-replay
+%endif
 %{_bindir}/llvm-otool
 %{_bindir}/llvm-remarkutil
 %{_bindir}/llvm-sim
@@ -2380,14 +2382,11 @@ EOF
 	-DLLVM_ENABLE_PER_TARGET_RUNTIME:BOOL=ON \
 	-DLLVM_HOST_TRIPLE=i686-openmandriva-linux-gnu \
 	-DLLVM_TARGET_ARCH=i686 \
-	-DLIBCXX_CXX_ABI=libcxxabi \
 	-DLIBCXX_ENABLE_CXX1Y:BOOL=ON \
 	-DLIBCXXABI_ENABLE_SHARED:BOOL=ON \
 	-DLIBCXXABI_ENABLE_STATIC:BOOL=ON \
 	-DLIBCXX_ENABLE_SHARED:BOOL=ON \
 	-DLIBCXX_ENABLE_STATIC:BOOL=ON \
-	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/libcxx/include \
-	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/libcxxabi/include \
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
 	-DBUILD_SHARED_LIBS:BOOL=OFF \
 	-DLLVM_BUILD_LLVM_DYLIB:BOOL=ON \
@@ -2639,6 +2638,9 @@ if [ -e %{buildroot}%{_prefix}/lib/cmake/clang/ClangTargets-*.cmake ]; then
 fi
 %endif
 
+# FIXME for some reason, runtimes aren't built when cross-compiling
+# (at least to RISC-V)
+%if ! %{cross_compiling}
 # Fix Debianisms
 mv %{buildroot}%{_includedir}/*/c++/v1/__config_site %{buildroot}%{_includedir}/c++/v1/
 rm -rf %{buildroot}%{_includedir}/*-*-*
@@ -2652,6 +2654,7 @@ rmdir %{buildroot}%{_prefix}/lib/i686-*
 %else
 mv %{buildroot}%{_libdir}/*-linux-*/* %{buildroot}%{_libdir}/
 rmdir %{buildroot}%{_libdir}/*-linux-*
+%endif
 %endif
 
 %if %{with unwind}
