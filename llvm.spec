@@ -90,12 +90,14 @@
 %endif
 %bcond_without lldb
 %if %{cross_compiling}
-# FIXME openmp doesn't crosscompile in 16.0.4
+# FIXME openmp and unwind don't crosscompile in 16.0.4
+# (no error; just not being built even if listed)
 %bcond_with openmp
+%bcond_with unwind
 %else
 %bcond_without openmp
-%endif
 %bcond_without unwind
+%endif
 %bcond_without lld
 
 # Use libcxx instead of libstdc++. Good, but
@@ -966,13 +968,15 @@ This package contains the development files for LLVM.
 %{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
 %exclude %{_libdir}/libLLVM-*.so
+%if %{with openmp}
 %exclude %{_libdir}/libomptarget.so
+%endif
 # FIXME this needs a real soname
 %exclude %{_libdir}/libSPIRV-Tools-shared.so
 %ifnarch %{riscv}
 %exclude %{_libdir}/libGPURuntime.so
 %endif
-%ifnarch %{arm}
+%ifnarch %{arm} %{riscv}
 %{_libdir}/libarcher_static.a
 %endif
 %if %{with openmp}
