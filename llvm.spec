@@ -1052,10 +1052,10 @@ Shared libraries for LLVM OpenMP support.
 %{_libdir}/libomptarget.so
 %{_libdir}/libomptarget-*.bc
 %{_libdir}/libomptarget.rtl.*.so
-%endif
 %{_libdir}/libomptarget.devicertl.a
 %{_libdir}/libomptarget.rtl.*.so.%{major1}
 %{_libdir}/libomptarget.so.%{major1}
+%endif
 
 #-----------------------------------------------------------
 
@@ -1205,12 +1205,21 @@ as libraries and designed to be loosely-coupled and extensible.
 %dir %{_libdir}/clang/%{major1}/lib/*
 %{_libdir}/clang/%{major1}/lib/*/clang_rt*.o
 %{_libdir}/clang/%{major1}/lib/*/libclang_rt*.a
+# No sanitizers on RISC-V yet, only static clang_rt
+%ifnarch %{riscv}
 %{_libdir}/clang/%{major1}/lib/*/libclang_rt*.so
 %{_libdir}/clang/%{major1}/lib/*/libclang_rt*.syms
-%{_libdir}/clang/%{major1}/lib/*/liborc_rt*.a
+# Contains hwasan, therefore no RISC-V
 %{_libdir}/clang/%{major1}/bin
-%{_libdir}/clang/%{major1}/include
+# Contains sanitizer configs, therefore no RISC-V
 %{_libdir}/clang/%{major1}/share
+%endif
+%{_libdir}/clang/%{major1}/lib/*/liborc_rt*.a
+%{_libdir}/clang/%{major1}/include
+%if %{with openmp}
+%{_libdir}/cmake/openmp/FindOpenMPTarget.cmake
+%{_datadir}/gdb/python/ompd
+%endif
 
 #-----------------------------------------------------------
 
@@ -1304,8 +1313,6 @@ libclang.
 %{_includedir}/clang-tidy
 %{_libdir}/libclang*.so
 %{_libdir}/cmake/clang
-%{_libdir}/cmake/openmp/FindOpenMPTarget.cmake
-%{_datadir}/gdb/python/ompd
 %doc %{_mandir}/man1/clang-tblgen.1*
 
 %package -n clang-analyzer
@@ -1423,14 +1430,18 @@ Debugger from the LLVM toolchain.
 
 %files -n lldb
 %{_bindir}/lldb*
-%{_libdir}/python*/site-packages/lldb
 %{_libdir}/liblldb.so.*
 %{_libdir}/liblldbIntelFeatures.so.*
 %{_libdir}/lua/*/lldb.so
+# FIXME should this be ifnarch riscv or if ! cross_compiling?
+# We'll find out for sure when we have native RV builds...
+%ifnarch %{riscv}
+%{_libdir}/python*/site-packages/lldb
 %doc %{_mandir}/man1/lldb.1*
 %doc %{_mandir}/man1/lldb-server.1*
-%doc %{_mandir}/man1/lldb-tblgen.1*
 %doc %{_docdir}/LLVM/lldb
+%endif
+%doc %{_mandir}/man1/lldb-tblgen.1*
 
 %define lldbdev %mklibname -d lldb
 
@@ -2684,6 +2695,13 @@ sed -e 's,@LIBDIR@,%{_prefix}/lib,g;s,@VERSION@,%{version},g' %{S:50} >%{buildro
 %if %{with apidocs}
 mv %{buildroot}%{_prefix}/docs/html/html %{buildroot}%{_docdir}/llvm/doxygen-polly
 rm -rf %{buildroot}%{_prefix}/docs
+%endif
+
+%if %{with bootstrap}
+# Just amdgpu-arch and nvptx-arch without the rest of libclc
+# are entirely useless...
+rm -f %{buildroot}%{_bindir}/amdgpu-arch \
+	%{buildroot}%{_bindir}/nvptx-arch
 %endif
 
 # This seems to be a build system glitch
