@@ -8,9 +8,9 @@ diff -up llvm-project-release-12.x/clang/lib/Driver/ToolChains/Clang.cpp.omv~ ll
    } else if (!IsMSVCCompat) {
 -    // Imitate GCC 4.2.1 by default if -fms-compatibility is not in effect.
 -    GNUCVer = VersionTuple(4, 2, 1);
-+    // Imitate GCC 11.1.1 by default if -fms-compatibility is not in effect.
++    // Imitate GCC 13.1.1 by default if -fms-compatibility is not in effect.
 +    // Any version >= 7.0.0 needs a glibc patch for _Float32 and friends.
-+    GNUCVer = VersionTuple(12, 2, 1);
++    GNUCVer = VersionTuple(13, 1, 1);
    }
    if (!GNUCVer.empty()) {
      CmdArgs.push_back(
