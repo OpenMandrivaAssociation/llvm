@@ -1,7 +1,7 @@
-From a057fb27ccf27986dab5d2ab62165d61ccabe468 Mon Sep 17 00:00:00 2001
+From f8f71936177e7a55441dc9d67549b140e574896f Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:25 +0300
-Subject: [PATCH 095/140] esp/ci: Adds Mingw32 build
+Subject: [PATCH 095/158] esp/ci: Adds Mingw32 build
 
 ---
  .gitlab-ci.yml | 145 +++++++++++++++++++++++++++++++++++++++++--------

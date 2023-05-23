@@ -1,7 +1,7 @@
-From 363cb7e7d9b0dc304defc94e7e18765a638b8018 Mon Sep 17 00:00:00 2001
+From 732aa9790b0979e0def249c72300d4b6ddbfcabd Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:48 +0300
-Subject: [PATCH 139/140] [Xtensa] Place aggregate constants in global
+Subject: [PATCH 139/158] [Xtensa] Place aggregate constants in global
  variable.
 
  Do not use constant pool for aggregate or vector constant types,

@@ -1,7 +1,7 @@
-From cd2c83b45a4bd1c210f2d16831ef64927460a843 Mon Sep 17 00:00:00 2001
+From 7438f1e8e00169b73685a275155a5f1e616a0b18 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:10 +0300
-Subject: [PATCH 064/140] [Xtensa] Support 'f' Inline Assembly Constraint
+Subject: [PATCH 064/158] [Xtensa] Support 'f' Inline Assembly Constraint
 
 This adds the 'f' inline assembly constraint, as supported by GCC. An
 'f'-constrained operand is passed in a floating point register.

@@ -1,0 +1,25 @@
+From 95076a1deefc2e71db6bdf64a9acbc279b26726d Mon Sep 17 00:00:00 2001
+From: Alexey Gerenkov <alexey@espressif.com>
+Date: Sat, 24 Dec 2022 01:53:25 +0300
+Subject: [PATCH 150/158] esp/ci: Update newlib branch
+
+---
+ .gitlab-ci.yml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 7323f4fcb7b1..8156bf468ad5 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -15,7 +15,7 @@ variables:
+   CLANG_VER: "16"
+   GCC_REL_NAME: "esp-2022r1"
+   GCC_REL_VER: "gcc11_2_0"
+-  NEWLIB_REF: "esp-2022r1"
++  NEWLIB_REF: "esp-4.1.0_20230425"
+   BINUTILS_REF: "esp-2022r1-binutils"
+   XTENSA_OVERLAYS_REF: "master"
+   LLVM_GCC_TESTSUITE_REF: "esp-16.0.0-20230419"
+-- 
+2.40.1
+

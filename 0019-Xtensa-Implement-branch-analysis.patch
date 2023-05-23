@@ -1,7 +1,7 @@
-From 515842678304bdaa783ef46da33219933130b6b1 Mon Sep 17 00:00:00 2001
+From 81215dcb26afbb07787725d55f935e42f9cc7ff0 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:58:44 +0300
-Subject: [PATCH 019/140] [Xtensa] Implement branch analysis
+Subject: [PATCH 019/158] [Xtensa] Implement branch analysis
 
 ---
  llvm/lib/Target/Xtensa/XtensaInstrInfo.cpp | 305 ++++++++++++++++++++-

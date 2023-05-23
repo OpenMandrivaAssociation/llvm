@@ -1,7 +1,7 @@
-From 08ed4e398e60a57442ad52aeddc562b3f6b1407c Mon Sep 17 00:00:00 2001
+From bbdc9e42eb09f4550d997b0774e0ba85630b04cb Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:37 +0300
-Subject: [PATCH 118/140] esp/ci: Adds MacOS binaries signing stage
+Subject: [PATCH 118/158] esp/ci: Adds MacOS binaries signing stage
 
 ---
  .gitlab-ci.yml                   |  1 +

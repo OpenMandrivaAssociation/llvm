@@ -1,7 +1,7 @@
-From 13cf8735be12c9e205d46f11383697892cc5f62f Mon Sep 17 00:00:00 2001
+From 842317ab28c46917cb6186dda32c2e28002ed1a5 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:09 +0300
-Subject: [PATCH 062/140] [Xtensa] Fix Hardware Loop optimization
+Subject: [PATCH 062/158] [Xtensa] Fix Hardware Loop optimization
 
 ---
  .../lib/Target/Xtensa/XtensaHardwareLoops.cpp | 133 ++++++++++++------

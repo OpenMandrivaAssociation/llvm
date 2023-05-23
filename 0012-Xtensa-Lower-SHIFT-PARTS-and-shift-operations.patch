@@ -1,7 +1,7 @@
-From b96c603ff5f974adb8cb80e239a485bb0ad5adda Mon Sep 17 00:00:00 2001
+From 41b1c8ddf259f0c3029f1167f989aa751b5e1093 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:58:41 +0300
-Subject: [PATCH 012/140] [Xtensa] Lower SHIFT PARTS and shift operations.
+Subject: [PATCH 012/158] [Xtensa] Lower SHIFT PARTS and shift operations.
 
 Also lower SHL, SRA, SRL with register operands.
 ---

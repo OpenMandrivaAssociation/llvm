@@ -1,7 +1,7 @@
-From a227f8845073d350adc444841887986a90f9d56d Mon Sep 17 00:00:00 2001
+From b074fe31163a1e24f9538965b004832485e3abcb Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:58:43 +0300
-Subject: [PATCH 016/140] [Xtensa] Support for address intrinsics.
+Subject: [PATCH 016/158] [Xtensa] Support for address intrinsics.
 
 Add support for llvm.{frameaddress,returnaddress} intrinsics.
 ---

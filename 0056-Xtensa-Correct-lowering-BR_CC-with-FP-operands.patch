@@ -1,7 +1,7 @@
-From 972e24ef49cb86c648f630924aa2e2a39c14420e Mon Sep 17 00:00:00 2001
+From 73ce33e34db4b240d9f34d4790a666c94434c81f Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:06 +0300
-Subject: [PATCH 056/140] [Xtensa] Correct lowering BR_CC with FP operands.
+Subject: [PATCH 056/158] [Xtensa] Correct lowering BR_CC with FP operands.
 
 Remove register class for boolean operands, because it is only suitable for FP compare operations
 and may lead to problems in other cases. Disable load width reduction, because for IRAM memory

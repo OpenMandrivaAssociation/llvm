@@ -1,7 +1,7 @@
-From 90df9cd95e676927f18c7d80809fdb285d4d2466 Mon Sep 17 00:00:00 2001
+From 7f9755f1a0a2fc739765c9bd20961f043f702503 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:39 +0300
-Subject: [PATCH 123/140] [Xtensa] Fix atomic rmw operation.
+Subject: [PATCH 123/158] [Xtensa] Fix atomic rmw operation.
 
 Fix register liveness in emitAtomicRMW function.
 ---

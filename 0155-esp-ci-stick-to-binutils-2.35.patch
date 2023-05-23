@@ -1,0 +1,26 @@
+From d422d9099a536bc729cf086373de1cb064de93b0 Mon Sep 17 00:00:00 2001
+From: Alexey Gerenkov <alexey@espressif.com>
+Date: Mon, 1 May 2023 22:25:42 +0300
+Subject: [PATCH 155/158] esp/ci: stick to binutils 2.35
+
+---
+ .gitlab-ci.yml | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index c12ca71ffe24..8e7756f7bae9 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -16,6 +16,9 @@ variables:
+   GCC_REL_NAME: "esp-2022r1"
+   GCC_REL_VER: "gcc11_2_0"
+   NEWLIB_REF: "esp-4.1.0_20230425"
++  # TODO: LLVM-248. Upgrade binutils above 2.36 when Clang will be upgraded to >=17.x 
++  # which supports 'zicsr' or 'zifencei' RISCV extensions via '-march='
++  # https://www.spinics.net/lists/stable/msg645015.html
+   BINUTILS_REF: "esp-2022r1-binutils"
+   XTENSA_OVERLAYS_REF: "master"
+   LLVM_GCC_TESTSUITE_REF: "esp-16.0.0-20230425"
+-- 
+2.40.1
+

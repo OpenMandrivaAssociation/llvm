@@ -1,7 +1,7 @@
-From 16b5c7576b17e40a98f4d4d321e24fd025b2ce69 Mon Sep 17 00:00:00 2001
+From 58f3de136d431e3d4cb715bb54438f128c9b4419 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:29 +0300
-Subject: [PATCH 102/140] [Xtensa] Fix ill.n instruction econding
+Subject: [PATCH 102/158] [Xtensa] Fix ill.n instruction econding
 
 ---
  llvm/lib/Target/Xtensa/XtensaInstrInfo.td  | 2 +-

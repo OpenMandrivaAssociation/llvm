@@ -1,0 +1,25 @@
+From 0569d4ef3f5136728f858e27018857be2ca854a4 Mon Sep 17 00:00:00 2001
+From: Alexey Gerenkov <alexey@espressif.com>
+Date: Tue, 2 May 2023 17:38:34 +0300
+Subject: [PATCH 152/158] esp/ci: Update 'llvm-xtensa-testsuite' ref
+
+---
+ .gitlab-ci.yml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 8156bf468ad5..be587f94940d 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -18,7 +18,7 @@ variables:
+   NEWLIB_REF: "esp-4.1.0_20230425"
+   BINUTILS_REF: "esp-2022r1-binutils"
+   XTENSA_OVERLAYS_REF: "master"
+-  LLVM_GCC_TESTSUITE_REF: "esp-16.0.0-20230419"
++  LLVM_GCC_TESTSUITE_REF: "esp-16.0.0-20230425"
+   XTENSA_CLANG_TOOLCHAIN_REF: "esp-15.0.0-20221201"
+ 
+   CROSS_ARM_IMAGE: $CI_DOCKER_REGISTRY/llvm-build-cross-arm:1
+-- 
+2.40.1
+

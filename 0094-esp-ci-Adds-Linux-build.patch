@@ -1,7 +1,7 @@
-From e416209b0dc921b5c994869493c44ef5005754dc Mon Sep 17 00:00:00 2001
+From 0977b82d60497ac42f507b6512477ac8d722a5f1 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:25 +0300
-Subject: [PATCH 094/140] esp/ci: Adds Linux build
+Subject: [PATCH 094/158] esp/ci: Adds Linux build
 
 ---
  .gitlab-ci.yml | 145 ++++++++++++++++++++++++++++++++++++++-----------

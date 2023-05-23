@@ -1,7 +1,7 @@
-From d884371a4dcecd107aea3d0e768de8f3edfec094 Mon Sep 17 00:00:00 2001
+From 2d3dd2be29bf94522e1e14ce75df6876119788d3 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:31 +0300
-Subject: [PATCH 106/140] [Xtensa] Implement asm macro for bbci/bbsi.
+Subject: [PATCH 106/158] [Xtensa] Implement asm macro for bbci/bbsi.
 
 Add bbci.l macro for bbci instructon and bbsi.l for bbsi.
 ---

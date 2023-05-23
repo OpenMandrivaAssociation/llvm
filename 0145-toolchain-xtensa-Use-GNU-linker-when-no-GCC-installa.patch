@@ -1,0 +1,98 @@
+From 87fcbd295b72336aceefc021ed2695e7c07f2b23 Mon Sep 17 00:00:00 2001
+From: Alexey Gerenkov <alexey@espressif.com>
+Date: Wed, 21 Dec 2022 00:53:40 +0300
+Subject: [PATCH 145/158] toolchain/xtensa: Use GNU linker when no GCC
+ installation is detected
+
+---
+ clang/lib/Driver/ToolChains/Xtensa.cpp | 35 +++++++++++++++-----------
+ clang/lib/Driver/ToolChains/Xtensa.h   |  2 +-
+ 2 files changed, 21 insertions(+), 16 deletions(-)
+
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index a55aa6725b7e..d969128817e9 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -35,21 +35,15 @@ XtensaToolChain::XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
+     : Generic_ELF(D, Triple, Args) {
+ 
+   std::vector<std::string> ExtraAliases;
+-  SmallString<128> CpuName;
++  StringRef CpuName;
+ 
+   if (Triple.getVendor() == llvm::Triple::Espressif ||
+       Triple.getVendor() == llvm::Triple::UnknownVendor) {
+-    Arg *mcpuArg = Args.getLastArg(options::OPT_mcpu_EQ);
+-    if (mcpuArg)
+-      CpuName = mcpuArg->getValue();
+-    else if (Triple.getVendor() == llvm::Triple::Espressif)
+-      // 'esp32' is default for 'xtensa-esp-xxx' targets,
+-      // for generic 'xtensa' target CPU should be always specified explicitly with '-mcpu'
+-      CpuName = "esp32";
++    CpuName = GetTargetCPUVersion(Args, Triple);
+     if (CpuName.startswith("esp")) {
+       // ESP Xtensa GCC toolchain uses shorten triple "xtensa-<cpu>-elf", so add it as an alias
+       // to help Clang detect GCC installation properly
+-      ExtraAliases = {std::string("xtensa-") + CpuName.c_str() + "-elf"};
++      ExtraAliases = {std::string("xtensa-") + CpuName.str() + "-elf"};
+       if (Args.hasArg(options::OPT_v)) {
+         llvm::errs() << "Use GCC target extra alias: " << ExtraAliases[0] << "\n";
+       }
+@@ -228,12 +222,17 @@ XtensaToolChain::GetUnwindLibType(const llvm::opt::ArgList &Args) const {
+   return ToolChain::UNW_None;
+ }
+ 
+-const StringRef XtensaToolChain::GetTargetCPUVersion(const ArgList &Args) {
++const StringRef XtensaToolChain::GetTargetCPUVersion(const ArgList &Args, const llvm::Triple &Triple) {
++  StringRef CPUName;
+   if (Arg *A = Args.getLastArg(clang::driver::options::OPT_mcpu_EQ)) {
+-    StringRef CPUName = A->getValue();
+-    return CPUName;
++    CPUName = A->getValue();
++  } else if (Triple.getVendor() == llvm::Triple::Espressif) {
++      // 'esp32' is default for 'xtensa-esp-xxx' targets,
++      // for generic 'xtensa' target CPU should be always specified explicitly with '-mcpu'
++      CPUName = "esp32";
++
+   }
+-  return "esp32";
++  return CPUName;
+ }
+ 
+ void tools::xtensa::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
+@@ -295,11 +294,17 @@ void xtensa::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+ 
+   bool LinkerIsLLD;
+   std::string LinkerPath = ToolChain.GetLinkerPath(&LinkerIsLLD);
+-  if (ToolChain.GCCToolchainName != "") {
+-    if (!LinkerIsLLD) {
++  if (!LinkerIsLLD) {
++    if (ToolChain.GCCToolchainName != "") {
+       Linker.assign(ToolChain.GCCToolchainDir);
+       llvm::sys::path::append(
+           Linker, "bin", ToolChain.GCCToolchainName + "-" + getShortName());
++    } else if (ToolChain.getTriple().getVendor() == llvm::Triple::Espressif) {
++      // ESP workaround, if there is no GCC installation we need to use xtensa-espXX-elf prefix for ld.
++      // so guess it basing on selected mcpu
++      Linker.assign(ToolChain.getDriver().Dir);
++      llvm::sys::path::append(
++          Linker, "xtensa-" + ToolChain.GetTargetCPUVersion(Args, ToolChain.getTriple()) + "-elf-" + getShortName());
+     } else {
+       Linker.assign(LinkerPath);
+     }
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.h b/clang/lib/Driver/ToolChains/Xtensa.h
+index 8f3ed74923ba..58d9a707e3a3 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.h
++++ b/clang/lib/Driver/ToolChains/Xtensa.h
+@@ -41,7 +41,7 @@ public:
+     return (IsIntegratedAsm || (GCCToolchainName == ""));
+   }
+ 
+-  static const StringRef GetTargetCPUVersion(const llvm::opt::ArgList &Args);
++  static const StringRef GetTargetCPUVersion(const llvm::opt::ArgList &Args, const llvm::Triple &Triple);
+ 
+   bool IsIntegratedAsm = true;
+   std::string GCCLibAndIncVersion = "";
+-- 
+2.40.1
+

@@ -1,0 +1,29 @@
+From 7d2d0a1dfb3d11c1a1e30c9198bda37b06a5c938 Mon Sep 17 00:00:00 2001
+From: Alexey Gerenkov <alexey@espressif.com>
+Date: Mon, 26 Dec 2022 21:02:50 +0300
+Subject: [PATCH 148/158] compiler-rt/tests: Adds specific build options for
+ Espressif targets
+
+---
+ compiler-rt/test/builtins/Unit/lit.cfg.py | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/compiler-rt/test/builtins/Unit/lit.cfg.py b/compiler-rt/test/builtins/Unit/lit.cfg.py
+index fa6dc86783d3..818ea3f424f5 100644
+--- a/compiler-rt/test/builtins/Unit/lit.cfg.py
++++ b/compiler-rt/test/builtins/Unit/lit.cfg.py
+@@ -49,7 +49,10 @@ else:
+   if sys.platform in ['win32'] and execute_external:
+     # Don't pass dosish path separator to msys bash.exe.
+     base_lib = base_lib.replace('\\', '/')
+-  config.substitutions.append( ("%librt ", base_lib + ' -lc -lm ') )
++  if config.target_triple in ['xtensa-esp-elf', 'riscv32-esp-elf']:
++    config.substitutions.append( ("%librt ", "-Wl,--start-group," + base_lib + ',-lm,-lc,--whole-archive,-lgloss,--no-whole-archive,-lc,--whole-archive,-lsys_qemu,--no-whole-archive,--end-group ') )
++  else:
++    config.substitutions.append( ("%librt ", base_lib + ' -lc -lm ') )
+ 
+ builtins_source_dir = os.path.join(
+   get_required_attr(config, "compiler_rt_src_root"), "lib", "builtins")
+-- 
+2.40.1
+

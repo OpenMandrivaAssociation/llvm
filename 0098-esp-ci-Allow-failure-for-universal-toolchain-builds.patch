@@ -1,7 +1,7 @@
-From 43b716170c3fe271f12fc678bd141ffdb08b73cd Mon Sep 17 00:00:00 2001
+From 5c2113a3782b80403a21d5117a0469d19cc63352 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:27 +0300
-Subject: [PATCH 098/140] esp/ci: Allow failure for universal toolchain builds
+Subject: [PATCH 098/158] esp/ci: Allow failure for universal toolchain builds
 
 ---
  .gitlab-ci.yml | 2 ++

@@ -1,7 +1,7 @@
-From 2c5cb33309b116508c6bce269157c49d04da6c43 Mon Sep 17 00:00:00 2001
+From cc6a0ee449557167396b7d103ab1550745bf858e Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:13 +0300
-Subject: [PATCH 069/140] [Xtensa] Define register type for CC
+Subject: [PATCH 069/158] [Xtensa] Define register type for CC
 
 Implement getRegisterTypeForCallingConv() method in XtensaTargetLowering
 ---

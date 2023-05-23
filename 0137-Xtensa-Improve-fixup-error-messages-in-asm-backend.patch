@@ -1,7 +1,7 @@
-From 76b1b4592e5745c40c0d1fe4d2f4e9bd87b1ab48 Mon Sep 17 00:00:00 2001
+From 1872a26fca49477027c913b0f7f4a870f5408543 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:47 +0300
-Subject: [PATCH 137/140] [Xtensa] Improve fixup error messages in asm backend.
+Subject: [PATCH 137/158] [Xtensa] Improve fixup error messages in asm backend.
 
 ---
  .../Xtensa/MCTargetDesc/XtensaAsmBackend.cpp       | 14 +++++++-------

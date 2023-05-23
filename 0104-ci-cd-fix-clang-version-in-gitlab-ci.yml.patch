@@ -1,7 +1,7 @@
-From a2a8fccc4d441f128d15e5134377f797249187f4 Mon Sep 17 00:00:00 2001
+From 543251b01f112db5e23f9e7f2aa7a641cf510ab3 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:30 +0300
-Subject: [PATCH 104/140] ci/cd: fix clang version in gitlab-ci.yml
+Subject: [PATCH 104/158] ci/cd: fix clang version in gitlab-ci.yml
 
 ---
  .gitlab-ci.yml | 6 +++---

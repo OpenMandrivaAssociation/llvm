@@ -1,7 +1,7 @@
-From 8b603ca6e28e38ecec0b23706fcee54f52aa51a0 Mon Sep 17 00:00:00 2001
+From dbbc5856f9a5044957375698ca16f1a42094b005 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:26 +0300
-Subject: [PATCH 097/140] esp/ci: Upgrade universal toolchain to
+Subject: [PATCH 097/158] esp/ci: Upgrade universal toolchain to
 
  'gcc11_2_0-esp-2022r1-RC1' and newlib 4.1.0
 ---

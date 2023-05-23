@@ -1,7 +1,7 @@
-From 8be9974c352791994d6155cfeeef64cee4b410fd Mon Sep 17 00:00:00 2001
+From 3f6f779ffed1a9cd43f7d994f9e10a4aa884c200 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:08 +0300
-Subject: [PATCH 060/140] esp/maint: Adds Github workfows
+Subject: [PATCH 060/158] esp/maint: Adds Github workfows
 
 ---
  .github/workflows/issue_comment.yml | 19 +++++++++++++++++++

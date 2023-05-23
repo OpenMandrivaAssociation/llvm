@@ -1,7 +1,7 @@
-From f6a084b2ac688a63daecb7129d370d0c8eb09734 Mon Sep 17 00:00:00 2001
+From 97f4bb96277ce41e315c45a61f2b1647d68d8a8b Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:14 +0300
-Subject: [PATCH 072/140] [Xtensa] Add a no-op -mlongcalls option for better
+Subject: [PATCH 072/158] [Xtensa] Add a no-op -mlongcalls option for better
 
  compatibility
 

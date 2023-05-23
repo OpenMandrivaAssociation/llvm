@@ -1,7 +1,7 @@
-From f2fb065bfd0005856a7a08b3ed0ea40a14053125 Mon Sep 17 00:00:00 2001
+From e07863d32be1b787b11cc53c13dfc884faece354 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:58:48 +0300
-Subject: [PATCH 026/140] [Xtensa] Implement Boolean feature operations
+Subject: [PATCH 026/158] [Xtensa] Implement Boolean feature operations
 
 ---
  .../Disassembler/XtensaDisassembler.cpp       | 19 +++++-

@@ -1,7 +1,7 @@
-From 5f3fffbc451091fb2cbf15e55ff53a9388e4d44b Mon Sep 17 00:00:00 2001
+From d17cc33a627e1e647622bb9f15c16c5231a08cae Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:16 +0300
-Subject: [PATCH 075/140] [Xtensa] Correction of the Hardware Loop pass.
+Subject: [PATCH 075/158] [Xtensa] Correction of the Hardware Loop pass.
 
 Update loop counter via a phi instruction. This
 improvement fix case when loop have multiple enters.

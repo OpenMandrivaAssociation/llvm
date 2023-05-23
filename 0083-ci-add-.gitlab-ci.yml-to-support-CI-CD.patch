@@ -1,7 +1,7 @@
-From faf5e6927bd215a98fe74d57daac785319bef738 Mon Sep 17 00:00:00 2001
+From d3a27ac35c1ef111b9e91ee86a7647c7e8c5d72c Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:20 +0300
-Subject: [PATCH 083/140] ci: add .gitlab-ci.yml to support CI/CD
+Subject: [PATCH 083/158] ci: add .gitlab-ci.yml to support CI/CD
 
 ---
  .gitlab-ci.yml | 195 +++++++++++++++++++++++++++++++++++++++++++++++++

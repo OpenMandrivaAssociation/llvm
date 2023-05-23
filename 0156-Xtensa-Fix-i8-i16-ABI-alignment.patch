@@ -1,0 +1,61 @@
+From f929e55dff03583d176a476e278af5a8d36bc184 Mon Sep 17 00:00:00 2001
+From: Andrei Safronov <safronov@espressif.com>
+Date: Wed, 10 May 2023 19:01:58 +0300
+Subject: [PATCH 156/158] [Xtensa] Fix i8/i16 ABI alignment.
+
+Set 32-bit alignmnet for i8 and i16 types.
+---
+ clang/lib/Basic/Targets/Xtensa.h               | 2 +-
+ llvm/lib/Target/Xtensa/XtensaISelLowering.cpp  | 9 ++++++++-
+ llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp | 2 +-
+ 3 files changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/clang/lib/Basic/Targets/Xtensa.h b/clang/lib/Basic/Targets/Xtensa.h
+index 609e5aae435c..7f838f1d044d 100644
+--- a/clang/lib/Basic/Targets/Xtensa.h
++++ b/clang/lib/Basic/Targets/Xtensa.h
+@@ -50,7 +50,7 @@ public:
+     WIntType = UnsignedInt;
+     UseZeroLengthBitfieldAlignment = true;
+     MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 32;
+-    resetDataLayout("e-m:e-p:32:32-i8:8:32-i16:16:32-i64:64-i128:128-n32");
++    resetDataLayout("e-m:e-p:32:32-i64:64-i128:128-n32");
+   }
+ 
+   void getTargetDefines(const LangOptions &Opts,
+diff --git a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+index db4467677871..b51270f41e0b 100644
+--- a/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaISelLowering.cpp
+@@ -732,7 +732,14 @@ static bool CC_Xtensa_Custom(unsigned ValNo, MVT ValVT, MVT LocVT,
+ 
+   if (ArgFlags.isByVal()) {
+     Align ByValAlign = ArgFlags.getNonZeroByValAlign();
+-    unsigned Offset = State.AllocateStack(ArgFlags.getByValSize(), ByValAlign);
++    unsigned ByValSize = ArgFlags.getByValSize();
++    if (ByValSize < 4) {
++      ByValSize = 4;
++    }
++    if (ByValAlign < Align(4)) {
++      ByValAlign = Align(4);
++    }
++    unsigned Offset = State.AllocateStack(ByValSize, ByValAlign);
+     State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT, LocInfo));
+     // Allocate rest of registers, because rest part is not used to pass
+     // arguments
+diff --git a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+index b6249ad460c9..e74b297f3b2b 100644
+--- a/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
++++ b/llvm/lib/Target/Xtensa/XtensaTargetMachine.cpp
+@@ -36,7 +36,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTarget() {
+ static std::string computeDataLayout(const Triple &TT, StringRef CPU,
+                                      const TargetOptions &Options,
+                                      bool IsLittle) {
+-  std::string Ret = "e-m:e-p:32:32-i8:8:32-i16:16:32-i64:64-i128:128-n32";
++  std::string Ret = "e-m:e-p:32:32-i64:64-i128:128-n32";
+   return Ret;
+ }
+ 
+-- 
+2.40.1
+

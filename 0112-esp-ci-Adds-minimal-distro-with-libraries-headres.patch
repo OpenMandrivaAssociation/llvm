@@ -1,7 +1,7 @@
-From 986982f852846705e41307235d011b012faedd1f Mon Sep 17 00:00:00 2001
+From 6241610544baedf82df7f732e289d535e26e9af9 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:34 +0300
-Subject: [PATCH 112/140] esp/ci: Adds minimal distro with libraries/headres
+Subject: [PATCH 112/158] esp/ci: Adds minimal distro with libraries/headres
 
  only
 ---

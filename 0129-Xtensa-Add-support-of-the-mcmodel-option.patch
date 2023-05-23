@@ -1,7 +1,7 @@
-From 69495c0a7219cb0a5d35bf3d0cd878f30bb78c73 Mon Sep 17 00:00:00 2001
+From 59cc68df45b5b0fd81d2f5af8d3cb4f4ff5092ff Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:43 +0300
-Subject: [PATCH 129/140] [Xtensa] Add support of the mcmodel option.
+Subject: [PATCH 129/158] [Xtensa] Add support of the mcmodel option.
 
 For large mcmodel always emit contsant pool just before code.
 ---

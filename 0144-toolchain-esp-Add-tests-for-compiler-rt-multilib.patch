@@ -1,0 +1,508 @@
+From 1a45c783b0073055cbef2ba057dd77d0e66e3ebe Mon Sep 17 00:00:00 2001
+From: Alexey Gerenkov <alexey@espressif.com>
+Date: Fri, 16 Dec 2022 16:43:15 +0300
+Subject: [PATCH 144/158] toolchain/esp: Add tests for 'compiler-rt' multilib
+
+---
+ .../generic-rv32/lib/clang_rt.crtbegin.o      |   0
+ .../generic-rv32/lib/clang_rt.crtend.o        |   0
+ .../generic-rv32/lib/libclang_rt.builtins.a   |   0
+ .../rv32i/ilp32/lib/clang_rt.crtbegin.o       |   0
+ .../rv32i/ilp32/lib/clang_rt.crtend.o         |   0
+ .../rv32i/ilp32/lib/libclang_rt.builtins.a    |   0
+ .../ilp32/no-rtti/lib/clang_rt.crtbegin.o     |   0
+ .../rv32i/ilp32/no-rtti/lib/clang_rt.crtend.o |   0
+ .../ilp32/no-rtti/lib/libclang_rt.builtins.a  |   0
+ .../rv32imac/ilp32/lib/clang_rt.crtbegin.o    |   0
+ .../rv32imac/ilp32/lib/clang_rt.crtend.o      |   0
+ .../rv32imac/ilp32/lib/libclang_rt.builtins.a |   0
+ .../ilp32/no-rtti/lib/clang_rt.crtbegin.o     |   0
+ .../ilp32/no-rtti/lib/clang_rt.crtend.o       |   0
+ .../ilp32/no-rtti/lib/libclang_rt.builtins.a  |   0
+ .../rv32imafc/ilp32f/lib/clang_rt.crtbegin.o  |   0
+ .../rv32imafc/ilp32f/lib/clang_rt.crtend.o    |   0
+ .../ilp32f/lib/libclang_rt.builtins.a         |   0
+ .../ilp32f/no-rtti/lib/clang_rt.crtbegin.o    |   0
+ .../ilp32f/no-rtti/lib/clang_rt.crtend.o      |   0
+ .../ilp32f/no-rtti/lib/libclang_rt.builtins.a |   0
+ .../rv32imc/ilp32/lib/clang_rt.crtbegin.o     |   0
+ .../rv32imc/ilp32/lib/clang_rt.crtend.o       |   0
+ .../rv32imc/ilp32/lib/libclang_rt.builtins.a  |   0
+ .../ilp32/no-rtti/lib/clang_rt.crtbegin.o     |   0
+ .../ilp32/no-rtti/lib/clang_rt.crtend.o       |   0
+ .../ilp32/no-rtti/lib/libclang_rt.builtins.a  |   0
+ .../esp32/esp32-psram/lib/clang_rt.crtbegin.o |   0
+ .../esp32/esp32-psram/lib/clang_rt.crtend.o   |   0
+ .../esp32-psram/lib/libclang_rt.builtins.a    |   0
+ .../no-rtti/lib/clang_rt.crtbegin.o           |   0
+ .../esp32-psram/no-rtti/lib/clang_rt.crtend.o |   0
+ .../no-rtti/lib/libclang_rt.builtins.a        |   0
+ .../esp32/lib/clang_rt.crtbegin.o             |   0
+ .../esp32/lib/clang_rt.crtend.o               |   0
+ .../esp32/lib/libclang_rt.builtins.a          |   0
+ .../esp32/no-rtti/lib/clang_rt.crtbegin.o     |   0
+ .../esp32/no-rtti/lib/clang_rt.crtend.o       |   0
+ .../esp32/no-rtti/lib/libclang_rt.builtins.a  |   0
+ .../esp32s2/lib/clang_rt.crtbegin.o           |   0
+ .../esp32s2/lib/clang_rt.crtend.o             |   0
+ .../esp32s2/lib/libclang_rt.builtins.a        |   0
+ .../esp32s2/no-rtti/lib/clang_rt.crtbegin.o   |   0
+ .../esp32s2/no-rtti/lib/clang_rt.crtend.o     |   0
+ .../no-rtti/lib/libclang_rt.builtins.a        |   0
+ .../esp32s3/lib/clang_rt.crtbegin.o           |   0
+ .../esp32s3/lib/clang_rt.crtend.o             |   0
+ .../esp32s3/lib/libclang_rt.builtins.a        |   0
+ .../esp32s3/no-rtti/lib/clang_rt.crtbegin.o   |   0
+ .../esp32s3/no-rtti/lib/clang_rt.crtend.o     |   0
+ .../no-rtti/lib/libclang_rt.builtins.a        |   0
+ .../test/Driver/riscv32-esp-toolchain-extra.c | 115 ++++++++++++++++++
+ .../test/Driver/xtensa-esp-toolchain-extra.c  | 111 +++++++++++++++++
+ 53 files changed, 226 insertions(+)
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/clang_rt.crtbegin.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/clang_rt.crtend.o
+ create mode 100644 clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/libclang_rt.builtins.a
+ create mode 100644 clang/test/Driver/riscv32-esp-toolchain-extra.c
+ create mode 100644 clang/test/Driver/xtensa-esp-toolchain-extra.c
+
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/clang_rt.crtbegin.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/clang_rt.crtbegin.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/clang_rt.crtend.o b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/clang_rt.crtend.o
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/libclang_rt.builtins.a b/clang/test/Driver/Inputs/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/libclang_rt.builtins.a
+new file mode 100644
+index 000000000000..e69de29bb2d1
+diff --git a/clang/test/Driver/riscv32-esp-toolchain-extra.c b/clang/test/Driver/riscv32-esp-toolchain-extra.c
+new file mode 100644
+index 000000000000..13e94e981553
+--- /dev/null
++++ b/clang/test/Driver/riscv32-esp-toolchain-extra.c
+@@ -0,0 +1,115 @@
++// A basic clang -cc1 command-line, and simple environment check.
++
++// The tests here are similar to those in xtensa-toolchain.c, however
++// these tests need to create symlinks to test directory trees in order to
++// set up the environment and therefore shell support is required.
++// REQUIRES: shell, xtensa-registered-target
++// UNSUPPORTED: system-windows
++
++// Compiler-rt multilibs are located at '$INSTALLDIR/lib/clang/15.0.0/<triple>/mcpu/'.
++// At this moment multilib feature for compiler-rt is supported only when GCC installation with the same multilib structure is found.
++// It is safe because ESP toolchain still depends on libstdc++ which is part of GCC installation.
++// When libc++ wil be supported by toolchain the dependency on GCC multilibs will be removed.
++
++// RUN: rm -rf %t
++// RUN: mkdir -p %t/multilib_riscv_esp_elf_sdk/bin
++// RUN: ln -s %clang %t/multilib_riscv_esp_elf_sdk/bin/clang
++// RUN: ln -s %S/Inputs/multilib_riscv_esp_elf_sdk/bin/riscv32-esp-elf-ld %t/multilib_riscv_esp_elf_sdk/bin/riscv32-esp-elf-ld
++// RUN: ln -s %S/Inputs/multilib_riscv_esp_elf_sdk/lib %t/multilib_riscv_esp_elf_sdk/lib
++// RUN: ln -s %S/Inputs/multilib_riscv_esp_elf_sdk/riscv32-esp-elf %t/multilib_riscv_esp_elf_sdk/riscv32-esp-elf
++
++// RUN: %t/multilib_riscv_esp_elf_sdk/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_riscv_esp_elf_sdk \
++// RUN:    -resource-dir=%t/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0 \
++// RUN:    --target=riscv32-esp-elf -march=rv32i -mabi=ilp32 --rtlib=compiler-rt -fuse-ld= -fno-rtti 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-RV32I-RTLIB-COMPILERRT-NORTTI %s
++
++// C-RV32I-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk{{/|\\\\}}bin{{/|\\\\}}riscv32-esp-elf-ld"
++// C-RV32I-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}riscv32-esp-elf/lib/rv32i/ilp32/no-rtti{{/|\\\\}}crt0.o"
++// C-RV32I-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/clang_rt.crtbegin.o"
++// C-RV32I-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/libclang_rt.builtins.a"
++// C-RV32I-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/no-rtti/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_riscv_esp_elf_sdk/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_riscv_esp_elf_sdk \
++// RUN:    -resource-dir=%t/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0 \
++// RUN:    --target=riscv32-esp-elf -march=rv32i -mabi=ilp32 --rtlib=compiler-rt -fuse-ld= 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-RV32I-RTLIB-COMPILERRT-RTTI %s
++
++// C-RV32I-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk{{/|\\\\}}bin{{/|\\\\}}riscv32-esp-elf-ld"
++// C-RV32I-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}riscv32-esp-elf/lib/rv32i/ilp32{{/|\\\\}}crt0.o"
++// C-RV32I-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/clang_rt.crtbegin.o"
++// C-RV32I-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/libclang_rt.builtins.a"
++// C-RV32I-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32i/ilp32/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_riscv_esp_elf_sdk/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_riscv_esp_elf_sdk \
++// RUN:    -resource-dir=%t/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0 \
++// RUN:    --target=riscv32-esp-elf -march=rv32imc -mabi=ilp32 --rtlib=compiler-rt -fuse-ld= -fno-rtti 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-RV32IMC-RTLIB-COMPILERRT-NORTTI %s
++
++// C-RV32IMC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk{{/|\\\\}}bin{{/|\\\\}}riscv32-esp-elf-ld"
++// C-RV32IMC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}riscv32-esp-elf/lib/rv32imc/ilp32/no-rtti{{/|\\\\}}crt0.o"
++// C-RV32IMC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/clang_rt.crtbegin.o"
++// C-RV32IMC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/libclang_rt.builtins.a"
++// C-RV32IMC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/no-rtti/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_riscv_esp_elf_sdk/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_riscv_esp_elf_sdk \
++// RUN:    -resource-dir=%t/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0 \
++// RUN:    --target=riscv32-esp-elf -march=rv32imc -mabi=ilp32 --rtlib=compiler-rt -fuse-ld= 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-RV32IMC-RTLIB-COMPILERRT-RTTI %s
++
++// C-RV32IMC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk{{/|\\\\}}bin{{/|\\\\}}riscv32-esp-elf-ld"
++// C-RV32IMC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}riscv32-esp-elf/lib/rv32imc/ilp32{{/|\\\\}}crt0.o"
++// C-RV32IMC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/clang_rt.crtbegin.o"
++// C-RV32IMC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/libclang_rt.builtins.a"
++// C-RV32IMC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imc/ilp32/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_riscv_esp_elf_sdk/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_riscv_esp_elf_sdk \
++// RUN:    -resource-dir=%t/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0 \
++// RUN:    --target=riscv32-esp-elf -march=rv32imac -mabi=ilp32 --rtlib=compiler-rt -fuse-ld= -fno-rtti 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-RV32IMAC-RTLIB-COMPILERRT-NORTTI %s
++
++// C-RV32IMAC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk{{/|\\\\}}bin{{/|\\\\}}riscv32-esp-elf-ld"
++// C-RV32IMAC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}riscv32-esp-elf/lib/rv32imac/ilp32/no-rtti{{/|\\\\}}crt0.o"
++// C-RV32IMAC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/clang_rt.crtbegin.o"
++// C-RV32IMAC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/libclang_rt.builtins.a"
++// C-RV32IMAC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/no-rtti/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_riscv_esp_elf_sdk/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_riscv_esp_elf_sdk \
++// RUN:    -resource-dir=%t/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0 \
++// RUN:    --target=riscv32-esp-elf -march=rv32imac -mabi=ilp32 --rtlib=compiler-rt -fuse-ld= 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-RV32IMAC-RTLIB-COMPILERRT-RTTI %s
++
++// C-RV32IMAC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk{{/|\\\\}}bin{{/|\\\\}}riscv32-esp-elf-ld"
++// C-RV32IMAC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}riscv32-esp-elf/lib/rv32imac/ilp32{{/|\\\\}}crt0.o"
++// C-RV32IMAC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/clang_rt.crtbegin.o"
++// C-RV32IMAC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/libclang_rt.builtins.a"
++// C-RV32IMAC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imac/ilp32/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_riscv_esp_elf_sdk/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_riscv_esp_elf_sdk \
++// RUN:    -resource-dir=%t/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0 \
++// RUN:    --target=riscv32-esp-elf -march=rv32imafc -mabi=ilp32f --rtlib=compiler-rt -fuse-ld= -fno-rtti 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-RV32IMAFC-RTLIB-COMPILERRT-NORTTI %s
++
++// C-RV32IMAFC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk{{/|\\\\}}bin{{/|\\\\}}riscv32-esp-elf-ld"
++// C-RV32IMAFC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}riscv32-esp-elf/lib/rv32imafc/ilp32f/no-rtti{{/|\\\\}}crt0.o"
++// C-RV32IMAFC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/clang_rt.crtbegin.o"
++// C-RV32IMAFC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/libclang_rt.builtins.a"
++// C-RV32IMAFC-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/no-rtti/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_riscv_esp_elf_sdk/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_riscv_esp_elf_sdk \
++// RUN:    -resource-dir=%t/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0 \
++// RUN:    --target=riscv32-esp-elf -march=rv32imafc -mabi=ilp32f --rtlib=compiler-rt -fuse-ld= 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-RV32IMAFC-RTLIB-COMPILERRT-RTTI %s
++
++// C-RV32IMAFC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk{{/|\\\\}}bin{{/|\\\\}}riscv32-esp-elf-ld"
++// C-RV32IMAFC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/gcc/riscv32-esp-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}riscv32-esp-elf/lib/rv32imafc/ilp32f{{/|\\\\}}crt0.o"
++// C-RV32IMAFC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/clang_rt.crtbegin.o"
++// C-RV32IMAFC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/libclang_rt.builtins.a"
++// C-RV32IMAFC-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_riscv_esp_elf_sdk/lib/clang/15.0.0/riscv32-esp-elf/generic-rv32/rv32imafc/ilp32f/lib/clang_rt.crtend.o"
+diff --git a/clang/test/Driver/xtensa-esp-toolchain-extra.c b/clang/test/Driver/xtensa-esp-toolchain-extra.c
+new file mode 100644
+index 000000000000..5e195019820d
+--- /dev/null
++++ b/clang/test/Driver/xtensa-esp-toolchain-extra.c
+@@ -0,0 +1,111 @@
++// A basic clang -cc1 command-line, and simple environment check.
++
++// The tests here are similar to those in xtensa-toolchain.c, however
++// these tests need to create symlinks to test directory trees in order to
++// set up the environment and therefore shell support is required.
++// REQUIRES: shell, xtensa-registered-target
++// UNSUPPORTED: system-windows
++
++// Compiler-rt multilibs are located at '$INSTALLDIR/lib/clang/15.0.0/<triple>/mcpu/'.
++// At this moment multilib feature for compiler-rt is supported only when GCC installation with the same multilib structure is found.
++// It is safe because ESP toolchain still depends on libstdc++ which is part of GCC installation.
++// When libc++ wil be supported by toolchain the dependency on GCC multilibs will be removed.
++
++// RUN: rm -rf %t
++// RUN: mkdir -p %t/multilib_xtensa_tree/bin
++// RUN: ln -s %clang %t/multilib_xtensa_tree/bin/clang
++// RUN: ln -s %S/Inputs/multilib_xtensa_tree/bin/xtensa-esp32-elf-ld %t/multilib_xtensa_tree/bin/xtensa-esp32-elf-ld
++// RUN: ln -s %S/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld %t/multilib_xtensa_tree/bin/xtensa-esp32s2-elf-ld
++// RUN: ln -s %S/Inputs/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld %t/multilib_xtensa_tree/bin/xtensa-esp32s3-elf-ld
++// RUN: ln -s %S/Inputs/multilib_xtensa_tree/lib %t/multilib_xtensa_tree/lib
++// RUN: ln -s %S/Inputs/multilib_xtensa_tree/xtensa-esp32-elf %t/multilib_xtensa_tree/xtensa-esp32-elf
++// RUN: ln -s %S/Inputs/multilib_xtensa_tree/xtensa-esp32s2-elf %t/multilib_xtensa_tree/xtensa-esp32s2-elf
++// RUN: ln -s %S/Inputs/multilib_xtensa_tree/xtensa-esp32s3-elf %t/multilib_xtensa_tree/xtensa-esp32s3-elf
++
++// RUN: %t/multilib_xtensa_tree/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_xtensa_tree \
++// RUN:    -resource-dir=%t/multilib_xtensa_tree/lib/clang/15.0.0 \
++// RUN:    --target=xtensa-esp-elf -mcpu=esp32 --rtlib=compiler-rt -fuse-ld= -fno-rtti 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-XTENSA-ESP32-RTLIB-COMPILERRT-NORTTI %s
++
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/clang_rt.crtbegin.o"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/libclang_rt.builtins.a"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/no-rtti/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_xtensa_tree/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_xtensa_tree \
++// RUN:    -resource-dir=%t/multilib_xtensa_tree/lib/clang/15.0.0 \
++// RUN:    --target=xtensa-esp-elf -mcpu=esp32 --rtlib=compiler-rt -fuse-ld= 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-XTENSA-ESP32-RTLIB-COMPILERRT-RTTI %s
++
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/clang_rt.crtbegin.o"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/libclang_rt.builtins.a"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_xtensa_tree/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_xtensa_tree \
++// RUN:    -resource-dir=%t/multilib_xtensa_tree/lib/clang/15.0.0 \
++// RUN:    --target=xtensa-esp-elf -mcpu=esp32 --rtlib=compiler-rt -fuse-ld= -mfix-esp32-psram-cache-issue -fno-rtti 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-XTENSA-ESP32-RTLIB-COMPILERRT-PSRAM-NORTTI %s
++
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-PSRAM-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-PSRAM-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/clang_rt.crtbegin.o"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-PSRAM-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/libclang_rt.builtins.a"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-PSRAM-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/no-rtti/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_xtensa_tree/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_xtensa_tree \
++// RUN:    -resource-dir=%t/multilib_xtensa_tree/lib/clang/15.0.0 \
++// RUN:    --target=xtensa-esp-elf -mcpu=esp32 --rtlib=compiler-rt -fuse-ld= -mfix-esp32-psram-cache-issue 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-XTENSA-ESP32-RTLIB-COMPILERRT-PSRAM-RTTI %s
++
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-PSRAM-RTTI: "{{.*}}/multilib_xtensa_tree/lib/gcc/xtensa-esp32-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32-elf-ld"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-PSRAM-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/clang_rt.crtbegin.o"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-PSRAM-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/libclang_rt.builtins.a"
++// C-XTENSA-ESP32-RTLIB-COMPILERRT-PSRAM-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32/esp32-psram/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_xtensa_tree/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_xtensa_tree \
++// RUN:    -resource-dir=%t/multilib_xtensa_tree/lib/clang/15.0.0 \
++// RUN:    --target=xtensa-esp-elf -mcpu=esp32s2 --rtlib=compiler-rt -fuse-ld= -fno-rtti 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-XTENSA-ESP32S2-RTLIB-COMPILERRT-NORTTI %s
++
++// C-XTENSA-ESP32S2-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32s2-elf-ld"
++// C-XTENSA-ESP32S2-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/clang_rt.crtbegin.o"
++// C-XTENSA-ESP32S2-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/libclang_rt.builtins.a"
++// C-XTENSA-ESP32S2-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/no-rtti/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_xtensa_tree/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_xtensa_tree \
++// RUN:    -resource-dir=%t/multilib_xtensa_tree/lib/clang/15.0.0 \
++// RUN:    --target=xtensa-esp-elf -mcpu=esp32s2 --rtlib=compiler-rt -fuse-ld= 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-XTENSA-ESP32S2-RTLIB-COMPILERRT-RTTI %s
++
++// C-XTENSA-ESP32S2-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/gcc/xtensa-esp32s2-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32s2-elf-ld"
++// C-XTENSA-ESP32S2-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/clang_rt.crtbegin.o"
++// C-XTENSA-ESP32S2-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/libclang_rt.builtins.a"
++// C-XTENSA-ESP32S2-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s2/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_xtensa_tree/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_xtensa_tree \
++// RUN:    -resource-dir=%t/multilib_xtensa_tree/lib/clang/15.0.0 \
++// RUN:    --target=xtensa-esp-elf -mcpu=esp32s3 --rtlib=compiler-rt -fuse-ld= -fno-rtti 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-XTENSA-ESP32S3-RTLIB-COMPILERRT-NORTTI %s
++
++// C-XTENSA-ESP32S3-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32s3-elf-ld"
++// C-XTENSA-ESP32S3-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/clang_rt.crtbegin.o"
++// C-XTENSA-ESP32S3-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/libclang_rt.builtins.a"
++// C-XTENSA-ESP32S3-RTLIB-COMPILERRT-NORTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/no-rtti/lib/clang_rt.crtend.o"
++
++// RUN: %t/multilib_xtensa_tree/bin/clang %s -### -no-canonical-prefixes \
++// RUN:    --gcc-toolchain=%t/multilib_xtensa_tree \
++// RUN:    -resource-dir=%t/multilib_xtensa_tree/lib/clang/15.0.0 \
++// RUN:    --target=xtensa-esp-elf -mcpu=esp32s3 --rtlib=compiler-rt -fuse-ld= 2>&1 \
++// RUN:    | FileCheck -check-prefix=C-XTENSA-ESP32S3-RTLIB-COMPILERRT-RTTI %s
++
++// C-XTENSA-ESP32S3-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/gcc/xtensa-esp32s3-elf/8.4.0/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}xtensa-esp32s3-elf-ld"
++// C-XTENSA-ESP32S3-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/clang_rt.crtbegin.o"
++// C-XTENSA-ESP32S3-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/libclang_rt.builtins.a"
++// C-XTENSA-ESP32S3-RTLIB-COMPILERRT-RTTI: "{{.*}}/multilib_xtensa_tree/lib/clang/15.0.0/xtensa-esp-elf/esp32s3/lib/clang_rt.crtend.o"
+-- 
+2.40.1
+

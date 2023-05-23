@@ -1,7 +1,7 @@
-From 460893f7c0317af41fd81879d98a35cbf4ba53a4 Mon Sep 17 00:00:00 2001
+From cb8ca694c475379ac7e6762e2b1d51aa1de3e689 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:03 +0300
-Subject: [PATCH 050/140] [Xtensa] Implemented builtins for Xtensa MAC16
+Subject: [PATCH 050/158] [Xtensa] Implemented builtins for Xtensa MAC16
 
  instructions.
 ---

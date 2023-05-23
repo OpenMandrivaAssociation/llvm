@@ -1,7 +1,7 @@
-From 8df01949c8e5f6e9b35bcde845c025c752c480fc Mon Sep 17 00:00:00 2001
+From a66b68dc3e59ec04a09a7edfa10ac65fc950b51f Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:46 +0300
-Subject: [PATCH 135/140] [Xtensa] Implement constant islands pass
+Subject: [PATCH 135/158] [Xtensa] Implement constant islands pass
 
 The constant islands pass is always executed for large code model.
 Also currently is disabled support of the hardware loops for large code model, need to

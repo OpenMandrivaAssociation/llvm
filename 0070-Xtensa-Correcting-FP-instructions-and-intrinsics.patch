@@ -1,7 +1,7 @@
-From e26bbce7f181e575cf533f05fd859abbbc7b5fde Mon Sep 17 00:00:00 2001
+From bfe536b23e36ca927178aac81fae061257b8d2b5 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:13 +0300
-Subject: [PATCH 070/140] [Xtensa]  Correcting FP instructions and intrinsics.
+Subject: [PATCH 070/158] [Xtensa]  Correcting FP instructions and intrinsics.
 
 Correcting FP instruction descriptions. Implement lowering
 of the fma, powf and other FP intrinsics. Add test for base FP

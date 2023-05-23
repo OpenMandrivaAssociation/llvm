@@ -1,7 +1,7 @@
-From ed44948fedfbdf31daf5946db1f92c64d28f77fd Mon Sep 17 00:00:00 2001
+From 60396ae0139cbfe65181d24985e6ba9b4c7d5304 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 19 Apr 2023 17:15:04 +0300
-Subject: [PATCH 140/140] esp/ci: change clang version to 16.
+Subject: [PATCH 140/158] esp/ci: change clang version to 16.
 
 ---
  .gitlab-ci.yml | 4 ++--

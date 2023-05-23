@@ -1,7 +1,7 @@
-From 9e61b52eedb1d0d716aba7179ebfe96cfcc13df1 Mon Sep 17 00:00:00 2001
+From 89a220f967936f71f50e50de207f43fd4e5453bd Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:36 +0300
-Subject: [PATCH 117/140] esp/ci: Adds support to switch between legacy and
+Subject: [PATCH 117/158] esp/ci: Adds support to switch between legacy and
 
  universal toolchain release pipelines
 ---

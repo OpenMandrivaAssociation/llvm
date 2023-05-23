@@ -1,7 +1,7 @@
-From 359c3d933eeacd15bd1a9651f015ac5aa1a65fcb Mon Sep 17 00:00:00 2001
+From 5342a1ea5788131b788e85b39f5cc9bbbe938f4d Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:41 +0300
-Subject: [PATCH 126/140] [Xtensa][LLD] add more tests
+Subject: [PATCH 126/158] [Xtensa][LLD] add more tests
 
 ---
  lld/test/ELF/xtensa-reloc.s | 44 +++++++++++++++++++++++++++++++++++--

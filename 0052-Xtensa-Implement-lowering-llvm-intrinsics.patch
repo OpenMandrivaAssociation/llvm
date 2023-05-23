@@ -1,7 +1,7 @@
-From d2e7c6d7b817e9dc36abf044dc359e29adf6bebf Mon Sep 17 00:00:00 2001
+From d3a689a61dfaae4554ab259f8c2b91b84d04d484 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:04 +0300
-Subject: [PATCH 052/140] [Xtensa] Implement lowering llvm intrinsics
+Subject: [PATCH 052/158] [Xtensa] Implement lowering llvm intrinsics
 
  fshr/fshl.
 ---

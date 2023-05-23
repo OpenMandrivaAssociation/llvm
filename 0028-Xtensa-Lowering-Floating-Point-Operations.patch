@@ -1,7 +1,7 @@
-From 2fa9115408663a7e6ea2cd7b8407a647cffb248d Mon Sep 17 00:00:00 2001
+From d36cc4aeffc2bc0b7c03eea2afef4819e69b6203 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:58:49 +0300
-Subject: [PATCH 028/140] [Xtensa] Lowering Floating-Point Operations
+Subject: [PATCH 028/158] [Xtensa] Lowering Floating-Point Operations
 
  SELECT_CC/SETCC/BR_CC.
 

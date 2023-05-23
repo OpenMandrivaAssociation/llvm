@@ -1,7 +1,7 @@
-From 3e900dc81a8441c4e58b795535b9a342b2e4d6aa Mon Sep 17 00:00:00 2001
+From 78e2302fd9d88a53557312329996ab4f6266208a Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:58:57 +0300
-Subject: [PATCH 039/140] [Xtensa] Improve parsing of the SR and UR registers.
+Subject: [PATCH 039/158] [Xtensa] Improve parsing of the SR and UR registers.
 
 Implement subtarget dependent SR and UR register parsing and
 disassembling, add tests. Implement User Registers read/write

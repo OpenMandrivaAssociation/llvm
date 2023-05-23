@@ -1,7 +1,7 @@
-From 54c3f6d5123832bb8e47e53c18cf6d999db5a296 Mon Sep 17 00:00:00 2001
+From 30f6268cc35e75ace270c8e5c2d5b722c5e2bd9f Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:23 +0300
-Subject: [PATCH 089/140] riscv: Add default multilib.
+Subject: [PATCH 089/158] riscv: Add default multilib.
 
 Make '-print-multi-lib' output compatible with GCC
 ---

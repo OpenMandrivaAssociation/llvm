@@ -1,7 +1,7 @@
-From ba94be18391ddcde00668ac4a6811d1e81fc0695 Mon Sep 17 00:00:00 2001
+From 3a91ce3786f7cd485113f7f68bce8cace90c2687 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:07 +0300
-Subject: [PATCH 058/140] [Xtensa] Implement Hardware Loop optimization pass
+Subject: [PATCH 058/158] [Xtensa] Implement Hardware Loop optimization pass
 
 ---
  llvm/lib/Target/Xtensa/CMakeLists.txt         |   3 +

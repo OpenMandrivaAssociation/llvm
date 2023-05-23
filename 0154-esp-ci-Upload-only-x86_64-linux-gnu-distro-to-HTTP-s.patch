@@ -1,0 +1,29 @@
+From 7e85264c4f97c1943b44ce0066c90a651f64e5d9 Mon Sep 17 00:00:00 2001
+From: Alexey Gerenkov <alexey@espressif.com>
+Date: Fri, 28 Apr 2023 17:10:30 +0300
+Subject: [PATCH 154/158] esp/ci: Upload only x86_64-linux-gnu distro to HTTP
+ server
+
+---
+ .universal-toolchain-release.yml | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/.universal-toolchain-release.yml b/.universal-toolchain-release.yml
+index 7f5f0cdfe8a0..4628e486d6e4 100644
+--- a/.universal-toolchain-release.yml
++++ b/.universal-toolchain-release.yml
+@@ -475,11 +475,6 @@ upload_to_http:
+     GIT_STRATEGY: fetch
+   needs:
+     - job: pack_x86_64-linux-gnu
+-    - job: pack_arm-linux-gnueabihf
+-    - job: pack_aarch64-linux-gnu
+-    - job: pack_x86_64-w64-mingw32
+-    - job: sign_x86_64-apple-darwin
+-    - job: sign_aarch64-apple-darwin
+   before_script:
+     - !reference [.use_ci_tools, script]
+   script:
+-- 
+2.40.1
+

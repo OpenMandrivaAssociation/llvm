@@ -1,7 +1,7 @@
-From f05a12ce0a9539d4ba8a28ccb42a729ac72e51dd Mon Sep 17 00:00:00 2001
+From aeb6ea3940a999a18e707f4a1a9602e34f0bf277 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:31 +0300
-Subject: [PATCH 107/140] [Xtensa] Implement support of literal and region asm
+Subject: [PATCH 107/158] [Xtensa] Implement support of literal and region asm
 
  directives in asm parser.
 

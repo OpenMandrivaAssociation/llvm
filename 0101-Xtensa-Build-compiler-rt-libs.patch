@@ -1,7 +1,7 @@
-From a11e834a0823c9d1ac0c613dba219526a864ff0b Mon Sep 17 00:00:00 2001
+From fcffda2598b4668021d3fefbb24b520e86bd2d64 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:28 +0300
-Subject: [PATCH 101/140] [Xtensa] Build compiler-rt libs.
+Subject: [PATCH 101/158] [Xtensa] Build compiler-rt libs.
 
 Include compiler-rt libs to the esp32 clang toolchains.
 ---

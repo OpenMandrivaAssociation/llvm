@@ -1,7 +1,7 @@
-From ba7f61d52829e55c7436263397f7b5481f0c9789 Mon Sep 17 00:00:00 2001
+From 148adb0e652c68bcbad07f70fac67152a43fd861 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:58:54 +0300
-Subject: [PATCH 038/140] [Xtensa] Add esp32, esp8266 and esp32-s2 to valid cpu
+Subject: [PATCH 038/158] [Xtensa] Add esp32, esp8266 and esp32-s2 to valid cpu
 
  names.
 ---

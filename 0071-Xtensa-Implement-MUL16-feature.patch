@@ -1,7 +1,7 @@
-From a218f8245c815543cdfa2304d33d4c1cb4c1656e Mon Sep 17 00:00:00 2001
+From 5e153dbfd91a2338631ca75c597afe8daa1aa83f Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:14 +0300
-Subject: [PATCH 071/140] [Xtensa] Implement MUL16 feature.
+Subject: [PATCH 071/158] [Xtensa] Implement MUL16 feature.
 
 ---
  llvm/lib/Target/Xtensa/Xtensa.td           | 21 +++++++++++++--------

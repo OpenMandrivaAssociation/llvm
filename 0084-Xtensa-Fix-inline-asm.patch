@@ -1,7 +1,7 @@
-From d517648feec0d816dd82c46e7343080fb887c3f0 Mon Sep 17 00:00:00 2001
+From cc39d8990839e198b76fafae4616b56586500719 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:20 +0300
-Subject: [PATCH 084/140] [Xtensa] Fix inline asm
+Subject: [PATCH 084/158] [Xtensa] Fix inline asm
 
 Fix inline asm printing of the
 memory operands.

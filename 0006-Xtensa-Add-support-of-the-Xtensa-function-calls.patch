@@ -1,7 +1,7 @@
-From de9ede6ecd60c0653748d1b5dc25dd2e014694a0 Mon Sep 17 00:00:00 2001
+From d67ba5647aee970c0c51d292831320989ddf8b8e Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:58:38 +0300
-Subject: [PATCH 006/140] [Xtensa] Add support of the Xtensa function calls
+Subject: [PATCH 006/158] [Xtensa] Add support of the Xtensa function calls
 
 ---
  .../lib/Target/Xtensa/XtensaFrameLowering.cpp |  20 ++

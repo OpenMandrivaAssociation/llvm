@@ -1,0 +1,25 @@
+From ba23bbb1be86d0fd0fc0265000a4285156115e38 Mon Sep 17 00:00:00 2001
+From: Alexey Gerenkov <alexey@espressif.com>
+Date: Tue, 16 May 2023 12:40:11 +0300
+Subject: [PATCH 158/158] toolchain/esp: Bring 'libgcc' back to the toolchain
+
+---
+ .gitlab-ci.yml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index c6253679a43b..8601675f3b7f 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -22,7 +22,7 @@ variables:
+   BINUTILS_REF: "esp-2022r1-binutils"
+   XTENSA_OVERLAYS_REF: "master"
+   LLVM_GCC_TESTSUITE_REF: "esp-16.0.0-20230425"
+-  XTENSA_CLANG_TOOLCHAIN_REF: "esp-16.0.0-20230511"
++  XTENSA_CLANG_TOOLCHAIN_REF: "esp-16.0.0-20230516"
+ 
+   CROSS_ARM_IMAGE: $CI_DOCKER_REGISTRY/llvm-build-cross-arm:1
+   PLATFORM_NAME_LINUX: "linux-amd64"
+-- 
+2.40.1
+

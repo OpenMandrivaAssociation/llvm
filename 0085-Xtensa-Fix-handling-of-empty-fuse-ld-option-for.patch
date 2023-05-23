@@ -1,7 +1,7 @@
-From 968ac9af6690b635ce730dd3e892919bd99a3c09 Mon Sep 17 00:00:00 2001
+From 2edc9c4c8062103c8d37feec9b310b2f6604c653 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:21 +0300
-Subject: [PATCH 085/140] [Xtensa]: Fix handling of empty '-fuse-ld' option for
+Subject: [PATCH 085/158] [Xtensa]: Fix handling of empty '-fuse-ld' option for
 
  ESP toolchain
 ---

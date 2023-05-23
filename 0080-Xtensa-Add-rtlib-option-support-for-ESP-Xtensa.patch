@@ -1,7 +1,7 @@
-From f2a4ea5d5f9b4e96cd22763219f7e04ba48e6a5f Mon Sep 17 00:00:00 2001
+From 24514d08fdce934ff215ff54e7d597b176b4d1a3 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:18 +0300
-Subject: [PATCH 080/140] [Xtensa]: Add '--rtlib' option support for ESP Xtensa
+Subject: [PATCH 080/158] [Xtensa]: Add '--rtlib' option support for ESP Xtensa
 
  toolchain
 ---

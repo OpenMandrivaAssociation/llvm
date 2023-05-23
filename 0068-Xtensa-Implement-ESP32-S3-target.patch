@@ -1,7 +1,7 @@
-From 56056055f361cc7dab829a2054b0d42c99dadf3a Mon Sep 17 00:00:00 2001
+From b5fdd33da02b61a493c49aa808576553834bbb77 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:12 +0300
-Subject: [PATCH 068/140] [Xtensa] Implement ESP32-S3 target.
+Subject: [PATCH 068/158] [Xtensa] Implement ESP32-S3 target.
 
 Implement support of the ESP32-S3 chip in clang and llvm.
 The ESP32-S3 chip includes Xtensa ISA extension which

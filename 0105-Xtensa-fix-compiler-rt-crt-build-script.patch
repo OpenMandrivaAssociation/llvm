@@ -1,7 +1,7 @@
-From 86562317536d34d1f0378d268f0f5572183ec3e3 Mon Sep 17 00:00:00 2001
+From 436188b3dd3890980e82788319286cb096877474 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:30 +0300
-Subject: [PATCH 105/140] [Xtensa] fix compiler-rt crt build script
+Subject: [PATCH 105/158] [Xtensa] fix compiler-rt crt build script
 
 ---
  compiler-rt/cmake/crt-config-ix.cmake | 3 ++-

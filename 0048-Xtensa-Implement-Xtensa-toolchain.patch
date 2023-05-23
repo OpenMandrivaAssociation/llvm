@@ -1,7 +1,7 @@
-From 82738a6b2bd5eb356206e2ba5fc9618011a87b69 Mon Sep 17 00:00:00 2001
+From d7b71a7caf15d07b95e02caa3520ae6b1b6be1f4 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:02 +0300
-Subject: [PATCH 048/140] [Xtensa] Implement Xtensa toolchain.
+Subject: [PATCH 048/158] [Xtensa] Implement Xtensa toolchain.
 
 ---
  clang/lib/Driver/CMakeLists.txt        |   1 +

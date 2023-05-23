@@ -1,7 +1,7 @@
-From 1766a32625053c7df1042ca9063b47837f78fe74 Mon Sep 17 00:00:00 2001
+From d50e9dcc6ef9eeb2571ef77aea4ce234042048b3 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:26 +0300
-Subject: [PATCH 096/140] [Xtensa] Remove redundant target features
+Subject: [PATCH 096/158] [Xtensa] Remove redundant target features
 
 ---
  clang/lib/Driver/ToolChains/Xtensa.cpp | 5 -----

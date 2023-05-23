@@ -1,7 +1,7 @@
-From 3f1fdee2722c43c925bb70e8a7522fdcfbe7bbd8 Mon Sep 17 00:00:00 2001
+From ddbaee7e1bd8db44821138350f3689e16e6b00c9 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:39 +0300
-Subject: [PATCH 122/140] esp/ci: Run LLD tests. Output test logs in
+Subject: [PATCH 122/158] esp/ci: Run LLD tests. Output test logs in
 
  lld-tests.log
 ---

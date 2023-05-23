@@ -1,7 +1,7 @@
-From ba1b50e37a67b073153c7d72e02a0b91fcef0c09 Mon Sep 17 00:00:00 2001
+From 259900eb050aff569c139f7fadc8213b7862492a Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:58:36 +0300
-Subject: [PATCH 002/140] [Xtensa] Codegen support for memory operations
+Subject: [PATCH 002/158] [Xtensa] Codegen support for memory operations
 
 ---
  llvm/lib/Target/Xtensa/XtensaISelDAGToDAG.cpp | 57 ++++++++++++++++++-

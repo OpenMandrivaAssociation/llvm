@@ -1,0 +1,154 @@
+From 66813c698d6acdf037b08443a0d56544cf7fb556 Mon Sep 17 00:00:00 2001
+From: Alexey Gerenkov <alexey@espressif.com>
+Date: Tue, 22 Nov 2022 21:50:14 +0300
+Subject: [PATCH 141/158] toolchain: Adds compiler-rt multilibs support for
+ Espressif toolchains
+
+---
+ clang/lib/Driver/ToolChains/CommonArgs.cpp     | 13 +++++++++++++
+ clang/lib/Driver/ToolChains/CommonArgs.h       |  6 ++++++
+ clang/lib/Driver/ToolChains/Gnu.cpp            | 11 ++++++++++-
+ clang/lib/Driver/ToolChains/RISCVToolchain.cpp | 12 ++++++++++++
+ clang/lib/Driver/ToolChains/Xtensa.cpp         | 12 +++++++++---
+ 5 files changed, 50 insertions(+), 4 deletions(-)
+
+diff --git a/clang/lib/Driver/ToolChains/CommonArgs.cpp b/clang/lib/Driver/ToolChains/CommonArgs.cpp
+index 092f0e3123d9..b493590f66f4 100644
+--- a/clang/lib/Driver/ToolChains/CommonArgs.cpp
++++ b/clang/lib/Driver/ToolChains/CommonArgs.cpp
+@@ -2365,3 +2365,16 @@ void tools::addHIPRuntimeLibArgs(const ToolChain &TC,
+     }
+   }
+ }
++
++void tools::addEspMultilibsPaths(const Driver &D, const MultilibSet &Multilibs,
++                                const Multilib &Multilib,
++                                StringRef CPU,
++                                StringRef InstallPath,
++                                ToolChain::path_list &Paths) {
++    if (const auto &PathsCallback = Multilibs.filePathsCallback())
++        for (const auto &Path : PathsCallback(Multilib)) {
++            SmallString<256> LibPath(D.ResourceDir);
++            llvm::sys::path::append(LibPath, D.getTargetTriple(), CPU, Path, "lib");
++            addPathIfExists(D, LibPath, Paths);
++        }
++}
+diff --git a/clang/lib/Driver/ToolChains/CommonArgs.h b/clang/lib/Driver/ToolChains/CommonArgs.h
+index d44d9214c08b..3c6d61a2aafe 100644
+--- a/clang/lib/Driver/ToolChains/CommonArgs.h
++++ b/clang/lib/Driver/ToolChains/CommonArgs.h
+@@ -224,6 +224,12 @@ void addMachineOutlinerArgs(const Driver &D, const llvm::opt::ArgList &Args,
+ void addOpenMPDeviceRTL(const Driver &D, const llvm::opt::ArgList &DriverArgs,
+                         llvm::opt::ArgStringList &CC1Args,
+                         StringRef BitcodeSuffix, const llvm::Triple &Triple);
++
++void addEspMultilibsPaths(const Driver &D, const MultilibSet &Multilibs,
++                                const Multilib &Multilib,
++                                StringRef CPU,
++                                StringRef InstallPath,
++                                ToolChain::path_list &Paths);
+ } // end namespace tools
+ } // end namespace driver
+ } // end namespace clang
+diff --git a/clang/lib/Driver/ToolChains/Gnu.cpp b/clang/lib/Driver/ToolChains/Gnu.cpp
+index 30906e33a5eb..5534bb2ab065 100644
+--- a/clang/lib/Driver/ToolChains/Gnu.cpp
++++ b/clang/lib/Driver/ToolChains/Gnu.cpp
+@@ -1818,7 +1818,8 @@ static void findXtensaMultilibs(const Driver &D,
+                                const ArgList &Args, DetectedMultilibs &Result) {
+ 
+   MultilibSet XtensaMultilibs = MultilibSet();
+-  bool IsESP32 = Args.getLastArgValue(options::OPT_mcpu_EQ, "esp32").equals("esp32");
++  StringRef cpu = Args.getLastArgValue(options::OPT_mcpu_EQ, "esp32");
++  bool IsESP32 = cpu.equals("esp32");
+ 
+   XtensaMultilibs.push_back(Multilib());
+   if (IsESP32)
+@@ -1834,6 +1835,14 @@ static void findXtensaMultilibs(const Driver &D,
+                             .flag("-frtti")
+                             .flag("+mfix-esp32-psram-cache-issue"));
+ 
++  std::string cpu_name = cpu.str();
++  XtensaMultilibs
++        .setFilePathsCallback([cpu_name](const Multilib &M) {
++          return std::vector<std::string>(
++              {M.gccSuffix(),
++                "/../../../../xtensa-" + cpu_name + "-elf/lib" + M.gccSuffix()});
++        });
++
+   Multilib::flags_list Flags;
+   addMultilibFlag(
+       Args.hasFlag(options::OPT_frtti, options::OPT_fno_rtti, false), "frtti",
+diff --git a/clang/lib/Driver/ToolChains/RISCVToolchain.cpp b/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
+index f71543ac7d30..4f25e8b9c8a9 100644
+--- a/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
++++ b/clang/lib/Driver/ToolChains/RISCVToolchain.cpp
+@@ -22,6 +22,7 @@ using namespace clang::driver::tools;
+ using namespace clang;
+ using namespace llvm::opt;
+ 
++
+ static void addMultilibsFilePaths(const Driver &D, const MultilibSet &Multilibs,
+                                   const Multilib &Multilib,
+                                   StringRef InstallPath,
+@@ -69,6 +70,17 @@ RISCVToolChain::RISCVToolChain(const Driver &D, const llvm::Triple &Triple,
+   } else {
+     getProgramPaths().push_back(D.Dir);
+   }
++
++  if (getTriple().getVendor() == llvm::Triple::Espressif) {
++    // TODO: need to detect multilibs when GCC installation is not available
++    addEspMultilibsPaths(D, Multilibs, SelectedMultilib, 
++                          Args.getLastArgValue(options::OPT_mcpu_EQ, "generic-rv32"),
++                          D.getInstalledDir(), getLibraryPaths());
++    addEspMultilibsPaths(D, Multilibs, SelectedMultilib,
++                          Args.getLastArgValue(options::OPT_mcpu_EQ, "generic-rv32"),
++                          D.getInstalledDir(), getFilePaths());
++  }
++
+   getFilePaths().push_back(computeSysRoot() + "/lib");
+ }
+ 
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index 0e37e746a832..a55aa6725b7e 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -29,19 +29,17 @@ using namespace clang::driver::toolchains;
+ using namespace clang;
+ using namespace llvm::opt;
+ 
+-using tools::addMultilibFlag;
+-
+ /// Xtensa Toolchain
+ XtensaToolChain::XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
+                                  const ArgList &Args)
+     : Generic_ELF(D, Triple, Args) {
+ 
+   std::vector<std::string> ExtraAliases;
++  SmallString<128> CpuName;
+ 
+   if (Triple.getVendor() == llvm::Triple::Espressif ||
+       Triple.getVendor() == llvm::Triple::UnknownVendor) {
+     Arg *mcpuArg = Args.getLastArg(options::OPT_mcpu_EQ);
+-    SmallString<128> CpuName;
+     if (mcpuArg)
+       CpuName = mcpuArg->getValue();
+     else if (Triple.getVendor() == llvm::Triple::Espressif)
+@@ -133,6 +131,14 @@ XtensaToolChain::XtensaToolChain(const Driver &D, const llvm::Triple &Triple,
+     llvm::sys::path::append(SysRoot, "lib");
+     getFilePaths().push_back(SysRoot.c_str());
+   }
++
++  if (getTriple().getVendor() == llvm::Triple::Espressif) {
++    // TODO: need to detect multilibs when GCC installation is not available
++    addEspMultilibsPaths(D, Multilibs, SelectedMultilib, CpuName,
++                          D.getInstalledDir(), getLibraryPaths());
++    addEspMultilibsPaths(D, Multilibs, SelectedMultilib, CpuName,
++                          D.getInstalledDir(), getFilePaths());
++  }
+ }
+ 
+ Tool *XtensaToolChain::buildLinker() const {
+-- 
+2.40.1
+

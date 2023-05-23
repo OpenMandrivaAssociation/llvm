@@ -1,7 +1,7 @@
-From d11cf321a1db21a2658c6d7d0d02b472512787c3 Mon Sep 17 00:00:00 2001
+From 7206554902e7499dd2a763eb1892e081b92a53e8 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:02 +0300
-Subject: [PATCH 049/140] [Xtensa] Implement multilib support
+Subject: [PATCH 049/158] [Xtensa] Implement multilib support
 
 Use Multilib class functionality to choose between library variants,
 based on the command line args.

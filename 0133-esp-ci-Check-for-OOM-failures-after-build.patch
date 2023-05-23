@@ -1,7 +1,7 @@
-From 9fe9f19a8bc563f01be076ff205572b616952f30 Mon Sep 17 00:00:00 2001
+From c11e352f37bacfd51371f790e0ee51a08d620243 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:45 +0300
-Subject: [PATCH 133/140] esp/ci: Check for OOM failures after build
+Subject: [PATCH 133/158] esp/ci: Check for OOM failures after build
 
 ---
  .universal-toolchain-release.yml | 8 ++++++++

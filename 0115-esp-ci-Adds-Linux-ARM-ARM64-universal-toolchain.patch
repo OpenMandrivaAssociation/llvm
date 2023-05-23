@@ -1,7 +1,7 @@
-From 805b90a4b81b1014c075df826ac3fbd2536893bb Mon Sep 17 00:00:00 2001
+From cc0800b00e5e9cd816b7146b1f598fccdb5c2559 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:35 +0300
-Subject: [PATCH 115/140] esp/ci: Adds Linux ARM/ARM64 universal toolchain
+Subject: [PATCH 115/158] esp/ci: Adds Linux ARM/ARM64 universal toolchain
 
  builds
 ---

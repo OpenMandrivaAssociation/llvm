@@ -1,7 +1,7 @@
-From a5e4d30aacdd1a2f68dd581bc091f5781fe879be Mon Sep 17 00:00:00 2001
+From 79a43fc9484278bd959ce58c76914147dfe73b9d Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:24 +0300
-Subject: [PATCH 092/140] esp/riscv: Exclude 'crt0.o' from linking in
+Subject: [PATCH 092/158] esp/riscv: Exclude 'crt0.o' from linking in
 
  'freestanding' mode
 ---

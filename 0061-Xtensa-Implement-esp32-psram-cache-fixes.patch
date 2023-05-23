@@ -1,7 +1,7 @@
-From 0160ecc75be41deb92da5d291c622b8db897857c Mon Sep 17 00:00:00 2001
+From c2fec48f4b2b6e115a3872975179e8ac50208d53 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:08 +0300
-Subject: [PATCH 061/140] [Xtensa] Implement esp32 psram cache fixes.
+Subject: [PATCH 061/158] [Xtensa] Implement esp32 psram cache fixes.
 
 ---
  clang/include/clang/Driver/Options.td         |   9 +
@@ -47,7 +47,7 @@ index 652c15afcce8..cf9c39ce899c 100644
  // aliases for options that are spelled using the more common Unix / GNU flag
  // style of double-dash and equals-joined flags.
 diff --git a/clang/lib/Driver/ToolChains/Clang.cpp b/clang/lib/Driver/ToolChains/Clang.cpp
-index 68525264d6e6..d8396e1d071e 100644
+index 43d262a7e4a7..a83eb9563488 100644
 --- a/clang/lib/Driver/ToolChains/Clang.cpp
 +++ b/clang/lib/Driver/ToolChains/Clang.cpp
 @@ -1743,6 +1743,10 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,

@@ -1,7 +1,7 @@
-From 5fbced8a929d598ca4998657b2852587fb3098b8 Mon Sep 17 00:00:00 2001
+From 40f5b0087c52a6f771b36b409005a991ca4e86b3 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:07 +0300
-Subject: [PATCH 059/140] [Xtensa] Change using of Frame Pointer.
+Subject: [PATCH 059/158] [Xtensa] Change using of Frame Pointer.
 
 Do not use Frame Pointer by default.
 Also improve storing function argument from a7 register to a8 register.
@@ -14,7 +14,7 @@ Corrected funnel shift test.
  4 files changed, 13 insertions(+), 3 deletions(-)
 
 diff --git a/clang/lib/Driver/ToolChains/Clang.cpp b/clang/lib/Driver/ToolChains/Clang.cpp
-index ec6860113b7e..68525264d6e6 100644
+index 238507e06335..43d262a7e4a7 100644
 --- a/clang/lib/Driver/ToolChains/Clang.cpp
 +++ b/clang/lib/Driver/ToolChains/Clang.cpp
 @@ -455,6 +455,7 @@ static bool useFramePointerForTargetByDefault(const ArgList &Args,

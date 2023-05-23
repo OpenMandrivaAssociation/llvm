@@ -1,7 +1,7 @@
-From e073400ff2291de209938b899d1f9ba8b6e1cd22 Mon Sep 17 00:00:00 2001
+From 0dd57bb3f6f5ca91f57fc4b23cde04b7fd94e52d Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:19 +0300
-Subject: [PATCH 082/140] [Xtensa] Use B0 register for FP cmp operations.
+Subject: [PATCH 082/158] [Xtensa] Use B0 register for FP cmp operations.
 
 The virtual bool registers allocation from BR class may cause
 situation when we need to spill such 1-bit registers, this would cause

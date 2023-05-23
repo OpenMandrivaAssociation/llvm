@@ -1,7 +1,7 @@
-From 49f8146e8729c074600fa82285ae3c5502adafa1 Mon Sep 17 00:00:00 2001
+From 0b0e723880cc61d62a67ff6f4ead43a3236b881d Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:23 +0300
-Subject: [PATCH 090/140] esp/riscv: Add multilib support for 'riscv32-esp-elf'
+Subject: [PATCH 090/158] esp/riscv: Add multilib support for 'riscv32-esp-elf'
 
  GCC toolcahin
 ---

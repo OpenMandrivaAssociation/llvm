@@ -1,7 +1,7 @@
-From 60721a07db2296a25d94f1d77f51ee9d213ddbdd Mon Sep 17 00:00:00 2001
+From 70c3bab8e5e466205e0e96b5401f145639e91692 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:01 +0300
-Subject: [PATCH 047/140] [Xtensa] Lower atomic operations.
+Subject: [PATCH 047/158] [Xtensa] Lower atomic operations.
 
 ---
  llvm/lib/Target/Xtensa/XtensaISelLowering.cpp | 412 ++++++++++++++++++

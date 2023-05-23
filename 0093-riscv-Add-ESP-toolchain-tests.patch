@@ -1,7 +1,7 @@
-From 1a157a02551d79e577c236d69cd80093cbe4237c Mon Sep 17 00:00:00 2001
+From 1481152880cf8a851a60d07f6378f81aec336fd1 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:25 +0300
-Subject: [PATCH 093/140] riscv: Add ESP toolchain tests
+Subject: [PATCH 093/158] riscv: Add ESP toolchain tests
 
 ---
  .../bin/riscv32-esp-elf-as                    |   1 +

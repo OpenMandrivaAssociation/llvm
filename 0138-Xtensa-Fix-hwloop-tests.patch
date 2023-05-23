@@ -1,7 +1,7 @@
-From 38d80479a73215439db17f6c0a647d55c6b0c20e Mon Sep 17 00:00:00 2001
+From 00cb56c16345c52c2d8e9595e8f5550a9d6d8cf4 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:47 +0300
-Subject: [PATCH 138/140] [Xtensa] Fix hwloop tests
+Subject: [PATCH 138/158] [Xtensa] Fix hwloop tests
 
 ---
  llvm/test/CodeGen/Xtensa/hwloop_inner_loop.ll      | 2 +-

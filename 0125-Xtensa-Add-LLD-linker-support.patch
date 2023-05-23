@@ -1,7 +1,7 @@
-From ed6d5b1e866c4364fbc5658ffa09c85d59927f3d Mon Sep 17 00:00:00 2001
+From 93cdbf293e9baff73dfcce821bf2d6a15a133b7d Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:40 +0300
-Subject: [PATCH 125/140] [Xtensa] Add LLD linker support
+Subject: [PATCH 125/158] [Xtensa] Add LLD linker support
 
 Closes #11
 ---

@@ -1,7 +1,7 @@
-From 16c8de3e7ba524f9b8af738c0a84335f45445336 Mon Sep 17 00:00:00 2001
+From 5ec394e59b2bb295dda6945a9abb29b34949c842 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:41 +0300
-Subject: [PATCH 127/140] [Xtensa][LLD] Fix J formula
+Subject: [PATCH 127/158] [Xtensa][LLD] Fix J formula
 
 ---
  lld/ELF/Arch/Xtensa.cpp     | 10 +++++-----

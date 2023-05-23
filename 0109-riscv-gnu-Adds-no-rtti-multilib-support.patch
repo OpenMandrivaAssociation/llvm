@@ -1,7 +1,7 @@
-From 52aeb026c7f5b80c36e36927707454eae3290d82 Mon Sep 17 00:00:00 2001
+From 9a9bbfb8a41c84d8550b3c5aaf37cc6af281e0ce Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:32 +0300
-Subject: [PATCH 109/140] riscv/gnu: Adds `no-rtti` multilib support
+Subject: [PATCH 109/158] riscv/gnu: Adds `no-rtti` multilib support
 
 ---
  clang/lib/Driver/ToolChains/Gnu.cpp           | 45 +++++++++++++++----

@@ -1,7 +1,7 @@
-From 0090f2dc1d593556f4935af2a88924d6874e59cf Mon Sep 17 00:00:00 2001
+From 25b4bc74d2babdcf8c4dcb0e237f9258c1dd990a Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:45 +0300
-Subject: [PATCH 134/140] [LLD][Xtensa] Cover DIFF{8, 16, 32} relocations.
+Subject: [PATCH 134/158] [LLD][Xtensa] Cover DIFF{8, 16, 32} relocations.
 
 ---
  lld/ELF/Arch/Xtensa.cpp | 3 +++

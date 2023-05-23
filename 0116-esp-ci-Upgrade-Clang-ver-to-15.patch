@@ -1,7 +1,7 @@
-From 531da455735a2d5af24ba89d8cb2de60b4a887d8 Mon Sep 17 00:00:00 2001
+From 323c218bccab8881f79dcfb0ff68eb0f795b1f44 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:36 +0300
-Subject: [PATCH 116/140] esp/ci: Upgrade Clang ver to 15
+Subject: [PATCH 116/158] esp/ci: Upgrade Clang ver to 15
 
 ---
  .gitlab-ci.yml | 4 ++--

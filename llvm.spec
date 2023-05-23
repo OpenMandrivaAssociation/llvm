@@ -338,10 +338,10 @@ Patch1082:	0082-Xtensa-Use-B0-register-for-FP-cmp-operations.patch
 Patch1083:	0083-ci-add-.gitlab-ci.yml-to-support-CI-CD.patch
 Patch1084:	0084-Xtensa-Fix-inline-asm.patch
 Patch1085:	0085-Xtensa-Fix-handling-of-empty-fuse-ld-option-for.patch
-# REDIFFED, conflicts with OM triplet additions
+# rediffed to not conflict with OM triplet additions
 Patch1086:	0086-esp-Adds-support-for-vendor-Espressif-to-target.patch
 Patch1087:	0087-esp-riscv-Use-GCC-assembler-for-ESP-RISCV-chips.patch
-# REDIFFED, conflicts with OM triplet additions
+# rediffed to not conflict with OM triplet additions
 Patch1088:	0088-esp-riscv-Adds-support-for-riscv32-esp-elf-target.patch
 Patch1089:	0089-riscv-Add-default-multilib.patch
 Patch1090:	0090-esp-riscv-Add-multilib-support-for-riscv32-esp-elf.patch
@@ -395,6 +395,24 @@ Patch1137:	0137-Xtensa-Improve-fixup-error-messages-in-asm-backend.patch
 Patch1138:	0138-Xtensa-Fix-hwloop-tests.patch
 Patch1139:	0139-Xtensa-Place-aggregate-constants-in-global-variable.patch
 Patch1140:	0140-esp-ci-change-clang-version-to-16.patch
+Patch1141:	0141-toolchain-Adds-compiler-rt-multilibs-support-for-Esp.patch
+Patch1142:	0142-esp-ci-Build-compiler-rt.patch
+Patch1143:	0143-toolchain-xtensa-Enable-frtti-by-default-for-multili.patch
+Patch1144:	0144-toolchain-esp-Add-tests-for-compiler-rt-multilib.patch
+Patch1145:	0145-toolchain-xtensa-Use-GNU-linker-when-no-GCC-installa.patch
+Patch1146:	0146-tooclahin-xtensa-Add-crt0.o-to-linker-command-line-a.patch
+Patch1147:	0147-Xtensa-Implement-__ieee754_sqrtf-builtin.patch
+Patch1148:	0148-compiler-rt-tests-Adds-specific-build-options-for-Es.patch
+Patch1149:	0149-compiler-rt-tests-Disable-tests-failing-for-Espressi.patch
+Patch1150:	0150-esp-ci-Update-newlib-branch.patch
+Patch1151:	0151-esp-ci-Saves-log-for-test_x86_64-linux-gnu.patch
+Patch1152:	0152-esp-ci-Update-llvm-xtensa-testsuite-ref.patch
+Patch1153:	0153-esp-ci-Update-xtensa-clang-toolchain-ref.patch
+Patch1154:	0154-esp-ci-Upload-only-x86_64-linux-gnu-distro-to-HTTP-s.patch
+Patch1155:	0155-esp-ci-stick-to-binutils-2.35.patch
+Patch1156:	0156-Xtensa-Fix-i8-i16-ABI-alignment.patch
+Patch1157:	0157-esp-toolchain-Adds-fdata-sections-to-newlib-target-C.patch
+Patch1158:	0158-toolchain-esp-Bring-libgcc-back-to-the-toolchain.patch
 
 BuildRequires:	bison
 BuildRequires:	binutils-devel

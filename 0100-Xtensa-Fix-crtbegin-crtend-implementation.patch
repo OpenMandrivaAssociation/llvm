@@ -1,7 +1,7 @@
-From f1ebb43f8ae1a8d93c44cf0a157b0d68bf79cc12 Mon Sep 17 00:00:00 2001
+From a22ef9201fc83b6d0967e86b36ef8e5977cd00b3 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:28 +0300
-Subject: [PATCH 100/140] [Xtensa] Fix crtbegin/crtend implementation.
+Subject: [PATCH 100/158] [Xtensa] Fix crtbegin/crtend implementation.
 
 Add Xtensa to the list of arcthitectures with
 crt support in compiler_rt.

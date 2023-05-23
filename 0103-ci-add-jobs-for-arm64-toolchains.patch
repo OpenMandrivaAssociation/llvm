@@ -1,7 +1,7 @@
-From c8d6edf09819c20d8a24767f7f3787635baa377b Mon Sep 17 00:00:00 2001
+From 5bce41d55f913ba88120d67105f2c6d222ee4392 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:29 +0300
-Subject: [PATCH 103/140] ci: add jobs for arm64 toolchains
+Subject: [PATCH 103/158] ci: add jobs for arm64 toolchains
 
 ---
  .gitlab-ci.yml | 18 +++++++++++++++---

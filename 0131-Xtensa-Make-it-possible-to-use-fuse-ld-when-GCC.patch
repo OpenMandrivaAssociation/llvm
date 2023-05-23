@@ -1,7 +1,7 @@
-From d22baf0f3565ca9d5e646fab843635fd1d343241 Mon Sep 17 00:00:00 2001
+From dead1f18b99e200b4b126622b1e4368caf5e7e42 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:44 +0300
-Subject: [PATCH 131/140] [Xtensa] Make it possible to use -fuse-ld when GCC
+Subject: [PATCH 131/158] [Xtensa] Make it possible to use -fuse-ld when GCC
 
  toolchain is detected
 ---

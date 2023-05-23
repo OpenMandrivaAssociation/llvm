@@ -1,7 +1,7 @@
-From f49890f93d7e118d16cda1ed70db8c0fffccba44 Mon Sep 17 00:00:00 2001
+From d55bd34489c287e258ed59333708d35607b2b5e7 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:19 +0300
-Subject: [PATCH 081/140] [Xtensa]: Add '-fuse-ld' option support to ESP Xtensa
+Subject: [PATCH 081/158] [Xtensa]: Add '-fuse-ld' option support to ESP Xtensa
 
  toolchain
 ---

@@ -1,7 +1,7 @@
-From 7b8897ba17046287005c63f3937853fcdc6472b6 Mon Sep 17 00:00:00 2001
+From 847f318b638e11dfd8aeb81827a76bbd9fd30fe1 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:12 +0300
-Subject: [PATCH 067/140] [Xtensa] Correction of the  ESP32-S2 target.
+Subject: [PATCH 067/158] [Xtensa] Correction of the  ESP32-S2 target.
 
 The ESP32-S2 chip includes Xtensa ISA extension which
 helps to work with GPIO, so we add instructions description

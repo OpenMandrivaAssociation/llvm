@@ -1,7 +1,7 @@
-From 4723aad9e49d2bd9e8a6285ad766afe616b94b4c Mon Sep 17 00:00:00 2001
+From 6d2ae97a0b12ce69aa77d1890d08aa98b93434c4 Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:33 +0300
-Subject: [PATCH 110/140] [Xtensa] Guess GCC toolchain triplet from MCPU option
+Subject: [PATCH 110/158] [Xtensa] Guess GCC toolchain triplet from MCPU option
 
 ---
  clang/lib/Driver/ToolChains/Xtensa.cpp | 25 +++++++++++++++++--------

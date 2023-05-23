@@ -1,0 +1,27 @@
+From 50ce171b916ba7687e831b5eea07662a374f283b Mon Sep 17 00:00:00 2001
+From: Alexey Gerenkov <alexey@espressif.com>
+Date: Wed, 21 Dec 2022 00:55:50 +0300
+Subject: [PATCH 146/158] tooclahin/xtensa: Add crt0.o to linker command line
+ automatically
+
+---
+ clang/lib/Driver/ToolChains/Xtensa.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/clang/lib/Driver/ToolChains/Xtensa.cpp b/clang/lib/Driver/ToolChains/Xtensa.cpp
+index d969128817e9..75a1293b6869 100644
+--- a/clang/lib/Driver/ToolChains/Xtensa.cpp
++++ b/clang/lib/Driver/ToolChains/Xtensa.cpp
+@@ -328,7 +328,8 @@ void xtensa::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+   if (WantCRTs) {
+     // TODO: The crt0.o is not used for esp targets, but maybe used in
+     // future for other vendors
+-    // CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crt0.o")));
++    if (ToolChain.getTriple().getVendor() != llvm::Triple::Espressif)
++      CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crt0.o")));
+     CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(crtbegin)));
+   }
+ 
+-- 
+2.40.1
+

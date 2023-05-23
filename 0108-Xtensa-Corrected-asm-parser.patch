@@ -1,7 +1,7 @@
-From 9728f2787d1e4e6010a7dd2a361df9e0179b3c02 Mon Sep 17 00:00:00 2001
+From 75c11a26bf2ed60981d1af03b3c7bac28bf1b8cc Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:32 +0300
-Subject: [PATCH 108/140] [Xtensa] Corrected asm parser.
+Subject: [PATCH 108/158] [Xtensa] Corrected asm parser.
 
 Expand addi operation immediate, to addmi + addi. Improved constants evalutaion.
 ---

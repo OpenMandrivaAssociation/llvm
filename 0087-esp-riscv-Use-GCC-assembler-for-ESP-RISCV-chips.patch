@@ -1,7 +1,7 @@
-From 73606da5ef67ff5a7c8249b0f2e83813db969026 Mon Sep 17 00:00:00 2001
+From 962e47d8b9fb7f0a715d54047599a709edabb22e Mon Sep 17 00:00:00 2001
 From: Andrei Safronov <safronov@espressif.com>
 Date: Wed, 5 Apr 2023 00:59:22 +0300
-Subject: [PATCH 087/140] esp/riscv: Use GCC assembler for ESP RISCV chips
+Subject: [PATCH 087/158] esp/riscv: Use GCC assembler for ESP RISCV chips
 
 ---
  clang/lib/Driver/ToolChains/RISCVToolchain.cpp | 1 +
