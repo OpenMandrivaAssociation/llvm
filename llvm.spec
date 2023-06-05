@@ -27,6 +27,11 @@
 %define _disable_ld_no_undefined 1
 
 %if %{cross_compiling}
+# When bootstrapping to a new architecture, we use gcc for
+# reasons of paranoia (Thompson attack) -- better not to
+# use the same compiler...
+%define prefer_gcc 1
+
 # Since the build system forces HOST cflags == TARGET cflags,
 # we have to get rid of any -march= stuff. Might as well play it safe.
 %global optflags -O2 -fno-semantic-interposition
