@@ -1,5 +1,5 @@
 sources:
   v2023.2.tar.gz: 5f35cdacaf77fe2c306666697620be8d23afaa8a
   main.tar.gz: c868b86e5f526151d1d65eaa5a189cb0af37f08b
-  llvm-project-16.0.5.src.tar.xz: 44d68a59e25211a4e7abdb1a14aa24e839664e79
-  spirv-llvm-translator-16.0.5.tar.gz: a6ef147d48b20a8a308c9cb5da6875b27c56532f
+  llvm-project-16.0.6.src.tar.xz: 92eaedd6f1dde08751441afcd0a3d0fbfdf95d42
+  spirv-llvm-translator-16.0.6.tar.gz: f3bd8dc8e595eb25d59a9fde76840d5134f247a9
