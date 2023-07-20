@@ -2144,8 +2144,8 @@ CPROCESSES="$PROCESSES"
 # Linking LLVM with LTO enabled is VERY RAM intensive
 # and breaks boxes that have loads of CPU cores but no
 # terabytes of RAM...
-[ "$PROCESSES" -gt 2 ] && LPROCESSES=2
-[ "$CPROCESSES" -gt 16 ] && CPROCESSES=16
+[ "$PROCESSES" -gt 4 ] && LPROCESSES=4
+[ "$CPROCESSES" -gt 20 ] && CPROCESSES=20
 
 # The "%if 1" below is just a quick way to get rid of the real
 # 64-bit build to debug 32-bit build issues. No need to do a
