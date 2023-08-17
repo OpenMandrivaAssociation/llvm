@@ -1,7 +1,7 @@
-diff -up llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp.11~ llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp.11~	2022-07-31 02:54:21.174366578 +0200
-+++ llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp	2022-07-31 02:57:05.052629783 +0200
-@@ -292,6 +292,7 @@ Linux::Linux(const Driver &D, const llvm
+diff -up llvm-project-release-17.x/clang/lib/Driver/ToolChains/Linux.cpp.13~ llvm-project-release-17.x/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-release-17.x/clang/lib/Driver/ToolChains/Linux.cpp.13~	2023-07-28 12:53:59.973831416 +0200
++++ llvm-project-release-17.x/clang/lib/Driver/ToolChains/Linux.cpp	2023-07-28 12:56:58.821508870 +0200
+@@ -316,6 +316,7 @@ Linux::Linux(const Driver &D, const llvm
          Paths);
    }
  
@@ -9,11 +9,10 @@ diff -up llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp.11~ llv
    addPathIfExists(D, concat(SysRoot, "/usr/lib", MultiarchTriple), Paths);
    // 64-bit OpenEmbedded sysroots may not have a /usr/lib dir. So they cannot
    // find /usr/lib64 as it is referenced as /usr/lib/../lib64. So we handle
-@@ -307,7 +308,13 @@ Linux::Linux(const Driver &D, const llvm
+@@ -331,7 +332,12 @@ Linux::Linux(const Driver &D, const llvm
      addPathIfExists(D, concat(SysRoot, "/usr", OSLibDir, ABIName), Paths);
    }
  
-+
 +#if 0
 +  // This is actually harmful unconditionally because it adds
 +  //         /usr/bin/../lib64/gcc/x86_64-openmandriva-linux-gnu/10.0.0/../../..
@@ -21,5 +20,5 @@ diff -up llvm-project-release-15.x/clang/lib/Driver/ToolChains/Linux.cpp.11~ llv
    Generic_GCC::AddMultiarchPaths(D, SysRoot, OSLibDir, Paths);
 +#endif
  
-   // The deprecated -DLLVM_ENABLE_PROJECTS=libcxx configuration installs
-   // libc++.so in D.Dir+"/../lib/". Detect this path.
+   addPathIfExists(D, concat(SysRoot, "/lib"), Paths);
+   addPathIfExists(D, concat(SysRoot, "/usr/lib"), Paths);

@@ -1,26 +1,7 @@
-From 6ea4f015bd853f8aa8dc4033b0dafc7f7348d9dd Mon Sep 17 00:00:00 2001
-From: Andrei Safronov <safronov@espressif.com>
-Date: Wed, 5 Apr 2023 00:58:52 +0300
-Subject: [PATCH 035/158] [Xtensa] Add the Xtensa target.
-
----
- clang/include/clang/Basic/TargetInfo.h     |   5 +-
- clang/lib/AST/ASTContext.cpp               |  47 +++++++++
- clang/lib/Basic/CMakeLists.txt             |   1 +
- clang/lib/Basic/Targets.cpp                |   4 +
- clang/lib/Basic/Targets/Xtensa.cpp         |  29 ++++++
- clang/lib/Basic/Targets/Xtensa.h           | 106 +++++++++++++++++++++
- clang/lib/Driver/ToolChains/CommonArgs.cpp |   5 +
- clang/lib/Driver/ToolChains/Gnu.cpp        |   6 ++
- 8 files changed, 202 insertions(+), 1 deletion(-)
- create mode 100644 clang/lib/Basic/Targets/Xtensa.cpp
- create mode 100644 clang/lib/Basic/Targets/Xtensa.h
-
-diff --git a/clang/include/clang/Basic/TargetInfo.h b/clang/include/clang/Basic/TargetInfo.h
-index bb2a453f4657..424281768454 100644
---- a/clang/include/clang/Basic/TargetInfo.h
-+++ b/clang/include/clang/Basic/TargetInfo.h
-@@ -328,7 +328,10 @@ public:
+diff -up llvm-project-release-17.x/clang/include/clang/Basic/TargetInfo.h.75~ llvm-project-release-17.x/clang/include/clang/Basic/TargetInfo.h
+--- llvm-project-release-17.x/clang/include/clang/Basic/TargetInfo.h.75~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/clang/include/clang/Basic/TargetInfo.h	2023-07-28 13:29:22.193041068 +0200
+@@ -337,7 +337,10 @@ public:
      //    void *__saved_reg_area_end_pointer;
      //    void *__overflow_area_pointer;
      //} va_list;
@@ -32,11 +13,10 @@ index bb2a453f4657..424281768454 100644
    };
  
  protected:
-diff --git a/clang/lib/AST/ASTContext.cpp b/clang/lib/AST/ASTContext.cpp
-index 2884fe660422..bb086d7e2985 100644
---- a/clang/lib/AST/ASTContext.cpp
-+++ b/clang/lib/AST/ASTContext.cpp
-@@ -9072,6 +9072,51 @@ static TypedefDecl *CreateHexagonBuiltinVaListDecl(const ASTContext *Context) {
+diff -up llvm-project-release-17.x/clang/lib/AST/ASTContext.cpp.75~ llvm-project-release-17.x/clang/lib/AST/ASTContext.cpp
+--- llvm-project-release-17.x/clang/lib/AST/ASTContext.cpp.75~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/clang/lib/AST/ASTContext.cpp	2023-07-28 13:29:22.195041084 +0200
+@@ -9115,6 +9115,51 @@ static TypedefDecl *CreateHexagonBuiltin
    return Context->buildImplicitTypedef(VaListTagArrayType, "__builtin_va_list");
  }
  
@@ -88,7 +68,7 @@ index 2884fe660422..bb086d7e2985 100644
  static TypedefDecl *CreateVaListDecl(const ASTContext *Context,
                                       TargetInfo::BuiltinVaListKind Kind) {
    switch (Kind) {
-@@ -9093,6 +9138,8 @@ static TypedefDecl *CreateVaListDecl(const ASTContext *Context,
+@@ -9136,6 +9181,8 @@ static TypedefDecl *CreateVaListDecl(con
      return CreateSystemZBuiltinVaListDecl(Context);
    case TargetInfo::HexagonBuiltinVaList:
      return CreateHexagonBuiltinVaListDecl(Context);
@@ -97,11 +77,10 @@ index 2884fe660422..bb086d7e2985 100644
    }
  
    llvm_unreachable("Unhandled __builtin_va_list type kind");
-diff --git a/clang/lib/Basic/CMakeLists.txt b/clang/lib/Basic/CMakeLists.txt
-index 32af83ee23f3..cc741169bc7a 100644
---- a/clang/lib/Basic/CMakeLists.txt
-+++ b/clang/lib/Basic/CMakeLists.txt
-@@ -100,6 +100,7 @@ add_clang_library(clangBasic
+diff -up llvm-project-release-17.x/clang/lib/Basic/CMakeLists.txt.75~ llvm-project-release-17.x/clang/lib/Basic/CMakeLists.txt
+--- llvm-project-release-17.x/clang/lib/Basic/CMakeLists.txt.75~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/clang/lib/Basic/CMakeLists.txt	2023-07-28 13:29:22.195041084 +0200
+@@ -115,6 +115,7 @@ add_clang_library(clangBasic
    Targets/WebAssembly.cpp
    Targets/X86.cpp
    Targets/XCore.cpp
@@ -109,33 +88,9 @@ index 32af83ee23f3..cc741169bc7a 100644
    TokenKinds.cpp
    TypeTraits.cpp
    Version.cpp
-diff --git a/clang/lib/Basic/Targets.cpp b/clang/lib/Basic/Targets.cpp
-index 8400774db93d..95340988f787 100644
---- a/clang/lib/Basic/Targets.cpp
-+++ b/clang/lib/Basic/Targets.cpp
-@@ -41,6 +41,7 @@
- #include "Targets/WebAssembly.h"
- #include "Targets/X86.h"
- #include "Targets/XCore.h"
-+#include "Targets/Xtensa.h"
- #include "clang/Basic/Diagnostic.h"
- #include "llvm/ADT/StringExtras.h"
- #include "llvm/ADT/Triple.h"
-@@ -686,6 +687,9 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
-     default:
-       return new LoongArch64TargetInfo(Triple, Opts);
-     }
-+
-+  case llvm::Triple::xtensa :
-+    return new XtensaTargetInfo(Triple, Opts);
-   }
- }
- } // namespace targets
-diff --git a/clang/lib/Basic/Targets/Xtensa.cpp b/clang/lib/Basic/Targets/Xtensa.cpp
-new file mode 100644
-index 000000000000..270af0a05cfd
---- /dev/null
-+++ b/clang/lib/Basic/Targets/Xtensa.cpp
+diff -up llvm-project-release-17.x/clang/lib/Basic/Targets/Xtensa.cpp.75~ llvm-project-release-17.x/clang/lib/Basic/Targets/Xtensa.cpp
+--- llvm-project-release-17.x/clang/lib/Basic/Targets/Xtensa.cpp.75~	2023-07-28 13:29:22.195041084 +0200
++++ llvm-project-release-17.x/clang/lib/Basic/Targets/Xtensa.cpp	2023-07-28 13:29:22.195041084 +0200
 @@ -0,0 +1,29 @@
 +//===--- Xtensa.cpp - Implement Xtensa target feature support -------------===//
 +//
@@ -166,11 +121,9 @@ index 000000000000..270af0a05cfd
 +  Builder.defineMacro("__XTENSA__");
 +  Builder.defineMacro("__XTENSA_EL__");
 +}
-diff --git a/clang/lib/Basic/Targets/Xtensa.h b/clang/lib/Basic/Targets/Xtensa.h
-new file mode 100644
-index 000000000000..4a31e40eeb6e
---- /dev/null
-+++ b/clang/lib/Basic/Targets/Xtensa.h
+diff -up llvm-project-release-17.x/clang/lib/Basic/Targets/Xtensa.h.75~ llvm-project-release-17.x/clang/lib/Basic/Targets/Xtensa.h
+--- llvm-project-release-17.x/clang/lib/Basic/Targets/Xtensa.h.75~	2023-07-28 13:29:22.196041092 +0200
++++ llvm-project-release-17.x/clang/lib/Basic/Targets/Xtensa.h	2023-07-28 13:29:22.196041092 +0200
 @@ -0,0 +1,106 @@
 +//===--- Xtensa.h - Declare Xtensa target feature support -------*- C++ -*-===//
 +//
@@ -278,11 +231,10 @@ index 000000000000..4a31e40eeb6e
 +} // namespace targets
 +} // namespace clang
 +#endif // LLVM_CLANG_LIB_BASIC_TARGETS_XTENSA_H
-diff --git a/clang/lib/Driver/ToolChains/CommonArgs.cpp b/clang/lib/Driver/ToolChains/CommonArgs.cpp
-index 34640b3c450d..6e7cd20af05f 100644
---- a/clang/lib/Driver/ToolChains/CommonArgs.cpp
-+++ b/clang/lib/Driver/ToolChains/CommonArgs.cpp
-@@ -455,6 +455,11 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
+diff -up llvm-project-release-17.x/clang/lib/Driver/ToolChains/CommonArgs.cpp.75~ llvm-project-release-17.x/clang/lib/Driver/ToolChains/CommonArgs.cpp
+--- llvm-project-release-17.x/clang/lib/Driver/ToolChains/CommonArgs.cpp.75~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/clang/lib/Driver/ToolChains/CommonArgs.cpp	2023-07-28 13:29:22.196041092 +0200
+@@ -474,6 +474,11 @@ std::string tools::getCPUName(const Driv
    case llvm::Triple::wasm32:
    case llvm::Triple::wasm64:
      return std::string(getWebAssemblyTargetCPU(Args));
@@ -294,11 +246,10 @@ index 34640b3c450d..6e7cd20af05f 100644
    }
  }
  
-diff --git a/clang/lib/Driver/ToolChains/Gnu.cpp b/clang/lib/Driver/ToolChains/Gnu.cpp
-index 4f2340316654..ed66a0071c0c 100644
---- a/clang/lib/Driver/ToolChains/Gnu.cpp
-+++ b/clang/lib/Driver/ToolChains/Gnu.cpp
-@@ -2338,6 +2338,8 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
+diff -up llvm-project-release-17.x/clang/lib/Driver/ToolChains/Gnu.cpp.75~ llvm-project-release-17.x/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-project-release-17.x/clang/lib/Driver/ToolChains/Gnu.cpp.75~	2023-07-28 13:29:19.309017898 +0200
++++ llvm-project-release-17.x/clang/lib/Driver/ToolChains/Gnu.cpp	2023-07-28 13:29:22.196041092 +0200
+@@ -2435,6 +2435,8 @@ void Generic_GCC::GCCInstallationDetecto
        "s390x-linux-gnu", "s390x-unknown-linux-gnu", "s390x-ibm-linux-gnu",
        "s390x-suse-linux", "s390x-redhat-linux"};
  
@@ -307,7 +258,7 @@ index 4f2340316654..ed66a0071c0c 100644
  
    using std::begin;
    using std::end;
-@@ -2610,6 +2612,10 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
+@@ -2688,6 +2690,10 @@ void Generic_GCC::GCCInstallationDetecto
      LibDirs.append(begin(SystemZLibDirs), end(SystemZLibDirs));
      TripleAliases.append(begin(SystemZTriples), end(SystemZTriples));
      break;
@@ -318,6 +269,3 @@ index 4f2340316654..ed66a0071c0c 100644
    default:
      // By default, just rely on the standard lib directories and the original
      // triple.
--- 
-2.40.1
-

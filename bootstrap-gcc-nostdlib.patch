@@ -1,7 +1,8 @@
-diff -up llvm-project-16.0.4.src/libunwind/cmake/config-ix.cmake.omv~ llvm-project-16.0.4.src/libunwind/cmake/config-ix.cmake
---- llvm-project-16.0.4.src/libunwind/cmake/config-ix.cmake.omv~	2023-05-19 00:13:11.115793708 +0200
-+++ llvm-project-16.0.4.src/libunwind/cmake/config-ix.cmake	2023-05-19 00:13:19.924782860 +0200
-@@ -33,7 +33,7 @@ endif()
+diff -up llvm-project-release-17.x/libunwind/cmake/config-ix.cmake.40~ llvm-project-release-17.x/libunwind/cmake/config-ix.cmake
+--- llvm-project-release-17.x/libunwind/cmake/config-ix.cmake.40~	2023-08-14 10:42:15.000000000 +0200
++++ llvm-project-release-17.x/libunwind/cmake/config-ix.cmake	2023-08-15 00:03:17.795102562 +0200
+@@ -32,7 +32,7 @@ endif()
+ # configuration checks to avoid spurious link errors.
  
  llvm_check_compiler_linker_flag(CXX "-nostdlib++" CXX_SUPPORTS_NOSTDLIBXX_FLAG)
 -if (CXX_SUPPORTS_NOSTDLIBXX_FLAG)
@@ -9,25 +10,12 @@ diff -up llvm-project-16.0.4.src/libunwind/cmake/config-ix.cmake.omv~ llvm-proje
    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -nostdlib++")
  else()
    llvm_check_compiler_linker_flag(C "-nodefaultlibs" C_SUPPORTS_NODEFAULTLIBS_FLAG)
-   if (C_SUPPORTS_NODEFAULTLIBS_FLAG)
-diff -up llvm-project-16.0.4.src/libunwind/src/CMakeLists.txt.omv~ llvm-project-16.0.4.src/libunwind/src/CMakeLists.txt
---- llvm-project-16.0.4.src/libunwind/src/CMakeLists.txt.omv~	2023-05-19 00:14:27.384744679 +0200
-+++ llvm-project-16.0.4.src/libunwind/src/CMakeLists.txt	2023-05-19 00:14:32.234744840 +0200
-@@ -95,7 +95,9 @@ endif()
- # Setup flags.
- add_link_flags_if(CXX_SUPPORTS_UNWINDLIB_EQ_NONE_FLAG --unwindlib=none)
- if (CXX_SUPPORTS_NOSTDLIBXX_FLAG)
-+  if(NOT "${CMAKE_C_COMPILER}" MATCHES ".*gcc")
--  add_link_flags_if_supported(-nostdlib++)
-+    add_link_flags_if_supported(-nostdlib++)
-+  endif()
- else()
-   add_link_flags_if_supported(-nodefaultlibs)
- endif()
-diff -up llvm-project-16.0.4.src/runtimes/CMakeLists.txt.omv~ llvm-project-16.0.4.src/runtimes/CMakeLists.txt
---- llvm-project-16.0.4.src/runtimes/CMakeLists.txt.omv~	2023-05-18 22:27:12.636576430 +0200
-+++ llvm-project-16.0.4.src/runtimes/CMakeLists.txt	2023-05-18 22:27:22.037665476 +0200
-@@ -142,7 +142,7 @@ endif()
+diff -up llvm-project-release-17.x/libunwind/src/CMakeLists.txt.40~ llvm-project-release-17.x/libunwind/src/CMakeLists.txt
+diff -up llvm-project-release-17.x/runtimes/CMakeLists.txt.40~ llvm-project-release-17.x/runtimes/CMakeLists.txt
+--- llvm-project-release-17.x/runtimes/CMakeLists.txt.40~	2023-08-14 10:42:15.000000000 +0200
++++ llvm-project-release-17.x/runtimes/CMakeLists.txt	2023-08-15 00:03:17.795102562 +0200
+@@ -140,7 +140,7 @@ endif()
+ # all check_cxx_compiler_flag commands will fail until we add -nostdlib++
  # (or -nodefaultlibs).
  llvm_check_compiler_linker_flag(CXX "-nostdlib++" CXX_SUPPORTS_NOSTDLIBXX_FLAG)
 -if (CXX_SUPPORTS_NOSTDLIBXX_FLAG)
@@ -35,4 +23,3 @@ diff -up llvm-project-16.0.4.src/runtimes/CMakeLists.txt.omv~ llvm-project-16.0.
    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -nostdlib++")
  endif()
  check_cxx_compiler_flag(-nostdinc++ CXX_SUPPORTS_NOSTDINCXX_FLAG)
- if (CXX_SUPPORTS_NOSTDINCXX_FLAG)

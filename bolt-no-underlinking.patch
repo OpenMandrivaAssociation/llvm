@@ -1,7 +1,7 @@
-diff -up llvm-project-release-15.x/bolt/tools/driver/CMakeLists.txt.omv~ llvm-project-release-15.x/bolt/tools/driver/CMakeLists.txt
---- llvm-project-release-15.x/bolt/tools/driver/CMakeLists.txt.omv~	2022-08-03 10:51:31.124095026 +0200
-+++ llvm-project-release-15.x/bolt/tools/driver/CMakeLists.txt	2022-08-03 10:51:42.282138486 +0200
-@@ -23,6 +23,8 @@ target_link_libraries(llvm-bolt
+diff -up llvm-project-release-17.x/bolt/tools/driver/CMakeLists.txt.11~ llvm-project-release-17.x/bolt/tools/driver/CMakeLists.txt
+--- llvm-project-release-17.x/bolt/tools/driver/CMakeLists.txt.11~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/bolt/tools/driver/CMakeLists.txt	2023-07-28 12:51:25.603391940 +0200
+@@ -25,6 +25,8 @@ target_link_libraries(llvm-bolt
    LLVMBOLTProfile
    LLVMBOLTRewrite
    LLVMBOLTUtils
@@ -10,10 +10,10 @@ diff -up llvm-project-release-15.x/bolt/tools/driver/CMakeLists.txt.omv~ llvm-pr
    )
  
  add_bolt_tool_symlink(perf2bolt llvm-bolt)
-diff -up llvm-project-release-15.x/bolt/tools/heatmap/CMakeLists.txt.omv~ llvm-project-release-15.x/bolt/tools/heatmap/CMakeLists.txt
---- llvm-project-release-15.x/bolt/tools/heatmap/CMakeLists.txt.omv~	2022-08-03 10:38:10.784951130 +0200
-+++ llvm-project-release-15.x/bolt/tools/heatmap/CMakeLists.txt	2022-08-03 10:44:06.623357471 +0200
-@@ -14,6 +14,8 @@ target_link_libraries(llvm-bolt-heatmap
+diff -up llvm-project-release-17.x/bolt/tools/heatmap/CMakeLists.txt.11~ llvm-project-release-17.x/bolt/tools/heatmap/CMakeLists.txt
+--- llvm-project-release-17.x/bolt/tools/heatmap/CMakeLists.txt.11~	2023-07-28 12:51:25.604391949 +0200
++++ llvm-project-release-17.x/bolt/tools/heatmap/CMakeLists.txt	2023-07-28 12:52:03.884748033 +0200
+@@ -15,6 +15,8 @@ target_link_libraries(llvm-bolt-heatmap
    LLVMBOLTProfile
    LLVMBOLTRewrite
    LLVMBOLTUtils
@@ -21,4 +21,4 @@ diff -up llvm-project-release-15.x/bolt/tools/heatmap/CMakeLists.txt.omv~ llvm-p
 +  LLVMAArch64CodeGen
    )
  
- set_target_properties(llvm-bolt-heatmap PROPERTIES FOLDER "BOLT")
+ add_dependencies(bolt llvm-bolt-heatmap)

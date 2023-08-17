@@ -1,7 +1,30 @@
-diff -up llvm-project-16.0.4.src/llvm/projects/SPIRV-LLVM-Translator/tools/llvm-spirv/CMakeLists.txt.omv~ llvm-project-16.0.4.src/llvm/projects/SPIRV-LLVM-Translator/tools/llvm-spirv/CMakeLists.txt
-diff -up llvm-project-16.0.4.src/mlir/lib/CAPI/CMakeLists.txt.omv~ llvm-project-16.0.4.src/mlir/lib/CAPI/CMakeLists.txt
---- llvm-project-16.0.4.src/mlir/lib/CAPI/CMakeLists.txt.omv~	2023-05-18 06:43:05.175389726 +0200
-+++ llvm-project-16.0.4.src/mlir/lib/CAPI/CMakeLists.txt	2023-05-18 06:50:08.098119195 +0200
+diff -up llvm-project-release-17.x/mlir/CMakeLists.txt.37~ llvm-project-release-17.x/mlir/CMakeLists.txt
+--- llvm-project-release-17.x/mlir/CMakeLists.txt.37~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/mlir/CMakeLists.txt	2023-07-28 13:17:17.030758904 +0200
+@@ -17,6 +17,12 @@ endif()
+ include(GNUInstallDirs)
+ set(CMAKE_CXX_STANDARD 17)
+ 
++if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "riscv64")
++  set(atomic_libs "atomic")
++else()
++  set(atomic_libs)
++endif()
++
+ if(MLIR_STANDALONE_BUILD)
+   find_package(LLVM CONFIG REQUIRED)
+   set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${LLVM_CMAKE_DIR})
+@@ -270,3 +276,7 @@ endif()
+ if(MLIR_STANDALONE_BUILD)
+   llvm_distribution_add_targets()
+ endif()
++
++if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "riscv64")
++  target_link_options(MLIR PRIVATE -latomic)
++endif()
+diff -up llvm-project-release-17.x/mlir/lib/CAPI/CMakeLists.txt.37~ llvm-project-release-17.x/mlir/lib/CAPI/CMakeLists.txt
+--- llvm-project-release-17.x/mlir/lib/CAPI/CMakeLists.txt.37~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/mlir/lib/CAPI/CMakeLists.txt	2023-07-28 13:17:17.029758898 +0200
 @@ -29,7 +29,11 @@ if(MLIR_BUILD_MLIR_C_DYLIB)
        ${_capi_libraries}
    )
@@ -15,9 +38,20 @@ diff -up llvm-project-16.0.4.src/mlir/lib/CAPI/CMakeLists.txt.omv~ llvm-project-
    else()
      if(NOT CMAKE_C_VISIBILITY_PRESET STREQUAL "hidden" OR NOT CMAKE_CXX_VISIBILITY_PRESET STREQUAL "hidden")
        message(STATUS "MLIR-C on this platform exports all symbols. Recommend building with CMAKE_(C|CXX)_VISIBILITY_PRESET=hidden or implement filtering support.")
-diff -up llvm-project-16.0.4.src/mlir/tools/mlir-lsp-server/CMakeLists.txt.omv~ llvm-project-16.0.4.src/mlir/tools/mlir-lsp-server/CMakeLists.txt
---- llvm-project-16.0.4.src/mlir/tools/mlir-lsp-server/CMakeLists.txt.omv~	2023-05-18 06:58:54.494937699 +0200
-+++ llvm-project-16.0.4.src/mlir/tools/mlir-lsp-server/CMakeLists.txt	2023-05-18 07:00:47.236982037 +0200
+diff -up llvm-project-release-17.x/mlir/tools/mlir-cpu-runner/CMakeLists.txt.37~ llvm-project-release-17.x/mlir/tools/mlir-cpu-runner/CMakeLists.txt
+--- llvm-project-release-17.x/mlir/tools/mlir-cpu-runner/CMakeLists.txt.37~	2023-07-28 13:17:17.030758904 +0200
++++ llvm-project-release-17.x/mlir/tools/mlir-cpu-runner/CMakeLists.txt	2023-07-28 13:24:33.488782982 +0200
+@@ -21,6 +21,7 @@ target_link_libraries(mlir-cpu-runner PR
+   MLIRParser
+   MLIRTargetLLVMIRExport
+   MLIRSupport
++  ${atomic_libs}
+   )
+ 
+ export_executable_symbols(mlir-cpu-runner)
+diff -up llvm-project-release-17.x/mlir/tools/mlir-lsp-server/CMakeLists.txt.37~ llvm-project-release-17.x/mlir/tools/mlir-lsp-server/CMakeLists.txt
+--- llvm-project-release-17.x/mlir/tools/mlir-lsp-server/CMakeLists.txt.37~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/mlir/tools/mlir-lsp-server/CMakeLists.txt	2023-07-28 13:17:17.029758898 +0200
 @@ -48,7 +48,11 @@ add_mlir_tool(mlir-lsp-server
    DEPENDS
    ${LIBS}
@@ -31,12 +65,12 @@ diff -up llvm-project-16.0.4.src/mlir/tools/mlir-lsp-server/CMakeLists.txt.omv~ 
  llvm_update_compile_flags(mlir-lsp-server)
  
  mlir_check_all_link_libraries(mlir-lsp-server)
-diff -up llvm-project-16.0.4.src/mlir/tools/mlir-opt/CMakeLists.txt.omv~ llvm-project-16.0.4.src/mlir/tools/mlir-opt/CMakeLists.txt
---- llvm-project-16.0.4.src/mlir/tools/mlir-opt/CMakeLists.txt.omv~	2023-05-18 07:02:01.641672711 +0200
-+++ llvm-project-16.0.4.src/mlir/tools/mlir-opt/CMakeLists.txt	2023-05-18 07:02:28.587923099 +0200
-@@ -77,7 +77,11 @@ add_mlir_tool(mlir-opt
-   DEPENDS
+diff -up llvm-project-release-17.x/mlir/tools/mlir-opt/CMakeLists.txt.37~ llvm-project-release-17.x/mlir/tools/mlir-opt/CMakeLists.txt
+--- llvm-project-release-17.x/mlir/tools/mlir-opt/CMakeLists.txt.37~	2023-07-28 13:17:17.030758904 +0200
++++ llvm-project-release-17.x/mlir/tools/mlir-opt/CMakeLists.txt	2023-07-28 13:24:05.719573802 +0200
+@@ -86,7 +86,11 @@ add_mlir_tool(mlir-opt
    ${LIBS}
+   SUPPORT_PLUGINS
    )
 -target_link_libraries(mlir-opt PRIVATE ${LIBS})
 +if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "riscv64")
@@ -47,9 +81,9 @@ diff -up llvm-project-16.0.4.src/mlir/tools/mlir-opt/CMakeLists.txt.omv~ llvm-pr
  llvm_update_compile_flags(mlir-opt)
  
  mlir_check_all_link_libraries(mlir-opt)
-diff -up llvm-project-16.0.4.src/mlir/tools/mlir-reduce/CMakeLists.txt.omv~ llvm-project-16.0.4.src/mlir/tools/mlir-reduce/CMakeLists.txt
---- llvm-project-16.0.4.src/mlir/tools/mlir-reduce/CMakeLists.txt.omv~	2023-05-18 07:04:49.781236859 +0200
-+++ llvm-project-16.0.4.src/mlir/tools/mlir-reduce/CMakeLists.txt	2023-05-18 07:05:25.811572536 +0200
+diff -up llvm-project-release-17.x/mlir/tools/mlir-reduce/CMakeLists.txt.37~ llvm-project-release-17.x/mlir/tools/mlir-reduce/CMakeLists.txt
+--- llvm-project-release-17.x/mlir/tools/mlir-reduce/CMakeLists.txt.37~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/mlir/tools/mlir-reduce/CMakeLists.txt	2023-07-28 13:17:17.030758904 +0200
 @@ -24,7 +24,11 @@ add_mlir_tool(mlir-reduce
    ${LIBS}
    )
@@ -63,55 +97,19 @@ diff -up llvm-project-16.0.4.src/mlir/tools/mlir-reduce/CMakeLists.txt.omv~ llvm
  llvm_update_compile_flags(mlir-reduce)
  
  mlir_check_all_link_libraries(mlir-reduce)
-diff -up llvm-project-16.0.4.src/mlir/CMakeLists.txt.omv~ llvm-project-16.0.4.src/mlir/CMakeLists.txt
---- llvm-project-16.0.4.src/mlir/CMakeLists.txt.omv~	2023-05-18 07:08:54.235405482 +0200
-+++ llvm-project-16.0.4.src/mlir/CMakeLists.txt	2023-05-18 07:15:53.928260311 +0200
-@@ -273,3 +273,7 @@ endif()
- if(MLIR_STANDALONE_BUILD)
-   llvm_distribution_add_targets()
- endif()
-+
-+if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "riscv64")
-+  target_link_options(MLIR PRIVATE -latomic)
-+endif()
-diff -up llvm-project-16.0.4.src/mlir/CMakeLists.txt.omv~ llvm-project-16.0.4.src/mlir/CMakeLists.txt
---- llvm-project-16.0.4.src/mlir/CMakeLists.txt.omv~	2023-05-18 07:28:34.187438733 +0200
-+++ llvm-project-16.0.4.src/mlir/CMakeLists.txt	2023-05-18 07:28:45.801537553 +0200
-@@ -24,6 +24,12 @@ endif()
- include(GNUInstallDirs)
- set(CMAKE_CXX_STANDARD 17)
- 
-+if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "riscv64")
-+  set(atomic_libs "atomic")
-+else()
-+  set(atomic_libs)
-+endif()
-+
- if(MLIR_STANDALONE_BUILD)
-   find_package(LLVM CONFIG REQUIRED)
-   set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${LLVM_CMAKE_DIR})
-diff -up llvm-project-16.0.4.src/mlir/tools/mlir-cpu-runner/CMakeLists.txt.omv~ llvm-project-16.0.4.src/mlir/tools/mlir-cpu-runner/CMakeLists.txt
---- llvm-project-16.0.4.src/mlir/tools/mlir-cpu-runner/CMakeLists.txt.omv~	2023-05-18 07:30:01.709185220 +0200
-+++ llvm-project-16.0.4.src/mlir/tools/mlir-cpu-runner/CMakeLists.txt	2023-05-18 07:30:09.097248412 +0200
-@@ -20,4 +20,5 @@ target_link_libraries(mlir-cpu-runner PR
-   MLIRParser
-   MLIRTargetLLVMIRExport
-   MLIRSupport
-+  ${atomic_libs}
-   )
-diff -up llvm-project-16.0.4.src/mlir/tools/mlir-spirv-cpu-runner/CMakeLists.txt.omv~ llvm-project-16.0.4.src/mlir/tools/mlir-spirv-cpu-runner/CMakeLists.txt
---- llvm-project-16.0.4.src/mlir/tools/mlir-spirv-cpu-runner/CMakeLists.txt.omv~	2023-05-18 07:19:22.707876278 +0200
-+++ llvm-project-16.0.4.src/mlir/tools/mlir-spirv-cpu-runner/CMakeLists.txt	2023-05-18 07:25:56.786107773 +0200
-@@ -35,5 +35,6 @@ if (MLIR_ENABLE_SPIRV_CPU_RUNNER)
+diff -up llvm-project-release-17.x/mlir/tools/mlir-spirv-cpu-runner/CMakeLists.txt.37~ llvm-project-release-17.x/mlir/tools/mlir-spirv-cpu-runner/CMakeLists.txt
+--- llvm-project-release-17.x/mlir/tools/mlir-spirv-cpu-runner/CMakeLists.txt.37~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/mlir/tools/mlir-spirv-cpu-runner/CMakeLists.txt	2023-07-28 13:17:17.030758904 +0200
+@@ -32,5 +32,6 @@ if (MLIR_ENABLE_SPIRV_CPU_RUNNER)
      MLIRTransforms
      MLIRTranslateLib
      MLIRSupport
 +    ${atomic_libs}
    )
  endif()
-diff -up llvm-project-16.0.4.src/mlir/tools/mlir-translate/CMakeLists.txt.omv~ llvm-project-16.0.4.src/mlir/tools/mlir-translate/CMakeLists.txt
---- llvm-project-16.0.4.src/mlir/tools/mlir-translate/CMakeLists.txt.omv~	2023-05-18 07:26:02.887159041 +0200
-+++ llvm-project-16.0.4.src/mlir/tools/mlir-translate/CMakeLists.txt	2023-05-18 07:26:24.685342441 +0200
+diff -up llvm-project-release-17.x/mlir/tools/mlir-translate/CMakeLists.txt.37~ llvm-project-release-17.x/mlir/tools/mlir-translate/CMakeLists.txt
+--- llvm-project-release-17.x/mlir/tools/mlir-translate/CMakeLists.txt.37~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/mlir/tools/mlir-translate/CMakeLists.txt	2023-07-28 13:17:17.030758904 +0200
 @@ -20,6 +20,7 @@ target_link_libraries(mlir-translate
    MLIRSPIRVDialect
    MLIRTranslateLib
@@ -120,10 +118,10 @@ diff -up llvm-project-16.0.4.src/mlir/tools/mlir-translate/CMakeLists.txt.omv~ l
    )
  
  mlir_check_link_libraries(mlir-translate)
-diff -up llvm-project-16.0.4.src/mlir/tools/mlir-vulkan-runner/CMakeLists.txt.omv~ llvm-project-16.0.4.src/mlir/tools/mlir-vulkan-runner/CMakeLists.txt
---- llvm-project-16.0.4.src/mlir/tools/mlir-vulkan-runner/CMakeLists.txt.omv~	2023-05-18 07:28:23.223345514 +0200
-+++ llvm-project-16.0.4.src/mlir/tools/mlir-vulkan-runner/CMakeLists.txt	2023-05-18 07:28:56.856631691 +0200
-@@ -77,6 +77,7 @@ if (MLIR_ENABLE_VULKAN_RUNNER)
+diff -up llvm-project-release-17.x/mlir/tools/mlir-vulkan-runner/CMakeLists.txt.37~ llvm-project-release-17.x/mlir/tools/mlir-vulkan-runner/CMakeLists.txt
+--- llvm-project-release-17.x/mlir/tools/mlir-vulkan-runner/CMakeLists.txt.37~	2023-07-28 09:10:13.000000000 +0200
++++ llvm-project-release-17.x/mlir/tools/mlir-vulkan-runner/CMakeLists.txt	2023-07-28 13:17:17.030758904 +0200
+@@ -74,6 +74,7 @@ if (MLIR_ENABLE_VULKAN_RUNNER)
      MLIRVectorDialect
      MLIRVectorToLLVM
      ${Vulkan_LIBRARY}
