@@ -1,0 +1,12 @@
+diff -up llvm-project-release-17.x/llvm/projects/SPIRV-Tools/source/val/validate_image.cpp.omv~ llvm-project-release-17.x/llvm/projects/SPIRV-Tools/source/val/validate_image.cpp
+--- llvm-project-release-17.x/llvm/projects/SPIRV-Tools/source/val/validate_image.cpp.omv~	2023-08-23 21:30:28.027492959 +0200
++++ llvm-project-release-17.x/llvm/projects/SPIRV-Tools/source/val/validate_image.cpp	2023-08-23 21:30:33.689558358 +0200
+@@ -219,7 +219,7 @@ uint32_t GetPlaneCoordSize(const ImageTy
+       plane_size = 3;
+       break;
+     case spv::Dim::Max:
+-    default:
++//    default:
+       assert(0);
+       break;
+   }

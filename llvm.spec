@@ -17,8 +17,8 @@
 %bcond_with skip64
 
 # (tpg) set snapshot date
-# 20230729 is 17.0.0-rc1
-%define date 20230816
+# 20230823 is close to 17.0.0-rc3
+%define date 20230823
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -125,7 +125,7 @@
 %if 1%{?is_main:1}
 # Separate because SPIRV_LLVM_Translator and friends frequently tag
 # llvm_release_XXX branches only after the release
-%define spirv_is_main 1
+%undefine spirv_is_main
 %endif
 
 %bcond_without crosscrt
@@ -160,10 +160,10 @@ Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/hea
 Release:	1
 %endif
 # HEAD as of 2023/01/30 also take a look here https://github.com/KhronosGroup/glslang/blob/master/known_good.json
-#Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/SPIRV-Headers-1d31a100405cf8783ca7a31e31cdd727c9fc54c3.tar.gz
-#Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/SPIRV-Tools-40f5bf59c6acb4754a0bffd3c53a715732883a12.tar.gz
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/124a9665e464ef98b8b718d572d5f329311061eb.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/89ca3aa571fe238944b31e88d5d8fe75fab0227a.tar.gz
+#Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
+#Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
@@ -193,6 +193,7 @@ Patch8:		clang-fuse-ld.patch
 Patch9:		lld-10.0.1-format.patch
 Patch10:	lldb-9.0.0-swig-compile.patch
 Patch11:	bolt-no-underlinking.patch
+Patch12:	spirv-tools-17.0-compile.patch
 # Silently turn -O9 into -O3 etc. for increased gcc compatibility
 Patch13:	llvm-3.8.0-fix-optlevel.patch
 Patch14:	llvm-10.0-fix-m32.patch
@@ -1929,6 +1930,7 @@ Tools for working with SPIR-V, a language for running on GPUs.
 %{_bindir}/spirv-lesspipe.sh
 %{_bindir}/spirv-link
 %{_bindir}/spirv-lint
+%{_bindir}/spirv-objdump
 %{_bindir}/spirv-opt
 %{_bindir}/spirv-reduce
 %{_bindir}/spirv-val
