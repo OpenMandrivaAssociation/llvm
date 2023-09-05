@@ -2498,7 +2498,12 @@ if [ -n "$XCRTARCHES" ]; then
 		mkdir xbuild-crt-${arch}
 		cd xbuild-crt-${arch}
 		gccver="$(${arch}-openmandriva-linux-${LIBC}-gcc --version |head -n1 |cut -d' ' -f3)"
-		LFLAGS="-O3 --sysroot=/usr/${arch}-openmandriva-linux-${LIBC} --gcc-toolchain=%{_prefix}"
+		if [ %{_build} = "${arch}-openmandriva-linux-${LIBC}" ]; then
+			SYSROOT=""
+		else
+			SYSROOT="--sysroot=/usr/${arch}-openmandriva-linux-${LIBC}"
+		fi
+		LFLAGS="-O3 $SYSROOT --gcc-toolchain=%{_prefix}"
 		FLAGS="$LFLAGS -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
 		cmake \
 			../compiler-rt \
