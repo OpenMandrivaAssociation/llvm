@@ -18,7 +18,7 @@
 
 # (tpg) set snapshot date
 # 20230823 is close to 17.0.0-rc3
-%define date 20230823
+#define date 20230823
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -143,7 +143,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	17.0.0
+Version:	17.0.2
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -159,9 +159,9 @@ Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{versio
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
 Release:	1
 %endif
-# HEAD as of 2023/01/30 also take a look here https://github.com/KhronosGroup/glslang/blob/master/known_good.json
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/124a9665e464ef98b8b718d572d5f329311061eb.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/89ca3aa571fe238944b31e88d5d8fe75fab0227a.tar.gz
+# HEAD as of 2023/10/04 also take a look here https://github.com/KhronosGroup/glslang/blob/master/known_good.json
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/79743b899fde5c954897b2694291002626358fac.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/a996591b1c67e789e88e99ae3881272f5fc47374.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
