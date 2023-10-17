@@ -143,7 +143,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	17.0.2
+Version:	17.0.3
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
