@@ -200,6 +200,7 @@ Patch14:	llvm-10.0-fix-m32.patch
 Patch15:	spirv-llvm-translator-16.0.3-workaround-spirv-tools-crosscompile.patch
 Patch16:	clang-rename-fix-linkage.patch
 Patch17:	llvm-16.0.3-plugin-api-searchpath-hack.patch
+Patch18:	https://github.com/llvm/llvm-project-release-prs/pull/765.patch
 # Enable --no-undefined, --as-needed, --enable-new-dtags,
 # --hash-style=gnu, --warn-common, --icf=safe, --build-id=sha1,
 # -O by default
