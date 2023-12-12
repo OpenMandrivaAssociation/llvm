@@ -157,7 +157,7 @@ Release:	0.%{date}.1
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
-Release:	1
+Release:	2
 %endif
 # HEAD as of 2023/10/04 also take a look here https://github.com/KhronosGroup/glslang/blob/master/known_good.json
 Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/79743b899fde5c954897b2694291002626358fac.tar.gz
@@ -256,6 +256,10 @@ Patch96:	mlir-riscv-libatomic.patch
 Patch97:	flang-riscv-libatomic.patch
 Patch98:	lldb-riscv-libatomic.patch
 Patch99:	bootstrap-gcc-nostdlib.patch
+
+# Fix compatibility between LLD and binutils 2.41 on RISC-V
+# https://github.com/llvm/llvm-project/issues/64102
+Patch100:	https://github.com/OldManYellsAtCloud/meta-browser/raw/db557dfe8e9a3d460960feb9763884be6f321fa1/meta-firefox/recipes-devtools/clang/files/0003-bugfix-64102-riscv-linking-error.patch
 
 # Xtensa patches will come back when they're rebased to 17 upstream
 %if 0
