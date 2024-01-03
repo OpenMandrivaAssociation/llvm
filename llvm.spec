@@ -2157,6 +2157,11 @@ CPROCESSES="$PROCESSES"
 %endif
 	-DLLVM_TOOL_OPENMP_BUILD:BOOL=ON \
 	-DLLDB_USE_SYSTEM_SIX:BOOL=ON \
+%if %{cross_compiling}
+	-DLLDB_PYTHON_RELATIVE_PATH=%{_lib}/python%{pyver}/site-packages \
+	-DLLDB_PYTHON_EXE_RELATIVE_PATH=bin/python \
+	-DLLDB_PYTHON_EXT_SUFFIX=".so" \
+%endif
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
 	-DCLANG_VENDOR="OpenMandriva %{version}-%{release}" \
 	-DFLANG_VENDOR="OpenMandriva %{version}-%{release}" \
@@ -2172,6 +2177,7 @@ CPROCESSES="$PROCESSES"
 	-DCLANG_DEFAULT_RTLIB=libgcc \
 %endif
 %ifarch %{riscv}
+	-DCOMPILER_RT_BUILD_LIBFUZZER:BOOL=OFF \
 	-DCOMPILER_RT_BUILD_SANITIZERS:BOOL=OFF \
 	-DCOMPILER_RT_BUILD_PROFILE:BOOL=OFF \
 %endif
