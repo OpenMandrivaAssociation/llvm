@@ -492,6 +492,7 @@ BuildRequires:	python%{py_ver}dist(ptyprocess)
 BuildRequires:	python-six
 BuildRequires:	cmake
 BuildRequires:	ninja
+BuildRequires:	which
 %if %{with apidox}
 BuildRequires:	doxygen
 %endif
@@ -2161,6 +2162,7 @@ CPROCESSES="$PROCESSES"
 	-DLLDB_PYTHON_RELATIVE_PATH=%{_lib}/python%{pyver}/site-packages \
 	-DLLDB_PYTHON_EXE_RELATIVE_PATH=bin/python \
 	-DLLDB_PYTHON_EXT_SUFFIX=".so" \
+	-DLLVM_INCLUDE_TESTS:BOOL=OFF \
 %endif
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
 	-DCLANG_VENDOR="OpenMandriva %{version}-%{release}" \
