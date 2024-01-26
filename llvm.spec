@@ -450,13 +450,14 @@ BuildRequires:	libtool
 BuildRequires:	pkgconfig(ncursesw)
 BuildRequires:	python-sphinx
 # For sphinx plugins
-BuildRequires:	python-recommonmark
-BuildRequires:	python-sphinxcontrib-websupport
-BuildRequires:	python-sphinx-automodapi
-BuildRequires:	python-sphinx-markdown-tables
-BuildRequires:	python-furo
-BuildRequires:	python-setuptools
-BuildRequires:	python-requests
+BuildRequires:	python%{pyver}dist(recommonmark)
+BuildRequires:	python%{pyver}dist(sphinxcontrib-websupport)
+BuildRequires:	python%{pyver}dist(sphinx-automodapi)
+BuildRequires:	python%{pyver}dist(sphinx-markdown-tables)
+BuildRequires:	python%{pyver}dist(furo)
+BuildRequires:	python%{pyver}dist(myst-parser)
+BuildRequires:	python%{pyver}dist(setuptools)
+BuildRequires:	python%{pyver}dist(requests)
 %if %{with ocaml}
 BuildRequires:	ocaml-compiler
 BuildRequires:	ocaml-compiler-libs
