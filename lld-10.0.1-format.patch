@@ -6,10 +6,10 @@ diff -up llvm-project-main/lld/ELF/Driver.cpp.8~ llvm-project-main/lld/ELF/Drive
    if (s == "binary")
      return true;
 -  if (s == "elf" || s == "default")
-+  // OMV: Change s == "elf" to s.startswith_insensitive("elf")
++  // OMV: Change s == "elf" to s.starts_with_insensitive("elf")
 +  // for better compatibility with GNU ld (which allows for
 +  // things like elf64-x86-64). Relied on by e.g. fpc
-+  if (s.startswith_insensitive("elf") || s == "default")
++  if (s.starts_with_insensitive("elf") || s == "default")
      return false;
    error("unknown --format value: " + s +
          " (supported formats: elf, default, binary)");

@@ -1,8 +1,8 @@
-diff -up llvm-project-release-13.x/compiler-rt/lib/builtins/int_math.h.18~ llvm-project-release-13.x/compiler-rt/lib/builtins/int_math.h
---- llvm-project-release-13.x/compiler-rt/lib/builtins/int_math.h.18~	2021-08-02 22:25:24.032831260 +0200
-+++ llvm-project-release-13.x/compiler-rt/lib/builtins/int_math.h	2021-08-02 22:28:26.322670596 +0200
-@@ -77,22 +77,10 @@
- #define crt_fabsl(x) __builtin_fabsl((x))
+diff -up llvm-project-main/compiler-rt/lib/builtins/int_math.h.22~ llvm-project-main/compiler-rt/lib/builtins/int_math.h
+--- llvm-project-main/compiler-rt/lib/builtins/int_math.h.22~	2024-01-21 20:44:02.916149920 +0100
++++ llvm-project-main/compiler-rt/lib/builtins/int_math.h	2024-01-21 20:45:48.177116732 +0100
+@@ -87,22 +87,8 @@
+ #endif
  #endif
  
 -#if defined(_MSC_VER) && !defined(__clang__)
@@ -10,13 +10,13 @@ diff -up llvm-project-release-13.x/compiler-rt/lib/builtins/int_math.h.18~ llvm-
 -#else
  #define crt_fmaxl(x, y) __builtin_fmaxl((x), (y))
 -#endif
- 
+-
 -#if defined(_MSC_VER) && !defined(__clang__)
 -#define crt_logbl(x) logbl((x))
 -#else
  #define crt_logbl(x) __builtin_logbl((x))
 -#endif
- 
+-
 -#if defined(_MSC_VER) && !defined(__clang__)
 -#define crt_scalbnl(x, y) scalbnl((x), (y))
 -#else

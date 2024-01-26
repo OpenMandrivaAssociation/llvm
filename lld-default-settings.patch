@@ -1,7 +1,7 @@
-diff -up llvm-project-release-17.x/lld/ELF/Config.h.17~ llvm-project-release-17.x/lld/ELF/Config.h
---- llvm-project-release-17.x/lld/ELF/Config.h.17~	2023-07-28 09:10:13.000000000 +0200
-+++ llvm-project-release-17.x/lld/ELF/Config.h	2023-07-28 13:07:56.967731331 +0200
-@@ -210,7 +210,7 @@ struct Config {
+diff -up llvm-project-main/lld/ELF/Config.h.18~ llvm-project-main/lld/ELF/Config.h
+--- llvm-project-main/lld/ELF/Config.h.18~	2024-01-21 17:13:12.000000000 +0100
++++ llvm-project-main/lld/ELF/Config.h	2024-01-21 20:43:37.955921153 +0100
+@@ -215,7 +215,7 @@ struct Config {
    bool armHasMovtMovw = false;
    bool armJ1J2BranchEncoding = false;
    bool armCMSESupport = false;
@@ -9,8 +9,8 @@ diff -up llvm-project-release-17.x/lld/ELF/Config.h.17~ llvm-project-release-17.
 +  bool asNeeded = true;
    bool armBe8 = false;
    BsymbolicKind bsymbolic = BsymbolicKind::None;
-   bool callGraphProfileSort;
-@@ -226,16 +226,16 @@ struct Config {
+   CGProfileSortKind callGraphProfileSort;
+@@ -231,16 +231,16 @@ struct Config {
    bool ehFrameHdr;
    bool emitLLVM;
    bool emitRelocs;
@@ -30,7 +30,7 @@ diff -up llvm-project-release-17.x/lld/ELF/Config.h.17~ llvm-project-release-17.
    bool gnuUnique;
    bool hasDynSymTab;
    bool ignoreDataAddressEquality;
-@@ -289,7 +289,7 @@ struct Config {
+@@ -295,7 +295,7 @@ struct Config {
    bool useAndroidRelrTags = false;
    bool warnBackrefs;
    llvm::SmallVector<llvm::GlobPattern, 0> warnBackrefsExclude;
@@ -39,7 +39,7 @@ diff -up llvm-project-release-17.x/lld/ELF/Config.h.17~ llvm-project-release-17.
    bool warnMissingEntry;
    bool warnSymbolOrdering;
    bool writeAddends;
-@@ -319,7 +319,7 @@ struct Config {
+@@ -325,7 +325,7 @@ struct Config {
    bool zWxneeded;
    DiscardPolicy discard;
    GnuStackKind zGnustack;
@@ -48,7 +48,7 @@ diff -up llvm-project-release-17.x/lld/ELF/Config.h.17~ llvm-project-release-17.
    OrphanHandlingPolicy orphanHandling;
    SortSectionPolicy sortSection;
    StripPolicy strip;
-@@ -328,7 +328,7 @@ struct Config {
+@@ -334,7 +334,7 @@ struct Config {
    Target2Policy target2;
    bool power10Stubs;
    ARMVFPArgKind armVFPArgs = ARMVFPArgKind::Default;
@@ -57,19 +57,19 @@ diff -up llvm-project-release-17.x/lld/ELF/Config.h.17~ llvm-project-release-17.
    SeparateSegmentKind zSeparate;
    ELFKind ekind = ELFNoneKind;
    uint16_t emachine = llvm::ELF::EM_NONE;
-@@ -340,7 +340,7 @@ struct Config {
+@@ -346,7 +346,7 @@ struct Config {
    unsigned ltoPartitions;
    unsigned ltoo;
-   llvm::CodeGenOpt::Level ltoCgo;
+   llvm::CodeGenOptLevel ltoCgo;
 -  unsigned optimize;
 +  unsigned optimize = 1;
    StringRef thinLTOJobs;
    unsigned timeTraceGranularity;
    int32_t splitStackAdjustSize;
-diff -up llvm-project-release-17.x/lld/ELF/Driver.cpp.17~ llvm-project-release-17.x/lld/ELF/Driver.cpp
---- llvm-project-release-17.x/lld/ELF/Driver.cpp.17~	2023-07-28 13:02:17.703516879 +0200
-+++ llvm-project-release-17.x/lld/ELF/Driver.cpp	2023-07-28 13:02:17.992519613 +0200
-@@ -807,10 +807,10 @@ static int getMemtagMode(opt::InputArgLi
+diff -up llvm-project-main/lld/ELF/Driver.cpp.18~ llvm-project-main/lld/ELF/Driver.cpp
+--- llvm-project-main/lld/ELF/Driver.cpp.18~	2024-01-21 20:42:53.887517785 +0100
++++ llvm-project-main/lld/ELF/Driver.cpp	2024-01-21 20:42:53.895517859 +0100
+@@ -821,10 +821,10 @@ static int getMemtagMode(opt::InputArgLi
  
  static ICFLevel getICF(opt::InputArgList &args) {
    auto *arg = args.getLastArg(OPT_icf_none, OPT_icf_safe, OPT_icf_all);
@@ -83,7 +83,7 @@ diff -up llvm-project-release-17.x/lld/ELF/Driver.cpp.17~ llvm-project-release-1
    return ICFLevel::All;
  }
  
-@@ -1199,7 +1199,7 @@ static void readConfigs(opt::InputArgLis
+@@ -1288,7 +1288,7 @@ static void readConfigs(opt::InputArgLis
        args.hasArg(OPT_fix_cortex_a8) && !args.hasArg(OPT_relocatable);
    config->fortranCommon =
        args.hasFlag(OPT_fortran_common, OPT_no_fortran_common, false);
@@ -92,7 +92,7 @@ diff -up llvm-project-release-17.x/lld/ELF/Driver.cpp.17~ llvm-project-release-1
    config->gnuUnique = args.hasFlag(OPT_gnu_unique, OPT_no_gnu_unique, true);
    config->gdbIndex = args.hasFlag(OPT_gdb_index, OPT_no_gdb_index, false);
    config->icf = getICF(args);
-@@ -1349,7 +1349,7 @@ static void readConfigs(opt::InputArgLis
+@@ -1441,7 +1441,7 @@ static void readConfigs(opt::InputArgLis
        OPT_use_android_relr_tags, OPT_no_use_android_relr_tags, false);
    config->warnBackrefs =
        args.hasFlag(OPT_warn_backrefs, OPT_no_warn_backrefs, false);
@@ -101,7 +101,7 @@ diff -up llvm-project-release-17.x/lld/ELF/Driver.cpp.17~ llvm-project-release-1
    config->warnSymbolOrdering =
        args.hasFlag(OPT_warn_symbol_ordering, OPT_no_warn_symbol_ordering, true);
    config->whyExtract = args.getLastArgValue(OPT_why_extract);
-@@ -2623,7 +2623,7 @@ void LinkerDriver::link(opt::InputArgLis
+@@ -2688,7 +2688,7 @@ void LinkerDriver::link(opt::InputArgLis
      if (config->emachine == EM_MIPS)
        config->sysvHash = true;
      else

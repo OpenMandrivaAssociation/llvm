@@ -1,6 +1,6 @@
-diff -up llvm-project-release-15.x/libcxx/include/__config.19~ llvm-project-release-15.x/libcxx/include/__config
---- llvm-project-release-15.x/libcxx/include/__config.19~	2022-07-31 13:01:43.076445612 +0200
-+++ llvm-project-release-15.x/libcxx/include/__config	2022-07-31 13:10:06.889916043 +0200
+diff -up llvm-project-main/libcxx/include/__config.25~ llvm-project-main/libcxx/include/__config
+--- llvm-project-main/libcxx/include/__config.25~	2024-01-21 20:46:13.429349145 +0100
++++ llvm-project-main/libcxx/include/__config	2024-01-21 20:47:57.922312481 +0100
 @@ -10,6 +10,13 @@
  #ifndef _LIBCPP___CONFIG
  #define _LIBCPP___CONFIG
@@ -14,4 +14,4 @@ diff -up llvm-project-release-15.x/libcxx/include/__config.19~ llvm-project-rele
 +
  #include <__config_site>
  
- #if defined(_MSC_VER) && !defined(__clang__)
+ #ifndef _LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER
