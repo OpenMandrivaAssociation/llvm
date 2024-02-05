@@ -1,0 +1,830 @@
+From 75bd33840e7d9550fcd93242b4ccb0a5ee103b64 Mon Sep 17 00:00:00 2001
+From: zhongyunde 00443407 <zhongyunde@huawei.com>
+Date: Fri, 10 Nov 2023 07:29:03 -0500
+Subject: [PATCH 1/3] [AArch64] merge index address with large offset into base
+ address
+
+A case for this transformation, https://gcc.godbolt.org/z/nhYcWq1WE
+Fold
+  mov     w8, #56952
+  movk    w8, #15, lsl #16
+  ldrb    w0, [x0, x8]
+into
+  add     x0, x0, 1036288
+  ldrb    w0, [x0, 3704]
+
+Only LDRBBroX is supported for the first time.
+Fix https://github.com/llvm/llvm-project/issues/71917
+---
+ llvm/lib/Target/AArch64/AArch64InstrInfo.cpp  |  10 +
+ llvm/lib/Target/AArch64/AArch64InstrInfo.h    |   3 +
+ .../AArch64/AArch64LoadStoreOptimizer.cpp     | 229 ++++++++++++++++++
+ llvm/test/CodeGen/AArch64/arm64-addrmode.ll   |  15 +-
+ .../AArch64/large-offset-ldr-merge.mir        |   5 +-
+ 5 files changed, 250 insertions(+), 12 deletions(-)
+
+diff --git a/llvm/lib/Target/AArch64/AArch64InstrInfo.cpp b/llvm/lib/Target/AArch64/AArch64InstrInfo.cpp
+index 13e9d9725cc2e..2e8d8c63d6bec 100644
+--- a/llvm/lib/Target/AArch64/AArch64InstrInfo.cpp
++++ b/llvm/lib/Target/AArch64/AArch64InstrInfo.cpp
+@@ -4098,6 +4098,16 @@ AArch64InstrInfo::getLdStOffsetOp(const MachineInstr &MI) {
+   return MI.getOperand(Idx);
+ }
+ 
++const MachineOperand &
++AArch64InstrInfo::getLdStAmountOp(const MachineInstr &MI) {
++  switch (MI.getOpcode()) {
++  default:
++    llvm_unreachable("Unexpected opcode");
++  case AArch64::LDRBBroX:
++    return MI.getOperand(4);
++  }
++}
++
+ static const TargetRegisterClass *getRegClass(const MachineInstr &MI,
+                                               Register Reg) {
+   if (MI.getParent() == nullptr)
+diff --git a/llvm/lib/Target/AArch64/AArch64InstrInfo.h b/llvm/lib/Target/AArch64/AArch64InstrInfo.h
+index 6526f6740747a..db24a19fe5f8e 100644
+--- a/llvm/lib/Target/AArch64/AArch64InstrInfo.h
++++ b/llvm/lib/Target/AArch64/AArch64InstrInfo.h
+@@ -111,6 +111,9 @@ class AArch64InstrInfo final : public AArch64GenInstrInfo {
+   /// Returns the immediate offset operator of a load/store.
+   static const MachineOperand &getLdStOffsetOp(const MachineInstr &MI);
+ 
++  /// Returns the shift amount operator of a load/store.
++  static const MachineOperand &getLdStAmountOp(const MachineInstr &MI);
++
+   /// Returns whether the instruction is FP or NEON.
+   static bool isFpOrNEON(const MachineInstr &MI);
+ 
+diff --git a/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp b/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp
+index 926a89466255c..e90b8a8ca7ace 100644
+--- a/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp
++++ b/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp
+@@ -62,6 +62,8 @@ STATISTIC(NumUnscaledPairCreated,
+           "Number of load/store from unscaled generated");
+ STATISTIC(NumZeroStoresPromoted, "Number of narrow zero stores promoted");
+ STATISTIC(NumLoadsFromStoresPromoted, "Number of loads from stores promoted");
++STATISTIC(NumConstOffsetFolded,
++          "Number of const offset of index address folded");
+ 
+ DEBUG_COUNTER(RegRenamingCounter, DEBUG_TYPE "-reg-renaming",
+               "Controls which pairs are considered for renaming");
+@@ -75,6 +77,11 @@ static cl::opt<unsigned> LdStLimit("aarch64-load-store-scan-limit",
+ static cl::opt<unsigned> UpdateLimit("aarch64-update-scan-limit", cl::init(100),
+                                      cl::Hidden);
+ 
++// The LdStConstLimit limits how far we search for const offset instructions
++// when we form index address load/store instructions.
++static cl::opt<unsigned> LdStConstLimit("aarch64-load-store-const-scan-limit",
++                                        cl::init(10), cl::Hidden);
++
+ // Enable register renaming to find additional store pairing opportunities.
+ static cl::opt<bool> EnableRenaming("aarch64-load-store-renaming",
+                                     cl::init(true), cl::Hidden);
+@@ -171,6 +178,13 @@ struct AArch64LoadStoreOpt : public MachineFunctionPass {
+   findMatchingUpdateInsnForward(MachineBasicBlock::iterator I,
+                                 int UnscaledOffset, unsigned Limit);
+ 
++  // Scan the instruction list to find a register assigned with a const
++  // value that can be combined with the current instruction (a load or store)
++  // using base addressing with writeback. Scan forwards.
++  MachineBasicBlock::iterator
++  findMatchingConstOffsetBackward(MachineBasicBlock::iterator I, unsigned Limit,
++                                  unsigned &Offset);
++
+   // Scan the instruction list to find a base register update that can
+   // be combined with the current instruction (a load or store) using
+   // pre or post indexed addressing with writeback. Scan backwards.
+@@ -182,11 +196,19 @@ struct AArch64LoadStoreOpt : public MachineFunctionPass {
+   bool isMatchingUpdateInsn(MachineInstr &MemMI, MachineInstr &MI,
+                             unsigned BaseReg, int Offset);
+ 
++  bool isMatchingMovConstInsn(MachineInstr &MemMI, MachineInstr &MI,
++                              unsigned IndexReg, unsigned &Offset);
++
+   // Merge a pre- or post-index base register update into a ld/st instruction.
+   MachineBasicBlock::iterator
+   mergeUpdateInsn(MachineBasicBlock::iterator I,
+                   MachineBasicBlock::iterator Update, bool IsPreIdx);
+ 
++  MachineBasicBlock::iterator
++  mergeConstOffsetInsn(MachineBasicBlock::iterator I,
++                       MachineBasicBlock::iterator Update, unsigned Offset,
++                       int Scale);
++
+   // Find and merge zero store instructions.
+   bool tryToMergeZeroStInst(MachineBasicBlock::iterator &MBBI);
+ 
+@@ -199,6 +221,9 @@ struct AArch64LoadStoreOpt : public MachineFunctionPass {
+   // Find and merge a base register updates before or after a ld/st instruction.
+   bool tryToMergeLdStUpdate(MachineBasicBlock::iterator &MBBI);
+ 
++  // Find and merge a index ldr/st instructions into a base ld/st instruction.
++  bool tryToMergeIndexLdSt(MachineBasicBlock::iterator &MBBI, int Scale);
++
+   bool optimizeBlock(MachineBasicBlock &MBB, bool EnableNarrowZeroStOpt);
+ 
+   bool runOnMachineFunction(MachineFunction &Fn) override;
+@@ -481,6 +506,16 @@ static unsigned getPreIndexedOpcode(unsigned Opc) {
+   }
+ }
+ 
++static unsigned getBaseAddressOpcode(unsigned Opc) {
++  // TODO: Add more index address loads/stores.
++  switch (Opc) {
++  default:
++    llvm_unreachable("Opcode has no base address equivalent!");
++  case AArch64::LDRBBroX:
++    return AArch64::LDRBBui;
++  }
++}
++
+ static unsigned getPostIndexedOpcode(unsigned Opc) {
+   switch (Opc) {
+   default:
+@@ -722,6 +757,20 @@ static bool isMergeableLdStUpdate(MachineInstr &MI) {
+   }
+ }
+ 
++// Make sure this is a reg+reg Ld/St
++static bool isMergeableIndexLdSt(MachineInstr &MI, int &Scale) {
++  unsigned Opc = MI.getOpcode();
++  switch (Opc) {
++  default:
++    return false;
++  // Scaled instructions.
++  // TODO: Add more index address loads/stores.
++  case AArch64::LDRBBroX:
++    Scale = 1;
++    return true;
++  }
++}
++
+ static bool isRewritableImplicitDef(unsigned Opc) {
+   switch (Opc) {
+   default:
+@@ -2048,6 +2097,63 @@ AArch64LoadStoreOpt::mergeUpdateInsn(MachineBasicBlock::iterator I,
+   return NextI;
+ }
+ 
++MachineBasicBlock::iterator
++AArch64LoadStoreOpt::mergeConstOffsetInsn(MachineBasicBlock::iterator I,
++                                          MachineBasicBlock::iterator Update,
++                                          unsigned Offset, int Scale) {
++  assert((Update->getOpcode() == AArch64::MOVKWi) &&
++         "Unexpected const mov instruction to merge!");
++  MachineBasicBlock::iterator E = I->getParent()->end();
++  MachineBasicBlock::iterator NextI = next_nodbg(I, E);
++  MachineBasicBlock::iterator PrevI = prev_nodbg(Update, E);
++  MachineInstr &MemMI = *I;
++  unsigned Mask = (1 << 12) * Scale - 1;
++  unsigned Low = Offset & Mask;
++  unsigned High = Offset - Low;
++  Register BaseReg = AArch64InstrInfo::getLdStBaseOp(MemMI).getReg();
++  Register IndexReg = AArch64InstrInfo::getLdStOffsetOp(MemMI).getReg();
++  MachineInstrBuilder AddMIB, MemMIB;
++
++  // Add IndexReg, BaseReg, High (the BaseReg may be SP)
++  AddMIB =
++      BuildMI(*I->getParent(), I, I->getDebugLoc(), TII->get(AArch64::ADDXri))
++          .addDef(IndexReg)
++          .addUse(BaseReg)
++          .addImm(High >> 12) // shifted value
++          .addImm(12);        // shift 12
++  (void)AddMIB;
++  // Ld/St DestReg, IndexReg, Imm12
++  unsigned NewOpc = getBaseAddressOpcode(I->getOpcode());
++  MemMIB = BuildMI(*I->getParent(), I, I->getDebugLoc(), TII->get(NewOpc))
++               .add(getLdStRegOp(MemMI))
++               .add(AArch64InstrInfo::getLdStOffsetOp(MemMI))
++               .addImm(Low / Scale)
++               .setMemRefs(I->memoperands())
++               .setMIFlags(I->mergeFlagsWith(*Update));
++  (void)MemMIB;
++
++  ++NumConstOffsetFolded;
++  LLVM_DEBUG(dbgs() << "Creating base address load/store.\n");
++  LLVM_DEBUG(dbgs() << "    Replacing instructions:\n    ");
++  LLVM_DEBUG(PrevI->print(dbgs()));
++  LLVM_DEBUG(dbgs() << "    ");
++  LLVM_DEBUG(Update->print(dbgs()));
++  LLVM_DEBUG(dbgs() << "    ");
++  LLVM_DEBUG(I->print(dbgs()));
++  LLVM_DEBUG(dbgs() << "  with instruction:\n    ");
++  LLVM_DEBUG(((MachineInstr *)AddMIB)->print(dbgs()));
++  LLVM_DEBUG(dbgs() << "    ");
++  LLVM_DEBUG(((MachineInstr *)MemMIB)->print(dbgs()));
++  LLVM_DEBUG(dbgs() << "\n");
++
++  // Erase the old instructions for the block.
++  I->eraseFromParent();
++  PrevI->eraseFromParent();
++  Update->eraseFromParent();
++
++  return NextI;
++}
++
+ bool AArch64LoadStoreOpt::isMatchingUpdateInsn(MachineInstr &MemMI,
+                                                MachineInstr &MI,
+                                                unsigned BaseReg, int Offset) {
+@@ -2095,6 +2201,31 @@ bool AArch64LoadStoreOpt::isMatchingUpdateInsn(MachineInstr &MemMI,
+   return false;
+ }
+ 
++bool AArch64LoadStoreOpt::isMatchingMovConstInsn(MachineInstr &MemMI,
++                                                 MachineInstr &MI,
++                                                 unsigned IndexReg,
++                                                 unsigned &Offset) {
++  // The update instruction source and destination register must be the
++  // same as the load/store index register.
++  if (MI.getOpcode() == AArch64::MOVKWi &&
++      TRI->isSuperOrSubRegisterEq(IndexReg, MI.getOperand(1).getReg())) {
++
++    // movz + movk hold a large offset of a Ld/St instruction.
++    MachineBasicBlock::iterator B = MI.getParent()->begin();
++    MachineBasicBlock::iterator MBBI = &MI;
++    MBBI = prev_nodbg(MBBI, B);
++    MachineInstr &MovzMI = *MBBI;
++    if (MovzMI.getOpcode() == AArch64::MOVZWi) {
++      unsigned Low = MovzMI.getOperand(1).getImm();
++      unsigned High = MI.getOperand(2).getImm() << MI.getOperand(3).getImm();
++      Offset = High + Low;
++      // 12-bit optionally shifted immediates are legal for adds.
++      return Offset >> 24 == 0;
++    }
++  }
++  return false;
++}
++
+ MachineBasicBlock::iterator AArch64LoadStoreOpt::findMatchingUpdateInsnForward(
+     MachineBasicBlock::iterator I, int UnscaledOffset, unsigned Limit) {
+   MachineBasicBlock::iterator E = I->getParent()->end();
+@@ -2250,6 +2381,60 @@ MachineBasicBlock::iterator AArch64LoadStoreOpt::findMatchingUpdateInsnBackward(
+   return E;
+ }
+ 
++MachineBasicBlock::iterator
++AArch64LoadStoreOpt::findMatchingConstOffsetBackward(
++    MachineBasicBlock::iterator I, unsigned Limit, unsigned &Offset) {
++  MachineBasicBlock::iterator B = I->getParent()->begin();
++  MachineBasicBlock::iterator E = I->getParent()->end();
++  MachineInstr &MemMI = *I;
++  MachineBasicBlock::iterator MBBI = I;
++
++  // If the load is the first instruction in the block, there's obviously
++  // not any matching load or store.
++  if (MBBI == B)
++    return E;
++
++  // Make sure the IndexReg is killed and the shift amount is zero.
++  // TODO: Relex this restriction to extend, simplify processing now.
++  if (!AArch64InstrInfo::getLdStOffsetOp(MemMI).isKill() ||
++      !AArch64InstrInfo::getLdStAmountOp(MemMI).isImm() ||
++      (AArch64InstrInfo::getLdStAmountOp(MemMI).getImm() != 0))
++    return E;
++
++  Register IndexReg = AArch64InstrInfo::getLdStOffsetOp(MemMI).getReg();
++
++  // Track which register units have been modified and used between the first
++  // insn (inclusive) and the second insn.
++  ModifiedRegUnits.clear();
++  UsedRegUnits.clear();
++  unsigned Count = 0;
++  do {
++    MBBI = prev_nodbg(MBBI, B);
++    MachineInstr &MI = *MBBI;
++
++    // Don't count transient instructions towards the search limit since there
++    // may be different numbers of them if e.g. debug information is present.
++    if (!MI.isTransient())
++      ++Count;
++
++    // If we found a match, return it.
++    if (isMatchingMovConstInsn(*I, MI, IndexReg, Offset)) {
++      return MBBI;
++    }
++
++    // Update the status of what the instruction clobbered and used.
++    LiveRegUnits::accumulateUsedDefed(MI, ModifiedRegUnits, UsedRegUnits, TRI);
++
++    // Otherwise, if the index register is used or modified, we have no match,
++    // so return early.
++    if (!ModifiedRegUnits.available(IndexReg) ||
++        !UsedRegUnits.available(IndexReg))
++      return E;
++
++  } while (MBBI != B && Count < Limit);
++  return E;
++}
++
+ bool AArch64LoadStoreOpt::tryToPromoteLoadFromStore(
+     MachineBasicBlock::iterator &MBBI) {
+   MachineInstr &MI = *MBBI;
+@@ -2434,6 +2619,34 @@ bool AArch64LoadStoreOpt::tryToMergeLdStUpdate
+   return false;
+ }
+ 
++bool AArch64LoadStoreOpt::tryToMergeIndexLdSt(MachineBasicBlock::iterator &MBBI,
++                                              int Scale) {
++  MachineInstr &MI = *MBBI;
++  MachineBasicBlock::iterator E = MI.getParent()->end();
++  MachineBasicBlock::iterator Update;
++
++  // Don't know how to handle unscaled pre/post-index versions below, so bail.
++  if (TII->hasUnscaledLdStOffset(MI.getOpcode()))
++    return false;
++
++  // Look back to try to find a const offset for index LdSt instruction. For
++  // example,
++  // mov x8, #LargeImm   ; = a * (1<<12) + imm12
++  // ldr x1, [x0, x8]
++  // merged into:
++  // add x8, x0, a * (1<<12)
++  // ldr x1, [x8, imm12]
++  unsigned Offset;
++  Update = findMatchingConstOffsetBackward(MBBI, LdStConstLimit, Offset);
++  if (Update != E && (Offset & (Scale - 1)) == 0) {
++    // Merge the imm12 into the ld/st.
++    MBBI = mergeConstOffsetInsn(MBBI, Update, Offset, Scale);
++    return true;
++  }
++
++  return false;
++}
++
+ bool AArch64LoadStoreOpt::optimizeBlock(MachineBasicBlock &MBB,
+                                         bool EnableNarrowZeroStOpt) {
+ 
+@@ -2512,6 +2725,22 @@ bool AArch64LoadStoreOpt::optimizeBlock(MachineBasicBlock &MBB,
+       ++MBBI;
+   }
+ 
++  // 5) Find a register assigned with a const value that can be combined with
++  // into the load or store. e.g.,
++  //        mov x8, #LargeImm   ; = a * (1<<12) + imm12
++  //        ldr x1, [x0, x8]
++  //        ; becomes
++  //        add x8, x0, a * (1<<12)
++  //        ldr x1, [x8, imm12]
++  for (MachineBasicBlock::iterator MBBI = MBB.begin(), E = MBB.end();
++       MBBI != E;) {
++    int Scale;
++    if (isMergeableIndexLdSt(*MBBI, Scale) && tryToMergeIndexLdSt(MBBI, Scale))
++      Modified = true;
++    else
++      ++MBBI;
++  }
++
+   return Modified;
+ }
+ 
+diff --git a/llvm/test/CodeGen/AArch64/arm64-addrmode.ll b/llvm/test/CodeGen/AArch64/arm64-addrmode.ll
+index d39029163a47a..2181eaaee7db6 100644
+--- a/llvm/test/CodeGen/AArch64/arm64-addrmode.ll
++++ b/llvm/test/CodeGen/AArch64/arm64-addrmode.ll
+@@ -214,9 +214,8 @@ define void @t17(i64 %a) {
+ define i8 @LdOffset_i8(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i8:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #56952 // =0xde78
+-; CHECK-NEXT:    movk w8, #15, lsl #16
+-; CHECK-NEXT:    ldrb w0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #253, lsl #12 // =1036288
++; CHECK-NEXT:    ldrb w0, [x8, #3704]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i8, ptr %a, i64 1039992
+   %val = load i8, ptr %arrayidx, align 1
+@@ -227,9 +226,8 @@ define i8 @LdOffset_i8(ptr %a)  {
+ define i32 @LdOffset_i8_zext32(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i8_zext32:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #56952 // =0xde78
+-; CHECK-NEXT:    movk w8, #15, lsl #16
+-; CHECK-NEXT:    ldrb w0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #253, lsl #12 // =1036288
++; CHECK-NEXT:    ldrb w0, [x8, #3704]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i8, ptr %a, i64 1039992
+   %val = load i8, ptr %arrayidx, align 1
+@@ -255,9 +253,8 @@ define i32 @LdOffset_i8_sext32(ptr %a)  {
+ define i64 @LdOffset_i8_zext64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i8_zext64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #56952 // =0xde78
+-; CHECK-NEXT:    movk w8, #15, lsl #16
+-; CHECK-NEXT:    ldrb w0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #253, lsl #12 // =1036288
++; CHECK-NEXT:    ldrb w0, [x8, #3704]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i8, ptr %a, i64 1039992
+   %val = load i8, ptr %arrayidx, align 1
+diff --git a/llvm/test/CodeGen/AArch64/large-offset-ldr-merge.mir b/llvm/test/CodeGen/AArch64/large-offset-ldr-merge.mir
+index 488f1ffdb52f3..15b6700398ea0 100755
+--- a/llvm/test/CodeGen/AArch64/large-offset-ldr-merge.mir
++++ b/llvm/test/CodeGen/AArch64/large-offset-ldr-merge.mir
+@@ -14,9 +14,8 @@ body:             |
+     ; CHECK-LABEL: name: LdOffset
+     ; CHECK: liveins: $x0
+     ; CHECK-NEXT: {{  $}}
+-    ; CHECK-NEXT: renamable $w8 = MOVZWi 56952, 0
+-    ; CHECK-NEXT: renamable $w8 = MOVKWi $w8, 15, 16, implicit-def $x8
+-    ; CHECK-NEXT: renamable $w0 = LDRBBroX killed renamable $x0, killed renamable $x8, 0, 0
++    ; CHECK-NEXT: $x8 = ADDXri $x0, 253, 12
++    ; CHECK-NEXT: renamable $w0 = LDRBBui killed renamable $x8, 3704
+     ; CHECK-NEXT: RET undef $lr, implicit $w0
+     renamable $w8 = MOVZWi 56952, 0
+     renamable $w8 = MOVKWi $w8, 15, 16, implicit-def $x8
+
+From 46ea657194f0dc23db22b5ccdc34ca620c1748c1 Mon Sep 17 00:00:00 2001
+From: zhongyunde 00443407 <zhongyunde@huawei.com>
+Date: Mon, 29 Jan 2024 20:43:11 -0500
+Subject: [PATCH 2/3] [AArch64] Fix the crash for PR79756
+
+this crash is exposes when there is MOVKWi instruction in the head of a block,
+but without MOVZWi
+---
+ .../AArch64/AArch64LoadStoreOptimizer.cpp     |  3 +++
+ .../AArch64/large-offset-ldr-merge.mir        | 20 +++++++++++++++++++
+ 2 files changed, 23 insertions(+)
+
+diff --git a/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp b/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp
+index e90b8a8ca7ace..8be19652edbb5 100644
+--- a/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp
++++ b/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp
+@@ -2213,6 +2213,9 @@ bool AArch64LoadStoreOpt::isMatchingMovConstInsn(MachineInstr &MemMI,
+     // movz + movk hold a large offset of a Ld/St instruction.
+     MachineBasicBlock::iterator B = MI.getParent()->begin();
+     MachineBasicBlock::iterator MBBI = &MI;
++    // Skip the scene when the MI is the first instruction of a block.
++    if (MBBI == B)
++      return false;
+     MBBI = prev_nodbg(MBBI, B);
+     MachineInstr &MovzMI = *MBBI;
+     if (MovzMI.getOpcode() == AArch64::MOVZWi) {
+diff --git a/llvm/test/CodeGen/AArch64/large-offset-ldr-merge.mir b/llvm/test/CodeGen/AArch64/large-offset-ldr-merge.mir
+index 15b6700398ea0..473c74323d939 100755
+--- a/llvm/test/CodeGen/AArch64/large-offset-ldr-merge.mir
++++ b/llvm/test/CodeGen/AArch64/large-offset-ldr-merge.mir
+@@ -45,3 +45,23 @@ body:             |
+     renamable $w0 = LDRBBroX killed renamable $x0, renamable $x8, 0, 0
+     RET undef $lr, implicit $w0
+ ...
++
++# Negative test: No MOVZWi used for the const offset
++---
++name:            LdOffset_missing_MOVZ
++tracksRegLiveness: true
++liveins:
++  - { reg: '$x0', virtual-reg: '' }
++body:             |
++  bb.0.entry:
++    liveins: $x0
++
++    ; CHECK-LABEL: name: LdOffset_missing_MOVZ
++    ; CHECK: liveins: $x0
++    ; CHECK-NEXT: {{  $}}
++    ; CHECK-NEXT: renamable $w8 = MOVKWi $w8, 15, 16, implicit-def $x8
++    ; CHECK-NEXT: renamable $w0 = LDRBBroX killed renamable $x0, killed renamable $x8, 0, 0
++    ; CHECK-NEXT: RET undef $lr, implicit $w0
++    renamable $w8 = MOVKWi $w8, 15, 16, implicit-def $x8
++    renamable $w0 = LDRBBroX killed renamable $x0, killed renamable $x8, 0, 0
++    RET undef $lr, implicit $w0
+
+From 9c7f71fd699bbf8e92b0673f84154f927b1555d2 Mon Sep 17 00:00:00 2001
+From: zhongyunde 00443407 <zhongyunde@huawei.com>
+Date: Mon, 18 Dec 2023 00:51:48 -0500
+Subject: [PATCH 3/3] [AArch64] Fold more load.x into load.i with large offset
+
+The list of load.x is refer to canFoldIntoAddrMode on D152828.
+Also support LDRSroX missed in canFoldIntoAddrMode
+---
+ llvm/lib/Target/AArch64/AArch64InstrInfo.cpp  | 13 +++
+ .../AArch64/AArch64LoadStoreOptimizer.cpp     | 53 +++++++++++-
+ llvm/test/CodeGen/AArch64/arm64-addrmode.ll   | 85 ++++++++-----------
+ 3 files changed, 97 insertions(+), 54 deletions(-)
+
+diff --git a/llvm/lib/Target/AArch64/AArch64InstrInfo.cpp b/llvm/lib/Target/AArch64/AArch64InstrInfo.cpp
+index 2e8d8c63d6bec..2b7d006d705cb 100644
+--- a/llvm/lib/Target/AArch64/AArch64InstrInfo.cpp
++++ b/llvm/lib/Target/AArch64/AArch64InstrInfo.cpp
+@@ -4103,7 +4103,20 @@ AArch64InstrInfo::getLdStAmountOp(const MachineInstr &MI) {
+   switch (MI.getOpcode()) {
+   default:
+     llvm_unreachable("Unexpected opcode");
++  case AArch64::LDRBroX:
+   case AArch64::LDRBBroX:
++  case AArch64::LDRSBXroX:
++  case AArch64::LDRSBWroX:
++  case AArch64::LDRHroX:
++  case AArch64::LDRHHroX:
++  case AArch64::LDRSHXroX:
++  case AArch64::LDRSHWroX:
++  case AArch64::LDRWroX:
++  case AArch64::LDRSroX:
++  case AArch64::LDRSWroX:
++  case AArch64::LDRDroX:
++  case AArch64::LDRXroX:
++  case AArch64::LDRQroX:
+     return MI.getOperand(4);
+   }
+ }
+diff --git a/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp b/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp
+index 8be19652edbb5..a7d3c94f456cb 100644
+--- a/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp
++++ b/llvm/lib/Target/AArch64/AArch64LoadStoreOptimizer.cpp
+@@ -180,7 +180,7 @@ struct AArch64LoadStoreOpt : public MachineFunctionPass {
+ 
+   // Scan the instruction list to find a register assigned with a const
+   // value that can be combined with the current instruction (a load or store)
+-  // using base addressing with writeback. Scan forwards.
++  // using base addressing with writeback. Scan backwards.
+   MachineBasicBlock::iterator
+   findMatchingConstOffsetBackward(MachineBasicBlock::iterator I, unsigned Limit,
+                                   unsigned &Offset);
+@@ -221,7 +221,7 @@ struct AArch64LoadStoreOpt : public MachineFunctionPass {
+   // Find and merge a base register updates before or after a ld/st instruction.
+   bool tryToMergeLdStUpdate(MachineBasicBlock::iterator &MBBI);
+ 
+-  // Find and merge a index ldr/st instructions into a base ld/st instruction.
++  // Find and merge a index ldr/st instruction into a base ld/st instruction.
+   bool tryToMergeIndexLdSt(MachineBasicBlock::iterator &MBBI, int Scale);
+ 
+   bool optimizeBlock(MachineBasicBlock &MBB, bool EnableNarrowZeroStOpt);
+@@ -511,8 +511,34 @@ static unsigned getBaseAddressOpcode(unsigned Opc) {
+   switch (Opc) {
+   default:
+     llvm_unreachable("Opcode has no base address equivalent!");
++  case AArch64::LDRBroX:
++    return AArch64::LDRBui;
+   case AArch64::LDRBBroX:
+     return AArch64::LDRBBui;
++  case AArch64::LDRSBXroX:
++    return AArch64::LDRSBXui;
++  case AArch64::LDRSBWroX:
++    return AArch64::LDRSBWui;
++  case AArch64::LDRHroX:
++    return AArch64::LDRHui;
++  case AArch64::LDRHHroX:
++    return AArch64::LDRHHui;
++  case AArch64::LDRSHXroX:
++    return AArch64::LDRSHXui;
++  case AArch64::LDRSHWroX:
++    return AArch64::LDRSHWui;
++  case AArch64::LDRWroX:
++    return AArch64::LDRWui;
++  case AArch64::LDRSroX:
++    return AArch64::LDRSui;
++  case AArch64::LDRSWroX:
++    return AArch64::LDRSWui;
++  case AArch64::LDRDroX:
++    return AArch64::LDRDui;
++  case AArch64::LDRXroX:
++    return AArch64::LDRXui;
++  case AArch64::LDRQroX:
++    return AArch64::LDRQui;
+   }
+ }
+ 
+@@ -764,10 +790,31 @@ static bool isMergeableIndexLdSt(MachineInstr &MI, int &Scale) {
+   default:
+     return false;
+   // Scaled instructions.
+-  // TODO: Add more index address loads/stores.
++  // TODO: Add more index address stores.
++  case AArch64::LDRBroX:
+   case AArch64::LDRBBroX:
++  case AArch64::LDRSBXroX:
++  case AArch64::LDRSBWroX:
+     Scale = 1;
+     return true;
++  case AArch64::LDRHroX:
++  case AArch64::LDRHHroX:
++  case AArch64::LDRSHXroX:
++  case AArch64::LDRSHWroX:
++    Scale = 2;
++    return true;
++  case AArch64::LDRWroX:
++  case AArch64::LDRSroX:
++  case AArch64::LDRSWroX:
++    Scale = 4;
++    return true;
++  case AArch64::LDRDroX:
++  case AArch64::LDRXroX:
++    Scale = 8;
++    return true;
++  case AArch64::LDRQroX:
++    Scale = 16;
++    return true;
+   }
+ }
+ 
+diff --git a/llvm/test/CodeGen/AArch64/arm64-addrmode.ll b/llvm/test/CodeGen/AArch64/arm64-addrmode.ll
+index 2181eaaee7db6..bfef61abd8c12 100644
+--- a/llvm/test/CodeGen/AArch64/arm64-addrmode.ll
++++ b/llvm/test/CodeGen/AArch64/arm64-addrmode.ll
+@@ -239,9 +239,8 @@ define i32 @LdOffset_i8_zext32(ptr %a)  {
+ define i32 @LdOffset_i8_sext32(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i8_sext32:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #56952 // =0xde78
+-; CHECK-NEXT:    movk w8, #15, lsl #16
+-; CHECK-NEXT:    ldrsb w0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #253, lsl #12 // =1036288
++; CHECK-NEXT:    ldrsb w0, [x8, #3704]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i8, ptr %a, i64 1039992
+   %val = load i8, ptr %arrayidx, align 1
+@@ -266,9 +265,8 @@ define i64 @LdOffset_i8_zext64(ptr %a)  {
+ define i64 @LdOffset_i8_sext64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i8_sext64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #56952 // =0xde78
+-; CHECK-NEXT:    movk w8, #15, lsl #16
+-; CHECK-NEXT:    ldrsb x0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #253, lsl #12 // =1036288
++; CHECK-NEXT:    ldrsb x0, [x8, #3704]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i8, ptr %a, i64 1039992
+   %val = load i8, ptr %arrayidx, align 1
+@@ -280,9 +278,8 @@ define i64 @LdOffset_i8_sext64(ptr %a)  {
+ define i16 @LdOffset_i16(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i16:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #48368 // =0xbcf0
+-; CHECK-NEXT:    movk w8, #31, lsl #16
+-; CHECK-NEXT:    ldrh w0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #506, lsl #12 // =2072576
++; CHECK-NEXT:    ldrh w0, [x8, #7408]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i16, ptr %a, i64 1039992
+   %val = load i16, ptr %arrayidx, align 2
+@@ -293,9 +290,8 @@ define i16 @LdOffset_i16(ptr %a)  {
+ define i32 @LdOffset_i16_zext32(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i16_zext32:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #48368 // =0xbcf0
+-; CHECK-NEXT:    movk w8, #31, lsl #16
+-; CHECK-NEXT:    ldrh w0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #506, lsl #12 // =2072576
++; CHECK-NEXT:    ldrh w0, [x8, #7408]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i16, ptr %a, i64 1039992
+   %val = load i16, ptr %arrayidx, align 2
+@@ -307,9 +303,8 @@ define i32 @LdOffset_i16_zext32(ptr %a)  {
+ define i32 @LdOffset_i16_sext32(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i16_sext32:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #48368 // =0xbcf0
+-; CHECK-NEXT:    movk w8, #31, lsl #16
+-; CHECK-NEXT:    ldrsh w0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #506, lsl #12 // =2072576
++; CHECK-NEXT:    ldrsh w0, [x8, #7408]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i16, ptr %a, i64 1039992
+   %val = load i16, ptr %arrayidx, align 2
+@@ -321,9 +316,8 @@ define i32 @LdOffset_i16_sext32(ptr %a)  {
+ define i64 @LdOffset_i16_zext64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i16_zext64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #48368 // =0xbcf0
+-; CHECK-NEXT:    movk w8, #31, lsl #16
+-; CHECK-NEXT:    ldrh w0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #506, lsl #12 // =2072576
++; CHECK-NEXT:    ldrh w0, [x8, #7408]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i16, ptr %a, i64 1039992
+   %val = load i16, ptr %arrayidx, align 2
+@@ -335,9 +329,8 @@ define i64 @LdOffset_i16_zext64(ptr %a)  {
+ define i64 @LdOffset_i16_sext64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i16_sext64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #48368 // =0xbcf0
+-; CHECK-NEXT:    movk w8, #31, lsl #16
+-; CHECK-NEXT:    ldrsh x0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #506, lsl #12 // =2072576
++; CHECK-NEXT:    ldrsh x0, [x8, #7408]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i16, ptr %a, i64 1039992
+   %val = load i16, ptr %arrayidx, align 2
+@@ -349,9 +342,8 @@ define i64 @LdOffset_i16_sext64(ptr %a)  {
+ define i32 @LdOffset_i32(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i32:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #31200 // =0x79e0
+-; CHECK-NEXT:    movk w8, #63, lsl #16
+-; CHECK-NEXT:    ldr w0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #1012, lsl #12 // =4145152
++; CHECK-NEXT:    ldr w0, [x8, #14816]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i32, ptr %a, i64 1039992
+   %val = load i32, ptr %arrayidx, align 4
+@@ -362,9 +354,8 @@ define i32 @LdOffset_i32(ptr %a)  {
+ define i64 @LdOffset_i32_zext64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i32_zext64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #31200 // =0x79e0
+-; CHECK-NEXT:    movk w8, #63, lsl #16
+-; CHECK-NEXT:    ldr w0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #1012, lsl #12 // =4145152
++; CHECK-NEXT:    ldr w0, [x8, #14816]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i32, ptr %a, i64 1039992
+   %val = load i32, ptr %arrayidx, align 2
+@@ -376,9 +367,8 @@ define i64 @LdOffset_i32_zext64(ptr %a)  {
+ define i64 @LdOffset_i32_sext64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i32_sext64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #31200 // =0x79e0
+-; CHECK-NEXT:    movk w8, #63, lsl #16
+-; CHECK-NEXT:    ldrsw x0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #1012, lsl #12 // =4145152
++; CHECK-NEXT:    ldrsw x0, [x8, #14816]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i32, ptr %a, i64 1039992
+   %val = load i32, ptr %arrayidx, align 2
+@@ -390,9 +380,8 @@ define i64 @LdOffset_i32_sext64(ptr %a)  {
+ define i64 @LdOffset_i64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #62400 // =0xf3c0
+-; CHECK-NEXT:    movk w8, #126, lsl #16
+-; CHECK-NEXT:    ldr x0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #2024, lsl #12 // =8290304
++; CHECK-NEXT:    ldr x0, [x8, #29632]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i64, ptr %a, i64 1039992
+   %val = load i64, ptr %arrayidx, align 4
+@@ -403,9 +392,8 @@ define i64 @LdOffset_i64(ptr %a)  {
+ define <2 x i32> @LdOffset_v2i32(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_v2i32:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #62400 // =0xf3c0
+-; CHECK-NEXT:    movk w8, #126, lsl #16
+-; CHECK-NEXT:    ldr d0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #2024, lsl #12 // =8290304
++; CHECK-NEXT:    ldr d0, [x8, #29632]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds <2 x i32>, ptr %a, i64 1039992
+   %val = load <2 x i32>, ptr %arrayidx, align 4
+@@ -416,9 +404,8 @@ define <2 x i32> @LdOffset_v2i32(ptr %a)  {
+ define <2 x i64> @LdOffset_v2i64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_v2i64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #59264 // =0xe780
+-; CHECK-NEXT:    movk w8, #253, lsl #16
+-; CHECK-NEXT:    ldr q0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #4048, lsl #12 // =16580608
++; CHECK-NEXT:    ldr q0, [x8, #59264]
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds <2 x i64>, ptr %a, i64 1039992
+   %val = load <2 x i64>, ptr %arrayidx, align 4
+@@ -429,9 +416,8 @@ define <2 x i64> @LdOffset_v2i64(ptr %a)  {
+ define double @LdOffset_i8_f64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i8_f64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #56952 // =0xde78
+-; CHECK-NEXT:    movk w8, #15, lsl #16
+-; CHECK-NEXT:    ldrsb w8, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #253, lsl #12 // =1036288
++; CHECK-NEXT:    ldrsb w8, [x8, #3704]
+ ; CHECK-NEXT:    scvtf d0, w8
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i8, ptr %a, i64 1039992
+@@ -444,9 +430,8 @@ define double @LdOffset_i8_f64(ptr %a)  {
+ define double @LdOffset_i16_f64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i16_f64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #48368 // =0xbcf0
+-; CHECK-NEXT:    movk w8, #31, lsl #16
+-; CHECK-NEXT:    ldrsh w8, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #506, lsl #12 // =2072576
++; CHECK-NEXT:    ldrsh w8, [x8, #7408]
+ ; CHECK-NEXT:    scvtf d0, w8
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i16, ptr %a, i64 1039992
+@@ -459,9 +444,8 @@ define double @LdOffset_i16_f64(ptr %a)  {
+ define double @LdOffset_i32_f64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i32_f64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #31200 // =0x79e0
+-; CHECK-NEXT:    movk w8, #63, lsl #16
+-; CHECK-NEXT:    ldr s0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #1012, lsl #12 // =4145152
++; CHECK-NEXT:    ldr s0, [x8, #14816]
+ ; CHECK-NEXT:    ucvtf d0, d0
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i32, ptr %a, i64 1039992
+@@ -474,9 +458,8 @@ define double @LdOffset_i32_f64(ptr %a)  {
+ define double @LdOffset_i64_f64(ptr %a)  {
+ ; CHECK-LABEL: LdOffset_i64_f64:
+ ; CHECK:       // %bb.0:
+-; CHECK-NEXT:    mov w8, #62400 // =0xf3c0
+-; CHECK-NEXT:    movk w8, #126, lsl #16
+-; CHECK-NEXT:    ldr d0, [x0, x8]
++; CHECK-NEXT:    add x8, x0, #2024, lsl #12 // =8290304
++; CHECK-NEXT:    ldr d0, [x8, #29632]
+ ; CHECK-NEXT:    scvtf d0, d0
+ ; CHECK-NEXT:    ret
+   %arrayidx = getelementptr inbounds i64, ptr %a, i64 1039992

@@ -18,7 +18,7 @@
 
 # (tpg) set snapshot date
 # 20240130 is close to 18.0.0-rc1
-%define date 20240202
+%define date 20240205
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -222,6 +222,7 @@ Patch29:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
 Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
 Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
 Patch40:	libc++-3.7.0-musl-compat.patch
+Patch41:	https://github.com/llvm/llvm-project/pull/79951.patch
 # Make it possible to override CLANG_LIBDIR_SUFFIX
 # (that is used only to find LLVMgold.so)
 # https://llvm.org/bugs/show_bug.cgi?id=23793
