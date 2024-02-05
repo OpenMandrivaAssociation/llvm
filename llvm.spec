@@ -130,7 +130,7 @@
 # llvm_release_XXX branches only after the release
 %undefine spirv_is_main
 %endif
-%define spirv_is_main 1
+%undefine spirv_is_main
 
 %bcond_without crosscrt
 
@@ -223,6 +223,7 @@ Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-un
 Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
 Patch40:	libc++-3.7.0-musl-compat.patch
 Patch41:	https://github.com/llvm/llvm-project/pull/79951.patch
+Patch42:	https://github.com/llvm/llvm-project/pull/80730.patch
 # Make it possible to override CLANG_LIBDIR_SUFFIX
 # (that is used only to find LLVMgold.so)
 # https://llvm.org/bugs/show_bug.cgi?id=23793
