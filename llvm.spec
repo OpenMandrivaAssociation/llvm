@@ -1282,8 +1282,10 @@ optimizing performance of binaries
 %{_bindir}/llvm-boltdiff
 %{_bindir}/merge-fdata
 %{_bindir}/perf2bolt
+%ifarch %{x86_64} %{aarch64}
 %{_libdir}/libbolt_rt_hugify.a
 %{_libdir}/libbolt_rt_instr.a
+%endif
 #doc %{_docdir}/bolt
 %endif
 
