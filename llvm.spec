@@ -17,8 +17,8 @@
 %bcond_with skip64
 
 # (tpg) set snapshot date
-# 20240130 is close to 18.0.0-rc1
-%define date 20240205
+# 20240224 is close to 18.0.0-rc3
+%define date 20240224
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -147,7 +147,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	18.0.0
+Version:	18.1.0
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -163,9 +163,9 @@ Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{versio
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
 Release:	1
 %endif
-# Commits listed in https://github.com/KhronosGroup/glslang/blob/master/known_good.json as of 2024/02/02
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/5aa1dd8a11182ea9a6a0eabd6a9edc639d5dbecd.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/b951948eaa75b51466eaa22e8a89223966f300e4.tar.gz
+# Commits listed in https://github.com/KhronosGroup/glslang/blob/master/known_good.json as of 2024/02/23
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/05cc486580771e4fa7ddc89f5c9ee1e97382689a.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/b0a5c4ac12b742086ffb16e2ba0ad4903450ae1d.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
@@ -223,7 +223,7 @@ Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-un
 Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
 Patch40:	libc++-3.7.0-musl-compat.patch
 Patch41:	https://github.com/llvm/llvm-project/pull/79951.patch
-Patch42:	https://github.com/llvm/llvm-project/pull/80730.patch
+Patch42:	llvm-bug-50640.patch
 # Make it possible to override CLANG_LIBDIR_SUFFIX
 # (that is used only to find LLVMgold.so)
 # https://llvm.org/bugs/show_bug.cgi?id=23793
@@ -255,7 +255,6 @@ Source62:	llvm-10-default-compiler-rt.patch
 #Patch90:	spirv-fix-warnings.patch
 Patch91:	SPRIV-Tools-soname.patch
 Patch92:	spirv-tools-compile.patch
-Patch93:	spirv-headers-install-even-if-not-toplevel.patch
 
 # This needs to be cleaned up before sending it upstream
 Patch95:	spirv-llvm-translator-use-just-built-spirv-tools.patch
@@ -962,7 +961,6 @@ Obsoletes:	%{mklibname LLVMExtensions 11} < 14.0.0
 Obsoletes:	%{mklibname LLVMExtensions 14} < %{EVRD}
 Obsoletes:	%{mklibname LLVMLTO 14} < %{EVRD}
 Obsoletes:	%{mklibname Remarks 14} < %{EVRD}
-%{expand:%(for i in %{LLVMLibs} %{LLVM64Libs} %{ClangLibs} %{Clang64Libs} %{LLDLibs} %{MLIRLibs} %{FlangLibs} %{BOLTLibs}; do echo "Obsoletes:     %%{mklibname $i %{major1}} < %{EVRD}"; done)}
 
 %description -n %{libname}
 Shared libraries for the LLVM compiler infrastructure. This is needed by
@@ -970,6 +968,7 @@ programs that are dynamically linked against libLLVM.
 
 %files -n %{libname}
 %{_libdir}/libLLVM-*.so
+%{_libdir}/libLLVM.so.%{major}
 %{_libdir}/libRemarks.so.*
 
 #-----------------------------------------------------------
@@ -1096,8 +1095,8 @@ Shared libraries for LLVM OpenMP support.
 %{_libdir}/libomptarget-*.bc
 %{_libdir}/libomptarget.rtl.*.so
 %{_libdir}/libomptarget.devicertl.a
-%{_libdir}/libomptarget.rtl.*.so.%{major1}
-%{_libdir}/libomptarget.so.%{major1}
+%{_libdir}/libomptarget.rtl.*.so.%{major}
+%{_libdir}/libomptarget.so.%{major}
 %endif
 
 #-----------------------------------------------------------
@@ -1205,7 +1204,6 @@ Obsoletes:	%{_lib}clangDependencyScanning14 < %{EVRD}
 Obsoletes:	%{_lib}clangInterpreter14 < %{EVRD}
 Obsoletes:	%{_lib}clangHandleCXX14 < %{EVRD}
 Obsoletes:	%{_lib}LTO14 < %{EVRD}
-%{expand:%(for i in %{ClangLibs} %{Clang64Libs}; do echo "Obsoletes:	%%{mklibname $i %{major1}} < %{EVRD}"; done)}
 
 %description -n clang
 clang: noun
@@ -1565,7 +1563,6 @@ Python bindings to parts of the Clang library
 %package -n libllvm
 Summary:	32-bit LLVM library
 Group:		System/Libraries
-%{expand:%(for i in %{LLVMLibs} %{ClangLibs} %{LLDLibs} %{MLIRLibs}; do echo "Obsoletes:     lib$i%{major1} < %{EVRD}"; done)}
 Obsoletes:	libLTO14 < %{EVRD}
 Obsoletes:	libclangInterpreter14 < %{EVRD}
 Obsoletes:	libRemarks14 < %{EVRD}
@@ -1575,6 +1572,7 @@ Obsoletes:	libRemarks14 < %{EVRD}
 
 %files -n libllvm
 %{_prefix}/lib/libLLVM-*.so
+%{_prefix}/lib/libLLVM.so.%{major}
 %{_prefix}/lib/libRemarks.so.*
 
 %package -n libllvm-devel
@@ -1908,14 +1906,15 @@ Library for bi-directional translation between SPIR-V and LLVM IR.
 %files -n spirv-llvm-translator
 %{_bindir}/llvm-spirv
 
-%define libspirv %mklibname LLVMSPIRVLib %{major1}
+%define oldlibspirv %mklibname LLVMSPIRVLib %{major1}
+%define libspirv %mklibname LLVMSPIRVLib
 %define devspirv %mklibname -d LLVMSPIRVLib
 
 %package -n %{devspirv}
 Summary:	Library for bi-directional translation between SPIR-V and LLVM IR
 Group:		Development/Tools
 # FIXME we may want to restore the shared lib here
-Obsoletes:	%{libspirv} < %{EVRD}
+Obsoletes:	%{oldlibspirv} < %{EVRD}
 
 %description -n %{devspirv}
 Library for bi-directional translation between SPIR-V and LLVM IR.
@@ -1944,13 +1943,15 @@ Tools for working with SPIR-V, a language for running on GPUs.
 %{_bindir}/spirv-reduce
 %{_bindir}/spirv-val
 
-%define libspirvtools %mklibname spirv-tools %{major1}
+%define oldlibspirvtools %mklibname spirv-tools %{major1}
+%define libspirvtools %mklibname spirv-tools
 %define devspirvtools %mklibname -d spirv-tools
 
 %package -n %{libspirvtools}
 Summary:	Libraries needed for SPIRV-Tools
 Group:		System/Libraries
 %rename %{_lib}spirv-tools0
+%rename %{oldlibspirvtools}
 
 %description -n %{libspirvtools}
 Libraries needed for SPIRV-Tools.
@@ -1977,7 +1978,8 @@ Development files for SPIRV-Tools.
 %if %{with compat32}
 %define lib32spirv libLLVMSPIRVLib%{major1}
 %define dev32spirv libLLVMSPIRVLib-devel
-%define lib32spirvtools %mklib32name spirv-tools %{major1}
+%define oldlib32spirvtools %mklib32name spirv-tools %{major1}
+%define lib32spirvtools %mklib32name spirv-tools
 %define dev32spirvtools %mklib32name -d spirv-tools
 
 %package -n %{dev32spirv}
@@ -1998,6 +2000,7 @@ Library for bi-directional translation between SPIR-V and LLVM IR (32-bit).
 Summary:	Libraries needed for SPIRV-Tools (32-bit)
 Group:		System/Libraries
 %rename libspirv-tools0
+%rename %{oldlib32spirvtools}
 
 %description -n %{lib32spirvtools}
 Libraries needed for SPIRV-Tools (32-bit).
@@ -2297,6 +2300,7 @@ CPROCESSES="$PROCESSES"
 %if %{with mlir}
 	-DMLIR_BUILD_MLIR_C_DYLIB:BOOL=ON \
 %endif
+	-DSPIRV_HEADERS_ENABLE_INSTALL:BOOL=ON \
 	-DSPIRV_TOOLS_BUILD_STATIC:BOOL=OFF \
 	-G Ninja \
 	../llvm

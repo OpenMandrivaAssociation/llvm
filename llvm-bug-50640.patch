@@ -1,0 +1,21 @@
+diff -up llvm-project-release-18.x/llvm/lib/CodeGen/SelectionDAG/DAGCombiner.cpp.omv~ llvm-project-release-18.x/llvm/lib/CodeGen/SelectionDAG/DAGCombiner.cpp
+--- llvm-project-release-18.x/llvm/lib/CodeGen/SelectionDAG/DAGCombiner.cpp.omv~	2024-02-09 23:15:39.947133727 +0100
++++ llvm-project-release-18.x/llvm/lib/CodeGen/SelectionDAG/DAGCombiner.cpp	2024-02-09 23:16:14.151481223 +0100
+@@ -1687,14 +1687,14 @@ SDValue DAGCombiner::PromoteIntShiftOp(S
+     if (!N0.getNode())
+       return SDValue();
+ 
++    if (Replace)
++      ReplaceLoadWithPromotedLoad(Op.getOperand(0).getNode(), N0.getNode());
++
+     SDLoc DL(Op);
+     SDValue N1 = Op.getOperand(1);
+     SDValue RV =
+         DAG.getNode(ISD::TRUNCATE, DL, VT, DAG.getNode(Opc, DL, PVT, N0, N1));
+ 
+-    if (Replace)
+-      ReplaceLoadWithPromotedLoad(Op.getOperand(0).getNode(), N0.getNode());
+-
+     // Deal with Op being deleted.
+     if (Op && Op.getOpcode() != ISD::DELETED_NODE)
+       return RV;
