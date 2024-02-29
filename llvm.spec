@@ -18,7 +18,7 @@
 
 # (tpg) set snapshot date
 # 20240228 is close to 18.1.0-rc4
-%define date 20240228
+%define date 20240229
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -211,6 +211,8 @@ Patch18:	lld-17.0.6-default-undefined-version.patch
 Patch19:	lld-default-settings.patch
 # Patches for musl support, (partially) stolen from Alpine Linux and ported
 Patch20:	llvm-3.7-musl.patch
+# https://github.com/llvm/llvm-project/issues/82431
+Patch21:	https://github.com/llvm/llvm-project/commit/1e6627ecef42fa8e36dae71589fc17d3adbd18aa.patch
 Patch22:	lld-9.0-error-on-option-conflict.patch
 #Patch23:	llvm-9.0-lld-workaround.patch
 #Patch24:	llvm-11-flang-missing-docs.patch
@@ -263,7 +265,7 @@ Patch97:	flang-riscv-libatomic.patch
 Patch98:	lldb-riscv-libatomic.patch
 Patch99:	bootstrap-gcc-nostdlib.patch
 
-# Xtensa patches will come back when they're rebased to 17 upstream
+# Xtensa patches will come back when they're rebased to 18 upstream
 %if 0
 # Patches for Xtensa support from
 # https://github.com/espressif/llvm-project
