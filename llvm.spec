@@ -18,7 +18,7 @@
 
 # (tpg) set snapshot date
 # 20240228 is close to 18.1.0-rc4
-%define date 20240229
+#define gitdate 20240229
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -139,7 +139,7 @@
 # libLLVMSupport.so.13git - a major of "13git" that is different from
 # the major for the release ("13"). Better to set LLVM_VERSION_SUFFIX
 # to something beginning with a ., leaving the major untouched.
-#define SOMINOR .%(echo %{version}|cut -d. -f2-)%{?date:.%{date}}
+#define SOMINOR .%(echo %{version}|cut -d. -f2-)%{?gitdate:.%{gitdate}}
 # As of 13.0-rc1, the build system doesn't set a .so.13 symlink
 # even if the soname is .so.13.0 or so, so let's set SOMINOR to nothing
 # for now
@@ -151,12 +151,12 @@ Version:	18.1.0
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
-%if 0%{?date:1}
+%if 0%{?gitdate:1}
 # git archive-d from https://github.com/llvm/llvm-project
-Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{date}.tar.gz
+Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{gitdate}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
-Release:	0.%{date}.1
+Release:	0.%{gitdate}.1
 %else
 Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
 # llvm-spirv-translator and friends
@@ -164,8 +164,10 @@ Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/hea
 Release:	1
 %endif
 # Commits listed in https://github.com/KhronosGroup/glslang/blob/master/known_good.json as of 2024/02/23
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/05cc486580771e4fa7ddc89f5c9ee1e97382689a.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/b0a5c4ac12b742086ffb16e2ba0ad4903450ae1d.tar.gz
+# Actually newer than "known good" to allow for SPV_INTEL_maximum_registers_extensions needed by
+# spirv-llvm-translator
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/8b246ff75c6615ba4532fe4fde20f1be090c3764.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/5bc7c2876359787f120ceb9f9bedbbc4907438c4.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
@@ -2042,7 +2044,7 @@ Libc implementation from the LLVM project
 %endif
 
 %prep
-%if 0%{?date:1}
+%if 0%{?gitdate:1}
 %setup -q -n llvm-project-%{?is_main:main}%{!?is_main:release-%{major1}.x} -a 20 -a 21 -a 22
 %else
 %setup -q -n llvm-project-%{version}.src -a 20 -a 21 -a 22
