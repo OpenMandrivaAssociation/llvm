@@ -147,7 +147,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	18.1.0
+Version:	18.1.1
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -167,7 +167,7 @@ Release:	1
 # Actually newer than "known good" to allow for SPV_INTEL_maximum_registers_extensions needed by
 # spirv-llvm-translator
 Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/8b246ff75c6615ba4532fe4fde20f1be090c3764.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/7c363050de047e37ca168c74e0a960fd4b097173.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/04896c462d9f3f504c99a4698605b6524af813c1.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
