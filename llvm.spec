@@ -1180,6 +1180,7 @@ short vector instructions as well as dedicated accelerators.
 Summary:	A C language family front-end for LLVM
 License:	NCSA
 Group:		Development/Other
+Provides:	%{_bindir}/cc
 # TODO: is this requires:llvm needed, or just legacy from fedora pkg layout?
 Requires:	llvm%{?_isa} = %{EVRD}
 # clang requires gcc, clang++ requires libstdc++-devel
