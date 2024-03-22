@@ -147,7 +147,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	18.1.1
+Version:	18.1.2
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -2150,12 +2150,13 @@ EOF
 done
 
 PROCESSES="$(getconf _NPROCESSORS_ONLN)"
+LPROCESSES="$PROCESSES"
 CPROCESSES="$PROCESSES"
 # Linking LLVM with LTO enabled is VERY RAM intensive
 # and breaks boxes that have loads of CPU cores but no
 # terabytes of RAM...
 [ "$PROCESSES" -gt 4 ] && LPROCESSES=4
-[ "$CPROCESSES" -gt 20 ] && CPROCESSES=20
+[ "$CPROCESSES" -gt 8 ] && CPROCESSES=8
 
 # The "%if 1" below is just a quick way to get rid of the real
 # 64-bit build to debug 32-bit build issues. No need to do a
