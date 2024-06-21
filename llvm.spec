@@ -147,7 +147,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	18.1.7
+Version:	18.1.8
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
@@ -158,7 +158,7 @@ Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_mai
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
 Release:	0.%{gitdate}.1
 %else
-Source0:	https://github.com/llvm/llvm-project/releases/download/llvmorg-%{version}/llvm-project-%{version}.src.tar.xz
+Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{version}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
 Release:	1
@@ -2048,7 +2048,7 @@ Libc implementation from the LLVM project
 %if 0%{?gitdate:1}
 %setup -q -n llvm-project-%{?is_main:main}%{!?is_main:release-%{major1}.x} -a 20 -a 21 -a 22
 %else
-%setup -q -n llvm-project-%{version}.src -a 20 -a 21 -a 22
+%setup -q -n llvm-project-llvmorg-%{version} -a 20 -a 21 -a 22
 %endif
 mv SPIRV-LLVM-Translator-* llvm/projects/SPIRV-LLVM-Translator
 mv SPIRV-Headers-* llvm/projects/SPIRV-Headers

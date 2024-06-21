@@ -1,5 +1,5 @@
 sources:
   ea77f2a826bc820cb8f57f9b2a7c7eccb681c731.tar.gz: 45f610d96b023d9c3084983f9c61252f71a6bc74
   148c97f6876e427efd76d2328122c3075eab4b8f.tar.gz: f79a8bfebaa7aed5d8b726bdb59b6b0519757004
-  llvm-project-18.1.7.src.tar.xz: 0f33869ed6ac69539bf30829a685ca1a58318173
-  spirv-llvm-translator-18.1.7.tar.gz: 1b37c7c10c29bd19f3f1586a65772ecc9a2579f0
+  llvmorg-18.1.8.tar.gz: a7512056b47bf93929d6d04a17c9b887d12ab83c
+  spirv-llvm-translator-18.1.8.tar.gz: 1b37c7c10c29bd19f3f1586a65772ecc9a2579f0
