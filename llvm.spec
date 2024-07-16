@@ -161,7 +161,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{version}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
-Release:	1
+Release:	2
 %endif
 # Commits listed in https://github.com/KhronosGroup/glslang/blob/master/known_good.json as of 2024/02/23
 # Actually newer than "known good" to allow for SPV_INTEL_maximum_registers_extensions needed by
@@ -259,6 +259,7 @@ Source62:	llvm-10-default-compiler-rt.patch
 #Patch90:	spirv-fix-warnings.patch
 Patch91:	SPRIV-Tools-soname.patch
 Patch92:	spirv-tools-compile.patch
+Patch93:	https://github.com/llvm/llvm-project/pull/85081.patch
 
 # This needs to be cleaned up before sending it upstream
 Patch95:	spirv-llvm-translator-use-just-built-spirv-tools.patch
