@@ -1,0 +1,12 @@
+diff -up llvm-project-release-19.x/libc/CMakeLists.txt.omv~ llvm-project-release-19.x/libc/CMakeLists.txt
+--- llvm-project-release-19.x/libc/CMakeLists.txt.omv~	2024-08-07 18:45:43.698869494 +0200
++++ llvm-project-release-19.x/libc/CMakeLists.txt	2024-08-07 18:46:18.459282628 +0200
+@@ -27,6 +27,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+   add_definitions("-D_DEBUG")
+ endif()
+ 
++add_definitions("-Wno-error=#warnings")
++
+ # Default to C++17
+ set(CMAKE_CXX_STANDARD 17)
+ 

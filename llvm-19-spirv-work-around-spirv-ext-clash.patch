@@ -1,0 +1,15 @@
+diff -up llvm-project-release-19.x/llvm/projects/SPIRV-LLVM-Translator/tools/llvm-spirv/llvm-spirv.cpp.omv~ llvm-project-release-19.x/llvm/projects/SPIRV-LLVM-Translator/tools/llvm-spirv/llvm-spirv.cpp
+--- llvm-project-release-19.x/llvm/projects/SPIRV-LLVM-Translator/tools/llvm-spirv/llvm-spirv.cpp.omv~	2024-08-09 02:16:32.433750418 +0200
++++ llvm-project-release-19.x/llvm/projects/SPIRV-LLVM-Translator/tools/llvm-spirv/llvm-spirv.cpp	2024-08-09 02:18:03.034745638 +0200
+@@ -116,8 +116,10 @@ static cl::opt<VersionNumber> MaxSPIRVVe
+                clEnumValN(VersionNumber::SPIRV_1_6, "1.6", "SPIR-V 1.6")),
+     cl::init(VersionNumber::MaximumVersion));
+ 
++// renamed from upstream spirv-ext to avoid clash with
++// llvm/lib/Target/SPIRV/SPIRVSubtarget.cpp
+ static cl::list<std::string>
+-    SPVExt("spirv-ext", cl::CommaSeparated,
++    SPVExt("spirvext", cl::CommaSeparated,
+            cl::desc("Specify list of allowed/disallowed extensions"),
+            cl::value_desc("+SPV_extenstion1_name,-SPV_extension2_name"),
+            cl::ValueRequired);

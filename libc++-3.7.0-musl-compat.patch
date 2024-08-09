@@ -1,6 +1,6 @@
-diff -up llvm-project-main/libcxx/include/__config.25~ llvm-project-main/libcxx/include/__config
---- llvm-project-main/libcxx/include/__config.25~	2024-01-21 20:46:13.429349145 +0100
-+++ llvm-project-main/libcxx/include/__config	2024-01-21 20:47:57.922312481 +0100
+diff -up llvm-project-release-19.x/libcxx/include/__config.26~ llvm-project-release-19.x/libcxx/include/__config
+--- llvm-project-release-19.x/libcxx/include/__config.26~	2024-07-29 22:13:08.148127223 +0200
++++ llvm-project-release-19.x/libcxx/include/__config	2024-07-29 22:14:25.488853338 +0200
 @@ -10,6 +10,13 @@
  #ifndef _LIBCPP___CONFIG
  #define _LIBCPP___CONFIG
@@ -13,5 +13,5 @@ diff -up llvm-project-main/libcxx/include/__config.25~ llvm-project-main/libcxx/
 +#endif
 +
  #include <__config_site>
- 
- #ifndef _LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER
+ #include <__configuration/abi.h>
+ #include <__configuration/availability.h>
