@@ -1,6 +1,6 @@
-diff -up llvm-project-main/clang/lib/Headers/stdint.h.20~ llvm-project-main/clang/lib/Headers/stdint.h
---- llvm-project-main/clang/lib/Headers/stdint.h.20~	2022-01-18 18:01:52.000000000 +0100
-+++ llvm-project-main/clang/lib/Headers/stdint.h	2022-01-18 18:40:57.214876195 +0100
+diff -up llvm-project-release-19.x/clang/lib/Headers/stdint.h.25~ llvm-project-release-19.x/clang/lib/Headers/stdint.h
+--- llvm-project-release-19.x/clang/lib/Headers/stdint.h.25~	2024-07-29 13:45:04.000000000 +0200
++++ llvm-project-release-19.x/clang/lib/Headers/stdint.h	2024-07-29 22:12:38.879860794 +0200
 @@ -6,14 +6,6 @@
   *
  \*===----------------------------------------------------------------------===*/
@@ -13,10 +13,10 @@ diff -up llvm-project-main/clang/lib/Headers/stdint.h.20~ llvm-project-main/clan
 -#define __CLANG_STDINT_H
 -#endif
 -
- /* If we're hosted, fall back to the system's stdint.h, which might have
-  * additional definitions.
-  */
-@@ -61,6 +53,8 @@
+ #if defined(__MVS__) && __has_include_next(<stdint.h>)
+ #include_next <stdint.h>
+ #else
+@@ -65,6 +57,8 @@
  # endif
  
  #else
@@ -25,10 +25,11 @@ diff -up llvm-project-main/clang/lib/Headers/stdint.h.20~ llvm-project-main/clan
  
  /* C99 7.18.1.1 Exact-width integer types.
   * C99 7.18.1.2 Minimum-width integer types.
-@@ -857,5 +851,5 @@ typedef __UINTMAX_TYPE__ uintmax_t;
+@@ -950,6 +944,6 @@ typedef __UINTMAX_TYPE__ uintmax_t;
  #define WINT_WIDTH       __WINT_WIDTH__
  #endif
  
 -#endif /* __STDC_HOSTED__ */
- #endif /* __CLANG_STDINT_H */
+ #endif /* __MVS__ */
 +#endif /* __STDC_HOSTED__ */
+ #endif /* __CLANG_STDINT_H */

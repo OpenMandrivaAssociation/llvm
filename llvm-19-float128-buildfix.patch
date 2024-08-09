@@ -1,0 +1,23 @@
+diff -up llvm-project-release-19.x/llvm/lib/Analysis/ConstantFolding.cpp.omv~ llvm-project-release-19.x/llvm/lib/Analysis/ConstantFolding.cpp
+--- llvm-project-release-19.x/llvm/lib/Analysis/ConstantFolding.cpp.omv~	2024-07-30 00:36:15.445103319 +0200
++++ llvm-project-release-19.x/llvm/lib/Analysis/ConstantFolding.cpp	2024-07-30 00:39:31.163267644 +0200
+@@ -1795,6 +1795,19 @@ Constant *ConstantFoldFP128(long double
+ 
+   return GetConstantFoldFPValue128(Result, Ty);
+ }
++#if __clang__ < 19
++Constant *ConstantFoldFP128(_Float128 (*NativeFP)(_Float128),
++                            const APFloat &V, Type *Ty) {
++  llvm_fenv_clearexcept();
++  float128 Result = NativeFP(V.convertToQuad());
++  if (llvm_fenv_testexcept()) {
++    llvm_fenv_clearexcept();
++    return nullptr;
++  }
++
++  return GetConstantFoldFPValue128(Result, Ty);
++}
++#endif
+ #endif
+ 
+ Constant *ConstantFoldBinaryFP(double (*NativeFP)(double, double),

@@ -1,7 +1,7 @@
-diff -up llvm-project-main/lld/ELF/Config.h.18~ llvm-project-main/lld/ELF/Config.h
---- llvm-project-main/lld/ELF/Config.h.18~	2024-01-21 17:13:12.000000000 +0100
-+++ llvm-project-main/lld/ELF/Config.h	2024-01-21 20:43:37.955921153 +0100
-@@ -215,7 +215,7 @@ struct Config {
+diff -up llvm-project-release-19.x/lld/ELF/Config.h.19~ llvm-project-release-19.x/lld/ELF/Config.h
+--- llvm-project-release-19.x/lld/ELF/Config.h.19~	2024-07-29 13:45:04.000000000 +0200
++++ llvm-project-release-19.x/lld/ELF/Config.h	2024-07-29 22:01:28.436936503 +0200
+@@ -222,7 +222,7 @@ struct Config {
    bool armHasMovtMovw = false;
    bool armJ1J2BranchEncoding = false;
    bool armCMSESupport = false;
@@ -10,15 +10,16 @@ diff -up llvm-project-main/lld/ELF/Config.h.18~ llvm-project-main/lld/ELF/Config
    bool armBe8 = false;
    BsymbolicKind bsymbolic = BsymbolicKind::None;
    CGProfileSortKind callGraphProfileSort;
-@@ -231,16 +231,16 @@ struct Config {
+@@ -242,7 +242,7 @@ struct Config {
    bool ehFrameHdr;
    bool emitLLVM;
    bool emitRelocs;
 -  bool enableNewDtags;
 +  bool enableNewDtags = true;
+   bool enableNonContiguousRegions;
    bool executeOnly;
    bool exportDynamic;
-   bool fixCortexA53Errata843419;
+@@ -250,9 +250,9 @@ struct Config {
    bool fixCortexA8;
    bool formatBinary = false;
    bool fortranCommon;
@@ -30,7 +31,7 @@ diff -up llvm-project-main/lld/ELF/Config.h.18~ llvm-project-main/lld/ELF/Config
    bool gnuUnique;
    bool hasDynSymTab;
    bool ignoreDataAddressEquality;
-@@ -295,7 +295,7 @@ struct Config {
+@@ -309,7 +309,7 @@ struct Config {
    bool useAndroidRelrTags = false;
    bool warnBackrefs;
    llvm::SmallVector<llvm::GlobPattern, 0> warnBackrefsExclude;
@@ -39,7 +40,7 @@ diff -up llvm-project-main/lld/ELF/Config.h.18~ llvm-project-main/lld/ELF/Config
    bool warnMissingEntry;
    bool warnSymbolOrdering;
    bool writeAddends;
-@@ -325,7 +325,7 @@ struct Config {
+@@ -340,7 +340,7 @@ struct Config {
    bool zWxneeded;
    DiscardPolicy discard;
    GnuStackKind zGnustack;
@@ -48,8 +49,8 @@ diff -up llvm-project-main/lld/ELF/Config.h.18~ llvm-project-main/lld/ELF/Config
    OrphanHandlingPolicy orphanHandling;
    SortSectionPolicy sortSection;
    StripPolicy strip;
-@@ -334,7 +334,7 @@ struct Config {
-   Target2Policy target2;
+@@ -350,7 +350,7 @@ struct Config {
+   GcsPolicy zGcs;
    bool power10Stubs;
    ARMVFPArgKind armVFPArgs = ARMVFPArgKind::Default;
 -  BuildIdKind buildId = BuildIdKind::None;
@@ -57,7 +58,7 @@ diff -up llvm-project-main/lld/ELF/Config.h.18~ llvm-project-main/lld/ELF/Config
    SeparateSegmentKind zSeparate;
    ELFKind ekind = ELFNoneKind;
    uint16_t emachine = llvm::ELF::EM_NONE;
-@@ -346,7 +346,7 @@ struct Config {
+@@ -362,7 +362,7 @@ struct Config {
    unsigned ltoPartitions;
    unsigned ltoo;
    llvm::CodeGenOptLevel ltoCgo;
@@ -66,10 +67,10 @@ diff -up llvm-project-main/lld/ELF/Config.h.18~ llvm-project-main/lld/ELF/Config
    StringRef thinLTOJobs;
    unsigned timeTraceGranularity;
    int32_t splitStackAdjustSize;
-diff -up llvm-project-main/lld/ELF/Driver.cpp.18~ llvm-project-main/lld/ELF/Driver.cpp
---- llvm-project-main/lld/ELF/Driver.cpp.18~	2024-01-21 20:42:53.887517785 +0100
-+++ llvm-project-main/lld/ELF/Driver.cpp	2024-01-21 20:42:53.895517859 +0100
-@@ -821,10 +821,10 @@ static int getMemtagMode(opt::InputArgLi
+diff -up llvm-project-release-19.x/lld/ELF/Driver.cpp.19~ llvm-project-release-19.x/lld/ELF/Driver.cpp
+--- llvm-project-release-19.x/lld/ELF/Driver.cpp.19~	2024-07-29 22:00:31.308234760 +0200
++++ llvm-project-release-19.x/lld/ELF/Driver.cpp	2024-07-29 22:02:13.073486536 +0200
+@@ -824,10 +824,10 @@ static int getMemtagMode(opt::InputArgLi
  
  static ICFLevel getICF(opt::InputArgList &args) {
    auto *arg = args.getLastArg(OPT_icf_none, OPT_icf_safe, OPT_icf_all);
@@ -83,7 +84,7 @@ diff -up llvm-project-main/lld/ELF/Driver.cpp.18~ llvm-project-main/lld/ELF/Driv
    return ICFLevel::All;
  }
  
-@@ -1288,7 +1288,7 @@ static void readConfigs(opt::InputArgLis
+@@ -1297,7 +1297,7 @@ static void readConfigs(opt::InputArgLis
        args.hasArg(OPT_fix_cortex_a8) && !args.hasArg(OPT_relocatable);
    config->fortranCommon =
        args.hasFlag(OPT_fortran_common, OPT_no_fortran_common, false);
@@ -92,7 +93,7 @@ diff -up llvm-project-main/lld/ELF/Driver.cpp.18~ llvm-project-main/lld/ELF/Driv
    config->gnuUnique = args.hasFlag(OPT_gnu_unique, OPT_no_gnu_unique, true);
    config->gdbIndex = args.hasFlag(OPT_gdb_index, OPT_no_gdb_index, false);
    config->icf = getICF(args);
-@@ -1441,7 +1441,7 @@ static void readConfigs(opt::InputArgLis
+@@ -1456,7 +1456,7 @@ static void readConfigs(opt::InputArgLis
        OPT_use_android_relr_tags, OPT_no_use_android_relr_tags, false);
    config->warnBackrefs =
        args.hasFlag(OPT_warn_backrefs, OPT_no_warn_backrefs, false);
@@ -101,12 +102,15 @@ diff -up llvm-project-main/lld/ELF/Driver.cpp.18~ llvm-project-main/lld/ELF/Driv
    config->warnSymbolOrdering =
        args.hasFlag(OPT_warn_symbol_ordering, OPT_no_warn_symbol_ordering, true);
    config->whyExtract = args.getLastArgValue(OPT_why_extract);
-@@ -2688,7 +2688,7 @@ void LinkerDriver::link(opt::InputArgLis
+@@ -1849,8 +1849,9 @@ static void setConfigs(opt::InputArgList
+   if (!args.hasArg(OPT_hash_style)) {
      if (config->emachine == EM_MIPS)
        config->sysvHash = true;
-     else
+-    else
 -      config->sysvHash = config->gnuHash = true;
-+      {config->sysvHash = false; config->gnuHash = true;}
++    else {
++      config->sysvHash = false; config->gnuHash = true;
++    }
    }
  
-   // Default output filename is "a.out" by the Unix tradition.
+   // Set default entry point and output file if not specified by command line or
