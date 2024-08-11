@@ -1,0 +1,13 @@
+diff -up llvm-project-release-19.x/libc/include/llvm-libc-macros/linux/fcntl-macros.h.omv~ llvm-project-release-19.x/libc/include/llvm-libc-macros/linux/fcntl-macros.h
+--- llvm-project-release-19.x/libc/include/llvm-libc-macros/linux/fcntl-macros.h.omv~	2024-08-11 18:55:17.274189727 +0100
++++ llvm-project-release-19.x/libc/include/llvm-libc-macros/linux/fcntl-macros.h	2024-08-11 18:55:57.944361846 +0100
+@@ -94,6 +94,9 @@
+ 
+ // For Large File Support
+ #if defined(_LARGEFILE64_SOURCE)
++#undef F_GETLK
++#undef F_SETLK
++#undef F_SETLKW
+ #define F_GETLK F_GETLK64
+ #define F_SETLK F_SETLK64
+ #define F_SETLKW F_SETLKW64

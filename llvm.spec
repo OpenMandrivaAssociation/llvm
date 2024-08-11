@@ -256,6 +256,7 @@ Patch61:	compiler-rt-no-Iusrinclude.patch
 # and we use %%autosetup for other patches...
 Source62:	llvm-10-default-compiler-rt.patch
 Patch63:	llvm-19-float128-buildfix.patch
+Patch64:	llvm-19-libc-aarch64-compile.patch
 # SPIR-V fixes
 #Patch90:	spirv-fix-warnings.patch
 Patch91:	SPRIV-Tools-soname.patch
