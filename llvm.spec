@@ -17,8 +17,8 @@
 %bcond_with skip64
 
 # (tpg) set snapshot date
-# 20240808 is close to 19.1.0-rc2
-%define gitdate 20240808
+# 20240903 is close to 19.1.0-rc4
+%define gitdate 20240903
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
