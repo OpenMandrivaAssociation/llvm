@@ -1,5 +1,5 @@
 sources:
-  llvm-19-20240808.tar.gz: f314ab31a0da0b36be11d850e093cb6101cc306f
-  spirv-llvm-translator-19.1.0.tar.gz: 1970ee0df17c3fd6648c3acef77e686a8bf28518
   2acb319af38d43be3ea76bfabf3998e5281d8d12.tar.gz: 6714c00a81f2888a1b2c624cdd5a574e123e8fa6
   0cfe9e7219148716dfd30b37f4d21753f098707a.tar.gz: db0c5ff7d5eb1414f2f78080fd188823971f791c
+  llvm-19-20240905.tar.gz: c073fa3aefb46be51d29d83f5d8114c35cd0a733
+  spirv-llvm-translator-19.1.0.tar.gz: cc6c14cf2bfea8c6eb685bd7261f275a7dc2837c

@@ -17,8 +17,8 @@
 %bcond_with skip64
 
 # (tpg) set snapshot date
-# 20240808 is close to 19.1.0-rc2
-%define gitdate 20240808
+# 20240905 is close to 19.1.0-rc4
+%define gitdate 20240905
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -163,9 +163,7 @@ Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{versio
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
 Release:	1
 %endif
-# Commits listed in https://github.com/KhronosGroup/glslang/blob/master/known_good.json as of 2024/08/05
-# Actually newer than "known good" to allow for SPV_INTEL_maximum_registers_extensions needed by
-# spirv-llvm-translator
+# Commits listed in https://github.com/KhronosGroup/glslang/blob/master/known_good.json as of 2024/09/05
 Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/2acb319af38d43be3ea76bfabf3998e5281d8d12.tar.gz
 Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/0cfe9e7219148716dfd30b37f4d21753f098707a.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
