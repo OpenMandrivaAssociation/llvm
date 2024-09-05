@@ -698,7 +698,6 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-mt
 %{_bindir}/llvm-readelf
 %endif
-%{_bindir}/llvm-cgdata
 %{_bindir}/prepare_builtins
 %{_bindir}/reduce-chunk-list
 %{_bindir}/UnicodeNameMappingGenerator
