@@ -1391,6 +1391,8 @@ intended to run in tandem with a build of a project or code base.
 %{_bindir}/scan-build
 %{_bindir}/scan-build-py
 %{_bindir}/scan-view
+%{_prefix}/lib/libear
+%{_prefix}/lib/libscanbuild
 %{_libexecdir}/ccc-analyzer
 %{_libexecdir}/c++-analyzer
 %{_libexecdir}/analyze-c++
