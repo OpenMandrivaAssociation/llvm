@@ -1390,8 +1390,6 @@ intended to run in tandem with a build of a project or code base.
 %{_bindir}/intercept-build
 %{_bindir}/scan-build
 %{_bindir}/scan-build-py
-%{_libdir}/libear
-%{_libdir}/libscanbuild
 %{_bindir}/scan-view
 %{_libexecdir}/ccc-analyzer
 %{_libexecdir}/c++-analyzer
