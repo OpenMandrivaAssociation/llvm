@@ -18,7 +18,7 @@
 
 # (tpg) set snapshot date
 # 20240905 is close to 19.1.0-rc4
-%define gitdate 20240905
+#define gitdate 20240905
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
