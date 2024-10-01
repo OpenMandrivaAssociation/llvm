@@ -147,7 +147,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	19.1.0
+Version:	19.1.1
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		http://llvm.org/
