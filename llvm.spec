@@ -150,7 +150,7 @@ Name:		llvm
 Version:	19.1.2
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
-Url:		http://llvm.org/
+Url:		https://llvm.org/
 %if 0%{?gitdate:1}
 # git archive-d from https://github.com/llvm/llvm-project
 Source0:	https://github.com/llvm/llvm-project/archive/%{?is_main:main}%{!?is_main:release/%{major1}.x}/llvm-%{major1}-%{gitdate}.tar.gz
@@ -1824,7 +1824,7 @@ existing compilers together.
 %package -n libclc
 Summary:	Core library of the OpenCL language runtime
 Group:		Development/Other
-Url:		http://libclc.llvm.org/
+Url:		https://libclc.llvm.org/
 
 %description -n libclc
 Core library of the OpenCL language runtime.
