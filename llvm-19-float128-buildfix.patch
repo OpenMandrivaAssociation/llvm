@@ -5,7 +5,7 @@ diff -up llvm-project-release-19.x/llvm/lib/Analysis/ConstantFolding.cpp.omv~ ll
  
    return GetConstantFoldFPValue128(Result, Ty);
  }
-+#if __clang__ < 19
++#if defined(__clang__) && __clang_major__ < 19
 +Constant *ConstantFoldFP128(_Float128 (*NativeFP)(_Float128),
 +                            const APFloat &V, Type *Ty) {
 +  llvm_fenv_clearexcept();
