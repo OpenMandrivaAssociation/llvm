@@ -495,7 +495,7 @@ BuildRequires:	pkgconfig(isl) >= 0.13
 BuildRequires:	pkgconfig(libtirpc)
 BuildRequires:	pkgconfig(libxml-2.0)
 BuildRequires:	pkgconfig(icu-i18n)
-%ifnarch riscv64
+%ifnarch %{riscv64}
 BuildRequires:	atomic-devel
 %endif
 BuildRequires:	python >= 3.4
@@ -563,6 +563,11 @@ BuildRequires:	libunwind-devel
 %endif
 %if %{with z3}
 BuildRequires:	pkgconfig(z3)
+%endif
+%if %{with rocm}
+# FIXME why?
+# hipcc links to libstdc++fs.a unconditionally. Is that really necessary?
+BuildRequires:	stdc++-static-devel
 %endif
 
 Obsoletes:	%{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
