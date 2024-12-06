@@ -464,6 +464,7 @@ BuildRequires:	chrpath
 BuildRequires:	groff
 BuildRequires:	libtool
 BuildRequires:	pkgconfig(ncursesw)
+BuildRequires:	python%{pyver}dist(numpy)
 BuildRequires:	python-sphinx
 # For sphinx plugins
 BuildRequires:	python%{pyver}dist(recommonmark)
