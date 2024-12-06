@@ -63,6 +63,8 @@
 # dynamic loader, or complete headers
 %bcond_without libc
 %bcond_without mlir
+%bcond_without rocm
+%bcond_without z3
 %ifarch %{arm} %{riscv}
 %ifarch %{arm} %{riscv}
 # RISC-V and armv7 don't have a working ocaml compiler yet
@@ -147,7 +149,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	19.1.4
+Version:	19.1.5
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		https://llvm.org/
@@ -168,6 +170,14 @@ Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/2acb319af38d43be
 Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/0cfe9e7219148716dfd30b37f4d21753f098707a.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
+# ROCm (AMD GPU Compute)
+# To create the tarball (inside llvm git):
+# git remote add amd https://github.com/ROCm/llvm-project.git
+# [Default branch is amd/amd-staging, but that usually requires
+# LLVM from master branch]
+# git archive -o ~/abf/llvm/amd-20241127.tar amd/aomp-19.0-3 amd
+# zstd --ultra -22 ~/abf/llvm/amd-*.tar
+Source30:	amd-20241127.tar.zst
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
@@ -488,6 +498,7 @@ BuildRequires:	pkgconfig(icu-i18n)
 BuildRequires:	atomic-devel
 %endif
 BuildRequires:	python >= 3.4
+BuildRequires:	python%{py_ver}dist(pybind11)
 BuildRequires:	python%{py_ver}dist(pyyaml)
 BuildRequires:	python%{py_ver}dist(pygments)
 BuildRequires:	python%{py_ver}dist(matplotlib-inline)
@@ -548,6 +559,9 @@ BuildRequires:	mesa-opencl-devel
 BuildRequires:	devel(libOpenCL)
 BuildRequires:	devel(libMesaOpenCL)
 BuildRequires:	libunwind-devel
+%endif
+%if %{with z3}
+BuildRequires:	pkgconfig(z3)
 %endif
 
 Obsoletes:	%{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
@@ -2057,9 +2071,9 @@ Libc implementation from the LLVM project
 
 %prep
 %if 0%{?gitdate:1}
-%setup -q -n llvm-project-%{?is_main:main}%{!?is_main:release-%{major1}.x} -a 20 -a 21 -a 22
+%setup -q -n llvm-project-%{?is_main:main}%{!?is_main:release-%{major1}.x} -a 20 -a 21 -a 22 -a 30
 %else
-%setup -q -n llvm-project-llvmorg-%{version} -a 20 -a 21 -a 22
+%setup -q -n llvm-project-llvmorg-%{version} -a 20 -a 21 -a 22 -a 30
 %endif
 mv SPIRV-LLVM-Translator-* llvm/projects/SPIRV-LLVM-Translator
 mv SPIRV-Headers-* llvm/projects/SPIRV-Headers
@@ -2194,7 +2208,25 @@ CPROCESSES="$PROCESSES"
 # because it doesn't exist at cmake time yet -- the drawback is that this breaks
 # major updates (llvm-spirv version X not working with llvm X+1) until the second
 # build
+#
+#
+# POLLY_BUNDLED_ISL:BOOL=OFF doesn't work because upstream ISL doesn't have an
+# "isl/isl-noexceptions.h" header
 %cmake \
+%if %{?cross_compiling}
+	-DCLANG=%{_bindir}/clang \
+	-DLLVM_TABLEGEN=%{_bindir}/llvm-tblgen \
+	-DOPT=%{_bindir}/opt \
+%endif
+	-DCLANG_BOLT:BOOL=ON \
+	-DCLANG_PYTHON_BINDINGS_VERSION=%{pyver} \
+	-DLLVM_ENABLE_CURL:BOOL=ON \
+%if %{with z3}
+	-DLLVM_ENABLE_Z3_SOLVER:BOOL=ON \
+%endif
+	-DLLVM_HAS_LOGF128:BOOL=ON \
+	-DLLVM_TOOL_PSTL_BUILD:BOOL=ON \
+	-DMLIR_ENABLE_BINDINGS_PYTHON:BOOL=ON \
 	-DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	-DLLVM_LIBGCC_EXPLICIT_OPT_IN=Yes \
 	-DFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON \
@@ -2213,6 +2245,7 @@ CPROCESSES="$PROCESSES"
 %endif
 	-DLLVM_TOOL_OPENMP_BUILD:BOOL=ON \
 	-DLLDB_USE_SYSTEM_SIX:BOOL=ON \
+	-DLLDB_SKIP_STRIP:BOOL=ON \
 %if %{cross_compiling}
 	-DLLDB_PYTHON_RELATIVE_PATH=%{_lib}/python%{pyver}/site-packages \
 	-DLLDB_PYTHON_EXE_RELATIVE_PATH=bin/python \
@@ -2222,6 +2255,7 @@ CPROCESSES="$PROCESSES"
 	-DLLVM_INCLUDE_TESTS:BOOL=OFF \
 %endif
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=ON \
+	-DCOMPILER_RT_ENABLE_SOFTWARE_INT128:BOOL=ON \
 	-DCLANG_VENDOR="OpenMandriva %{version}-%{release}" \
 	-DFLANG_VENDOR="OpenMandriva %{version}-%{release}" \
 	-DLLD_VENDOR="OpenMandriva %{version}-%{release}" \
@@ -2464,6 +2498,8 @@ EOF
 	-DBUILD_SHARED_LIBS:BOOL=OFF \
 	-DLLVM_BUILD_LLVM_DYLIB:BOOL=ON \
 	-DLLVM_LINK_LLVM_DYLIB:BOOL=ON \
+	-DLIBC_BUILD_GPU_LOADER:BOOL=ON \
+	-DLIBC_USE_NEW_HEADER_GEN:BOOL=ON \
 	-G Ninja \
 	../llvm
 %ninja_build
@@ -2561,6 +2597,40 @@ if [ -n "$XCRTARCHES" ]; then
 fi
 %endif
 
+%if %{with rocm}
+echo '===== ROCM ====='
+export LLVM_PROJECT="$(pwd)"
+export DEVICE_LIBS="$(pwd)/amd/device-libs"
+export COMGR="$(pwd)/amd/comgr"
+export HIPCC="$(pwd)/amd/hipcc"
+mkdir -p "$DEVICE_LIBS/build"
+cd "$DEVICE_LIBS"
+%cmake \
+	-DCMAKE_PREFIX_PATH="$LLVM_PROJECT/build;$DEVICE_LIBS/build" \
+	-DROCM_DEVICE_LIBS_BITCODE_INSTALL_LOC_NEW="%{_lib}/amdgcn" \
+	-G Ninja
+%ninja_build
+# Would be nice:
+#ninja_build test
+# But currently (19.0-3) fails with:
+#The following tests FAILED:
+#          9 - compile_fract__gfx600 (Failed)
+#         14 - compile_fract__gfx700 (Failed)
+cd ../../..
+
+echo '===== ROCM comgr ====='
+cd "$COMGR"
+%cmake \
+	-DCMAKE_PREFIX_PATH="$LLVM_PROJECT/build;$DEVICE_LIBS/build" \
+	-G Ninja
+%ninja_build
+
+echo '===== ROCM hipcc ====='
+cd "$HIPCC"
+%cmake \
+	-G Ninja
+%ninja_build
+%endif
 
 %install
 %if %{with ocaml}
@@ -2724,11 +2794,34 @@ mv %{buildroot}%{_prefix}/docs/html/html %{buildroot}%{_docdir}/llvm/doxygen-pol
 rm -rf %{buildroot}%{_prefix}/docs
 %endif
 
+# Python modules get installed to a weird place that is hardcoded...
+mv %{buildroot}%{_prefix}/python_packages/* %{buildroot}%{_libdir}/python%{pyver}
+rm -rf %{buildroot}%{_prefix}/python_packages
+
 %if %{with bootstrap}
 # Just amdgpu-arch and nvptx-arch without the rest of libclc
 # are entirely useless...
 rm -f %{buildroot}%{_bindir}/amdgpu-arch \
 	%{buildroot}%{_bindir}/nvptx-arch
+%endif
+
+%if %{with rocm}
+echo '===== ROCM ====='
+pwd
+export LLVM_PROJECT="$(pwd)"
+export DEVICE_LIBS="$(pwd)/amd/device-libs"
+export COMGR="$(pwd)/amd/comgr"
+export HIPCC="$(pwd)/amd/hipcc"
+cd "$DEVICE_LIBS"
+%ninja_install -C build
+
+echo '===== ROCM comgr ====='
+cd "$COMGR"
+%ninja_install -C build
+
+echo '===== ROCM hipcc ====='
+cd "$HIPCC"
+%ninja_install -C build
 %endif
 
 # This seems to be a build system glitch
@@ -2741,3 +2834,74 @@ rm -f %{buildroot}%{_prefix}/lib/libgomp.so
 # Not equally sure about this one... Are those object files installed on purpose?
 # Let's see if anything doesn't work if we don't package them...
 rm -rf %{buildroot}%{_libdir}/objects-Rel*
+
+%if %{with rocm}
+# Named this way to keep package naming from the old
+# "rocm-device-libs" source package
+%package -n rocm-device-libs
+Summary: AMD ROCm LLVM bitcode libraries
+
+%description -n rocm-device-libs
+This package contains a set of AMD specific device-side language runtime
+libraries in the form of bit code. Specifically:
+ - Open Compute library controls
+ - Open Compute Math library
+ - Open Compute Kernel library
+ - OpenCL built-in library
+ - HIP built-in library
+ - Heterogeneous Compute built-in library
+
+%files -n rocm-device-libs
+%{_libdir}/amdgcn
+%{_libdir}/cmake/AMDDeviceLibs
+%doc %{_docdir}/ROCm-Device-Libs
+
+# Named this way to keep package naming from the old
+# "rocm-compilersupport" source package
+%package -n rocm-comgr
+Summary: AMD ROCm LLVM related services
+
+%description -n rocm-comgr
+AMD ROCm LLVM related services
+
+%files -n rocm-comgr
+%{_libdir}/libamd_comgr.so.*
+
+%package -n rocm-comgr-devel
+Summary: AMD ROCm LLVM related services
+Requires: rocm-comgr-devel = %{EVRD}
+
+%description -n rocm-comgr-devel
+AMD ROCm LLVM related services
+
+%files -n rocm-comgr-devel
+%{_includedir}/amd_comgr/amd_comgr.h
+%{_libdir}/cmake/amd_comgr
+%doc %{_docdir}/amd_comgr
+
+# Named this way to keep package naming from the old
+# "rocclr" source package
+%package -n rocm-opencl-devel
+Summary: AMD ROCm LLVM related services
+
+%description -n rocm-opencl-devel
+AMD ROCm LLVM related services
+
+%files -n rocm-opencl-devel
+%{_bindir}/hip*
+%{_prefix}/hip
+%doc %{_docdir}/hipcc
+%endif
+
+%package -n python-mlir
+Summary: Python bindings for MLIR
+Group: Development/Python
+
+%description -n python-mlir
+Python bindings for MLIR
+
+%files -n python-mlir
+%{_libdir}/python%{pyver}/mlir_core
+%{_libdir}/libMLIRCAPIPythonTestDialect.a
+%{_libdir}/libMLIRPythonTestDialect.a
+%{_prefix}/src/python
