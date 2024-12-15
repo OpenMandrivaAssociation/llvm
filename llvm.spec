@@ -2875,7 +2875,7 @@ AMD ROCm LLVM related services
 
 %package -n rocm-comgr-devel
 Summary: AMD ROCm LLVM related services
-Requires: rocm-comgr-devel = %{EVRD}
+Requires: rocm-comgr = %{EVRD}
 
 %description -n rocm-comgr-devel
 AMD ROCm LLVM related services
