@@ -149,7 +149,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	19.1.5
+Version:	19.1.6
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		https://llvm.org/
@@ -165,9 +165,9 @@ Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{versio
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
 Release:	1
 %endif
-# Commits listed in https://github.com/KhronosGroup/glslang/blob/master/known_good.json as of 2024/09/05
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/2acb319af38d43be3ea76bfabf3998e5281d8d12.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/0cfe9e7219148716dfd30b37f4d21753f098707a.tar.gz
+# Commits listed in https://github.com/KhronosGroup/glslang/blob/master/known_good.json as of 2024/12/17
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/3f17b2af6784bfa2c5aa5dbb8e0e74a607dd8b3b.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/4d2f0b40bfe290dea6c6904dafdf7fd8328ba346.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # ROCm (AMD GPU Compute)
