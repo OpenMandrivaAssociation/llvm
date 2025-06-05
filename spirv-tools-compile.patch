@@ -1,31 +1,28 @@
-diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp
---- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.omv~	2023-01-12 20:22:29.085438581 +0100
-+++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp	2023-01-12 20:22:53.995578641 +0100
-@@ -237,8 +237,10 @@ std::ostream& operator<<(std::ostream& o
-       return os << "partially uniform";
-     case DivergenceAnalysis::DivergenceLevel::kDivergent:
-       return os << "divergent";
-+#ifndef __clang__ // clang complains about unreachable code, gcc complains about missing return
-     default:
-       return os << "<invalid divergence level>";
-+#endif
-   }
- }
- 
-diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp
---- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp.omv~	2023-01-12 19:45:59.651556828 +0100
-+++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp	2023-01-12 19:46:04.871594686 +0100
-@@ -233,6 +233,7 @@ void ConvertToSampledImagePass::FindUses
-       case spv::Op::OpImageQuerySamples:
-       case spv::Op::OpImageSparseFetch:
-         uses->push_back(user);
+diff -up llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_decorations.cpp.omv~ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_decorations.cpp
+--- llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_decorations.cpp.omv~	2025-04-27 04:00:13.814544131 +0200
++++ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_decorations.cpp	2025-04-27 04:00:28.009335910 +0200
+@@ -2178,6 +2178,7 @@ bool UsesExplicitLayout(ValidationState_
+                 vstate, type_inst->GetOperandAs<uint32_t>(2), cache);
+           }
+         }
 +	break;
+         default:
+           break;
+       }
+diff -up llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_interfaces.cpp.omv~ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_interfaces.cpp
+--- llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_interfaces.cpp.omv~	2025-04-27 04:03:11.283664074 +0200
++++ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_interfaces.cpp	2025-04-27 04:03:19.783290583 +0200
+@@ -664,6 +664,7 @@ spv_result_t ValidateStorageClass(Valida
+                  << "with a Storage Class of Input or Output.";
+         }
+       }
++      break;
        default:
          break;
      }
-diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp
---- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.omv~	2023-01-12 19:18:30.549949586 +0100
-+++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp	2023-01-12 19:18:40.143354597 +0100
+diff -up llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.omv~ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp
+--- llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp.omv~	2025-04-27 04:04:00.918240347 +0200
++++ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_memory.cpp	2025-04-27 04:04:05.199575387 +0200
 @@ -190,6 +190,7 @@ bool ContainsInvalidBool(ValidationState
          auto member_type = _.FindDef(member_type_id);
          if (ContainsInvalidBool(_, member_type, skip_builtin)) return true;
@@ -34,10 +31,10 @@ diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_m
      default:
        break;
    }
-diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp
---- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.omv~	2023-01-12 19:32:28.682444291 +0100
-+++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp	2023-01-12 19:32:42.275867913 +0100
-@@ -572,6 +572,7 @@ spv_result_t ValidateExecutionMode(Valid
+diff -up llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.omv~ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp
+--- llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp.omv~	2025-04-27 04:02:53.737559007 +0200
++++ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_mode_setting.cpp	2025-04-27 04:02:59.851336677 +0200
+@@ -726,6 +726,7 @@ spv_result_t ValidateExecutionMode(Valid
                      "execution model.";
          }
        }
@@ -45,10 +42,10 @@ diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_m
      default:
        break;
    }
-diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp
---- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.omv~	2023-01-12 19:40:07.615571806 +0100
-+++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp	2023-01-12 19:40:23.905699857 +0100
-@@ -63,6 +63,7 @@ spv_result_t PrimitivesPass(ValidationSt
+diff -up llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.omv~ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp
+--- llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp.omv~	2025-04-27 03:54:07.558856004 +0200
++++ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/val/validate_primitives.cpp	2025-04-27 03:54:24.337474559 +0200
+@@ -61,6 +61,7 @@ spv_result_t PrimitivesPass(ValidationSt
                 << ": expected Stream to be constant instruction";
        }
      }
@@ -56,14 +53,14 @@ diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_p
  
      default:
        break;
-diff -up llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_ray_tracing_reorder.cpp.omv~ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_ray_tracing_reorder.cpp
---- llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_ray_tracing_reorder.cpp.omv~	2023-01-12 19:44:23.884189271 +0100
-+++ llvm-project-15.0.7.src/llvm/projects/SPIRV-Tools/source/val/validate_ray_tracing_reorder.cpp	2023-01-12 19:44:33.920929996 +0100
-@@ -615,6 +615,7 @@ spv_result_t RayReorderNVPass(Validation
-                << "bits must be a 32-bit int scalar";
-       }
+diff -up llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp.omv~ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp
+--- llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp.omv~	2025-04-27 13:20:36.639336187 +0200
++++ llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/opt/convert_to_sampled_image_pass.cpp	2025-04-27 13:20:54.672666521 +0200
+@@ -232,6 +232,7 @@ void ConvertToSampledImagePass::FindUses
+       case spv::Op::OpImageQuerySamples:
+       case spv::Op::OpImageSparseFetch:
+         uses->push_back(user);
++	break;
+       default:
+         break;
      }
-+    break;
- 
-     default:
-       break;

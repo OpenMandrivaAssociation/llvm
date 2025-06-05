@@ -1,66 +1,49 @@
-diff -up llvm-project-release-19.x/clang/include/clang/Driver/Distro.h.1~ llvm-project-release-19.x/clang/include/clang/Driver/Distro.h
---- llvm-project-release-19.x/clang/include/clang/Driver/Distro.h.1~	2024-09-03 16:09:11.000000000 +0200
-+++ llvm-project-release-19.x/clang/include/clang/Driver/Distro.h	2024-09-05 14:19:06.507647381 +0200
-@@ -80,6 +80,8 @@ public:
-     UbuntuMantic,
+diff -up llvm-project-llvmorg-20.1.3/clang/include/clang/Driver/Distro.h.1~ llvm-project-llvmorg-20.1.3/clang/include/clang/Driver/Distro.h
+--- llvm-project-llvmorg-20.1.3/clang/include/clang/Driver/Distro.h.1~	2025-04-16 02:23:49.000000000 +0200
++++ llvm-project-llvmorg-20.1.3/clang/include/clang/Driver/Distro.h	2025-04-26 13:32:49.172926158 +0200
+@@ -81,6 +81,7 @@ public:
      UbuntuNoble,
      UbuntuOracular,
+     UbuntuPlucky,
 +    OpenMandriva,
-+    ROSA,
      UnknownDistro
    };
  
-@@ -138,6 +140,8 @@ public:
+@@ -139,6 +140,8 @@ public:
  
    bool IsGentoo() const { return DistroVal == Gentoo; }
  
-+  bool IsOpenMandriva() const { return DistroVal == OpenMandriva || DistroVal == ROSA; }
++  bool IsOpenMandriva() const { return DistroVal == OpenMandriva; }
 +
    /// @}
  };
  
-diff -up llvm-project-release-19.x/clang/lib/Driver/Distro.cpp.1~ llvm-project-release-19.x/clang/lib/Driver/Distro.cpp
---- llvm-project-release-19.x/clang/lib/Driver/Distro.cpp.1~	2024-09-03 16:09:11.000000000 +0200
-+++ llvm-project-release-19.x/clang/lib/Driver/Distro.cpp	2024-09-05 14:19:06.507647381 +0200
-@@ -33,7 +33,7 @@ static Distro::DistroType DetectOsReleas
-   Distro::DistroType Version = Distro::UnknownDistro;
- 
-   // Obviously this can be improved a lot.
--  for (StringRef Line : Lines)
-+  for (StringRef Line : Lines) {
-     if (Version == Distro::UnknownDistro && Line.starts_with("ID="))
-       Version = llvm::StringSwitch<Distro::DistroType>(Line.substr(3))
-                     .Case("alpine", Distro::AlpineLinux)
-@@ -45,6 +45,15 @@ static Distro::DistroType DetectOsReleas
+diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/Distro.cpp.1~ llvm-project-llvmorg-20.1.3/clang/lib/Driver/Distro.cpp
+--- llvm-project-llvmorg-20.1.3/clang/lib/Driver/Distro.cpp.1~	2025-04-16 02:23:49.000000000 +0200
++++ llvm-project-llvmorg-20.1.3/clang/lib/Driver/Distro.cpp	2025-04-26 12:59:32.929890559 +0200
+@@ -44,5 +44,7 @@ static Distro::DistroType DetectOsReleas
                      .Case("opensuse", Distro::OpenSUSE)
                      .Case("exherbo", Distro::Exherbo)
++                    .Case("openmandriva", Distro::OpenMandriva)
++                    .Case("\"openmandriva\"", Distro::OpenMandriva)
                      .Default(Distro::UnknownDistro);
-+    else if (Version == Distro::UnknownDistro && Line.starts_with("DISTRIB_ID=MandrivaLinux"))
-+      // It's one of the Mandriva successors -- will get details
-+      // from DISTRIB_DESCRIPTION
-+      Version = Distro::OpenMandriva;
-+    else if (Version == Distro::OpenMandriva && Line.starts_with("DISTRIB_DESCRIPTION=")) {
-+      if (Line.substr(20).find("ROSA") != StringRef::npos)
-+        Version = Distro::ROSA;
-+    }
-+  }
    return Version;
  }
- 
-diff -up llvm-project-release-19.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-release-19.x/clang/lib/Driver/ToolChains/Gnu.cpp
---- llvm-project-release-19.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~	2024-09-03 16:09:11.000000000 +0200
-+++ llvm-project-release-19.x/clang/lib/Driver/ToolChains/Gnu.cpp	2024-09-05 14:19:48.788112757 +0200
-@@ -2464,7 +2464,8 @@ void Generic_GCC::GCCInstallationDetecto
+diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp.1~	2025-04-16 02:23:49.000000000 +0200
++++ llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp	2025-04-26 13:33:34.168218370 +0200
+@@ -2417,7 +2417,9 @@ void Generic_GCC::GCCInstallationDetecto
+   // lists should shrink over time. Please don't add more elements to *Triples.
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
-       "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-redhat-linux",
--      "aarch64-suse-linux"};
-+      "aarch64-suse-linux", "aarch64-openmandriva-linux-gnu", "aarch64-openmandriva-linux-musl",
-+      "aarch64-openmandriva-linux-uclibc" };
+-      "aarch64-none-linux-gnu", "aarch64-redhat-linux", "aarch64-suse-linux"};
++      "aarch64-none-linux-gnu", "aarch64-redhat-linux", "aarch64-suse-linux",
++      "aarch64-openmandriva-linux-gnu", "aarch64-openmandriva-linux-musl",
++      "aarch64-openmandriva-linux-uclibc"};
    static const char *const AArch64beLibDirs[] = {"/lib"};
    static const char *const AArch64beTriples[] = {"aarch64_be-none-linux-gnu"};
  
-@@ -2473,7 +2474,28 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2426,7 +2428,28 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const ARMHFTriples[] = {"arm-linux-gnueabihf",
                                               "armv7hl-redhat-linux-gnueabi",
                                               "armv6hl-suse-linux-gnueabi",
@@ -90,7 +73,7 @@ diff -up llvm-project-release-19.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-p
    static const char *const ARMebLibDirs[] = {"/lib"};
    static const char *const ARMebTriples[] = {"armeb-linux-gnueabi"};
    static const char *const ARMebHFTriples[] = {
-@@ -2492,20 +2514,31 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2445,20 +2468,31 @@ void Generic_GCC::GCCInstallationDetecto
        "x86_64-pc-linux-gnu",    "x86_64-redhat-linux6E",
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-slackware-linux",
@@ -126,7 +109,7 @@ diff -up llvm-project-release-19.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-p
  
    static const char *const M68kLibDirs[] = {"/lib"};
    static const char *const M68kTriples[] = {"m68k-unknown-linux-gnu",
-@@ -2551,18 +2584,33 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2504,18 +2538,33 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const PPC64LibDirs[] = {"/lib64", "/lib"};
    static const char *const PPC64Triples[] = {"powerpc64-unknown-linux-gnu",
                                               "powerpc64-suse-linux",
@@ -164,19 +147,19 @@ diff -up llvm-project-release-19.x/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-p
  
    static const char *const SPARCv8LibDirs[] = {"/lib32", "/lib"};
    static const char *const SPARCv8Triples[] = {"sparc-linux-gnu",
-diff -up llvm-project-release-19.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project-release-19.x/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-project-release-19.x/clang/lib/Driver/ToolChains/Linux.cpp.1~	2024-09-03 16:09:11.000000000 +0200
-+++ llvm-project-release-19.x/clang/lib/Driver/ToolChains/Linux.cpp	2024-09-05 14:19:06.507647381 +0200
-@@ -175,7 +175,7 @@ std::string Linux::getMultiarchTriple(co
+diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp.1~	2025-04-16 02:23:49.000000000 +0200
++++ llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp	2025-04-26 13:33:56.515566887 +0200
+@@ -178,7 +178,7 @@ std::string Linux::getMultiarchTriple(co
    return TargetTriple.str();
  }
  
 -static StringRef getOSLibDir(const llvm::Triple &Triple, const ArgList &Args) {
 +static StringRef getOSLibDir(const Distro &distro, const llvm::Triple &Triple, const ArgList &Args) {
    if (Triple.isMIPS()) {
-     if (Triple.isAndroid()) {
-       StringRef CPUName;
-@@ -203,14 +203,15 @@ static StringRef getOSLibDir(const llvm:
+     // lib32 directory has a special meaning on MIPS targets.
+     // It contains N32 ABI binaries. Use this folder if produce
+@@ -197,14 +197,15 @@ static StringRef getOSLibDir(const llvm:
    // FIXME: This is a bit of a hack. We should really unify this code for
    // reasoning about oslibdir spellings with the lib dir spellings in the
    // GCCInstallationDetector, but that is a more significant refactoring.
@@ -195,7 +178,7 @@ diff -up llvm-project-release-19.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm
      return "lib32";
  
    return Triple.isArch32Bit() ? "lib" : "lib64";
-@@ -235,7 +236,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -229,7 +230,7 @@ Linux::Linux(const Driver &D, const llvm
    }
  
    if (Distro.IsOpenSUSE() || Distro.IsUbuntu() || Distro.IsAlpineLinux() ||
@@ -204,7 +187,7 @@ diff -up llvm-project-release-19.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm
      ExtraOpts.push_back("-z");
      ExtraOpts.push_back("relro");
    }
-@@ -304,7 +305,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -316,7 +317,7 @@ Linux::Linux(const Driver &D, const llvm
    // to the link paths.
    path_list &Paths = getFilePaths();
  
@@ -213,20 +196,20 @@ diff -up llvm-project-release-19.x/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm
    const std::string MultiarchTriple = getMultiarchTriple(D, Triple, SysRoot);
  
    // mips32: Debian multilib, we use /libo32, while in other case, /lib is
-diff -up llvm-project-release-19.x/llvm/include/llvm/TargetParser/Triple.h.1~ llvm-project-release-19.x/llvm/include/llvm/TargetParser/Triple.h
---- llvm-project-release-19.x/llvm/include/llvm/TargetParser/Triple.h.1~	2024-09-03 16:09:11.000000000 +0200
-+++ llvm-project-release-19.x/llvm/include/llvm/TargetParser/Triple.h	2024-09-05 14:19:06.507647381 +0200
+diff -up llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h.1~ llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h
+--- llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h.1~	2025-04-16 02:23:49.000000000 +0200
++++ llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h	2025-04-26 13:35:06.670351421 +0200
 @@ -194,7 +194,8 @@ public:
-     Mesa,
      SUSE,
      OpenEmbedded,
--    LastVendorType = OpenEmbedded
+     Intel,
+-    LastVendorType = Intel
 +    OpenMandriva,
 +    LastVendorType = OpenMandriva
    };
    enum OSType {
      UnknownOS,
-@@ -972,7 +973,7 @@ public:
+@@ -1013,7 +1014,7 @@ public:
      return (getArch() == Triple::ppc64 &&
              ((getOS() == Triple::FreeBSD &&
                (getOSMajorVersion() >= 13 || getOSVersion().empty())) ||
@@ -235,7 +218,7 @@ diff -up llvm-project-release-19.x/llvm/include/llvm/TargetParser/Triple.h.1~ ll
    }
  
    /// Tests whether the target 32-bit PowerPC uses Secure PLT.
-@@ -981,7 +982,7 @@ public:
+@@ -1022,7 +1023,7 @@ public:
              ((getOS() == Triple::FreeBSD &&
                (getOSMajorVersion() >= 13 || getOSVersion().empty())) ||
               getOS() == Triple::NetBSD || getOS() == Triple::OpenBSD ||
@@ -244,10 +227,10 @@ diff -up llvm-project-release-19.x/llvm/include/llvm/TargetParser/Triple.h.1~ ll
    }
  
    /// Tests whether the target is 32-bit RISC-V.
-diff -up llvm-project-release-19.x/llvm/lib/TargetParser/Triple.cpp.1~ llvm-project-release-19.x/llvm/lib/TargetParser/Triple.cpp
---- llvm-project-release-19.x/llvm/lib/TargetParser/Triple.cpp.1~	2024-09-03 16:09:11.000000000 +0200
-+++ llvm-project-release-19.x/llvm/lib/TargetParser/Triple.cpp	2024-09-05 14:19:06.507647381 +0200
-@@ -250,6 +250,7 @@ StringRef Triple::getVendorTypeName(Vend
+diff -up llvm-project-llvmorg-20.1.3/llvm/lib/TargetParser/Triple.cpp.1~ llvm-project-llvmorg-20.1.3/llvm/lib/TargetParser/Triple.cpp
+--- llvm-project-llvmorg-20.1.3/llvm/lib/TargetParser/Triple.cpp.1~	2025-04-16 02:23:49.000000000 +0200
++++ llvm-project-llvmorg-20.1.3/llvm/lib/TargetParser/Triple.cpp	2025-04-26 13:35:40.146700564 +0200
+@@ -267,6 +267,7 @@ StringRef Triple::getVendorTypeName(Vend
    case MipsTechnologies: return "mti";
    case NVIDIA: return "nvidia";
    case OpenEmbedded: return "oe";
@@ -255,11 +238,11 @@ diff -up llvm-project-release-19.x/llvm/lib/TargetParser/Triple.cpp.1~ llvm-proj
    case PC: return "pc";
    case SCEI: return "scei";
    case SUSE: return "suse";
-@@ -637,6 +638,7 @@ static Triple::VendorType parseVendor(St
-     .Case("mesa", Triple::Mesa)
-     .Case("suse", Triple::SUSE)
-     .Case("oe", Triple::OpenEmbedded)
-+    .Case("openmandriva", Triple::OpenMandriva)
-     .Default(Triple::UnknownVendor);
+@@ -664,6 +665,7 @@ static Triple::VendorType parseVendor(St
+       .Case("suse", Triple::SUSE)
+       .Case("oe", Triple::OpenEmbedded)
+       .Case("intel", Triple::Intel)
++      .Case("openmandriva", Triple::OpenMandriva)
+       .Default(Triple::UnknownVendor);
  }
  

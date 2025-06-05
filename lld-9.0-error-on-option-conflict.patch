@@ -1,33 +1,35 @@
-diff -up llvm-project-release-17.x/lld/ELF/Driver.cpp.19~ llvm-project-release-17.x/lld/ELF/Driver.cpp
---- llvm-project-release-17.x/lld/ELF/Driver.cpp.19~	2023-07-28 13:13:48.275614357 +0200
-+++ llvm-project-release-17.x/lld/ELF/Driver.cpp	2023-07-28 13:15:05.836007561 +0200
-@@ -352,8 +352,10 @@ static void initLLVM() {
- static void checkOptions() {
+diff -up llvm-project-llvmorg-20.1.3/lld/ELF/Driver.cpp.21~ llvm-project-llvmorg-20.1.3/lld/ELF/Driver.cpp
+--- llvm-project-llvmorg-20.1.3/lld/ELF/Driver.cpp.21~	2025-04-26 13:47:28.472623359 +0200
++++ llvm-project-llvmorg-20.1.3/lld/ELF/Driver.cpp	2025-04-26 13:50:37.337626610 +0200
+@@ -360,9 +360,11 @@ static void initLLVM() {
+ static void checkOptions(Ctx &ctx) {
    // The MIPS ABI as of 2016 does not support the GNU-style symbol lookup
    // table which is a relatively new feature.
--  if (config->emachine == EM_MIPS && config->gnuHash)
--    error("the .gnu.hash section is not compatible with the MIPS target");
-+  if (config->emachine == EM_MIPS && config->gnuHash) {
-+    warn("the .gnu.hash section is not compatible with the MIPS target, disabling");
-+    config->gnuHash = false;
+-  if (ctx.arg.emachine == EM_MIPS && ctx.arg.gnuHash)
+-    ErrAlways(ctx)
+-        << "the .gnu.hash section is not compatible with the MIPS target";
++  if (ctx.arg.emachine == EM_MIPS && ctx.arg.gnuHash) {
++    Warn(ctx)
++        << "the .gnu.hash section is not compatible with the MIPS target, disabling";
++    ctx.arg.gnuHash = false;
 +  }
  
-   if (config->emachine == EM_ARM) {
-     if (!config->cmseImplib) {
-@@ -412,8 +414,14 @@ static void checkOptions() {
-       error("-r and -shared may not be used together");
-     if (config->gdbIndex)
-       error("-r and --gdb-index may not be used together");
--    if (config->icf != ICFLevel::None)
--      error("-r and --icf may not be used together");
-+    if (config->gcSections) {
-+      warn("-r and --gc-sections may not be used together, disabling --gc-sections");
-+      config->gcSections = false;
+   if (ctx.arg.emachine == EM_ARM) {
+     if (!ctx.arg.cmseImplib) {
+@@ -422,8 +424,14 @@ static void checkOptions(Ctx &ctx) {
+       ErrAlways(ctx) << "-r and -shared may not be used together";
+     if (ctx.arg.gdbIndex)
+       ErrAlways(ctx) << "-r and --gdb-index may not be used together";
+-    if (ctx.arg.icf != ICFLevel::None)
+-      ErrAlways(ctx) << "-r and --icf may not be used together";
++    if (ctx.arg.gcSections) {
++      Warn(ctx) << "-r and --gc-sections may not be used together, disabling --gc-sections";
++      ctx.arg.gcSections = false;
 +    }
-+    if (config->icf != ICFLevel::None) {
-+      warn("-r and --icf may not be used together, disabling --icf");
-+      config->icf = ICFLevel::None;
++    if (ctx.arg.icf != ICFLevel::None) {
++      Warn(ctx) << "-r and --icf may not be used together, disabling --icf";
++      ctx.arg.icf = ICFLevel::None;
 +    }
-     if (config->pie)
-       error("-r and -pie may not be used together");
-     if (config->exportDynamic)
+     if (ctx.arg.pie)
+       ErrAlways(ctx) << "-r and -pie may not be used together";
+     if (ctx.arg.exportDynamic)

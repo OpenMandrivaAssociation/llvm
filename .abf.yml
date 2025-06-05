@@ -1,6 +1,5 @@
 sources:
-  amd-20241127.tar.zst: 007ef3b1893084fa919173c5102c7f2bc400c783
-  3f17b2af6784bfa2c5aa5dbb8e0e74a607dd8b3b.tar.gz: 069b5116e82ccbfe10afd7e9046aea8ffa7e02ac
-  4d2f0b40bfe290dea6c6904dafdf7fd8328ba346.tar.gz: 6717d0b8c80cb7f6cbad81a2f5ec702693953a18
-  llvmorg-19.1.7.tar.gz: a2bfa2c78d9858d508452d4f198d945441c6f8f8
-  spirv-llvm-translator-19.1.7.tar.gz: 428ec64fab779d131a814eddb48f153fc0ee772f
+  llvmorg-20.1.6.tar.gz: 390760e242ccf94a22620decf758061c0780058b
+  spirv-llvm-translator-20.1.6.tar.gz: ea445778748e5d27bfd50c427c6cf03f17561ea3
+  aa6cef192b8e693916eb713e7a9ccadf06062ceb.tar.gz: 0239dbbeb13e78f61c6a96cfdbccb43175a5b45c
+  a62abcb402009b9ca5975e6167c09f237f630e0e.tar.gz: 3ebb405491f607b6459b0ca81ad8b2a07befb264

@@ -1,19 +1,19 @@
-diff -up llvm-project-17.0.6.src/lld/ELF/Driver.cpp.omv~ llvm-project-17.0.6.src/lld/ELF/Driver.cpp
---- llvm-project-17.0.6.src/lld/ELF/Driver.cpp.omv~	2024-01-02 23:40:33.278538617 +0100
-+++ llvm-project-17.0.6.src/lld/ELF/Driver.cpp	2024-01-02 23:40:59.246840524 +0100
-@@ -1351,7 +1351,7 @@ static void readConfigs(opt::InputArgLis
-   config->trace = args.hasArg(OPT_trace);
-   config->undefined = args::getStrings(args, OPT_undefined);
-   config->undefinedVersion =
+diff -up llvm-project-llvmorg-20.1.3/lld/ELF/Driver.cpp.17~ llvm-project-llvmorg-20.1.3/lld/ELF/Driver.cpp
+--- llvm-project-llvmorg-20.1.3/lld/ELF/Driver.cpp.17~	2025-04-26 13:41:10.961575111 +0200
++++ llvm-project-llvmorg-20.1.3/lld/ELF/Driver.cpp	2025-04-26 13:41:57.295605007 +0200
+@@ -1488,7 +1488,7 @@ static void readConfigs(Ctx &ctx, opt::I
+   ctx.arg.trace = args.hasArg(OPT_trace);
+   ctx.arg.undefined = args::getStrings(args, OPT_undefined);
+   ctx.arg.undefinedVersion =
 -      args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, false);
 +      args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, true);
-   config->unique = args.hasArg(OPT_unique);
-   config->useAndroidRelrTags = args.hasFlag(
+   ctx.arg.unique = args.hasArg(OPT_unique);
+   ctx.arg.useAndroidRelrTags = args.hasFlag(
        OPT_use_android_relr_tags, OPT_no_use_android_relr_tags, false);
-diff -up llvm-project-17.0.6.src/lld/ELF/Options.td.omv~ llvm-project-17.0.6.src/lld/ELF/Options.td
---- llvm-project-17.0.6.src/lld/ELF/Options.td.omv~	2024-01-02 23:39:56.506111026 +0100
-+++ llvm-project-17.0.6.src/lld/ELF/Options.td	2024-01-02 23:41:13.059001099 +0100
-@@ -472,7 +472,7 @@ defm unresolved_symbols:
+diff -up llvm-project-llvmorg-20.1.3/lld/ELF/Options.td.17~ llvm-project-llvmorg-20.1.3/lld/ELF/Options.td
+--- llvm-project-llvmorg-20.1.3/lld/ELF/Options.td.17~	2025-04-16 02:23:49.000000000 +0200
++++ llvm-project-llvmorg-20.1.3/lld/ELF/Options.td	2025-04-26 13:41:11.002004352 +0200
+@@ -502,7 +502,7 @@ defm unresolved_symbols:
    Eq<"unresolved-symbols", "Determine how to handle unresolved symbols">;
  
  defm undefined_version: B<"undefined-version",
