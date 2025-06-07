@@ -1,5 +1,5 @@
 sources:
   llvmorg-20.1.6.tar.gz: 390760e242ccf94a22620decf758061c0780058b
-  spirv-llvm-translator-20.1.6.tar.gz: ea445778748e5d27bfd50c427c6cf03f17561ea3
   aa6cef192b8e693916eb713e7a9ccadf06062ceb.tar.gz: 0239dbbeb13e78f61c6a96cfdbccb43175a5b45c
   a62abcb402009b9ca5975e6167c09f237f630e0e.tar.gz: 3ebb405491f607b6459b0ca81ad8b2a07befb264
+  spirv-llvm-translator-20.1.6.tar.gz: 97dd15e9a363e357c652ce438bdccfd72aaed597

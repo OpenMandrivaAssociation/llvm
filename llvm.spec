@@ -203,6 +203,9 @@ Patch12:	spirv-tools-17.0-compile.patch
 Patch13:	llvm-3.8.0-fix-optlevel.patch
 Patch14:	llvm-10.0-fix-m32.patch
 Patch15:	spirv-llvm-translator-16.0.3-workaround-spirv-tools-crosscompile.patch
+# https://github.com/KhronosGroup/SPIRV-LLVM-Translator/issues/3217
+# https://github.com/KhronosGroup/SPIRV-LLVM-Translator/pull/3218
+Patch16:	spirv-llvm-translator-bug3217.patch
 #Patch16:	clang-rename-fix-linkage.patch
 Patch17:	llvm-16.0.3-plugin-api-searchpath-hack.patch
 Patch18:	lld-17.0.6-default-undefined-version.patch
@@ -2814,6 +2817,16 @@ rm -f %{buildroot}%{_prefix}/lib/libgomp.so
 # Not equally sure about this one... Are those object files installed on purpose?
 # Let's see if anything doesn't work if we don't package them...
 rm -rf %{buildroot}%{_libdir}/objects-Rel*
+
+%if ! %{?cross_compiling}
+%check
+# Relatively common bug:
+# llvm-spirv crashes on startup because
+# ": CommandLine Error: Option 'spirv-ext' registered more than once!"
+# "LLVM ERROR: inconsistency in registered CommandLine options"
+# So let's just make sure it runs...
+LD_LIBRARY_PATH=$(pwd)/%{_lib} ./build/bin/llvm-spirv --help
+%endif
 
 %package -n python-mlir
 Summary: Python bindings for MLIR
