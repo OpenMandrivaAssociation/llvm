@@ -441,6 +441,7 @@ BuildRequires:	flex
 BuildRequires:	pkgconfig(libedit)
 BuildRequires:	pkgconfig(libelf)
 BuildRequires:	pkgconfig(lua)
+BuildRequires:	cmake(tsl-robin-map)
 # libclc
 BuildRequires:	vulkan-headers
 BuildRequires:	pkgconfig(vulkan)
