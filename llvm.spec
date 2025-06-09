@@ -1042,6 +1042,7 @@ This package contains the development files for LLVM.
 %{_bindir}/%{name}-config
 %{_includedir}/%{name}
 %{_includedir}/%{name}-c
+%{_includedir}/offload
 %{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
 %exclude %{_libdir}/libLLVM-*.so
@@ -1596,6 +1597,17 @@ Python bindings to parts of the Clang library
 %{python_sitelib}/clang
 #-----------------------------------------------------------
 
+%package libgomp
+Summary:	LLVM's version of libgomp (the GCC variant of OpenMP)
+Group:		System/Libraries
+
+%description libgomp
+LLVM's version of libgomp (the GCC variant of OpenMP)
+
+%files libgomp
+%{_libdir}/libgomp.so.1
+
+#-----------------------------------------------------------
 %if %{with compat32}
 %package -n libllvm
 Summary:	32-bit LLVM library
@@ -1683,21 +1695,10 @@ Group:		Development/C
 Development files for the 32-bit OpenMP runtime.
 
 %files -n libomp-devel
-%{_includedir}/offload
 %{_prefix}/lib/libiomp5.so
 %{_prefix}/lib/libomp.so
 %{_prefix}/lib/cmake/openmp/FindOpenMPTarget.cmake
 %{_prefix}/lib/libarcher_static.a
-
-%package libgomp
-Summary:	LLVM's version of libgomp (the GCC variant of OpenMP)
-Group:		System/Libraries
-
-%description libgomp
-LLVM's version of libgomp (the GCC variant of OpenMP)
-
-%files libgomp
-%{_libdir}/libgomp.so.1
 
 %if "%{_lib}" != "lib"
 %package libgomp32
