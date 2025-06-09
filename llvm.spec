@@ -506,6 +506,8 @@ BuildRequires:	python-six
 BuildRequires:	cmake
 BuildRequires:	ninja
 BuildRequires:	which
+# For building libc++.a
+BuildRequires:	glibc-static-devel
 %if %{with apidox}
 BuildRequires:	doxygen
 %endif
