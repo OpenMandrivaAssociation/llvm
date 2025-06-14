@@ -12,17 +12,6 @@ diff -up llvm-project-llvmorg-20.1.6/llvm/projects/SPIRV-Tools/source/lint/diver
    }
  }
  
-diff -up llvm-project-llvmorg-20.1.7/build/projects/SPIRV-Tools/core_tables_body.inc.omv~ llvm-project-llvmorg-20.1.7/build/projects/SPIRV-Tools/core_tables_body.inc
---- llvm-project-llvmorg-20.1.7/build/projects/SPIRV-Tools/core_tables_body.inc.omv~	2025-06-14 01:03:08.240872413 +0200
-+++ llvm-project-llvmorg-20.1.7/build/projects/SPIRV-Tools/core_tables_body.inc	2025-06-14 02:39:33.003099936 +0200
-@@ -158,7 +158,6 @@ IndexRange ExtensionToIndexRange(Extensi
-     case Extension::kSPV_QCOM_image_processing2: return IR(4453, 27);
-     case Extension::kSPV_QCOM_tile_shading: return IR(4480, 22);
-     case Extension::kSPV_VALIDATOR_ignore_type_decl_unique: return IR(4502, 38);
--    default: break;
-   }
-   return {};
- }
 diff -up llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/source/parsed_operand.cpp.omv~ llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/source/parsed_operand.cpp
 --- llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/source/parsed_operand.cpp.omv~	2025-06-14 00:59:01.277782368 +0200
 +++ llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/source/parsed_operand.cpp	2025-06-14 00:59:09.146410872 +0200
@@ -34,3 +23,15 @@ diff -up llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/source/parsed_ope
            default:
              break;
          }
+diff -up llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/utils/ggt.py.omv~ llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/utils/ggt.py
+--- llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/utils/ggt.py.omv~	2025-06-14 03:39:04.454939678 +0200
++++ llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/utils/ggt.py	2025-06-14 03:39:46.600773748 +0200
+@@ -277,7 +277,7 @@ constexpr inline IndexRange IR(uint32_t
+         parts.append("IndexRange ExtensionToIndexRange(Extension extension) {\n  switch(extension) {")
+         for e in self.extensions:
+             parts.append('    case Extension::k{}: return {};'.format(e,self.context.AddString(e)))
+-        parts.append("    default: break;");
++        #parts.append("    default: break;");
+         parts.append('  }\n  return {};\n}\n');
+         self.body_decls.extend(parts)
+ 
