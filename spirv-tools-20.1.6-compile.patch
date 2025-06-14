@@ -12,3 +12,25 @@ diff -up llvm-project-llvmorg-20.1.6/llvm/projects/SPIRV-Tools/source/lint/diver
    }
  }
  
+diff -up llvm-project-llvmorg-20.1.7/build/projects/SPIRV-Tools/core_tables_body.inc.omv~ llvm-project-llvmorg-20.1.7/build/projects/SPIRV-Tools/core_tables_body.inc
+--- llvm-project-llvmorg-20.1.7/build/projects/SPIRV-Tools/core_tables_body.inc.omv~	2025-06-14 01:03:08.240872413 +0200
++++ llvm-project-llvmorg-20.1.7/build/projects/SPIRV-Tools/core_tables_body.inc	2025-06-14 02:39:33.003099936 +0200
+@@ -158,7 +158,6 @@ IndexRange ExtensionToIndexRange(Extensi
+     case Extension::kSPV_QCOM_image_processing2: return IR(4453, 27);
+     case Extension::kSPV_QCOM_tile_shading: return IR(4480, 22);
+     case Extension::kSPV_VALIDATOR_ignore_type_decl_unique: return IR(4502, 38);
+-    default: break;
+   }
+   return {};
+ }
+diff -up llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/source/parsed_operand.cpp.omv~ llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/source/parsed_operand.cpp
+--- llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/source/parsed_operand.cpp.omv~	2025-06-14 00:59:01.277782368 +0200
++++ llvm-project-llvmorg-20.1.7/llvm/projects/SPIRV-Tools/source/parsed_operand.cpp	2025-06-14 00:59:09.146410872 +0200
+@@ -70,6 +70,7 @@ void EmitNumericLiteral(std::ostream* ou
+                 *out << spvtools::utils::FloatProxy<float>(word);
+                 break;
+             }
++	    break;
+           default:
+             break;
+         }
