@@ -1,9 +1,9 @@
-diff -up llvm-project-main/llvm/projects/SPIRV-Tools/source/CMakeLists.txt.omv~ llvm-project-main/llvm/projects/SPIRV-Tools/source/CMakeLists.txt
---- llvm-project-main/llvm/projects/SPIRV-Tools/source/CMakeLists.txt.omv~	2022-01-20 03:25:09.014645513 +0100
-+++ llvm-project-main/llvm/projects/SPIRV-Tools/source/CMakeLists.txt	2022-01-20 03:25:28.159709186 +0100
-@@ -373,7 +373,7 @@ endfunction()
- # unlike the other SPIRV_TOOLS target, defaults to hidden symbol visibility.
- add_library(${SPIRV_TOOLS}-shared SHARED ${SPIRV_SOURCES})
+diff -up llvm-project-llvmorg-20.1.8/llvm/projects/SPIRV-Tools/source/CMakeLists.txt.41~ llvm-project-llvmorg-20.1.8/llvm/projects/SPIRV-Tools/source/CMakeLists.txt
+--- llvm-project-llvmorg-20.1.8/llvm/projects/SPIRV-Tools/source/CMakeLists.txt.41~	2025-07-02 16:43:24.000000000 +0200
++++ llvm-project-llvmorg-20.1.8/llvm/projects/SPIRV-Tools/source/CMakeLists.txt	2025-07-10 23:49:04.195787900 +0200
+@@ -343,7 +343,7 @@ if (SPIRV_TOOLS_USE_MIMALLOC)
+   target_link_libraries(${SPIRV_TOOLS}-shared PRIVATE mimalloc-static)
+ endif()
  spirv_tools_default_target_options(${SPIRV_TOOLS}-shared)
 -set_target_properties(${SPIRV_TOOLS}-shared PROPERTIES CXX_VISIBILITY_PRESET hidden)
 +set_target_properties(${SPIRV_TOOLS}-shared PROPERTIES CXX_VISIBILITY_PRESET hidden VERSION "${LLVM_VERSION_MAJOR}${LLVM_VERSION_SUFFIX}" SOVERSION "${LLVM_VERSION_MAJOR}${LLVM_VERSION_SUFFIX}")

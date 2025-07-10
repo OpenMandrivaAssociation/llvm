@@ -148,7 +148,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	20.1.7
+Version:	20.1.8
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
 Url:		https://llvm.org/
@@ -164,9 +164,9 @@ Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{versio
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{version}.tar.gz
 Release:	1
 %endif
-# Commits listed in https://github.com/KhronosGroup/glslang/blob/master/known_good.json as of 2025/06/13
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/3b9447dc98371e96b59a6225bd062a9867e1d203.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/6061b72049a037215dfaba87399e1910a97b350e.tar.gz
+# Commits listed in https://github.com/KhronosGroup/glslang/blob/master/known_good.json as of 2025/07/10
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/2a611a970fdbc41ac2e3e328802aed9985352dca.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/44c93ad924b647b0d803ef4c924251c4341b838b.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
@@ -1276,8 +1276,6 @@ as libraries and designed to be loosely-coupled and extensible.
 %dir %{_libdir}/clang/%{major1}/lib/*
 %{_libdir}/clang/%{major1}/lib/*/clang_rt*.o
 %{_libdir}/clang/%{major1}/lib/*/libclang_rt*.a
-%{_prefix}/lib/clang/%{major1}/lib/*/clang_rt*.o
-%{_prefix}/lib/clang/%{major1}/lib/*/libclang_rt*.a
 # No sanitizers on RISC-V yet, only static clang_rt
 %ifnarch %{riscv}
 %{_libdir}/clang/%{major1}/lib/*/libclang_rt*.so
@@ -2296,6 +2294,10 @@ CPROCESSES="$PROCESSES"
 %endif
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=OFF \
 	-DCOMPILER_RT_ENABLE_SOFTWARE_INT128:BOOL=ON \
+	-DCOMPILER_RT_INSTALL_BINARY_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
+	-DCOMPILER_RT_INSTALL_DATA_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
+	-DCOMPILER_RT_INSTALL_INCLUDE_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
+	-DCOMPILER_RT_INSTALL_LIBRARY_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
 	-DCLANG_VENDOR="OpenMandriva %{version}-%{release}" \
 	-DFLANG_VENDOR="OpenMandriva %{version}-%{release}" \
 	-DLLD_VENDOR="OpenMandriva %{version}-%{release}" \
@@ -2596,6 +2598,11 @@ if [ -n "$XCRTARCHES" ]; then
 		cmake \
 			../compiler-rt \
 			-DCMAKE_BUILD_TYPE=MinSizeRel \
+			-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR:BOOL=ON \
+			-DCOMPILER_RT_INSTALL_BINARY_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
+			-DCOMPILER_RT_INSTALL_DATA_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
+			-DCOMPILER_RT_INSTALL_INCLUDE_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
+			-DCOMPILER_RT_INSTALL_LIBRARY_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
 			-DLLVM_PARALLEL_LINK_JOBS=$LPROCESSES \
 			-DLLVM_PARALLEL_COMPILE_JOBS=$CPROCESSES \
 			-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
@@ -2631,8 +2638,9 @@ if [ -n "$XCRTARCHES" ]; then
 			-DCOMPILER_RT_BUILD_MEMPROF:BOOL=OFF \
 			-DCOMPILER_RT_BUILD_PROFILE:BOOL=OFF \
 			-DCOMPILER_RT_BUILD_XRAY:BOOL=OFF \
-			-DCOMPILER_RT_DEFAULT_TARGET_ONLY:BOOL=OFF
-		%make_build
+			-DCOMPILER_RT_DEFAULT_TARGET_ONLY:BOOL=OFF \
+			-G Ninja
+		%ninja_build
 		cd ..
 	done
 fi
@@ -2679,7 +2687,7 @@ XCRTARCHES="$XCRTARCHES ppc64le"
 %endif
 if [ -n "$XCRTARCHES" ]; then
     for arch in $XCRTARCHES; do
-	%make_install -C xbuild-crt-${arch}
+	%ninja_install -C xbuild-crt-${arch}
     done
 fi
 %endif
