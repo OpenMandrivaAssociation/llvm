@@ -64,3 +64,14 @@ diff -up llvm-project-llvmorg-20.1.3/llvm/projects/SPIRV-Tools/source/opt/conver
        default:
          break;
      }
+diff -up llvm-project-llvmorg-20.1.8/llvm/projects/SPIRV-Tools/source/opt/upgrade_memory_model.cpp.omv~ llvm-project-llvmorg-20.1.8/llvm/projects/SPIRV-Tools/source/opt/upgrade_memory_model.cpp
+--- llvm-project-llvmorg-20.1.8/llvm/projects/SPIRV-Tools/source/opt/upgrade_memory_model.cpp.omv~	2025-07-11 17:51:22.762044523 +0200
++++ llvm-project-llvmorg-20.1.8/llvm/projects/SPIRV-Tools/source/opt/upgrade_memory_model.cpp	2025-07-11 17:51:28.876420844 +0200
+@@ -405,6 +405,7 @@ std::pair<bool, bool> UpgradeMemoryModel
+ 
+         indices.push_back(constant_id);
+       }
++      break;
+     default:
+       break;
+   }
