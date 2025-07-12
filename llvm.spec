@@ -2294,9 +2294,9 @@ CPROCESSES="$PROCESSES"
 %endif
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=OFF \
 	-DCOMPILER_RT_ENABLE_SOFTWARE_INT128:BOOL=ON \
-	-DCOMPILER_RT_INSTALL_BINARY_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
-	-DCOMPILER_RT_INSTALL_DATA_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
-	-DCOMPILER_RT_INSTALL_INCLUDE_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
+	-DCOMPILER_RT_INSTALL_BINARY_DIR:PATH=%{_libdir}/clang/%{major1}/bin \
+	-DCOMPILER_RT_INSTALL_DATA_DIR:PATH=%{_libdir}/clang/%{major1}/share \
+	-DCOMPILER_RT_INSTALL_INCLUDE_DIR:PATH=%{_libdir}/clang/%{major1}/include \
 	-DCOMPILER_RT_INSTALL_LIBRARY_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
 	-DCLANG_VENDOR="OpenMandriva %{version}-%{release}" \
 	-DFLANG_VENDOR="OpenMandriva %{version}-%{release}" \
@@ -2599,9 +2599,9 @@ if [ -n "$XCRTARCHES" ]; then
 			../compiler-rt \
 			-DCMAKE_BUILD_TYPE=MinSizeRel \
 			-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR:BOOL=ON \
-			-DCOMPILER_RT_INSTALL_BINARY_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
-			-DCOMPILER_RT_INSTALL_DATA_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
-			-DCOMPILER_RT_INSTALL_INCLUDE_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
+			-DCOMPILER_RT_INSTALL_BINARY_DIR:PATH=%{_libdir}/clang/%{major1}/bin \
+			-DCOMPILER_RT_INSTALL_DATA_DIR:PATH=%{_libdir}/clang/%{major1}/share \
+			-DCOMPILER_RT_INSTALL_INCLUDE_DIR:PATH=%{_libdir}/clang/%{major1}/include \
 			-DCOMPILER_RT_INSTALL_LIBRARY_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
 			-DLLVM_PARALLEL_LINK_JOBS=$LPROCESSES \
 			-DLLVM_PARALLEL_COMPILE_JOBS=$CPROCESSES \
