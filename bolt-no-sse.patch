@@ -1,12 +1,12 @@
-diff -up llvm-project-main/bolt/runtime/CMakeLists.txt.omv~ llvm-project-main/bolt/runtime/CMakeLists.txt
---- llvm-project-main/bolt/runtime/CMakeLists.txt.omv~	2024-01-23 23:22:51.160781884 +0100
-+++ llvm-project-main/bolt/runtime/CMakeLists.txt	2024-01-23 23:23:00.660871669 +0100
-@@ -31,7 +31,7 @@ set(BOLT_RT_FLAGS
-   -fPIC
-   -mgeneral-regs-only)
+diff -up llvm-project-llvmorg-21.1.0-rc1/bolt/runtime/CMakeLists.txt.4~ llvm-project-llvmorg-21.1.0-rc1/bolt/runtime/CMakeLists.txt
+--- llvm-project-llvmorg-21.1.0-rc1/bolt/runtime/CMakeLists.txt.4~	2025-07-17 21:02:34.000000000 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/bolt/runtime/CMakeLists.txt	2025-07-18 01:36:26.723123221 +0200
+@@ -43,7 +43,7 @@ set(BOLT_RT_FLAGS
+ )
  if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
--  set(BOLT_RT_FLAGS ${BOLT_RT_FLAGS} "-mno-sse")
-+  set(BOLT_RT_FLAGS ${BOLT_RT_FLAGS} -mno-sse -mfpmath=387)
+   set(BOLT_RT_FLAGS ${BOLT_RT_FLAGS} 
+-    -mno-sse 
++    -mno-sse -mfpmath=387
+     -mgeneral-regs-only)
  endif()
- if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-   check_cxx_compiler_flag("-mno-outline-atomics" CXX_SUPPORTS_OUTLINE_ATOMICS)
+ if (CMAKE_SYSTEM_PROCESSOR MATCHES "riscv64")

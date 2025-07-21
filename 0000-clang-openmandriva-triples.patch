@@ -1,15 +1,15 @@
-diff -up llvm-project-llvmorg-20.1.3/clang/include/clang/Driver/Distro.h.1~ llvm-project-llvmorg-20.1.3/clang/include/clang/Driver/Distro.h
---- llvm-project-llvmorg-20.1.3/clang/include/clang/Driver/Distro.h.1~	2025-04-16 02:23:49.000000000 +0200
-+++ llvm-project-llvmorg-20.1.3/clang/include/clang/Driver/Distro.h	2025-04-26 13:32:49.172926158 +0200
-@@ -81,6 +81,7 @@ public:
-     UbuntuNoble,
+diff -up llvm-project-llvmorg-21.1.0-rc1/clang/include/clang/Driver/Distro.h.1~ llvm-project-llvmorg-21.1.0-rc1/clang/include/clang/Driver/Distro.h
+--- llvm-project-llvmorg-21.1.0-rc1/clang/include/clang/Driver/Distro.h.1~	2025-07-17 21:02:34.000000000 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/clang/include/clang/Driver/Distro.h	2025-07-18 01:34:53.525305314 +0200
+@@ -84,6 +84,7 @@ public:
      UbuntuOracular,
      UbuntuPlucky,
+     UbuntuQuesting,
 +    OpenMandriva,
      UnknownDistro
    };
  
-@@ -139,6 +140,8 @@ public:
+@@ -142,6 +143,8 @@ public:
  
    bool IsGentoo() const { return DistroVal == Gentoo; }
  
@@ -18,10 +18,11 @@ diff -up llvm-project-llvmorg-20.1.3/clang/include/clang/Driver/Distro.h.1~ llvm
    /// @}
  };
  
-diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/Distro.cpp.1~ llvm-project-llvmorg-20.1.3/clang/lib/Driver/Distro.cpp
---- llvm-project-llvmorg-20.1.3/clang/lib/Driver/Distro.cpp.1~	2025-04-16 02:23:49.000000000 +0200
-+++ llvm-project-llvmorg-20.1.3/clang/lib/Driver/Distro.cpp	2025-04-26 12:59:32.929890559 +0200
-@@ -44,5 +44,7 @@ static Distro::DistroType DetectOsReleas
+diff -up llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/Distro.cpp.1~ llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/Distro.cpp
+--- llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/Distro.cpp.1~	2025-07-17 21:02:34.000000000 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/Distro.cpp	2025-07-18 01:34:18.750359618 +0200
+@@ -43,6 +43,8 @@ static Distro::DistroType DetectOsReleas
+                     .Case("sles", Distro::OpenSUSE)
                      .Case("opensuse", Distro::OpenSUSE)
                      .Case("exherbo", Distro::Exherbo)
 +                    .Case("openmandriva", Distro::OpenMandriva)
@@ -29,10 +30,10 @@ diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/Distro.cpp.1~ llvm-project
                      .Default(Distro::UnknownDistro);
    return Version;
  }
-diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp
---- llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp.1~	2025-04-16 02:23:49.000000000 +0200
-+++ llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp	2025-04-26 13:33:34.168218370 +0200
-@@ -2417,7 +2417,9 @@ void Generic_GCC::GCCInstallationDetecto
+diff -up llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Gnu.cpp.1~	2025-07-17 21:02:34.000000000 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Gnu.cpp	2025-07-18 01:34:18.750587588 +0200
+@@ -2339,7 +2339,9 @@ void Generic_GCC::GCCInstallationDetecto
    // lists should shrink over time. Please don't add more elements to *Triples.
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
@@ -43,7 +44,7 @@ diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm
    static const char *const AArch64beLibDirs[] = {"/lib"};
    static const char *const AArch64beTriples[] = {"aarch64_be-none-linux-gnu"};
  
-@@ -2426,7 +2428,28 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2348,7 +2350,28 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const ARMHFTriples[] = {"arm-linux-gnueabihf",
                                               "armv7hl-redhat-linux-gnueabi",
                                               "armv6hl-suse-linux-gnueabi",
@@ -73,7 +74,7 @@ diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm
    static const char *const ARMebLibDirs[] = {"/lib"};
    static const char *const ARMebTriples[] = {"armeb-linux-gnueabi"};
    static const char *const ARMebHFTriples[] = {
-@@ -2445,20 +2468,31 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2367,20 +2390,31 @@ void Generic_GCC::GCCInstallationDetecto
        "x86_64-pc-linux-gnu",    "x86_64-redhat-linux6E",
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-slackware-linux",
@@ -109,7 +110,7 @@ diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm
  
    static const char *const M68kLibDirs[] = {"/lib"};
    static const char *const M68kTriples[] = {"m68k-unknown-linux-gnu",
-@@ -2504,18 +2538,33 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2426,18 +2460,33 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const PPC64LibDirs[] = {"/lib64", "/lib"};
    static const char *const PPC64Triples[] = {"powerpc64-unknown-linux-gnu",
                                               "powerpc64-suse-linux",
@@ -147,10 +148,10 @@ diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm
  
    static const char *const SPARCv8LibDirs[] = {"/lib32", "/lib"};
    static const char *const SPARCv8Triples[] = {"sparc-linux-gnu",
-diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp.1~	2025-04-16 02:23:49.000000000 +0200
-+++ llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp	2025-04-26 13:33:56.515566887 +0200
-@@ -178,7 +178,7 @@ std::string Linux::getMultiarchTriple(co
+diff -up llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Linux.cpp.1~	2025-07-17 21:02:34.000000000 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Linux.cpp	2025-07-18 01:34:18.750782246 +0200
+@@ -177,7 +177,7 @@ std::string Linux::getMultiarchTriple(co
    return TargetTriple.str();
  }
  
@@ -159,7 +160,7 @@ diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp.1~ ll
    if (Triple.isMIPS()) {
      // lib32 directory has a special meaning on MIPS targets.
      // It contains N32 ABI binaries. Use this folder if produce
-@@ -197,14 +197,15 @@ static StringRef getOSLibDir(const llvm:
+@@ -196,14 +196,15 @@ static StringRef getOSLibDir(const llvm:
    // FIXME: This is a bit of a hack. We should really unify this code for
    // reasoning about oslibdir spellings with the lib dir spellings in the
    // GCCInstallationDetector, but that is a more significant refactoring.
@@ -178,7 +179,7 @@ diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp.1~ ll
      return "lib32";
  
    return Triple.isArch32Bit() ? "lib" : "lib64";
-@@ -229,7 +230,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -228,7 +229,7 @@ Linux::Linux(const Driver &D, const llvm
    }
  
    if (Distro.IsOpenSUSE() || Distro.IsUbuntu() || Distro.IsAlpineLinux() ||
@@ -187,7 +188,7 @@ diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp.1~ ll
      ExtraOpts.push_back("-z");
      ExtraOpts.push_back("relro");
    }
-@@ -316,7 +317,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -315,7 +316,7 @@ Linux::Linux(const Driver &D, const llvm
    // to the link paths.
    path_list &Paths = getFilePaths();
  
@@ -196,10 +197,10 @@ diff -up llvm-project-llvmorg-20.1.3/clang/lib/Driver/ToolChains/Linux.cpp.1~ ll
    const std::string MultiarchTriple = getMultiarchTriple(D, Triple, SysRoot);
  
    // mips32: Debian multilib, we use /libo32, while in other case, /lib is
-diff -up llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h.1~ llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h
---- llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h.1~	2025-04-16 02:23:49.000000000 +0200
-+++ llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h	2025-04-26 13:35:06.670351421 +0200
-@@ -194,7 +194,8 @@ public:
+diff -up llvm-project-llvmorg-21.1.0-rc1/llvm/include/llvm/TargetParser/Triple.h.1~ llvm-project-llvmorg-21.1.0-rc1/llvm/include/llvm/TargetParser/Triple.h
+--- llvm-project-llvmorg-21.1.0-rc1/llvm/include/llvm/TargetParser/Triple.h.1~	2025-07-17 21:02:34.000000000 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/llvm/include/llvm/TargetParser/Triple.h	2025-07-18 01:34:18.750884008 +0200
+@@ -197,7 +197,8 @@ public:
      SUSE,
      OpenEmbedded,
      Intel,
@@ -209,7 +210,7 @@ diff -up llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h.1~ 
    };
    enum OSType {
      UnknownOS,
-@@ -1013,7 +1014,7 @@ public:
+@@ -1057,7 +1058,7 @@ public:
      return (getArch() == Triple::ppc64 &&
              ((getOS() == Triple::FreeBSD &&
                (getOSMajorVersion() >= 13 || getOSVersion().empty())) ||
@@ -218,7 +219,7 @@ diff -up llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h.1~ 
    }
  
    /// Tests whether the target 32-bit PowerPC uses Secure PLT.
-@@ -1022,7 +1023,7 @@ public:
+@@ -1066,7 +1067,7 @@ public:
              ((getOS() == Triple::FreeBSD &&
                (getOSMajorVersion() >= 13 || getOSVersion().empty())) ||
               getOS() == Triple::NetBSD || getOS() == Triple::OpenBSD ||
@@ -227,10 +228,10 @@ diff -up llvm-project-llvmorg-20.1.3/llvm/include/llvm/TargetParser/Triple.h.1~ 
    }
  
    /// Tests whether the target is 32-bit RISC-V.
-diff -up llvm-project-llvmorg-20.1.3/llvm/lib/TargetParser/Triple.cpp.1~ llvm-project-llvmorg-20.1.3/llvm/lib/TargetParser/Triple.cpp
---- llvm-project-llvmorg-20.1.3/llvm/lib/TargetParser/Triple.cpp.1~	2025-04-16 02:23:49.000000000 +0200
-+++ llvm-project-llvmorg-20.1.3/llvm/lib/TargetParser/Triple.cpp	2025-04-26 13:35:40.146700564 +0200
-@@ -267,6 +267,7 @@ StringRef Triple::getVendorTypeName(Vend
+diff -up llvm-project-llvmorg-21.1.0-rc1/llvm/lib/TargetParser/Triple.cpp.1~ llvm-project-llvmorg-21.1.0-rc1/llvm/lib/TargetParser/Triple.cpp
+--- llvm-project-llvmorg-21.1.0-rc1/llvm/lib/TargetParser/Triple.cpp.1~	2025-07-17 21:02:34.000000000 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/llvm/lib/TargetParser/Triple.cpp	2025-07-18 01:34:18.751007772 +0200
+@@ -268,6 +268,7 @@ StringRef Triple::getVendorTypeName(Vend
    case MipsTechnologies: return "mti";
    case NVIDIA: return "nvidia";
    case OpenEmbedded: return "oe";
@@ -238,7 +239,7 @@ diff -up llvm-project-llvmorg-20.1.3/llvm/lib/TargetParser/Triple.cpp.1~ llvm-pr
    case PC: return "pc";
    case SCEI: return "scei";
    case SUSE: return "suse";
-@@ -664,6 +665,7 @@ static Triple::VendorType parseVendor(St
+@@ -669,6 +670,7 @@ static Triple::VendorType parseVendor(St
        .Case("suse", Triple::SUSE)
        .Case("oe", Triple::OpenEmbedded)
        .Case("intel", Triple::Intel)

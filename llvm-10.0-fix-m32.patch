@@ -1,15 +1,15 @@
-diff -up llvm-project-release-17.x/clang/lib/Driver/ToolChains/Linux.cpp.13~ llvm-project-release-17.x/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-project-release-17.x/clang/lib/Driver/ToolChains/Linux.cpp.13~	2023-07-28 12:53:59.973831416 +0200
-+++ llvm-project-release-17.x/clang/lib/Driver/ToolChains/Linux.cpp	2023-07-28 12:56:58.821508870 +0200
-@@ -316,6 +316,7 @@ Linux::Linux(const Driver &D, const llvm
-         Paths);
+diff -up llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Linux.cpp.14~ llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Linux.cpp.14~	2025-07-18 01:39:15.469650317 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/clang/lib/Driver/ToolChains/Linux.cpp	2025-07-18 01:50:34.495238551 +0200
+@@ -328,6 +328,7 @@ Linux::Linux(const Driver &D, const llvm
    }
+   Generic_GCC::AddMultilibPaths(D, SysRoot, OSLibDir, MultiarchTriple, Paths);
  
-+  addPathIfExists(D, SysRoot + "/usr/" + MultiarchTriple + "/lib", Paths); // OMV 5.x+
-   addPathIfExists(D, concat(SysRoot, "/usr/lib", MultiarchTriple), Paths);
-   // 64-bit OpenEmbedded sysroots may not have a /usr/lib dir. So they cannot
-   // find /usr/lib64 as it is referenced as /usr/lib/../lib64. So we handle
-@@ -331,7 +332,12 @@ Linux::Linux(const Driver &D, const llvm
++  addPathIfExists(D, concat(SysRoot, "/usr", MultiarchTriple, "/lib"), Paths); // OMV 7.x+
+   addPathIfExists(D, concat(SysRoot, "/lib", MultiarchTriple), Paths);
+   addPathIfExists(D, concat(SysRoot, "/lib/..", OSLibDir), Paths);
+ 
+@@ -350,7 +351,12 @@ Linux::Linux(const Driver &D, const llvm
      addPathIfExists(D, concat(SysRoot, "/usr", OSLibDir, ABIName), Paths);
    }
  

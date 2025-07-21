@@ -1,7 +1,7 @@
-diff -up llvm-project-release-19.x/llvm/tools/gold/gold-plugin.cpp.13~ llvm-project-release-19.x/llvm/tools/gold/gold-plugin.cpp
---- llvm-project-release-19.x/llvm/tools/gold/gold-plugin.cpp.13~	2024-07-29 13:45:04.000000000 +0200
-+++ llvm-project-release-19.x/llvm/tools/gold/gold-plugin.cpp	2024-07-29 21:58:48.938984449 +0200
-@@ -271,9 +271,12 @@ namespace options {
+diff -up llvm-project-llvmorg-21.1.0-rc1/llvm/tools/gold/gold-plugin.cpp.13~ llvm-project-llvmorg-21.1.0-rc1/llvm/tools/gold/gold-plugin.cpp
+--- llvm-project-llvmorg-21.1.0-rc1/llvm/tools/gold/gold-plugin.cpp.13~	2025-07-17 21:02:34.000000000 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/llvm/tools/gold/gold-plugin.cpp	2025-07-18 01:36:58.104336909 +0200
+@@ -278,9 +278,12 @@ namespace options {
      } else if (opt.consume_front("cache-policy=")) {
        cache_policy = std::string(opt);
      } else if (opt.size() == 2 && opt[0] == 'O') {
@@ -17,12 +17,12 @@ diff -up llvm-project-release-19.x/llvm/tools/gold/gold-plugin.cpp.13~ llvm-proj
      } else if (opt.consume_front("jobs=")) {
        Parallelism = std::string(opt);
        if (!get_threadpool_strategy(opt))
-diff -up llvm-project-release-19.x/llvm/tools/llvm-lto/llvm-lto.cpp.13~ llvm-project-release-19.x/llvm/tools/llvm-lto/llvm-lto.cpp
---- llvm-project-release-19.x/llvm/tools/llvm-lto/llvm-lto.cpp.13~	2024-07-29 21:58:48.938984449 +0200
-+++ llvm-project-release-19.x/llvm/tools/llvm-lto/llvm-lto.cpp	2024-07-29 21:59:59.295842725 +0200
-@@ -961,8 +961,10 @@ int main(int argc, char **argv) {
-   // format.
-   PreserveInputDbgFormat = cl::boolOrDefault::BOU_FALSE;
+diff -up llvm-project-llvmorg-21.1.0-rc1/llvm/tools/llvm-lto/llvm-lto.cpp.13~ llvm-project-llvmorg-21.1.0-rc1/llvm/tools/llvm-lto/llvm-lto.cpp
+--- llvm-project-llvmorg-21.1.0-rc1/llvm/tools/llvm-lto/llvm-lto.cpp.13~	2025-07-17 21:02:34.000000000 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/llvm/tools/llvm-lto/llvm-lto.cpp	2025-07-18 01:38:36.361583709 +0200
+@@ -1001,8 +1001,10 @@ int main(int argc, char **argv) {
+   cl::HideUnrelatedOptions({&LTOCategory, &getColorCategory()});
+   cl::ParseCommandLineOptions(argc, argv, "llvm LTO linker\n");
  
 -  if (OptLevel < '0' || OptLevel > '3')
 -    error("optimization level must be between 0 and 3");
@@ -33,10 +33,10 @@ diff -up llvm-project-release-19.x/llvm/tools/llvm-lto/llvm-lto.cpp.13~ llvm-pro
  
    // Initialize the configured targets.
    InitializeAllTargets();
-diff -up llvm-project-release-19.x/llvm/tools/lto/lto.cpp.13~ llvm-project-release-19.x/llvm/tools/lto/lto.cpp
---- llvm-project-release-19.x/llvm/tools/lto/lto.cpp.13~	2024-07-29 13:45:04.000000000 +0200
-+++ llvm-project-release-19.x/llvm/tools/lto/lto.cpp	2024-07-29 21:58:48.938984449 +0200
-@@ -150,9 +150,12 @@ static void lto_add_attrs(lto_code_gen_t
+diff -up llvm-project-llvmorg-21.1.0-rc1/llvm/tools/lto/lto.cpp.13~ llvm-project-llvmorg-21.1.0-rc1/llvm/tools/lto/lto.cpp
+--- llvm-project-llvmorg-21.1.0-rc1/llvm/tools/lto/lto.cpp.13~	2025-07-17 21:02:34.000000000 +0200
++++ llvm-project-llvmorg-21.1.0-rc1/llvm/tools/lto/lto.cpp	2025-07-18 01:36:58.104750399 +0200
+@@ -154,9 +154,12 @@ static void lto_add_attrs(lto_code_gen_t
    LTOCodeGenerator *CG = unwrap(cg);
    CG->setAttrs(codegen::getMAttrs());
  

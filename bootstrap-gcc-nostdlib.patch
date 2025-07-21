@@ -1,15 +1,3 @@
-diff -up llvm-project-release-17.x/libunwind/cmake/config-ix.cmake.40~ llvm-project-release-17.x/libunwind/cmake/config-ix.cmake
---- llvm-project-release-17.x/libunwind/cmake/config-ix.cmake.40~	2023-08-14 10:42:15.000000000 +0200
-+++ llvm-project-release-17.x/libunwind/cmake/config-ix.cmake	2023-08-15 00:03:17.795102562 +0200
-@@ -32,7 +32,7 @@ endif()
- # configuration checks to avoid spurious link errors.
- 
- llvm_check_compiler_linker_flag(CXX "-nostdlib++" CXX_SUPPORTS_NOSTDLIBXX_FLAG)
--if (CXX_SUPPORTS_NOSTDLIBXX_FLAG)
-+if (CXX_SUPPORTS_NOSTDLIBXX_FLAG AND (NOT "${CMAKE_C_COMPILER}" MATCHES ".*gcc"))
-   set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -nostdlib++")
- else()
-   llvm_check_compiler_linker_flag(C "-nodefaultlibs" C_SUPPORTS_NODEFAULTLIBS_FLAG)
 diff -up llvm-project-release-17.x/libunwind/src/CMakeLists.txt.40~ llvm-project-release-17.x/libunwind/src/CMakeLists.txt
 diff -up llvm-project-release-17.x/runtimes/CMakeLists.txt.40~ llvm-project-release-17.x/runtimes/CMakeLists.txt
 --- llvm-project-release-17.x/runtimes/CMakeLists.txt.40~	2023-08-14 10:42:15.000000000 +0200
