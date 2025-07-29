@@ -19,7 +19,7 @@
 # (tpg) set snapshot date
 # 20250718 essentially matches 21.1.0-rc1
 #define gitdate 20250718
-%define relc rc1
+%define relc rc2
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -129,8 +129,8 @@
 #define is_main 1
 # Separate because SPIRV_LLVM_Translator and friends frequently tag
 # llvm_release_XXX branches only after the release
-%define spirv_is_main 1
-#undefine spirv_is_main
+#define spirv_is_main 1
+%undefine spirv_is_main
 
 %bcond_without crosscrt
 
@@ -549,11 +549,9 @@ BuildRequires:	libunwind-devel
 %endif
 %ifnarch %{riscv}
 BuildRequires:	pkgconfig(OpenCL)
-BuildRequires:	mesa-opencl-devel
 %endif
 %if %{with compat32} && ! %{with bootstrap32}
 BuildRequires:	devel(libOpenCL)
-BuildRequires:	devel(libMesaOpenCL)
 BuildRequires:	libunwind-devel
 %endif
 %if %{with z3}
