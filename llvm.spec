@@ -19,7 +19,7 @@
 # (tpg) set snapshot date
 # 20250718 essentially matches 21.1.0-rc1
 #define gitdate 20250718
-%define relc rc3
+#define relc rc3
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
