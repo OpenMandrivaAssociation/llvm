@@ -1,0 +1,77 @@
+diff -up llvm-project-llvmorg-21.1.0/openmp/runtime/src/kmp_runtime.cpp.omv~ llvm-project-llvmorg-21.1.0/openmp/runtime/src/kmp_runtime.cpp
+--- llvm-project-llvmorg-21.1.0/openmp/runtime/src/kmp_runtime.cpp.omv~	2025-08-28 14:24:28.121332327 +0200
++++ llvm-project-llvmorg-21.1.0/openmp/runtime/src/kmp_runtime.cpp	2025-08-28 14:26:41.198110523 +0200
+@@ -6903,7 +6903,11 @@ void __kmp_register_library_startup(void
+           // First, check whether environment-encoded address is mapped into
+           // addr space.
+           // If so, dereference it to see if it still has the right value.
+-          if (__kmp_is_address_mapped(flag_addr) && *flag_addr == flag_val) {
++	  int address_mapped = __kmp_is_address_mapped(flag_addr);
++	  if (address_mapped == -1) {
++            // Couldn't be determined (e.g. /proc not mounted)
++	    // Nothing to do here, because neighbor is already initialized to 0
++	  } else if (address_mapped && *flag_addr == flag_val) {
+             neighbor = 1;
+           } else {
+             // If not, then we know the other copy of the library is no longer
+diff -up llvm-project-llvmorg-21.1.0/openmp/runtime/src/z_Linux_util.cpp.omv~ llvm-project-llvmorg-21.1.0/openmp/runtime/src/z_Linux_util.cpp
+--- llvm-project-llvmorg-21.1.0/openmp/runtime/src/z_Linux_util.cpp.omv~	2025-08-28 13:39:47.795116293 +0200
++++ llvm-project-llvmorg-21.1.0/openmp/runtime/src/z_Linux_util.cpp	2025-08-28 14:23:12.728029550 +0200
+@@ -41,6 +41,9 @@
+ 
+ #if KMP_OS_LINUX
+ #include <sys/sysinfo.h>
++#include <sys/mount.h>
++#include <string.h>
++#include <stdlib.h>
+ #if KMP_USE_FUTEX
+ // We should really include <futex.h>, but that causes compatibility problems on
+ // different Linux* OS distributions that either require that you include (or
+@@ -2120,9 +2123,34 @@ int __kmp_is_address_mapped(void *addr)
+ 
+   char *name = __kmp_str_format("/proc/%d/maps", getpid());
+   FILE *file = NULL;
++  char *temp_proc = NULL;
+ 
+   file = fopen(name, "r");
+-  KMP_ASSERT(file != NULL);
++  if (file == NULL) {
++    // /proc may not be mounted [yet], e.g. inside a container or chroot
++    // Let's see if we have sufficient privileges to temporarily mount it
++    temp_proc = (char*)malloc(128);
++    snprintf(temp_proc, 128, "/tmp/omp_procXXXXXX");
++    if (!mkdtemp(temp_proc)) {
++      free(temp_proc);
++      return -1;
++    }
++    rc = mount("proc", temp_proc, "proc", 0, NULL);
++    if (rc != 0) {
++      rmdir(temp_proc);
++      free(temp_proc);
++      return -1;
++    }
++    snprintf(temp_proc + 19, 108, "/%d/maps", getpid());
++    file = fopen(temp_proc, "r");
++    temp_proc[19] = 0;
++    if (file == NULL) {
++      umount(temp_proc);
++      rmdir(temp_proc);
++      free(temp_proc);
++      return -1;
++    }
++  }
+ 
+   for (;;) {
+ 
+@@ -2150,6 +2178,11 @@ int __kmp_is_address_mapped(void *addr)
+ 
+   // Free resources.
+   fclose(file);
++  if (temp_proc) {
++    umount(temp_proc);
++    rmdir(temp_proc);
++    free(temp_proc);
++  }
+   KMP_INTERNAL_FREE(name);
+ #elif KMP_OS_FREEBSD
+   char *buf;
