@@ -162,7 +162,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	2
+Release:	3
 %endif
 # We usually package commits listed in
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
@@ -1980,13 +1980,14 @@ Summary:	Library for bi-directional translation between SPIR-V and LLVM IR
 Group:		Development/Tools
 # FIXME we may want to restore the shared lib here
 Obsoletes:	%{oldlibspirv} < %{EVRD}
+# There is no shared lib version of LLVMSPIRVLib
+Requires:	%{mklibname -d -s LLVMSPIRVLib}
 
 %description -n %{devspirv}
 Library for bi-directional translation between SPIR-V and LLVM IR.
 
 %files -n %{devspirv}
 %{_includedir}/LLVMSPIRVLib
-%{_libdir}/libLLVMSPIRVLib.a
 %{_libdir}/pkgconfig/LLVMSPIRVLib.pc
 
 %package -n spirv-tools
@@ -2839,6 +2840,28 @@ rm -f %{buildroot}%{_prefix}/lib/libgomp.so
 # Not equally sure about this one... Are those object files installed on purpose?
 # Let's see if anything doesn't work if we don't package them...
 rm -rf %{buildroot}%{_libdir}/objects-Rel*
+
+# Fix some x86_64-openmandriva-linux-gnu vs. x86_64-pc-linux-gnu confusion
+cd %{buildroot}%{_libdir}/clang/%{major1}/lib
+for i in *-pc-linux-gnu; do
+	[ -d "$i" ] || continue
+	OM="${i/-pc-/-openmandriva-}"
+	[ -d "$OM" ] || continue
+	# What we really should do here is
+	#	mv $i/* $OM
+	#	rmdir $i
+	#	ln -s $OM $i
+	# But there is the good old "rpm doesn't like replacing directories
+	# with symlinks" problem...
+	for j in $i/*; do
+		BN="$(basename $j)"
+		[ -e ${OM}/${BN} ] || ln -s ../$i/${BN} $OM/
+	done
+	for j in $OM/*; do
+		BN="$(basename $j)"
+		[ -e ${i}/${BN} ] || ln -s ../$OM/${BN} $i/
+	done
+done
 
 %if ! %{?cross_compiling}
 %check
