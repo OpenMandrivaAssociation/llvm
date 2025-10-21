@@ -147,7 +147,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	21.1.3%{?relc:~%{relc}}
+Version:	21.1.4%{?relc:~%{relc}}
 %define ver %(echo %{version} |cut -d'~' -f1)
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
@@ -168,8 +168,8 @@ Release:	1
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
 # As of 2025/07/18, we have to be slightly ahead of "known good" to get
 # OpConditionalExtensionINTEL
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/c8ad050fcb29e42a2f57d9f59e97488f465c436d.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/257a227fbadf8176ea386c7d8fb9b889cbf08640.tar.gz
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/01e0577914a75a2569c846778c2f93aa8e6feddd.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/7f2d9ee926f98fc77a3ed1e1e0f113b8c9c49458.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
@@ -2000,6 +2000,7 @@ Tools for working with SPIR-V, a language for running on GPUs.
 %files -n spirv-tools
 %{_bindir}/spirv-as
 %{_bindir}/spirv-cfg
+%{_bindir}/spirv-diff
 %{_bindir}/spirv-dis
 %{_bindir}/spirv-lesspipe.sh
 %{_bindir}/spirv-link
