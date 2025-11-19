@@ -147,7 +147,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	21.1.5%{?relc:~%{relc}}
+Version:	21.1.6%{?relc:~%{relc}}
 %define ver %(echo %{version} |cut -d'~' -f1)
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
