@@ -123,6 +123,7 @@
 %define ompmajor 1
 %define ompname %mklibname omp
 %define oldompname %mklibname omp %{ompmajor}
+%define libompdevel %mklibname -d omp
 
 %define major %(echo %{version} |cut -d. -f1-2)
 %define major1 %(echo %{version} |cut -d. -f1)
@@ -162,7 +163,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	1
+Release:	2
 %endif
 # We usually package commits listed in
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
@@ -1053,15 +1054,12 @@ This package contains the development files for LLVM.
 %exclude %{_libdir}/libLLVM-*.so
 %if %{with openmp}
 %exclude %{_libdir}/libomptarget.so
+%exclude %{_libdir}/libiomp5.so
+%exclude %{_libdir}/libomp.so
+%exclude %{_libdir}/libarcher_static.a
 %endif
 # FIXME this needs a real soname
 %exclude %{_libdir}/libSPIRV-Tools-shared.so
-%ifnarch %{arm} %{riscv}
-%{_libdir}/libarcher_static.a
-%endif
-%if %{with openmp}
-%exclude %{_libdir}/libomp.so
-%endif
 %if %{with libcxx}
 %exclude %{_libdir}/libc++abi.so
 %endif
@@ -1292,10 +1290,6 @@ as libraries and designed to be loosely-coupled and extensible.
 %endif
 %{_libdir}/clang/%{major1}/lib/*/liborc_rt*.a
 %{_libdir}/clang/%{major1}/include
-%if %{with openmp}
-%{_libdir}/cmake/openmp/FindOpenMPTarget.cmake
-%{_datadir}/gdb/python/ompd
-%endif
 
 #-----------------------------------------------------------
 
@@ -1693,6 +1687,23 @@ Group:		System/Libraries
 %{_prefix}/lib/libompd.so
 %{_prefix}/lib/libarcher.so
 
+%package -n %{libompdevel}
+Summary:	Development files for the OpenMP runtime
+Group:		Development/C
+
+%description -n %{libompdevel}
+Development files for the OpenMP runtime.
+
+%files -n %{libompdevel}
+%{_libdir}/libiomp5.so
+# %{_libdir}/libomp.so excluded intentionally, it's in %{libomp}
+%ifnarch %{arm} %{riscv}
+%{_libdir}/libarcher_static.a
+%endif
+%{_libdir}/cmake/openmp/FindOpenMPTarget.cmake
+%{_datadir}/gdb/python/ompd
+
+%if "%{_lib}" != "lib"
 %package -n libomp-devel
 Summary:	Development files for the 32-bit OpenMP runtime
 Group:		Development/C
@@ -1704,7 +1715,10 @@ Development files for the 32-bit OpenMP runtime.
 %{_prefix}/lib/libiomp5.so
 %{_prefix}/lib/libomp.so
 %{_prefix}/lib/cmake/openmp/FindOpenMPTarget.cmake
+%ifnarch %{arm} %{riscv}
 %{_prefix}/lib/libarcher_static.a
+%endif
+%endif
 
 %if "%{_lib}" != "lib"
 %package libgomp32
