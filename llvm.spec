@@ -1607,6 +1607,22 @@ LLVM's version of libgomp (the GCC variant of OpenMP)
 %files libgomp
 %{_libdir}/libgomp.so.1
 
+%package -n %{libompdevel}
+Summary:	Development files for the OpenMP runtime
+Group:		Development/C
+
+%description -n %{libompdevel}
+Development files for the OpenMP runtime.
+
+%files -n %{libompdevel}
+%{_libdir}/libiomp5.so
+# %{_libdir}/libomp.so excluded intentionally, it's in %{libomp}
+%ifnarch %{arm} %{riscv}
+%{_libdir}/libarcher_static.a
+%endif
+%{_libdir}/cmake/openmp/FindOpenMPTarget.cmake
+%{_datadir}/gdb/python/ompd
+
 #-----------------------------------------------------------
 %if %{with compat32}
 %package -n libllvm
@@ -1686,22 +1702,6 @@ Group:		System/Libraries
 # FIXME does this need a SOVERSION?
 %{_prefix}/lib/libompd.so
 %{_prefix}/lib/libarcher.so
-
-%package -n %{libompdevel}
-Summary:	Development files for the OpenMP runtime
-Group:		Development/C
-
-%description -n %{libompdevel}
-Development files for the OpenMP runtime.
-
-%files -n %{libompdevel}
-%{_libdir}/libiomp5.so
-# %{_libdir}/libomp.so excluded intentionally, it's in %{libomp}
-%ifnarch %{arm} %{riscv}
-%{_libdir}/libarcher_static.a
-%endif
-%{_libdir}/cmake/openmp/FindOpenMPTarget.cmake
-%{_datadir}/gdb/python/ompd
 
 %if "%{_lib}" != "lib"
 %package -n libomp-devel
