@@ -163,7 +163,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	2
+Release:	3
 %endif
 # We usually package commits listed in
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
@@ -494,17 +494,17 @@ BuildRequires:	pkgconfig(icu-i18n)
 BuildRequires:	atomic-devel
 %endif
 BuildRequires:	python >= 3.4
-BuildRequires:	python%{py_ver}dist(pybind11)
-BuildRequires:	python%{py_ver}dist(pyyaml)
-BuildRequires:	python%{py_ver}dist(pygments)
-BuildRequires:	python%{py_ver}dist(matplotlib-inline)
-BuildRequires:	python%{py_ver}dist(backcall)
-BuildRequires:	python%{py_ver}dist(prompt-toolkit)
-BuildRequires:	python%{py_ver}dist(pickleshare)
-BuildRequires:	python%{py_ver}dist(jedi)
-BuildRequires:	python%{py_ver}dist(ptyprocess)
+BuildRequires:	python%{pyver}dist(pybind11)
+BuildRequires:	python%{pyver}dist(pyyaml)
+BuildRequires:	python%{pyver}dist(pygments)
+BuildRequires:	python%{pyver}dist(matplotlib-inline)
+BuildRequires:	python%{pyver}dist(backcall)
+BuildRequires:	python%{pyver}dist(prompt-toolkit)
+BuildRequires:	python%{pyver}dist(pickleshare)
+BuildRequires:	python%{pyver}dist(jedi)
+BuildRequires:	python%{pyver}dist(ptyprocess)
 # Make sure lld doesn't install its own copy
-BuildRequires:	python-six
+BuildRequires:	python%{pyver}dist(six)
 BuildRequires:	cmake
 BuildRequires:	ninja
 BuildRequires:	which
@@ -536,7 +536,7 @@ BuildRequires:	devel(libffi)
 BuildRequires:	devel(libxml2)
 BuildRequires:	devel(libelf)
 BuildRequires:	devel(libedit)
-BuildRequires:	devel(libpython%{py_ver})
+BuildRequires:	devel(libpython%{pyver})
 BuildRequires:	libzstd-static-devel
 # For Polly
 BuildRequires:	devel(libgmp)
@@ -1496,7 +1496,7 @@ Development files for Flang, the LLVM Fortran compiler.
 %package -n lldb
 Summary:	Debugger from the LLVM toolchain
 Group:		Development/Other
-Requires:	python-six
+Requires:	python%{pyver}dist(six)
 Obsoletes:	%{_lib}lldb14 < %{EVRD}
 Obsoletes:	%{_lib}lldbIntelFeatures14 < %{EVRD}
 
