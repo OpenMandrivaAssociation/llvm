@@ -536,7 +536,6 @@ BuildRequires:	devel(libffi)
 BuildRequires:	devel(libxml2)
 BuildRequires:	devel(libelf)
 BuildRequires:	devel(libedit)
-BuildRequires:	devel(libpython%{pyver})
 BuildRequires:	libzstd-static-devel
 # For Polly
 BuildRequires:	devel(libgmp)
