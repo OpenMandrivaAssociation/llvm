@@ -148,7 +148,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	21.1.7%{?relc:~%{relc}}
+Version:	21.1.8%{?relc:~%{relc}}
 %define ver %(echo %{version} |cut -d'~' -f1)
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
@@ -163,14 +163,14 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	3
+Release:	1
 %endif
 # We usually package commits listed in
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
-# As of 2025/07/18, we have to be slightly ahead of "known good" to get
-# OpConditionalExtensionINTEL
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/01e0577914a75a2569c846778c2f93aa8e6feddd.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/7f2d9ee926f98fc77a3ed1e1e0f113b8c9c49458.tar.gz
+# Sometimes we have to get slightly ahead of "known good" to get
+# extensions required by mesa
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b824a462d4256d720bebb40e78b9eb8f78bbb305.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/70df43460a1bd19c84b841200052ab32b3ad2668.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
