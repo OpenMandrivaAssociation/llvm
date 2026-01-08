@@ -1,0 +1,24 @@
+diff -up llvm-project-llvmorg-21.1.8/compiler-rt/lib/builtins/CMakeLists.txt.omv~ llvm-project-llvmorg-21.1.8/compiler-rt/lib/builtins/CMakeLists.txt
+--- llvm-project-llvmorg-21.1.8/compiler-rt/lib/builtins/CMakeLists.txt.omv~	2026-01-08 15:20:36.833621960 +0000
++++ llvm-project-llvmorg-21.1.8/compiler-rt/lib/builtins/CMakeLists.txt	2026-01-08 15:21:01.583681830 +0000
+@@ -951,7 +951,8 @@ else ()
+       # For RISCV32, we must force enable int128 for compiling long
+       # double routines.
+       if(COMPILER_RT_ENABLE_SOFTWARE_INT128 OR "${arch}" STREQUAL "riscv32")
+-        list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
++	      # (not while we bootstrap with gcc)
++	      #        list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
+       endif()
+ 
+       add_compiler_rt_runtime(clang_rt.builtins
+diff -up llvm-project-llvmorg-21.1.8/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.omv~ llvm-project-llvmorg-21.1.8/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp
+--- llvm-project-llvmorg-21.1.8/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp.omv~	2026-01-08 17:23:55.311149105 +0000
++++ llvm-project-llvmorg-21.1.8/llvm/projects/SPIRV-Tools/source/lint/divergence_analysis.cpp	2026-01-08 17:24:16.011156863 +0000
+@@ -240,6 +240,7 @@ std::ostream& operator<<(std::ostream& o
+ /*    default:
+       return os << "<invalid divergence level>";*/
+   }
++  return os;
+ }
+ 
+ }  // namespace lint

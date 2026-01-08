@@ -176,6 +176,9 @@ Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/70df43460a1bd19c84
 # For compatibility with the nongnu.org libunwind
 Source50:	libunwind.pc.in
 Source1000:	llvm.rpmlintrc
+# Not added as a Patch: because while it fixes gcc, it breaks
+# clang -- we have to apply it conditionally.
+Source2000:	llvm-fix-bootstrap-with-gcc.patch
 # Adjust search paths to match the OS
 Patch1:		0000-clang-openmandriva-triples.patch
 # ARM hardfloat hack
@@ -2150,6 +2153,10 @@ sed -i -e "s,5\.3,$LUAVER,g" lldb/test/API/lua_api/TestLuaAPI.py lldb/CMakeLists
 # Let's make sure we replace its outdated copy (which doesn't
 # know what riscv64 is) with a current version.
 %config_update
+
+%if %{cross_compiling}
+patch -p1 -b -z .2000~ <%{S:2000}
+%endif
 
 %build
 # FIXME do we need to enable cross-project-tests anywhere?
