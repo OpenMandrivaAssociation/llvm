@@ -22,3 +22,15 @@ diff -up llvm-project-llvmorg-21.1.8/llvm/projects/SPIRV-Tools/source/lint/diver
  }
  
  }  // namespace lint
+diff -up llvm-project-llvmorg-21.1.8/libc/CMakeLists.txt.omv~ llvm-project-llvmorg-21.1.8/libc/CMakeLists.txt
+--- llvm-project-llvmorg-21.1.8/libc/CMakeLists.txt.omv~	2026-01-10 15:45:00.354043936 +0000
++++ llvm-project-llvmorg-21.1.8/libc/CMakeLists.txt	2026-01-10 15:45:08.194061449 +0000
+@@ -34,7 +34,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+   add_definitions("-D_DEBUG")
+ endif()
+ 
+-add_definitions("-Wno-error=#warnings")
++#add_definitions("-Wno-error=#warnings")
+ 
+ # Default to C++17
+ set(CMAKE_CXX_STANDARD 17)
