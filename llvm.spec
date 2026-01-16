@@ -568,47 +568,189 @@ Obsoletes:	%{mklibname LLVMRISCVInfo 5} < %{EVRD}
 Obsoletes:	%{mklibname lldConfig 5} < %{EVRD}
 
 %if %{with crosscrt}
-%ifnarch %{aarch64}
+%ifarch %{aarch64}
+%if "%{_gnu}" == "-gnu"
 BuildRequires:	cross-aarch64-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-aarch64-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-aarch64-openmandriva-linux-gnu-libc
 BuildRequires:	cross-aarch64-openmandriva-linux-gnu-kernel-headers
 %endif
-%ifnarch %{arm}
+%if "%{_gnu}" != "-musl"
+BuildRequires:	cross-aarch64-openmandriva-linux-musl-binutils
+BuildRequires:	cross-aarch64-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-aarch64-openmandriva-linux-musl-libc
+BuildRequires:	cross-aarch64-openmandriva-linux-musl-kernel-headers
+%endif
+%else
+BuildRequires:	cross-aarch64-openmandriva-linux-gnu-binutils
+BuildRequires:	cross-aarch64-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-aarch64-openmandriva-linux-gnu-libc
+BuildRequires:	cross-aarch64-openmandriva-linux-gnu-kernel-headers
+BuildRequires:	cross-aarch64-openmandriva-linux-musl-binutils
+BuildRequires:	cross-aarch64-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-aarch64-openmandriva-linux-musl-libc
+BuildRequires:	cross-aarch64-openmandriva-linux-musl-kernel-headers
+%endif
+%ifarch %{arm}
+%if "%{_gnu}" != "-gnueabihf"
 BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-binutils
 BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-gcc-bootstrap
 BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-libc
 BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-kernel-headers
 %endif
-%ifnarch %{ix86}
+%if "%{_gnu}" != "-musleabihf"
+BuildRequires:	cross-armv7hnl-openmandriva-linux-musleabihf-binutils
+BuildRequires:	cross-armv7hnl-openmandriva-linux-musleabihf-gcc-bootstrap
+BuildRequires:	cross-armv7hnl-openmandriva-linux-musleabihf-libc
+BuildRequires:	cross-armv7hnl-openmandriva-linux-musleabihf-kernel-headers
+%endif
+%else
+BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-binutils
+BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-gcc-bootstrap
+BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-libc
+BuildRequires:	cross-armv7hnl-openmandriva-linux-gnueabihf-kernel-headers
+BuildRequires:	cross-armv7hnl-openmandriva-linux-musleabihf-binutils
+BuildRequires:	cross-armv7hnl-openmandriva-linux-musleabihf-gcc-bootstrap
+BuildRequires:	cross-armv7hnl-openmandriva-linux-musleabihf-libc
+BuildRequires:	cross-armv7hnl-openmandriva-linux-musleabihf-kernel-headers
+%endif
+%ifarch %{ix86}
+%if "%{_gnu}" != "-gnu"
 BuildRequires:	cross-i686-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-i686-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-i686-openmandriva-linux-gnu-libc
 BuildRequires:	cross-i686-openmandriva-linux-gnu-kernel-headers
 %endif
-%ifnarch ppc64le
+%if "%{_gnu}" != "-musl"
+BuildRequires:	cross-i686-openmandriva-linux-musl-binutils
+BuildRequires:	cross-i686-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-i686-openmandriva-linux-musl-libc
+BuildRequires:	cross-i686-openmandriva-linux-musl-kernel-headers
+%endif
+%else
+BuildRequires:	cross-i686-openmandriva-linux-gnu-binutils
+BuildRequires:	cross-i686-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-i686-openmandriva-linux-gnu-libc
+BuildRequires:	cross-i686-openmandriva-linux-gnu-kernel-headers
+BuildRequires:	cross-i686-openmandriva-linux-musl-binutils
+BuildRequires:	cross-i686-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-i686-openmandriva-linux-musl-libc
+BuildRequires:	cross-i686-openmandriva-linux-musl-kernel-headers
+%endif
+%ifarch ppc64le
+%if "%{_gnu}" != "-gnu"
 BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-libc
 BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-kernel-headers
 %endif
-%ifnarch ppc64
+%if "%{_gnu}" != "-musl"
+BuildRequires:	cross-ppc64le-openmandriva-linux-musl-binutils
+BuildRequires:	cross-ppc64le-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-ppc64le-openmandriva-linux-musl-libc
+BuildRequires:	cross-ppc64le-openmandriva-linux-musl-kernel-headers
+%endif
+%else
+BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-binutils
+BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-libc
+BuildRequires:	cross-ppc64le-openmandriva-linux-gnu-kernel-headers
+BuildRequires:	cross-ppc64le-openmandriva-linux-musl-binutils
+BuildRequires:	cross-ppc64le-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-ppc64le-openmandriva-linux-musl-libc
+BuildRequires:	cross-ppc64le-openmandriva-linux-musl-kernel-headers
+%endif
+%ifarch ppc64
+%if "%{_gnu}" != "-gnu"
 BuildRequires:	cross-ppc64-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-ppc64-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-ppc64-openmandriva-linux-gnu-libc
 BuildRequires:	cross-ppc64-openmandriva-linux-gnu-kernel-headers
 %endif
-%ifnarch %{riscv64}
+%if "%{_gnu}" != "-musl"
+BuildRequires:	cross-ppc64-openmandriva-linux-musl-binutils
+BuildRequires:	cross-ppc64-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-ppc64-openmandriva-linux-musl-libc
+BuildRequires:	cross-ppc64-openmandriva-linux-musl-kernel-headers
+%endif
+%else
+BuildRequires:	cross-ppc64-openmandriva-linux-gnu-binutils
+BuildRequires:	cross-ppc64-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-ppc64-openmandriva-linux-gnu-libc
+BuildRequires:	cross-ppc64-openmandriva-linux-gnu-kernel-headers
+BuildRequires:	cross-ppc64-openmandriva-linux-musl-binutils
+BuildRequires:	cross-ppc64-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-ppc64-openmandriva-linux-musl-libc
+BuildRequires:	cross-ppc64-openmandriva-linux-musl-kernel-headers
+%endif
+%ifarch %{riscv64}
+%if "%{_gnu}" != "-gnu"
 BuildRequires:	cross-riscv64-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-riscv64-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-riscv64-openmandriva-linux-gnu-libc
 BuildRequires:	cross-riscv64-openmandriva-linux-gnu-kernel-headers
 %endif
-%ifnarch %{x86_64}
+%if "%{_gnu}" != "-musl"
+BuildRequires:	cross-riscv64-openmandriva-linux-musl-binutils
+BuildRequires:	cross-riscv64-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-riscv64-openmandriva-linux-musl-libc
+BuildRequires:	cross-riscv64-openmandriva-linux-musl-kernel-headers
+%endif
+%else
+BuildRequires:	cross-riscv64-openmandriva-linux-gnu-binutils
+BuildRequires:	cross-riscv64-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-riscv64-openmandriva-linux-gnu-libc
+BuildRequires:	cross-riscv64-openmandriva-linux-gnu-kernel-headers
+BuildRequires:	cross-riscv64-openmandriva-linux-musl-binutils
+BuildRequires:	cross-riscv64-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-riscv64-openmandriva-linux-musl-libc
+BuildRequires:	cross-riscv64-openmandriva-linux-musl-kernel-headers
+%endif
+%ifarch %{x86_64}
+%if "%{_gnu}" != "-gnu"
 BuildRequires:	cross-x86_64-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-x86_64-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-x86_64-openmandriva-linux-gnu-libc
 BuildRequires:	cross-x86_64-openmandriva-linux-gnu-kernel-headers
+%endif
+%if "%{_gnu}" != "-musl"
+BuildRequires:	cross-x86_64-openmandriva-linux-musl-binutils
+BuildRequires:	cross-x86_64-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-x86_64-openmandriva-linux-musl-libc
+BuildRequires:	cross-x86_64-openmandriva-linux-musl-kernel-headers
+%endif
+%else
+BuildRequires:	cross-x86_64-openmandriva-linux-gnu-binutils
+BuildRequires:	cross-x86_64-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-x86_64-openmandriva-linux-gnu-libc
+BuildRequires:	cross-x86_64-openmandriva-linux-gnu-kernel-headers
+BuildRequires:	cross-x86_64-openmandriva-linux-musl-binutils
+BuildRequires:	cross-x86_64-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-x86_64-openmandriva-linux-musl-libc
+BuildRequires:	cross-x86_64-openmandriva-linux-musl-kernel-headers
+%endif
+%ifarch %{loongarch64}
+%if "%{_gnu}" != "-gnu"
+BuildRequires:	cross-loongarch64-openmandriva-linux-gnu-binutils
+BuildRequires:	cross-loongarch64-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-loongarch64-openmandriva-linux-gnu-libc
+BuildRequires:	cross-loongarch64-openmandriva-linux-gnu-kernel-headers
+%endif
+%if "%{_gnu}" != "-musl"
+BuildRequires:	cross-loongarch64-openmandriva-linux-musl-binutils
+BuildRequires:	cross-loongarch64-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-loongarch64-openmandriva-linux-musl-libc
+BuildRequires:	cross-loongarch64-openmandriva-linux-musl-kernel-headers
+%endif
+%else
+BuildRequires:	cross-loongarch64-openmandriva-linux-gnu-binutils
+BuildRequires:	cross-loongarch64-openmandriva-linux-gnu-gcc-bootstrap
+BuildRequires:	cross-loongarch64-openmandriva-linux-gnu-libc
+BuildRequires:	cross-loongarch64-openmandriva-linux-gnu-kernel-headers
+BuildRequires:	cross-loongarch64-openmandriva-linux-musl-binutils
+BuildRequires:	cross-loongarch64-openmandriva-linux-musl-gcc-bootstrap
+BuildRequires:	cross-loongarch64-openmandriva-linux-musl-libc
+BuildRequires:	cross-loongarch64-openmandriva-linux-musl-kernel-headers
 %endif
 %endif
 
@@ -2593,32 +2735,91 @@ unset CFLAGS
 unset CXXFLAGS
 XCRTARCHES=""
 %ifnarch %{arm}
+XCRTARCHES="$XCRTARCHES armv7hnl armv7hnlmusl"
+%else
+%if "%{_gnu}" == "-musl"
 XCRTARCHES="$XCRTARCHES armv7hnl"
+%else
+XCRTARCHES="$XCRTARCHES armv7hnlmusl"
+%endif
 %endif
 %ifnarch %{aarch64}
+XCRTARCHES="$XCRTARCHES aarch64 aarch64musl"
+%else
+%if "%{_gnu}" == "-musl"
 XCRTARCHES="$XCRTARCHES aarch64"
+%else
+XCRTARCHES="$XCRTARCHES aarch64musl"
+%endif
 %endif
 %ifnarch %{ix86}
+XCRTARCHES="$XCRTARCHES i686 i686musl"
+%else
+%if "%{_gnu}" == "-musl"
 XCRTARCHES="$XCRTARCHES i686"
+%else
+XCRTARCHES="$XCRTARCHES i686musl"
+%endif
 %endif
 %ifnarch %{riscv64}
+XCRTARCHES="$XCRTARCHES riscv64 riscv64musl"
+%else
+%if "%{_gnu}" == "-musl"
 XCRTARCHES="$XCRTARCHES riscv64"
+%else
+XCRTARCHES="$XCRTARCHES riscv64musl"
+%endif
 %endif
 %ifnarch ppc64
+XCRTARCHES="$XCRTARCHES ppc64 ppc64musl"
+%else
+%if "%{_gnu}" == "-musl"
 XCRTARCHES="$XCRTARCHES ppc64"
+%else
+XCRTARCHES="$XCRTARCHES ppc64musl"
+%endif
 %endif
 %ifnarch ppc64le
+XCRTARCHES="$XCRTARCHES ppc64le ppc64lemusl"
+%else
+%if "%{_gnu}" == "-musl"
 XCRTARCHES="$XCRTARCHES ppc64le"
+%else
+XCRTARCHES="$XCRTARCHES ppc64lemusl"
+%endif
+%endif
+%ifnarch %{loongarch64}
+XCRTARCHES="$XCRTARCHES loongarch64 loongarch64musl"
+%else
+%if "%{_gnu}" == "-musl"
+XCRTARCHES="$XCRTARCHES loongarch64"
+%else
+XCRTARCHES="$XCRTARCHES loongarch64musl"
+%endif
+%endif
+%ifnarch %{x86_64}
+XCRTARCHES="$XCRTARCHES x86_64 x86_64musl"
+%else
+%if "%{_gnu}" == "-musl"
+XCRTARCHES="$XCRTARCHES x86_64"
+%else
+XCRTARCHES="$XCRTARCHES x86_64musl"
+%endif
 %endif
 if [ -n "$XCRTARCHES" ]; then
-	for arch in $XCRTARCHES; do
-		if [ "$arch" = "armv7hnl" ]; then
+	for i in $XCRTARCHES; do
+		if echo $i |grep -q musl; then
+			LIBC=musl
+			arch="${i/musl/}"
+		elif [ "$i" = "armv7hnl" ]; then
 			LIBC=gnueabihf
+			arch=$i
 		else
 			LIBC=gnu
+			arch=$i
 		fi
-		mkdir xbuild-crt-${arch}
-		cd xbuild-crt-${arch}
+		mkdir xbuild-crt-$i
+		cd xbuild-crt-$i
 		gccver="$(${arch}-openmandriva-linux-${LIBC}-gcc --version |head -n1 |cut -d' ' -f3)"
 		if [ %{_build} = "${arch}-openmandriva-linux-${LIBC}" ]; then
 			SYSROOT=""
@@ -2700,22 +2901,76 @@ rm -rf \
 %if %{with crosscrt}
 XCRTARCHES=""
 %ifnarch %{arm}
+XCRTARCHES="$XCRTARCHES armv7hnl armv7hnlmusl"
+%else
+%if "%{_libc}" == "musl"
 XCRTARCHES="$XCRTARCHES armv7hnl"
+%else
+XCRTARCHES="$XCRTARCHES armv7hnlmusl"
+%endif
 %endif
 %ifnarch %{aarch64}
+XCRTARCHES="$XCRTARCHES aarch64 aarch64musl"
+%else
+%if "%{_libc}" == "musl"
 XCRTARCHES="$XCRTARCHES aarch64"
+%else
+XCRTARCHES="$XCRTARCHES aarch64musl"
+%endif
 %endif
 %ifnarch %{ix86}
+XCRTARCHES="$XCRTARCHES i686 i686musl"
+%else
+%if "%{_libc}" == "musl"
 XCRTARCHES="$XCRTARCHES i686"
+%else
+XCRTARCHES="$XCRTARCHES i686musl"
+%endif
 %endif
 %ifnarch %{riscv64}
+XCRTARCHES="$XCRTARCHES riscv64 riscv64musl"
+%else
+%if "%{_libc}" == "musl"
 XCRTARCHES="$XCRTARCHES riscv64"
+%else
+XCRTARCHES="$XCRTARCHES riscv64musl"
+%endif
 %endif
 %ifnarch ppc64
+XCRTARCHES="$XCRTARCHES ppc64 ppc64musl"
+%else
+%if "%{_libc}" == "musl"
 XCRTARCHES="$XCRTARCHES ppc64"
+%else
+XCRTARCHES="$XCRTARCHES ppc64musl"
+%endif
 %endif
 %ifnarch ppc64le
+XCRTARCHES="$XCRTARCHES ppc64le ppc64lemusl"
+%else
+%if "%{_libc}" == "musl"
 XCRTARCHES="$XCRTARCHES ppc64le"
+%else
+XCRTARCHES="$XCRTARCHES ppc64lemusl"
+%endif
+%endif
+%ifnarch %{loongarch64}
+XCRTARCHES="$XCRTARCHES loongarch64 loongarch64musl"
+%else
+%if "%{_libc}" == "musl"
+XCRTARCHES="$XCRTARCHES loongarch64"
+%else
+XCRTARCHES="$XCRTARCHES loongarch64musl"
+%endif
+%endif
+%ifnarch %{x86_64}
+XCRTARCHES="$XCRTARCHES x86_64 x86_64musl"
+%else
+%if "%{_libc}" == "musl"
+XCRTARCHES="$XCRTARCHES x86_64"
+%else
+XCRTARCHES="$XCRTARCHES x86_64musl"
+%endif
 %endif
 if [ -n "$XCRTARCHES" ]; then
     for arch in $XCRTARCHES; do
