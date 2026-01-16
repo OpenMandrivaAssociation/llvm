@@ -1,0 +1,20 @@
+diff -up llvm-project-llvmorg-21.1.8/llvm/cmake/modules/TableGen.cmake.omv~ llvm-project-llvmorg-21.1.8/llvm/cmake/modules/TableGen.cmake
+--- llvm-project-llvmorg-21.1.8/llvm/cmake/modules/TableGen.cmake.omv~	2026-01-16 20:35:28.181480860 +0100
++++ llvm-project-llvmorg-21.1.8/llvm/cmake/modules/TableGen.cmake	2026-01-16 20:36:29.090490792 +0100
+@@ -185,11 +185,11 @@ macro(add_tablegen target project)
+   endif()
+ 
+   # FIXME: Quick fix to reflect LLVM_TABLEGEN to llvm-min-tblgen
+-  if("${target}" STREQUAL "llvm-min-tblgen"
+-      AND NOT "${LLVM_TABLEGEN}" STREQUAL ""
+-      AND NOT "${LLVM_TABLEGEN}" STREQUAL "llvm-tblgen")
+-    set(${project}_TABLEGEN_DEFAULT "${LLVM_TABLEGEN}")
+-  endif()
++  #if("${target}" STREQUAL "llvm-min-tblgen"
++  #    AND NOT "${LLVM_TABLEGEN}" STREQUAL ""
++  #    AND NOT "${LLVM_TABLEGEN}" STREQUAL "llvm-tblgen")
++  #  set(${project}_TABLEGEN_DEFAULT "${LLVM_TABLEGEN}")
++  #endif()
+ 
+   if(ADD_TABLEGEN_EXPORT)
+     set(${project}_TABLEGEN "${${project}_TABLEGEN_DEFAULT}" CACHE

@@ -439,6 +439,9 @@ Patch1157:	0157-esp-toolchain-Adds-fdata-sections-to-newlib-target-C.patch
 Patch1158:	0158-toolchain-esp-Bring-libgcc-back-to-the-toolchain.patch
 %endif
 
+# Patches 2000+ are for crosscompiling only
+Patch2000:	llvm-21.1.8-crosscompile.patch
+
 BuildRequires:	bison
 BuildRequires:	binutils-devel
 BuildRequires:	chrpath
@@ -2273,9 +2276,12 @@ Libc implementation from the LLVM project
 mv SPIRV-LLVM-Translator-* llvm/projects/SPIRV-LLVM-Translator
 mv SPIRV-Headers-* llvm/projects/SPIRV-Headers
 mv SPIRV-Tools-* llvm/projects/SPIRV-Tools
-%autopatch -p1
+%autopatch -p1 -M 1999
 %if %{with default_compilerrt}
 patch -p1 -b -z .crt~ <%{S:62}
+%endif
+%if %{cross_compiling}
+%autopatch -p1 -m 2000
 %endif
 git init
 git config user.email build@openmandriva.org
@@ -2423,18 +2429,11 @@ CPROCESSES="$PROCESSES"
 # MLIR_ENABLE_ROCM_RUNNER=ON (once ROCm is built)
 # MLIR_ENABLE_SYCL_RUNNER=ON (once SyCL is built)
 # CLANG_BOLT=Instrument/Perf/LBR (need to figure out which one works best)
-#
-# For the cross_compiling case, LLVM_TABLEGEN *must* be set to
-# "llvm-tblgen" instead of "%{_bindir}/llvm-tblgen" because (as of 21.1.8)
-# llvm/cmake/modules/TableGen.cmake redirects to llvm-min-tblgen unless
-# LLVM_TABLEGEN is set to exactly "llvm-tblgen" or empty.
-# That redirection code is marked "FIXME", so we may be able to point
-# at the less ambiguous %{_bindir}/llvm-tblgen again in the future.
 %cmake \
 %if %{cross_compiling}
 	-DCMAKE_CROSSCOMPILING=True \
-	-DLLVM_TABLEGEN=llvm-tblgen \
-	-DCLANG_TABLEGEN=clang-tblgen \
+	-DLLVM_TABLEGEN=%{_bindir}/llvm-tblgen \
+	-DCLANG_TABLEGEN=%{_bindir}/clang-tblgen \
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
 	-DCLANG=%{_bindir}/clang \
 	-DOPT=%{_bindir}/opt \
