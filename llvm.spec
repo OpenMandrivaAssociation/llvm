@@ -2423,10 +2423,17 @@ CPROCESSES="$PROCESSES"
 # MLIR_ENABLE_ROCM_RUNNER=ON (once ROCm is built)
 # MLIR_ENABLE_SYCL_RUNNER=ON (once SyCL is built)
 # CLANG_BOLT=Instrument/Perf/LBR (need to figure out which one works best)
+#
+# For the cross_compiling case, LLVM_TABLEGEN *must* be set to
+# "llvm-tblgen" instead of "%{_bindir}/llvm-tblgen" because (as of 21.1.8)
+# llvm/cmake/modules/TableGen.cmake redirects to llvm-min-tblgen unless
+# LLVM_TABLEGEN is set to exactly "llvm-tblgen" or empty.
+# That redirection code is marked "FIXME", so we may be able to point
+# at the less ambiguous %{_bindir}/llvm-tblgen again in the future.
 %cmake \
 %if %{?cross_compiling}
 	-DCLANG=%{_bindir}/clang \
-	-DLLVM_TABLEGEN=%{_bindir}/llvm-tblgen \
+	-DLLVM_TABLEGEN=llvm-tblgen \
 	-DOPT=%{_bindir}/opt \
 %endif
 	-DCLANG_PYTHON_BINDINGS_VERSION=%{pyver} \
