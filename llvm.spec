@@ -2431,9 +2431,12 @@ CPROCESSES="$PROCESSES"
 # That redirection code is marked "FIXME", so we may be able to point
 # at the less ambiguous %{_bindir}/llvm-tblgen again in the future.
 %cmake \
-%if %{?cross_compiling}
-	-DCLANG=%{_bindir}/clang \
+%if %{cross_compiling}
+	-DCMAKE_CROSSCOMPILING=True \
 	-DLLVM_TABLEGEN=llvm-tblgen \
+	-DCLANG_TABLEGEN=clang-tblgen \
+	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
+	-DCLANG=%{_bindir}/clang \
 	-DOPT=%{_bindir}/opt \
 %endif
 	-DCLANG_PYTHON_BINDINGS_VERSION=%{pyver} \
@@ -2561,12 +2564,6 @@ CPROCESSES="$PROCESSES"
 %endif
 %if %{with apidox}
 	-DLLVM_ENABLE_DOXYGEN:BOOL=ON \
-%endif
-%if %{cross_compiling}
-	-DCMAKE_CROSSCOMPILING=True \
-	-DLLVM_TABLEGEN=%{_bindir}/llvm-tblgen \
-	-DCLANG_TABLEGEN=%{_bindir}/clang-tblgen \
-	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
 %endif
 %if %{with default_compilerrt}
 %if %{with unwind}
