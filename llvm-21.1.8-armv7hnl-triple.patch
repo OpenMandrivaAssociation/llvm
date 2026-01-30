@@ -1,0 +1,46 @@
+diff -up llvm-project-llvmorg-21.1.8/llvm/include/llvm/TargetParser/ARMTargetParser.def.omv~ llvm-project-llvmorg-21.1.8/llvm/include/llvm/TargetParser/ARMTargetParser.def
+--- llvm-project-llvmorg-21.1.8/llvm/include/llvm/TargetParser/ARMTargetParser.def.omv~	2026-01-22 17:34:55.527977301 +0100
++++ llvm-project-llvmorg-21.1.8/llvm/include/llvm/TargetParser/ARMTargetParser.def	2026-01-23 05:24:56.556173221 +0100
+@@ -94,6 +94,8 @@ ARM_ARCH("armv6-m", ARMV6M, "6-M", "+v6m
+          FK_NONE, ARM::AEK_NONE)
+ ARM_ARCH("armv7-a", ARMV7A, "7-A", "+v7", ARMBuildAttrs::CPUArch::v7, FK_NEON,
+          ARM::AEK_DSP)
++ARM_ARCH("armv7hnl", ARMV7HNL, "7HNL", "+v7", ARMBuildAttrs::CPUArch::v7, FK_NEON,
++         ARM::AEK_DSP)
+ ARM_ARCH("armv7ve", ARMV7VE, "7VE", "+v7ve", ARMBuildAttrs::CPUArch::v7,
+          FK_NEON,
+          (ARM::AEK_SEC | ARM::AEK_MP | ARM::AEK_VIRT | ARM::AEK_HWDIVARM |
+diff -up llvm-project-llvmorg-21.1.8/llvm/lib/BinaryFormat/MachO.cpp.omv~ llvm-project-llvmorg-21.1.8/llvm/lib/BinaryFormat/MachO.cpp
+--- llvm-project-llvmorg-21.1.8/llvm/lib/BinaryFormat/MachO.cpp.omv~	2026-01-23 05:23:28.401533101 +0100
++++ llvm-project-llvmorg-21.1.8/llvm/lib/BinaryFormat/MachO.cpp	2026-01-23 05:23:39.572111581 +0100
+@@ -40,6 +40,7 @@ static MachO::CPUSubTypeARM getARMSubTyp
+   case ARM::ArchKind::ARMV6K:
+     return MachO::CPU_SUBTYPE_ARM_V6;
+   case ARM::ArchKind::ARMV7A:
++  case ARM::ArchKind::ARMV7HNL:
+     return MachO::CPU_SUBTYPE_ARM_V7;
+   case ARM::ArchKind::ARMV7S:
+     return MachO::CPU_SUBTYPE_ARM_V7S;
+diff -up llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/ARMTargetParser.cpp.omv~ llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/ARMTargetParser.cpp
+--- llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/ARMTargetParser.cpp.omv~	2026-01-22 17:32:05.723938759 +0100
++++ llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/ARMTargetParser.cpp	2026-01-23 05:23:20.041903447 +0100
+@@ -65,6 +65,7 @@ unsigned ARM::parseArchVersion(StringRef
+   case ArchKind::ARMV7S:
+   case ArchKind::ARMV7EM:
+   case ArchKind::ARMV7K:
++  case ArchKind::ARMV7HNL:
+     return 7;
+   case ArchKind::ARMV8A:
+   case ArchKind::ARMV8_1A:
+diff -up llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/ARMTargetParserCommon.cpp.omv~ llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/ARMTargetParserCommon.cpp
+diff -up llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp.omv~ llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp
+--- llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp.omv~	2026-01-23 05:22:30.026132915 +0100
++++ llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp	2026-01-23 05:22:55.562016452 +0100
+@@ -865,6 +865,7 @@ static Triple::SubArchType parseSubArch(
+     return Triple::ARMSubArch_v6m;
+   case ARM::ArchKind::ARMV7A:
+   case ARM::ArchKind::ARMV7R:
++  case ARM::ArchKind::ARMV7HNL:
+     return Triple::ARMSubArch_v7;
+   case ARM::ArchKind::ARMV7VE:
+     return Triple::ARMSubArch_v7ve;

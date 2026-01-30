@@ -24,6 +24,9 @@
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
 
+# Just to speed up test builds
+%define _disable_lto 1
+
 %define build_lto 1
 %define _disable_ld_no_undefined 1
 
@@ -62,7 +65,13 @@
 %bcond_without flang
 # As of 18.0.0-rc1, libc only generates a static lib without
 # dynamic loader, or complete headers
+# As of 21.1.8, libc is stable only on the platforms listed below,
+# doesn't even compile on a few others, including loongarch64
+%ifarch %{x86_64} %{aarch64} %{riscv32} %{riscv64} %{ix86}
 %bcond_without libc
+%else
+%bcond_with libc
+%endif
 %bcond_without mlir
 %bcond_without z3
 %ifarch %{arm} %{riscv}
@@ -99,15 +108,8 @@
 %endif
 %endif
 %bcond_without lldb
-%if %{cross_compiling}
-# FIXME openmp and unwind don't crosscompile in 16.0.4
-# (no error; just not being built even if listed)
-%bcond_with openmp
-%bcond_with unwind
-%else
 %bcond_without openmp
 %bcond_without unwind
-%endif
 %bcond_without lld
 
 # Use libcxx instead of libstdc++. Good, but
@@ -232,6 +234,11 @@ Patch29:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
 # breaks exception handling -- removes gcc_eh
 Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
 Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
+# Fix detecting armv7hnl targets (without this, they're treated as armv6)
+Patch32:	llvm-21.1.8-armv7hnl-triple.patch
+Patch33:	llvm-sanitizers-stat64-musl.patch
+Patch34:	llvm-libc-musl.patch
+Patch35:	compiler-rt-x32-fixes.patch
 Patch40:	libc++-3.7.0-musl-compat.patch
 Patch42:	llvm-bug-50640.patch
 # Make it possible to override CLANG_LIBDIR_SUFFIX
@@ -464,6 +471,7 @@ BuildRequires:	chrpath
 BuildRequires:	groff
 BuildRequires:	libtool
 BuildRequires:	pkgconfig(ncursesw)
+BuildRequires:	pkgconfig(valgrind)
 BuildRequires:	python%{pyver}dist(numpy)
 BuildRequires:	python%{pyver}dist(nanobind)
 BuildRequires:	python-sphinx
@@ -762,7 +770,7 @@ LLVM is a robust system, particularly well suited for developing new mid-level
 language-independent analyses and optimizations of all sorts, including those
 that require  extensive interprocedural analysis. LLVM is also a great target
 for front-end development for conventional or research programming languages,
-including those which require compile-time, link-time, or run-time optimization 
+including those which require compile-time, link-time, or run-time optimization
 for effective implementation, proper tail calls or garbage collection.
 
 %files
@@ -916,7 +924,7 @@ for effective implementation, proper tail calls or garbage collection.
 %endif
 # Removed in 14: FIROptimizer
 # New in 16: HLFIRDialect HLFIRTransforms FIRAnalysis FIRTestAnalysis
-# Removed in 21: FortranCommon FortranRuntime 
+# Removed in 21: FortranCommon FortranRuntime
 # New in 21: FIRCodeGenDialect FIROpenMPSupport
 
 %if %{with bolt}
@@ -938,10 +946,10 @@ for effective implementation, proper tail calls or garbage collection.
 
 # Removed in 14: MLIRLoopAnalysis
 # Removed in 16: MLIRArithmeticToLLVM MLIRArithmeticToSPIRV MLIRArithmeticTransform MLIRLinalgToSPIRV MLIRArithmeticDialect MLIRArithmeticUtils MLIRQuantTransforms
-# Removed in 17: MLIRGPUOps MLIRLinalgAnalysis  MLIROpenACCToLLVM  MLIRSupportIndentedOstream 
+# Removed in 17: MLIRGPUOps MLIRLinalgAnalysis  MLIROpenACCToLLVM  MLIRSupportIndentedOstream
 # Removed in 18: MLIRLinalgToLLVM MLIRArmSMEUtils
-# Removed in 20: MLIRGPUToVulkanTransforms 
-# Removed in 21: MLIRAMXToLLVMIRTranslation MLIRX86VectorToLLVMIRTranslation MLIRConvertToSPIRVPass MLIRPolynomialDialect MLIRTestOneToNTypeConversionPass MLIRArmNeonTestPasses 
+# Removed in 20: MLIRGPUToVulkanTransforms
+# Removed in 21: MLIRAMXToLLVMIRTranslation MLIRX86VectorToLLVMIRTranslation MLIRConvertToSPIRVPass MLIRPolynomialDialect MLIRTestOneToNTypeConversionPass MLIRArmNeonTestPasses
 %else
 %global MLIRLibs %{nil}
 %endif
@@ -1602,6 +1610,7 @@ Summary:	A Fortran language front-end for LLVM
 License:	NCSA
 Group:		Development/Other
 Requires:	clang = %{EVRD}
+BuildRequires:	flang
 %if %{with unwind}
 Requires:	%{_lib}unwind1.0 = %{EVRD}
 Requires:	%{devunwind} = %{EVRD}
@@ -2391,6 +2400,215 @@ CPROCESSES="$PROCESSES"
 # flang is missing most options compared to clang and gfortran
 %global build_fflags -O2 -DNDEBUG
 
+# Needed for finding crtbeginS.o and friends for the crosscompiled
+# runtimes
+gccver="$(gcc --version |head -n1 |cut -d' ' -f3)"
+
+# Next attempt to integrate cross-crts into the build:
+TARGETS=""
+CROSSCRT_FLAGS=()
+for arch in armv7hnl aarch64 i686 loongarch64 ppc64 ppc64le riscv64 x86_64; do
+	case $arch in
+	arm*)
+		abis="gnueabihf musleabihf"
+		;;
+	x86_64)
+		abis="gnu musl gnux32 muslx32"
+		;;
+	*)
+		abis="gnu musl"
+		;;
+	esac
+	for abi in $abis; do
+		triplet=$arch-openmandriva-linux-$abi
+		XRUNTIMES="$RUNTIMES"
+		# Make sure we use our just built clang for the runtimes, no need to worry about Thompson attacks here
+%if %{cross_compiling}
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER=%{_bindir}/clang")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER=%{_bindir}/clang++")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER=%{_bindir}/clang")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER=%{_bindir}/clang++")
+%else
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER=$(pwd)/build/bin/clang")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER=$(pwd)/build/bin/clang++")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER=$(pwd)/build/bin/clang")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER=$(pwd)/build/bin/clang++")
+%endif
+%if %{with crosscrt}
+		TARGETS="$TARGETS;$triplet"
+		if [[ "$triplet" != "%{_target_platform}" ]]; then
+			# OpenMP and offload require libelf and libffi in the sysroot.
+			# We currently don't package sysrooted versions of those, so
+			# skip OpenMP and offload for the time being.
+			# FIXME Change this when we have more cross packages ready.
+			XRUNTIMES="${XRUNTIMES/openmp;/}"
+			XRUNTIMES="${XRUNTIMES/;offload/}"
+			gccver="$(${triplet}-gcc --version |head -n1 |cut -d' ' -f3)"
+			XCFLAGS="-O2 -target $triplet --sysroot=/usr/$triplet --gcc-install-dir=%{_libdir}/gcc/${triplet}/${gccver}"
+			if [[ $abi = *x32* ]]; then
+				# libc doesn't like x32 yet
+				XRUNTIMES="${XRUNTIMES/libc;/}"
+				XCFLAGS="$XCFLAGS -fPIC -mx32 -mcmodel=large"
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_ASM_FLAGS=-fPIC -mx32")
+				CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_ASM_FLAGS=-fPIC -mx32")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_SHARED_LINKER_FLAGS=-Wl,-m,elf32_x86_64")
+				CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SHARED_LINKER_FLAGS=-Wl,-m,elf32_x86_64")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_CTX_PROFILE:BOOL=OFF")
+				# Force static linkage because libunwind (and by extension libc++) breaks
+				# badly with relocation errors unless -mcmodel=medium, but with -mcmodel=medium
+				# libc++ breaks
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBUNWIND_ENABLE_SHARED=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_ENABLE_SHARED=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_STATIC_ABI_LIBRARY=ON")
+
+			fi
+			if [[ $abi = *musl* || $abi = *x32* ]]; then
+				# Sanitizers are known broken on musl platforms and on x32
+				XCFLAGS="$XCFLAGS -Wno-error=c++11-narrowing -Wno-error=shorten-64-to-32 -D__musl__=1"
+				# This might help getting the sanitizers enabled at some point:
+				# XCFLAGS="$XCFLAGS -D__NR_fstatat64=__NR_newfstatat -D__NR_fstat64=__NR_fstat"
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_SANITIZERS:BOOL=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_XRAY:BOOL=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_LIBFUZZER:BOOL=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_MEMPROF:BOOL=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_ORC:BOOL=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_SCUDO_STANDALONE:BOOL=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_GWP_ASAN:BOOL=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_PROFILE:BOOL=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_SAN_COMMON_SUPPORTED_ARCH:BOOL=OFF")
+				CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_HAS_SANITIZER_COMMON:BOOL=OFF")
+			elif ! [[ $abi = *64* ]]; then
+				XCFLAGS="$XCFLAGS -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
+			fi
+			# Workaround for the cmake files not finding libstdc++ for
+			# crosscompile targets
+			# We 
+			LIBSTDCXX_HEADERS="$(dirname /usr/$triplet/include/c++/*/limits)"
+			# libunwind needs to see gcc headers, but libc++/libc++abi must not
+			#XCXXFLAGS="$XCFLAGS -isystem ${LIBSTDCXX_HEADERS} -isystem ${LIBSTDCXX_HEADERS}/${triplet}"
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_SYSROOT=/usr/$triplet")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS_INIT=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS_INIT=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_SHARED_LINKER_FLAGS_INIT=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_EXE_LINKER_FLAGS_INIT=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_MODULE_LINKER_FLAGS_INIT=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_Python3_EXECUTABLE=%{_bindir}/python")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_PERL_EXECUTABLE=%{_bindir}/perl")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_TABLEGEN=%{_bindir}/llvm-tblgen")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CLANG_TABLEGEN=%{_bindir}/clang-tblgen")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSROOT=/usr/$triplet")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS_INIT=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS_INIT=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_Python3_EXECUTABLE=%{_bindir}/python")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_PERL_EXECUTABLE=%{_bindir}/perl")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_LLVM_TABLEGEN=%{_bindir}/llvm-tblgen")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CLANG_TABLEGEN=%{_bindir}/clang-tblgen")
+			CROSSCRT_FLAGS+=("-DLIBC_CONF_${triplet}_CMAKE_C_FLAGS=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DLIBC_CONF_${triplet}_CMAKE_CXX_FLAGS=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DLIBC_CONF_${triplet}_CMAKE_C_FLAGS_INIT=$XCFLAGS")
+			CROSSCRT_FLAGS+=("-DLIBC_CONF_${triplet}_CMAKE_CXX_FLAGS_INIT=$XCFLAGS")
+		fi
+%endif
+		# libc is (mostly) working on x86_64, aarch64, riscv64, riscv32,
+		# arm, and GPUs (AMDGPU, NVPTX), and partially working on x86_32
+		if [[ "$arch" != "x86_64" && "$arch" != "aarch64" && "$arch" != "riscv64" && "$arch" != "riscv32" && "$arch" != "armv7hnl" &&  "$arch" != "i686" ]]; then
+			XRUNTIMES="${XRUNTIMES/libc;/}"
+		fi
+		if [[ "$arch" == arm* ]]; then
+			# libomp's build system doesn't recognize armv7hnl
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBOMP_ARCH=arm")
+			# flang-rt hasn't been ported to arm32 yet
+			XRUNTIMES="${XRUNTIMES/flang-rt;/}"
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_FLANG_ENABLE_FLANG_RT=OFF")
+		fi
+		if [[ "$abi" == *musl* ]]; then
+			# libc currently clashes with musl because of its hardcodes
+			# of stat64 and friends
+			XRUNTIMES="${XRUNTIMES/libc;/}"
+			# Our musl detection is more reliable than the cmakefiles'
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_HAS_MUSL_LIBC=ON")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_HAS_CXA_THREAD_ATEXIT_IMPL=OFF")
+		fi
+		# Work around a dependency loop generating omp-tools.h
+		if [[ "$arch" == "loongarch64" ]]; then
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBOMP_OMPT_SUPPORT:BOOL=OFF")
+		fi
+		[[ "$XRUNTIMES" != "$RUNTIMES" ]] && CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_ENABLE_RUNTIMES=$XRUNTIMES")
+	done
+done
+%if %{with crosscrt}
+# GPU targets
+for triplet in amdgcn-amd-amdhsa nvptx64-nvidia-cuda; do
+	TARGETS="$TARGETS;$triplet"
+%if %{cross_compiling}
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER=%{_bindir}/clang -target $triplet")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER=%{_bindir}/clang++ -target $triplet")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER=%{_bindir}/clang -target $triplet")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER=%{_bindir}/clang++ -target $triplet")
+%else
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER=$(pwd)/build/bin/clang")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER=$(pwd)/build/bin/clang++")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER=$(pwd)/build/bin/clang")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER=$(pwd)/build/bin/clang++")
+%endif
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_ENABLE_RUNTIMES=$(echo $RUNTIMES |sed -e 's,openmp;,,;s,libunwind;,,')")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_LIBCXXABI_USE_LLVM_UNWINDER:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_USE_LLVM_UNWINDER:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS=-O2 -target $triplet")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS=-O2 -target $triplet")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS_INIT=-O2 -target $triplet")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS_INIT=-O2 -target $triplet")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSROOT=/usr/$triplet")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS=-O2 -target $triplet")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS=-O2 -target $triplet")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS_INIT=-O2 -target $triplet")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS_INIT=-O2 -target $triplet")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
+done
+TARGETS="$(echo $TARGETS |cut -b2-)"
+CROSSCRT_FLAGS+=("-DLLVM_BUILTIN_TARGETS=$TARGETS")
+CROSSCRT_FLAGS+=("-DLLVM_RUNTIME_TARGETS=$TARGETS")
+%endif
+
+# Make sure the newly built compiler and libraries can be seen
+# by the runtimes build
+BINDIR=$(pwd)/build/bin
+# The build process tries to use the just built
+# libLLVMAnalysis.so.*
+export LD_LIBRARY_PATH=$(pwd)/build/%{_lib}:$LD_LIBRARY_PATH
+
+%if %{cross_compiling}
+TOP="$(pwd)"
+gccver="$(%{_target_platform}-gcc --version |head -n1 |cut -d' ' -f3)"
+cat >xc <<EOF
+#!/bin/sh
+exec %{_bindir}/clang -target %{_target_platform} --sysroot /usr/%{_target_platform} -fPIC "\$@"
+EOF
+cat >xc++ <<EOF
+#!/bin/sh
+exec %{_bindir}/clang++ -target %{_target_platform} --sysroot /usr/%{_target_platform} -isystem $TOP/pstl/include -isystem $TOP/build/runtimes/runtimes-bins/pstl/generated_headers -fPIC "\$@"
+EOF
+chmod +x xc xc++
+cat >cmake-xc.toolchain <<EOF
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR %{_target_cpu})
+set(CMAKE_C_COMPILER ${TOP}/xc)
+set(CMAKE_CXX_COMPILER ${TOP}/xc++)
+EOF
+%endif
+
+export FC=%{_bindir}/flang
+
 # The "%if ! %{with skip64}" below is just a quick way to get rid of the real
 # 64-bit build to debug 32-bit build issues. Don't enable skip64 in real builds!
 %if ! %{with skip64}
@@ -2413,30 +2631,42 @@ CPROCESSES="$PROCESSES"
 # major updates (llvm-spirv version X not working with llvm X+1) until the second
 # build
 #
+# FLANG_INCLUDE_TESTS:BOOL=OFF is to avoid a circular dependency between flang tests
+# (built as part of projects) and libomp-mod (built [later] as runtime).
 #
 # POLLY_BUNDLED_ISL:BOOL=OFF doesn't work because upstream ISL doesn't have an
 # "isl/isl-noexceptions.h" header
 #
 # Things to try out:
 # LLVM_ENABLE_MODULES=ON (C++ modules support)
-# LLVM_TOOL_COMPILER_RT_BUILD=ON (how is this different from having compiler-rt in RUNTIMES?)
-# LLVM_TOOL_LIBCXXABI_BUILD=ON
-# LLVM_TOOL_LIBCXX_BUILD=ON
-# LLVM_TOOL_LIBC_BUILD=ON
-# LLVM_TOOL_LIBUNWIND_BUILD=ON
-# LLVM_TOOL_OPENMP_BUILD=ON
-# LLVM_TOOL_PSTL_BUILD=ON
 # MLIR_ENABLE_ROCM_RUNNER=ON (once ROCm is built)
 # MLIR_ENABLE_SYCL_RUNNER=ON (once SyCL is built)
 # CLANG_BOLT=Instrument/Perf/LBR (need to figure out which one works best)
 %cmake \
 %if %{cross_compiling}
 	-DCMAKE_CROSSCOMPILING=True \
+	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-xc.toolchain" \
+	-DCROSS_TOOLCHAIN_FLAGS_NATIVE="-DCMAKE_C_COMPILER=%{_bindir}/gcc;-DCMAKE_CXX_COMPILER=%{_bindir}/g++" \
+	-DCC_FOR_BUILD=%{_bindir}/gcc \
+	-DCXX_FOR_BUILD=%{_bindir}/g++ \
+	-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+	-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+	-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+	-DCMAKE_FIND_ROOT_PATH=/usr/%{_target_platform} \
+	-DLLVM_USE_HOST_TOOLS:BOOL=ON \
+	-DLLVM_NATIVE_TOOL_DIR=%{_bindir} \
 	-DLLVM_TABLEGEN=%{_bindir}/llvm-tblgen \
+	-DLLVM_MIN_TABLEGEN=%{_bindir}/llvm-tblgen \
 	-DCLANG_TABLEGEN=%{_bindir}/clang-tblgen \
 	-DLLVM_DEFAULT_TARGET_TRIPLE=%{_target_platform} \
 	-DCLANG=%{_bindir}/clang \
 	-DOPT=%{_bindir}/opt \
+%endif
+%ifarch %{loongarch64}
+	-DLIBOMP_OMPT_SUPPORT:BOOL=OFF \
+%endif
+%if %{with mlir}
+	-DCLANG_ENABLE_CIR:BOOL=ON \
 %endif
 	-DCLANG_PYTHON_BINDINGS_VERSION=%{pyver} \
 	-DLLVM_ENABLE_CURL:BOOL=ON \
@@ -2444,7 +2674,6 @@ CPROCESSES="$PROCESSES"
 	-DLLVM_ENABLE_Z3_SOLVER:BOOL=ON \
 %endif
 	-DLLVM_HAS_LOGF128:BOOL=ON \
-	-DLLVM_TOOL_PSTL_BUILD:BOOL=ON \
 %if %{with mlir}
 	-DMLIR_ENABLE_BINDINGS_PYTHON:BOOL=ON \
 %endif
@@ -2464,7 +2693,6 @@ CPROCESSES="$PROCESSES"
 %else
 	-DLLVM_ENABLE_LTO=OFF \
 %endif
-	-DLLVM_TOOL_OPENMP_BUILD:BOOL=ON \
 	-DLLDB_USE_SYSTEM_SIX:BOOL=ON \
 	-DLLDB_SKIP_STRIP:BOOL=ON \
 %if %{cross_compiling}
@@ -2475,6 +2703,7 @@ CPROCESSES="$PROCESSES"
 %if ! %{with tests}
 	-DLLVM_INCLUDE_TESTS:BOOL=OFF \
 %endif
+	-DFLANG_INCLUDE_TESTS:BOOL=OFF \
 	-DCOMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=OFF \
 	-DCOMPILER_RT_ENABLE_SOFTWARE_INT128:BOOL=ON \
 	-DCOMPILER_RT_INSTALL_BINARY_DIR:PATH=%{_libdir}/clang/%{major1}/bin \
@@ -2521,7 +2750,6 @@ CPROCESSES="$PROCESSES"
 	-DLLVM_BUILD_DOCS:BOOL=ON \
 	-DLLVM_BUILD_EXAMPLES:BOOL=OFF \
 	-DLLVM_BUILD_RUNTIME:BOOL=ON \
-	-DLLVM_TOOL_COMPILER_RT_BUILD:BOOL=OFF \
 	-DCOMPILER_RT_BUILD_BUILTINS:BOOL=OFF \
 	-DCOMPILER_RT_BUILD_CRT:BOOL=ON \
 	-DENABLE_LINKER_BUILD_ID:BOOL=ON \
@@ -2553,7 +2781,6 @@ CPROCESSES="$PROCESSES"
 	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/libcxxabi/include \
 	-DLIBCXXABI_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
 	-DLIBCXX_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
-	-DLLVM_TOOL_PSTL_BUILD:BOOL=ON \
 	-DPSTL_PARALLEL_BACKEND=omp \
 	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/%{_lib}" \
 	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/%{_lib},-rpath,$(pwd)/lib" \
@@ -2583,6 +2810,7 @@ CPROCESSES="$PROCESSES"
 %endif
 	-DSPIRV_HEADERS_ENABLE_INSTALL:BOOL=ON \
 	-DSPIRV_TOOLS_BUILD_STATIC:BOOL=OFF \
+	"${CROSSCRT_FLAGS[@]}" \
 	-G Ninja \
 	../llvm
 
@@ -2645,8 +2873,6 @@ EOF
 	-DLLVM_CONFIG_PATH=$(pwd)/../build/bin/llvm-config \
 	-DLLVM_ENABLE_PROJECTS="llvm;clang;polly;openmp" \
 	-DLLVM_ENABLE_RUNTIMES="libunwind;compiler-rt" \
-	-DLLVM_TOOL_PSTL_BUILD:BOOL=ON \
-	-DLLVM_TOOL_LIBUNWIND_BUILD:BOOL=ON \
 	-DLLVM_ENABLE_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
 %if %{with default_compilerrt}
@@ -2673,7 +2899,6 @@ EOF
 	-DLLVM_BUILD_DOCS:BOOL=OFF \
 	-DLLVM_BUILD_EXAMPLES:BOOL=OFF \
 	-DLLVM_BUILD_RUNTIME:BOOL=ON \
-	-DLLVM_TOOL_COMPILER_RT_BUILD:BOOL=ON \
 	-DCOMPILER_RT_BUILD_BUILTINS:BOOL=ON \
 	-DCOMPILER_RT_BUILD_CRT:BOOL=ON \
 	-DENABLE_LINKER_BUILD_ID:BOOL=ON \
@@ -2690,7 +2915,12 @@ EOF
 	-DLIBCXX_ENABLE_SHARED:BOOL=ON \
 	-DLIBCXX_ENABLE_STATIC:BOOL=ON \
 	-DLIBCXX_ENABLE_PARALLEL_ALGORITHMS:BOOL=ON \
+%if "%{_gnu}" == "musl"
+	-DLIBCXX_HAS_MUSL_LIBC:BOOL=ON \
+	-DLIBCXXABI_HAS_CXA_THREAD_ATEXIT_IMPL:BOOL=OFF \
+%else
 	-DLIBCXX_HAS_MUSL_LIBC:BOOL=OFF \
+%endif
 	-DLIBCXXABI_LIBCXX_INCLUDES=${TOP}/libcxx/include \
 	-DLIBCXX_CXX_ABI_INCLUDE_PATHS=${TOP}/libcxxabi/include \
 	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/lib" \
@@ -2726,13 +2956,8 @@ EOF
 cd ..
 %endif
 
-# Where our just-built compilers can be found...
-BINDIR=$(pwd)/build/bin
-# The build process tries to use the just built
-# libLLVMAnalysis.so.*
-export LD_LIBRARY_PATH=$(pwd)/build/%{_lib}:$LD_LIBRARY_PATH
-
-%if %{with crosscrt}
+%if 0
+# was: %{with crosscrt}
 # Build compiler-rt for all potential crosscompiler targets
 unset CFLAGS
 unset CXXFLAGS
@@ -2883,6 +3108,8 @@ fi
 %endif
 
 %install
+export FC=%{_bindir}/flang
+
 %if %{with ocaml}
 #cp bindings/ocaml/llvm/META.llvm bindings/ocaml/llvm/Release/
 %endif
@@ -2901,7 +3128,8 @@ rm -rf \
 
 %ninja_install -C build
 
-%if %{with crosscrt}
+%if 0
+# was: %{with crosscrt}
 XCRTARCHES=""
 %ifnarch %{arm}
 XCRTARCHES="$XCRTARCHES armv7hnl armv7hnlmusl"

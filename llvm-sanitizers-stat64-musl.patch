@@ -1,0 +1,67 @@
+diff -up llvm-project-llvmorg-21.1.8/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp.28~ llvm-project-llvmorg-21.1.8/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp
+--- llvm-project-llvmorg-21.1.8/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp.28~	2025-12-12 11:35:47.000000000 +0100
++++ llvm-project-llvmorg-21.1.8/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp	2026-01-29 02:43:55.157591953 +0100
+@@ -344,7 +344,7 @@ uptr internal_ftruncate(fd_t fd, uptr si
+   return res;
+ }
+ 
+-#    if !SANITIZER_LINUX_USES_64BIT_SYSCALLS && SANITIZER_LINUX
++#    if !SANITIZER_LINUX_USES_64BIT_SYSCALLS && SANITIZER_LINUX && !defined(__musl__)
+ static void stat64_to_stat(struct stat64 *in, struct stat *out) {
+   internal_memset(out, 0, sizeof(*out));
+   out->st_dev = in->st_dev;
+@@ -440,7 +440,19 @@ static void kernel_stat_to_stat(kstat_t
+ #    endif
+ 
+ uptr internal_stat(const char *path, void *buf) {
+-#    if SANITIZER_FREEBSD
++#    if defined(__musl__) && defined(__NR_newfstatat)
++  return internal_syscall(SYSCALL(newfstatat), AT_FDCWD, (uptr)path, (uptr)buf, 0);
++#    elif defined(__musl__) && defined(__NR_fstatat64)
++  return internal_syscall(SYSCALL(fstatat64), AT_FDCWD, (uptr)path, (uptr)buf, 0);
++#    elif defined(__musl__) && defined(__NR_fstatat)
++  return internal_syscall(SYSCALL(fstatat), AT_FDCWD, (uptr)path, (uptr)buf, 0);
++#    elif defined(__musl__) && defined(__NR_statx)
++  struct statx bufx;
++  int res = internal_syscall(SYSCALL(statx), AT_FDCWD, (uptr)path,
++                             AT_NO_AUTOMOUNT, STATX_BASIC_STATS, (uptr)&bufx);
++  statx_to_stat(&bufx, (struct stat *)buf);
++  return res;
++#    elif SANITIZER_FREEBSD
+   return internal_syscall(SYSCALL(fstatat), AT_FDCWD, (uptr)path, (uptr)buf, 0);
+ #    elif SANITIZER_LINUX
+ #      if defined(__loongarch__)
+@@ -477,7 +489,23 @@ uptr internal_stat(const char *path, voi
+ }
+ 
+ uptr internal_lstat(const char *path, void *buf) {
+-#    if SANITIZER_FREEBSD
++#    if defined(__musl__) && defined(__NR_newfstatat)
++  return internal_syscall(SYSCALL(newfstatat), AT_FDCWD, (uptr)path, (uptr)buf,
++                          AT_SYMLINK_NOFOLLOW);
++#    elif defined(__musl__) && defined(__NR_fstatat64)
++  return internal_syscall(SYSCALL(fstatat64), AT_FDCWD, (uptr)path, (uptr)buf,
++                          AT_SYMLINK_NOFOLLOW);
++#    elif defined(__musl__) && defined(__NR_fstatat)
++  return internal_syscall(SYSCALL(fstatat), AT_FDCWD, (uptr)path, (uptr)buf,
++                          AT_SYMLINK_NOFOLLOW);
++#    elif defined(__musl__) && defined(__NR_statx)
++  struct statx bufx;
++  int res = internal_syscall(SYSCALL(statx), AT_FDCWD, (uptr)path,
++                             AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT,
++                             STATX_BASIC_STATS, (uptr)&bufx);
++  statx_to_stat(&bufx, (struct stat *)buf);
++  return res;
++#    elif SANITIZER_FREEBSD
+   return internal_syscall(SYSCALL(fstatat), AT_FDCWD, (uptr)path, (uptr)buf,
+                           AT_SYMLINK_NOFOLLOW);
+ #    elif SANITIZER_LINUX
+@@ -538,6 +566,8 @@ uptr internal_fstat(fd_t fd, void *buf)
+ #      else
+   return internal_syscall(SYSCALL(fstat), fd, (uptr)buf);
+ #      endif
++#    elif defined(__musl__)
++  return internal_syscall(SYSCALL(fstat), fd, (uptr)buf);
+ #    else
+   struct stat64 buf64;
+   int res = internal_syscall(SYSCALL(fstat64), fd, &buf64);

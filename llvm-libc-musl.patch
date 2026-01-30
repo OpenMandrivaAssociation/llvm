@@ -1,0 +1,30 @@
+diff -up llvm-project-llvmorg-21.1.8/libc/src/__support/OSUtil/linux/fcntl.cpp.omv~ llvm-project-llvmorg-21.1.8/libc/src/__support/OSUtil/linux/fcntl.cpp
+--- llvm-project-llvmorg-21.1.8/libc/src/__support/OSUtil/linux/fcntl.cpp.omv~	2026-01-27 22:08:57.862525281 +0100
++++ llvm-project-llvmorg-21.1.8/libc/src/__support/OSUtil/linux/fcntl.cpp	2026-01-27 22:14:09.324253730 +0100
+@@ -26,7 +26,9 @@ namespace LIBC_NAMESPACE_DECL {
+ namespace internal {
+ 
+ ErrorOr<int> fcntl(int fd, int cmd, void *arg) {
+-#if SYS_fcntl
++#if defined(__musl__) 
++  constexpr auto FCNTL_SYSCALL_ID = SYS_fcntl64;
++#elif SYS_fcntl
+   constexpr auto FCNTL_SYSCALL_ID = SYS_fcntl;
+ #elif defined(SYS_fcntl64)
+   constexpr auto FCNTL_SYSCALL_ID = SYS_fcntl64;
+@@ -34,6 +36,7 @@ ErrorOr<int> fcntl(int fd, int cmd, void
+ #error "fcntl and fcntl64 syscalls not available."
+ #endif
+ 
++#if !defined(__musl__) // The conversion shim isn't needed for musl
+   switch (cmd) {
+   case F_OFD_SETLKW: {
+     struct flock *flk = reinterpret_cast<struct flock *>(arg);
+@@ -107,6 +110,7 @@ ErrorOr<int> fcntl(int fd, int cmd, void
+   }
+ #endif
+   }
++#endif
+ 
+   // default, but may use rewritten cmd from above.
+   int ret = LIBC_NAMESPACE::syscall_impl<int>(FCNTL_SYSCALL_ID, fd, cmd,

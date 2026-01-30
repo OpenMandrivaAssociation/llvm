@@ -1,0 +1,41 @@
+diff -up llvm-project-llvmorg-21.1.8/compiler-rt/lib/ctx_profile/CtxInstrProfiling.h.omv~ llvm-project-llvmorg-21.1.8/compiler-rt/lib/ctx_profile/CtxInstrProfiling.h
+--- llvm-project-llvmorg-21.1.8/compiler-rt/lib/ctx_profile/CtxInstrProfiling.h.omv~	2026-01-29 17:44:06.527788625 +0100
++++ llvm-project-llvmorg-21.1.8/compiler-rt/lib/ctx_profile/CtxInstrProfiling.h	2026-01-29 17:59:18.571307220 +0100
+@@ -21,7 +21,11 @@ using namespace llvm::ctx_profile;
+ class ArenaTest_ZeroInit_Test;
+ namespace __ctx_profile {
+ 
++#ifdef __ILP32__
++static constexpr size_t ExpectedAlignment = 4;
++#else
+ static constexpr size_t ExpectedAlignment = 8;
++#endif
+ // We really depend on this, see further below. We currently support x86_64.
+ // When we want to support other archs, we need to trace the places Alignment is
+ // used and adjust accordingly.
+@@ -68,11 +72,11 @@ private:
+ 
+ // The memory available for allocation follows the Arena header, and we expect
+ // it to be thus aligned.
+-static_assert(alignof(Arena) == ExpectedAlignment);
++static_assert(alignof(Arena) >= ExpectedAlignment);
+ 
+ // Verify maintenance to ContextNode doesn't change this invariant, which makes
+ // sure the inlined vectors are appropriately aligned.
+-static_assert(alignof(ContextNode) == ExpectedAlignment);
++static_assert(alignof(ContextNode) >= ExpectedAlignment);
+ 
+ /// ContextRoots hold memory and the start of the contextual profile tree for a
+ /// root function.
+diff -up llvm-project-llvmorg-21.1.8/libc/src/__support/OSUtil/linux/fcntl.cpp.omv~ llvm-project-llvmorg-21.1.8/libc/src/__support/OSUtil/linux/fcntl.cpp
+--- llvm-project-llvmorg-21.1.8/libc/src/__support/OSUtil/linux/fcntl.cpp.omv~	2026-01-29 17:26:23.662410103 +0100
++++ llvm-project-llvmorg-21.1.8/libc/src/__support/OSUtil/linux/fcntl.cpp	2026-01-29 17:27:29.319042428 +0100
+@@ -26,7 +26,7 @@ namespace LIBC_NAMESPACE_DECL {
+ namespace internal {
+ 
+ ErrorOr<int> fcntl(int fd, int cmd, void *arg) {
+-#if defined(__musl__) 
++#if defined(__musl__) && defined(SYS_fcntl64)
+   constexpr auto FCNTL_SYSCALL_ID = SYS_fcntl64;
+ #elif SYS_fcntl
+   constexpr auto FCNTL_SYSCALL_ID = SYS_fcntl;
