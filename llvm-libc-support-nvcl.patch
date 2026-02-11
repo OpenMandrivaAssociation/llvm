@@ -1,0 +1,13 @@
+diff -up llvm-project-llvmorg-21.1.8/libc/cmake/modules/LLVMLibCArchitectures.cmake.omv~ llvm-project-llvmorg-21.1.8/libc/cmake/modules/LLVMLibCArchitectures.cmake
+--- llvm-project-llvmorg-21.1.8/libc/cmake/modules/LLVMLibCArchitectures.cmake.omv~	2026-02-08 23:32:22.529796462 +0100
++++ llvm-project-llvmorg-21.1.8/libc/cmake/modules/LLVMLibCArchitectures.cmake	2026-02-08 23:34:26.264427512 +0100
+@@ -71,7 +71,8 @@ function(get_arch_and_system_from_triple
+ 
+   # Setting OS name for GPU architectures.
++  list(GET triple_comps 0 gpu_target_arch)
+   list(GET triple_comps -1 gpu_target_sys)
+-  if(gpu_target_sys MATCHES "^amdhsa" OR gpu_target_sys MATCHES "^cuda")
++  if((gpu_target_sys MATCHES "^amdhsa" OR gpu_target_sys MATCHES "^cuda" OR gpu_target_sys MATCHES "^nvcl") OR (gpu_target_arch MATCHES "spirv"))
+     set(target_sys "gpu")
+   endif()
+ 

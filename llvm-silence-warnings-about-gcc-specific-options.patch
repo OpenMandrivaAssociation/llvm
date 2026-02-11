@@ -1,0 +1,21 @@
+diff -up llvm-project-llvmorg-21.1.8/llvm/include/llvm/ADT/ArrayRef.h.omv~ llvm-project-llvmorg-21.1.8/llvm/include/llvm/ADT/ArrayRef.h
+--- llvm-project-llvmorg-21.1.8/llvm/include/llvm/ADT/ArrayRef.h.omv~	2026-02-08 23:45:23.054552541 +0100
++++ llvm-project-llvmorg-21.1.8/llvm/include/llvm/ADT/ArrayRef.h	2026-02-08 23:45:46.825533163 +0100
+@@ -105,7 +105,7 @@ namespace llvm {
+         : Data(Arr), Length(N) {}
+ 
+     /// Construct an ArrayRef from a std::initializer_list.
+-#if LLVM_GNUC_PREREQ(9, 0, 0)
++#if LLVM_GNUC_PREREQ(9, 0, 0) && !defined(__clang__)
+ // Disable gcc's warning in this constructor as it generates an enormous amount
+ // of messages. Anyone using ArrayRef should already be aware of the fact that
+ // it does not do lifetime extension.
+@@ -116,7 +116,7 @@ namespace llvm {
+         std::initializer_list<T> Vec LLVM_LIFETIME_BOUND)
+         : Data(Vec.begin() == Vec.end() ? (T *)nullptr : Vec.begin()),
+           Length(Vec.size()) {}
+-#if LLVM_GNUC_PREREQ(9, 0, 0)
++#if LLVM_GNUC_PREREQ(9, 0, 0) && !defined(__clang__)
+ #pragma GCC diagnostic pop
+ #endif
+ 

@@ -1,5 +1,5 @@
 # Barfs because of python2 files
-%define _python_bytecompile_build 0
+#define _python_bytecompile_build 0
 
 %ifarch %{x86_64}
 %bcond_without compat32
@@ -25,7 +25,11 @@
 %define _empty_manifest_terminate_build 0
 
 # Just to speed up test builds
-%define _disable_lto 1
+#define _disable_lto 1
+
+# We can't "fix" LTO in stuff like GPU targets
+# that have only bytecode
+%define dont_fix_lto_intermediates_in_static_libraries 1
 
 %define build_lto 1
 %define _disable_ld_no_undefined 1
@@ -38,13 +42,13 @@
 
 # Since the build system forces HOST cflags == TARGET cflags,
 # we have to get rid of any -march= stuff. Might as well play it safe.
-%global optflags -O2 -fno-semantic-interposition -DNDEBUG
+%global optflags -O2 -fno-semantic-interposition -flto -ffat-lto-objects -DNDEBUG
 
 %bcond_with tests
 %else
 # (tpg) optimize it a bit
 # And reduce debug level to save some space
-%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Qunused-arguments -Wl,-Bsymbolic-functions -g1 -DNDEBUG
+%global optflags %(echo %{optflags} |sed -e 's,-m64,,g') -O3 -fpic -fno-semantic-interposition -Qunused-arguments -Wl,-Bsymbolic-functions -flto -ffat-lto-objects -g1 -DNDEBUG
 %global build_ldflags %{build_ldflags} -fno-semantic-interposition -Wl,-Bsymbolic-functions
 %bcond_without tests
 %endif
@@ -136,6 +140,8 @@
 %undefine spirv_is_main
 
 %bcond_without crosscrt
+%define cross_cpu_targets armv7hnl aarch64 i686 loongarch64 ppc64 ppc64le riscv64 x86_64
+%define cross_gpu_targets amdgcn-amd-amdhsa nvptx64-nvidia-nvcl
 
 # We set LLVM_VERSION_SUFFIX affects the soname of libraries. If unset,
 # LLVM_VERSION_SUFFIX is set to "git", resulting in libraries like
@@ -245,6 +251,9 @@ Patch42:	llvm-bug-50640.patch
 # (that is used only to find LLVMgold.so)
 # https://llvm.org/bugs/show_bug.cgi?id=23793
 Patch43:	clang-0002-cmake-Make-CLANG_LIBDIR_SUFFIX-overridable.patch
+# Accept nvptx64-nvidia-nvcl as a GPU target for libc
+Patch44:	llvm-libc-support-nvcl.patch
+Patch45:	llvm-silence-warnings-about-gcc-specific-options.patch
 # Fix library versioning
 Patch46:	llvm-4.0.1-libomp-versioning.patch
 # Fix mcount name for arm and armv8
@@ -818,9 +827,6 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-objdump
 %{_bindir}/llvm-objcopy
 %{_bindir}/llvm-readtapi
-%if %{with openmp}
-%{_bindir}/llvm-omp-kernel-replay
-%endif
 %{_bindir}/llvm-otool
 %{_bindir}/llvm-remarkutil
 %{_bindir}/llvm-sim
@@ -831,7 +837,6 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-profgen
 %{_bindir}/llvm-cgdata
 %{_bindir}/llvm-ctxprof-util
-%{_bindir}/llvm-offload-device-info
 %{_bindir}/offload-arch
 %{_bindir}/llvm-debuginfod-find
 %{_bindir}/llvm-tli-checker
@@ -911,14 +916,11 @@ for effective implementation, proper tail calls or garbage collection.
 # New in 19: clangInstallAPI
 # Removed in 21: clangARCMigrate
 
-%define Clang64Libs clangApplyReplacements clangChangeNamespace clangDaemon clangDaemonTweaks clangDoc clangIncludeFixer clangIncludeFixerPlugin clangMove clangQuery clangReorderFields clangTidy clangTidyPlugin clangTidyAbseilModule clangTidyAlteraModule clangTidyAndroidModule clangTidyBoostModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyConcurrencyModule clangTidyDarwinModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyLinuxKernelModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyOpenMPModule clangTidyPortabilityModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyZirconModule clangTidyUtils clangTidyLLVMLibcModule clangTidyMain clangdRemoteIndex clangdSupport clangIncludeCleaner clangdMain clangDocSupport
+%define Clang64Libs clangApplyReplacements clangChangeNamespace clangDaemon clangDaemonTweaks clangDoc clangIncludeFixer clangIncludeFixerPlugin clangMove clangQuery clangReorderFields clangTidy clangTidyPlugin clangTidyAbseilModule clangTidyAlteraModule clangTidyAndroidModule clangTidyBoostModule clangTidyBugproneModule clangTidyCERTModule clangTidyCppCoreGuidelinesModule clangTidyConcurrencyModule clangTidyDarwinModule clangTidyFuchsiaModule clangTidyGoogleModule clangTidyHICPPModule clangTidyLLVMModule clangTidyLinuxKernelModule clangTidyMiscModule clangTidyModernizeModule clangTidyMPIModule clangTidyObjCModule clangTidyOpenMPModule clangTidyPortabilityModule clangTidyReadabilityModule clangTidyPerformanceModule clangTidyZirconModule clangTidyUtils clangTidyLLVMLibcModule clangTidyMain clangdRemoteIndex clangdSupport clangIncludeCleaner clangdMain clangDocSupport CIROpenACCSupport clangCIR clangCIRFrontendAction clangCIRLoweringCommon clangCIRLoweringDirectToLLVM
 # New in 21: clangDocSupport
 
 %if %{with flang}
-%global FlangLibs FIRBuilder FIRCodeGen FIRDialect FIRSupport FIRTransforms FortranDecimal FortranEvaluate FortranLower FortranParser FortranSemantics flangFrontend flangFrontendTool HLFIRDialect HLFIRTransforms FIRAnalysis FIRDialectSupport CUFAttrs CUFDialect FIROpenACCSupport FIRTestOpenACCInterfaces FlangOpenMPTransforms FortranSupport flangPasses FIRCodeGenDialect FIROpenMPSupport
-%if %{with tests}
-%global FlangLibs %{FlangLibs} FIRTestAnalysis
-%endif
+%global FlangLibs FIRBuilder FIRCodeGen FIRDialect FIRSupport FIRTransforms FortranDecimal FortranEvaluate FortranLower FortranParser FortranSemantics flangFrontend flangFrontendTool HLFIRDialect HLFIRTransforms FIRAnalysis FIRDialectSupport CUFAttrs CUFDialect FIROpenACCSupport FlangOpenMPTransforms FortranSupport flangPasses FIRCodeGenDialect FIROpenMPSupport
 %else
 %global FlangLibs %{nil}
 %endif
@@ -934,7 +936,7 @@ for effective implementation, proper tail calls or garbage collection.
 %endif
 
 %if %{with mlir}
-%global MLIRLibs MLIRAffineAnalysis MLIRAffineToStandard MLIRAffineTransforms MLIRAffineUtils MLIRAMXTransforms MLIRAnalysis MLIRArmNeon2dToIntr MLIRArmNeonToLLVMIRTranslation MLIRArmSVEToLLVMIRTranslation MLIRArmSVETransforms MLIRAsyncToLLVM MLIRAsyncTransforms MLIRBufferizationToMemRef MLIRBufferizationTransforms MLIRCallInterfaces MLIRCAPIAsync MLIRCAPIConversion MLIRCAPIDebug MLIRCAPIExecutionEngine MLIRCAPIGPU MLIRCAPIInterfaces MLIRCAPIIR MLIRCAPILinalg MLIRCAPILLVM MLIRCAPIPDL MLIRCAPIQuant MLIRCAPISCF MLIRCAPIShape MLIRCAPISparseTensor MLIRCAPITensor MLIRCAPITransforms MLIRCastInterfaces MLIRComplexToLLVM MLIRComplexToStandard MLIRControlFlowInterfaces MLIRCopyOpInterface MLIRDataLayoutInterfaces MLIRDerivedAttributeOpInterface MLIRDialect MLIRDialectUtils MLIRExecutionEngine MLIRGPUToGPURuntimeTransforms MLIRGPUToNVVMTransforms MLIRGPUToROCDLTransforms MLIRGPUToSPIRV MLIRGPUTransforms MLIRInferTypeOpInterface MLIRIR MLIRJitRunner MLIRLinalgToStandard MLIRLinalgTransforms MLIRLinalgUtils MLIRLLVMCommonConversion MLIRLLVMIRTransforms MLIRLLVMToLLVMIRTranslation MLIRLoopLikeInterface MLIRLspServerLib MLIRMathToLibm MLIRMathToLLVM MLIRMathToSPIRV MLIRMathTransforms MLIRMemRefToLLVM MLIRMemRefToSPIRV MLIRMemRefTransforms MLIRMemRefUtils MLIRMlirOptMain MLIRNVVMToLLVMIRTranslation MLIROpenACCToLLVMIRTranslation MLIROpenACCToSCF MLIROpenMPToLLVMIRTranslation MLIROpenMPToLLVM MLIROptLib MLIRParser MLIRPass MLIRPDLLAST MLIRPDLToPDLInterp MLIRPresburger MLIRReconcileUnrealizedCasts MLIRReduceLib MLIRReduce MLIRRewrite MLIRROCDLToLLVMIRTranslation MLIRSCFToGPU MLIRSCFToOpenMP MLIRSCFToSPIRV MLIRSCFTransforms MLIRShapeOpsTransforms MLIRShapeToStandard MLIRSideEffectInterfaces MLIRSparseTensorTransforms MLIRSparseTensorUtils MLIRSPIRVBinaryUtils MLIRSPIRVConversion MLIRSPIRVDeserialization MLIRSPIRVModuleCombiner MLIRSPIRVSerialization MLIRSPIRVToLLVM MLIRSPIRVTransforms MLIRSPIRVTranslateRegistration MLIRSPIRVUtils MLIRSupport MLIRTargetCpp MLIRTargetLLVMIRExport MLIRTargetLLVMIRImport MLIRTensorInferTypeOpInterfaceImpl MLIRTensorTransforms MLIRTilingInterface MLIRToLLVMIRTranslationRegistration MLIRTosaToLinalg MLIRTosaToSCF MLIRTosaTransforms MLIRTransforms MLIRTransformUtils MLIRVectorInterfaces MLIRVectorToGPU MLIRVectorToLLVM MLIRVectorToSCF MLIRVectorToSPIRV MLIRViewLikeInterface MLIRX86VectorTransforms MLIRTensorTilingInterfaceImpl MLIRTensorUtils MLIRSCFUtils MLIRSparseTensorPipelines MLIRVectorTransforms MLIRVectorUtils MLIRAMDGPUDialect MLIRAMDGPUToROCDL MLIRAMXDialect MLIRAffineDialect MLIRArmNeonDialect MLIRArmSVEDialect MLIRAsmParser MLIRAsyncDialect MLIRBufferizationDialect MLIRBufferizationTransformOps MLIRCAPIControlFlow MLIRCAPIFunc MLIRCAPIRegisterEverything MLIRComplexDialect MLIRComplexToLibm MLIRControlFlowDialect MLIRControlFlowToLLVM MLIRControlFlowToSPIRV MLIRDLTIDialect MLIREmitCDialect MLIRExecutionEngineUtils MLIRFuncDialect MLIRFuncToLLVM MLIRFuncToSPIRV MLIRFuncTransforms MLIRInferIntRangeInterface MLIRLLVMDialect MLIRLinalgDialect MLIRLinalgTransformOps MLIRLspServerSupportLib MLIRMLProgramDialect MLIRMathDialect MLIRMemRefDialect MLIRNVGPUDialect MLIRNVGPUToNVVM MLIRNVGPUTransforms MLIRNVVMDialect MLIROpenACCDialect MLIROpenMPDialect MLIRPDLDialect MLIRPDLInterpDialect MLIRPDLLCodeGen MLIRPDLLODS MLIRParallelCombiningOpInterface MLIRQuantDialect MLIRQuantUtils MLIRROCDLDialect MLIRSCFDialect MLIRSCFToControlFlow MLIRSCFTransformOps MLIRSPIRVDialect MLIRShapeDialect MLIRSparseTensorDialect MLIRTensorDialect MLIRTensorToLinalg MLIRTensorToSPIRV MLIRTosaDialect MLIRTosaToArith MLIRTosaToTensor MLIRTransformDialect MLIRTransformDialectTransforms MLIRTranslateLib MLIRVectorDialect MLIRX86VectorDialect MLIRAffineTransformOps MLIRArithAttrToLLVMConversion MLIRArithDialect MLIRArithToLLVM MLIRArithToSPIRV MLIRArithTransforms MLIRArithUtils MLIRBytecodeReader MLIRBytecodeWriter MLIRCAPIMLProgram MLIRCAPITransformDialect MLIRDestinationStyleOpInterface MLIRFromLLVMIRTranslationRegistration MLIRGPUTransformOps MLIRIndexDialect MLIRIndexToLLVM MLIRInferIntRangeCommon MLIRLLVMIRToLLVMTranslation MLIRMaskableOpInterface MLIRMaskingOpInterface MLIRMathToFuncs MLIRMemRefTransformOps MLIRNVGPUUtils MLIRRuntimeVerifiableOpInterface MLIRShapedOpInterfaces MLIRSparseTensorRuntime MLIRTblgenLib MLIRTransformDialectUtils MLIRVectorTransformOps MLIRAMDGPUTransforms MLIRAMDGPUUtils MLIRArithValueBoundsOpInterfaceImpl MLIRArmSMEDialect MLIRArmSMEToLLVMIRTranslation MLIRArmSMETransforms MLIRBuiltinToLLVMIRTranslation MLIRBytecodeOpInterface MLIRCAPIArith MLIRCAPIMath MLIRCAPIMemRef MLIRCAPIVector MLIRComplexToSPIRV MLIRDebug MLIRFuncAllExtensions MLIRFuncInlinerExtension MLIRGPUDialect MLIRGPUToLLVMIRTranslation MLIRIRDL MLIRMemorySlotInterfaces MLIRNVGPUTransformOps MLIRNVVMToLLVM MLIRObservers MLIRPluginsLib MLIRTensorTransformOps MLIRTransformPDLExtension MLIRUBDialect MLIRUBToLLVM MLIRUBToSPIRV MLIRValueBoundsOpInterface MLIRVectorToArmSME MLIRArithToAMDGPU MLIRArithToArmSME MLIRArmSMEToLLVM MLIRArmSMEToSCF MLIRBufferizationPipelines MLIRCAPIAMDGPU MLIRCAPINVGPU MLIRCAPINVVM MLIRCAPIOpenMP MLIRCAPIROCDL MLIRCAPISPIRV MLIRCAPITarget MLIRControlFlowToSCF MLIRControlFlowTransforms MLIRConvertToLLVMInterface MLIRConvertToLLVMPass MLIREmitCTransforms MLIRFuncTransformOps MLIRFunctionInterfaces MLIRGPUPipelines MLIRIndexToSPIRV MLIRLLVMIRToNVVMTranslation MLIRMLProgramTransforms MLIRMeshDialect MLIRMeshTransforms MLIRNVVMTarget MLIROpenACCMPCommon MLIRQuery MLIRQueryLib MLIRQueryMatcher MLIRROCDLTarget MLIRRewritePDL MLIRSCFToEmitC MLIRSPIRVTarget MLIRSPIRVToLLVMIRTranslation MLIRShardingInterface MLIRSparseTensorTransformOps MLIRSubsetOpInterface MLIRTargetLLVM MLIRTosaShardingInterfaceImpl MLIRTosaToMLProgram MLIRTransformDebugExtension MLIRTransformLoopExtension MLIRVectorToLLVMPass MLIRArithToEmitC MLIRArmNeonTransforms MLIRCAPIIRDL MLIRCAPITransformDialectTransforms MLIRFuncMeshShardingExtensions MLIRFuncToEmitC MLIRGPUToLLVMSPV MLIRMPIDialect MLIRMathToROCDL MLIRMemRefToEmitC MLIROpenACCTransforms MLIRPtrDialect MLIRTransformDialectIRDLExtension MLIRTransformDialectInterfaces MLIRVCIXDialect MLIRVCIXToLLVMIRTranslation MLIRXeGPUDialect MLIRXeGPUTransforms MLIRCAPIEmitC MLIRDLTITransformOps MLIRGPUUtils MLIRMathToEmitC MLIRMeshToMPI MLIRQuantTransforms MLIRSPIRVAttrToLLVMConversion MLIRTensorAllExtensions MLIRTensorMeshShardingExtensions MLIRVectorToXeGPU MLIRArmNeonVectorTransformOps MLIRArmSVEVectorTransformOps MLIRCAPIIndex MLIRCAPIExportSMTLIB MLIRCAPISMT MLIRComplexDivisionConversion MLIRConvertToEmitC MLIRExportSMTLIB MLIRFuncUtils MLIRIndexingMapOpInterface MLIRMPIToLLVM MLIRSMT MLIRSPIRVImageInterfaces MLIRTargetIRDLToCpp MLIRTestIRDLToCppDialect MLIRTestMemRefToLLVMWithTransforms MLIRTransformTuneExtension MLIRXeGPUTestPasses MLIRXeGPUUtils MLIRXeVMDialect MLIRXeVMToLLVM
+%global MLIRLibs MLIRAffineAnalysis MLIRAffineToStandard MLIRAffineTransforms MLIRAffineUtils MLIRAMXTransforms MLIRAnalysis MLIRArmNeon2dToIntr MLIRArmNeonToLLVMIRTranslation MLIRArmSVEToLLVMIRTranslation MLIRArmSVETransforms MLIRAsyncToLLVM MLIRAsyncTransforms MLIRBufferizationToMemRef MLIRBufferizationTransforms MLIRCallInterfaces MLIRCAPIAsync MLIRCAPIConversion MLIRCAPIDebug MLIRCAPIExecutionEngine MLIRCAPIGPU MLIRCAPIInterfaces MLIRCAPIIR MLIRCAPILinalg MLIRCAPILLVM MLIRCAPIPDL MLIRCAPIQuant MLIRCAPISCF MLIRCAPIShape MLIRCAPISparseTensor MLIRCAPITensor MLIRCAPITransforms MLIRCastInterfaces MLIRComplexToLLVM MLIRComplexToStandard MLIRControlFlowInterfaces MLIRCopyOpInterface MLIRDataLayoutInterfaces MLIRDerivedAttributeOpInterface MLIRDialect MLIRDialectUtils MLIRExecutionEngine MLIRGPUToGPURuntimeTransforms MLIRGPUToNVVMTransforms MLIRGPUToROCDLTransforms MLIRGPUToSPIRV MLIRGPUTransforms MLIRInferTypeOpInterface MLIRIR MLIRJitRunner MLIRLinalgToStandard MLIRLinalgTransforms MLIRLinalgUtils MLIRLLVMCommonConversion MLIRLLVMIRTransforms MLIRLLVMToLLVMIRTranslation MLIRLoopLikeInterface MLIRLspServerLib MLIRMathToLibm MLIRMathToLLVM MLIRMathToSPIRV MLIRMathTransforms MLIRMemRefToLLVM MLIRMemRefToSPIRV MLIRMemRefTransforms MLIRMemRefUtils MLIRMlirOptMain MLIRNVVMToLLVMIRTranslation MLIROpenACCToLLVMIRTranslation MLIROpenACCToSCF MLIROpenMPToLLVMIRTranslation MLIROpenMPToLLVM MLIROptLib MLIRParser MLIRPass MLIRPDLLAST MLIRPDLToPDLInterp MLIRPresburger MLIRReconcileUnrealizedCasts MLIRReduceLib MLIRReduce MLIRRewrite MLIRROCDLToLLVMIRTranslation MLIRSCFToGPU MLIRSCFToOpenMP MLIRSCFToSPIRV MLIRSCFTransforms MLIRShapeOpsTransforms MLIRShapeToStandard MLIRSideEffectInterfaces MLIRSparseTensorTransforms MLIRSparseTensorUtils MLIRSPIRVBinaryUtils MLIRSPIRVConversion MLIRSPIRVDeserialization MLIRSPIRVModuleCombiner MLIRSPIRVSerialization MLIRSPIRVToLLVM MLIRSPIRVTransforms MLIRSPIRVTranslateRegistration MLIRSPIRVUtils MLIRSupport MLIRTargetCpp MLIRTargetLLVMIRExport MLIRTargetLLVMIRImport MLIRTensorInferTypeOpInterfaceImpl MLIRTensorTransforms MLIRTilingInterface MLIRToLLVMIRTranslationRegistration MLIRTosaToLinalg MLIRTosaToSCF MLIRTosaTransforms MLIRTransforms MLIRTransformUtils MLIRVectorInterfaces MLIRVectorToGPU MLIRVectorToLLVM MLIRVectorToSCF MLIRVectorToSPIRV MLIRViewLikeInterface MLIRX86VectorTransforms MLIRTensorTilingInterfaceImpl MLIRTensorUtils MLIRSCFUtils MLIRSparseTensorPipelines MLIRVectorTransforms MLIRVectorUtils MLIRAMDGPUDialect MLIRAMDGPUToROCDL MLIRAMXDialect MLIRAffineDialect MLIRArmNeonDialect MLIRArmSVEDialect MLIRAsmParser MLIRAsyncDialect MLIRBufferizationDialect MLIRBufferizationTransformOps MLIRCAPIControlFlow MLIRCAPIFunc MLIRCAPIRegisterEverything MLIRComplexDialect MLIRComplexToLibm MLIRControlFlowDialect MLIRControlFlowToLLVM MLIRControlFlowToSPIRV MLIRDLTIDialect MLIREmitCDialect MLIRExecutionEngineUtils MLIRFuncDialect MLIRFuncToLLVM MLIRFuncToSPIRV MLIRFuncTransforms MLIRInferIntRangeInterface MLIRLLVMDialect MLIRLinalgDialect MLIRLinalgTransformOps MLIRLspServerSupportLib MLIRMLProgramDialect MLIRMathDialect MLIRMemRefDialect MLIRNVGPUDialect MLIRNVGPUToNVVM MLIRNVGPUTransforms MLIRNVVMDialect MLIROpenACCDialect MLIROpenMPDialect MLIRPDLDialect MLIRPDLInterpDialect MLIRPDLLCodeGen MLIRPDLLODS MLIRParallelCombiningOpInterface MLIRQuantDialect MLIRQuantUtils MLIRROCDLDialect MLIRSCFDialect MLIRSCFToControlFlow MLIRSCFTransformOps MLIRSPIRVDialect MLIRShapeDialect MLIRSparseTensorDialect MLIRTensorDialect MLIRTensorToLinalg MLIRTensorToSPIRV MLIRTosaDialect MLIRTosaToArith MLIRTosaToTensor MLIRTransformDialect MLIRTransformDialectTransforms MLIRTranslateLib MLIRVectorDialect MLIRX86VectorDialect MLIRAffineTransformOps MLIRArithAttrToLLVMConversion MLIRArithDialect MLIRArithToLLVM MLIRArithToSPIRV MLIRArithTransforms MLIRArithUtils MLIRBytecodeReader MLIRBytecodeWriter MLIRCAPIMLProgram MLIRCAPITransformDialect MLIRDestinationStyleOpInterface MLIRFromLLVMIRTranslationRegistration MLIRGPUTransformOps MLIRIndexDialect MLIRIndexToLLVM MLIRInferIntRangeCommon MLIRLLVMIRToLLVMTranslation MLIRMaskableOpInterface MLIRMaskingOpInterface MLIRMathToFuncs MLIRMemRefTransformOps MLIRNVGPUUtils MLIRRuntimeVerifiableOpInterface MLIRShapedOpInterfaces MLIRSparseTensorRuntime MLIRTblgenLib MLIRTransformDialectUtils MLIRVectorTransformOps MLIRAMDGPUTransforms MLIRAMDGPUUtils MLIRArithValueBoundsOpInterfaceImpl MLIRArmSMEDialect MLIRArmSMEToLLVMIRTranslation MLIRArmSMETransforms MLIRBuiltinToLLVMIRTranslation MLIRBytecodeOpInterface MLIRCAPIArith MLIRCAPIMath MLIRCAPIMemRef MLIRCAPIVector MLIRComplexToSPIRV MLIRDebug MLIRFuncAllExtensions MLIRFuncInlinerExtension MLIRGPUDialect MLIRGPUToLLVMIRTranslation MLIRIRDL MLIRMemorySlotInterfaces MLIRNVGPUTransformOps MLIRNVVMToLLVM MLIRObservers MLIRPluginsLib MLIRTensorTransformOps MLIRTransformPDLExtension MLIRUBDialect MLIRUBToLLVM MLIRUBToSPIRV MLIRValueBoundsOpInterface MLIRVectorToArmSME MLIRArithToAMDGPU MLIRArithToArmSME MLIRArmSMEToLLVM MLIRArmSMEToSCF MLIRBufferizationPipelines MLIRCAPIAMDGPU MLIRCAPINVGPU MLIRCAPINVVM MLIRCAPIOpenMP MLIRCAPIROCDL MLIRCAPISPIRV MLIRCAPITarget MLIRControlFlowToSCF MLIRControlFlowTransforms MLIRConvertToLLVMInterface MLIRConvertToLLVMPass MLIREmitCTransforms MLIRFuncTransformOps MLIRFunctionInterfaces MLIRGPUPipelines MLIRIndexToSPIRV MLIRLLVMIRToNVVMTranslation MLIRMLProgramTransforms MLIRMeshDialect MLIRMeshTransforms MLIRNVVMTarget MLIROpenACCMPCommon MLIRQuery MLIRQueryLib MLIRQueryMatcher MLIRROCDLTarget MLIRRewritePDL MLIRSCFToEmitC MLIRSPIRVTarget MLIRSPIRVToLLVMIRTranslation MLIRShardingInterface MLIRSparseTensorTransformOps MLIRSubsetOpInterface MLIRTargetLLVM MLIRTosaShardingInterfaceImpl MLIRTosaToMLProgram MLIRTransformDebugExtension MLIRTransformLoopExtension MLIRVectorToLLVMPass MLIRArithToEmitC MLIRArmNeonTransforms MLIRCAPIIRDL MLIRCAPITransformDialectTransforms MLIRFuncMeshShardingExtensions MLIRFuncToEmitC MLIRGPUToLLVMSPV MLIRMPIDialect MLIRMathToROCDL MLIRMemRefToEmitC MLIROpenACCTransforms MLIRPtrDialect MLIRTransformDialectIRDLExtension MLIRTransformDialectInterfaces MLIRVCIXDialect MLIRVCIXToLLVMIRTranslation MLIRXeGPUDialect MLIRXeGPUTransforms MLIRCAPIEmitC MLIRDLTITransformOps MLIRGPUUtils MLIRMathToEmitC MLIRMeshToMPI MLIRQuantTransforms MLIRSPIRVAttrToLLVMConversion MLIRTensorAllExtensions MLIRTensorMeshShardingExtensions MLIRVectorToXeGPU MLIRArmNeonVectorTransformOps MLIRArmSVEVectorTransformOps MLIRCAPIIndex MLIRCAPIExportSMTLIB MLIRCAPISMT MLIRComplexDivisionConversion MLIRConvertToEmitC MLIRExportSMTLIB MLIRFuncUtils MLIRIndexingMapOpInterface MLIRMPIToLLVM MLIRSMT MLIRSPIRVImageInterfaces MLIRTargetIRDLToCpp MLIRTestIRDLToCppDialect MLIRTestMemRefToLLVMWithTransforms MLIRTransformTuneExtension MLIRXeGPUTestPasses MLIRXeGPUUtils MLIRXeVMDialect MLIRXeVMToLLVM MLIRCIR MLIRCIRInterfaces MLIRCIRTransforms
 %if %{with tests}
 %global MLIRLibs %{MLIRLibs} MLIRAffineTransformsTestPasses MLIRDLTITestPasses MLIRGPUTestPasses MLIRLinalgTestPasses MLIRMathTestPasses MLIRSCFTestPasses MLIRShapeTestPasses MLIRSPIRVTestPasses MLIRTosaTestPasses MLIRVectorTestPasses MLIRMemRefTestPasses MLIRFuncTestPasses MLIRTensorTestPasses MLIRTilingInterfaceTestPasses MLIRArithTestPasses MLIRBufferizationTestPasses MLIRControlFlowTestPasses MLIRLLVMTestPasses MLIRNVGPUTestPasses MLIRLoopLikeInterfaceTestPasses MLIRTestAnalysis MLIRTestDialect MLIRTestIR MLIRTestPass MLIRTestReducer MLIRTestRewrite MLIRTestTransforms MLIRTestFuncToLLVM MLIRTestPDLL MLIRTestTransformDialect MLIRTestDynDialect MLIRTestVectorToSPIRV MLIRMeshTest MLIRTestToLLVMIRTranslation MLIRArmSMETestPasses MLIRTestConvertToSPIRV MLIRTestFromLLVMIRTranslation MLIRTestMathToVCIX
 %endif
@@ -1025,10 +1027,19 @@ done)}
 %define libunwind_major 1.0
 %define libunwind %mklibname unwind %{libunwind_major}
 %define devunwind %mklibname -d unwind
+%define lib32unwind libunwind%{libunwind_major}
+%define dev32unwind libunwind-devel
 
 %package -n %{libunwind}
 Summary:	The LLVM unwind library
 Group:		System/Libraries
+%if %{with compat32}
+# We no longer build 32-bit versions of libunwind.
+# Nothing uses them because 64-bit CPUs were
+# extremely widespread before LLVM libunwind
+# was ready to replace the traditional libunwind.
+Obsoletes:	%{lib32unwind} < %{EVRD}
+%endif
 
 %description -n %{libunwind}
 The unwind library, a part of llvm.
@@ -1041,6 +1052,9 @@ The unwind library, a part of llvm.
 Summary:	Development files for libunwind
 Group:		Development/C
 Requires:	%{libunwind} = %{EVRD}
+%if %{with compat32}
+Obsoletes:	%{dev32unwind} < %{EVRD}
+%endif
 
 %description -n %{devunwind}
 Development files for libunwind.
@@ -1271,6 +1285,12 @@ Provides:	libomp.so(OMP_3.1)
 Provides:	libomp.so(OMP_4.0)
 Provides:	libomp.so(VERSION)
 %endif
+%if %{with compat32}
+# We no longer build the 32-bit version, because there are
+# no known 32-bit users of OpenMP
+Obsoletes:	libomp < %{EVRD}
+Obsoletes:	libomp1 < %{EVRD}
+%endif
 
 %description -n %{ompname}
 Shared libraries for LLVM OpenMP support.
@@ -1284,8 +1304,8 @@ Shared libraries for LLVM OpenMP support.
 %{_libdir}/libomp.so*
 %{_libdir}/libomptarget.so
 %{_libdir}/libomptarget.so.%{major}
-%{_libdir}/amdgcn-amd-amdhsa
-%{_libdir}/nvptx64-nvidia-cuda
+%{_bindir}/amdhsa-loader
+%{_bindir}/llvm-gpu-loader
 %endif
 
 #-----------------------------------------------------------
@@ -1431,20 +1451,13 @@ as libraries and designed to be loosely-coupled and extensible.
 %dir %{_libdir}/clang
 %dir %{_libdir}/clang/%{major1}
 %dir %{_libdir}/clang/%{major1}/lib
-%dir %{_libdir}/clang/%{major1}/lib/*
-%{_libdir}/clang/%{major1}/lib/*/clang_rt*.o
-%{_libdir}/clang/%{major1}/lib/*/libclang_rt*.a
-# No sanitizers on RISC-V yet, only static clang_rt
-%ifnarch %{riscv}
-%{_libdir}/clang/%{major1}/lib/*/libclang_rt*.so
-%{_libdir}/clang/%{major1}/lib/*/libclang_rt*.syms
-# Contains hwasan, therefore no RISC-V
-%{_libdir}/clang/%{major1}/bin
-# Contains sanitizer configs, therefore no RISC-V
-%{_libdir}/clang/%{major1}/share
-%endif
-%{_libdir}/clang/%{major1}/lib/*/liborc_rt*.a
+%{_libdir}/clang/%{major1}/lib/%{_target_platform}
+# Contains only hwasan, therefore isn't on all platforms
+%optional %{_libdir}/clang/%{major1}/bin
+# Contains only sanitizer configs, therefore isn't on all platforms
+%optional %{_libdir}/clang/%{major1}/share
 %{_libdir}/clang/%{major1}/include
+%dir %{_sysconfdir}/clang
 
 #-----------------------------------------------------------
 
@@ -1504,6 +1517,9 @@ A various tools for LLVM/clang.
 %{_bindir}/clang-tidy
 %{_bindir}/clang-installapi
 %{_bindir}/clang-nvlink-wrapper
+%{_bindir}/cir-lsp-server
+%{_bindir}/cir-opt
+%{_bindir}/cir-translate
 %{_bindir}/run-clang-tidy
 %{_bindir}/clangd
 %{_bindir}/diagtool
@@ -1756,6 +1772,11 @@ Python bindings to parts of the Clang library
 %package libgomp
 Summary:	LLVM's version of libgomp (the GCC variant of OpenMP)
 Group:		System/Libraries
+%if %{with compat32}
+# We no longer build the 32-bit version, because there are
+# no known 32-bit users of OpenMP
+Obsoletes:	libgomp32 < %{EVRD}
+%endif
 
 %description libgomp
 LLVM's version of libgomp (the GCC variant of OpenMP)
@@ -1766,13 +1787,18 @@ LLVM's version of libgomp (the GCC variant of OpenMP)
 %package -n %{libompdevel}
 Summary:	Development files for the OpenMP runtime
 Group:		Development/C
+%if %{with compat32}
+# We no longer build the 32-bit version, because there are
+# no known 32-bit users of OpenMP
+Obsoletes:	libomp-devel
+%endif
 
 %description -n %{libompdevel}
 Development files for the OpenMP runtime.
 
 %files -n %{libompdevel}
 %{_libdir}/libiomp5.so
-# %{_libdir}/libomp.so excluded intentionally, it's in %{libomp}
+# %{_libdir}/libomp.so excluded intentionally, it's in %{ompname}
 %ifnarch %{arm} %{riscv}
 %{_libdir}/libarcher_static.a
 %endif
@@ -1845,49 +1871,6 @@ Obsoletes:	libclang-cpp14 < %{EVRD}
 %{_prefix}/lib/cmake/clang
 %{_prefix}/lib/libclang*.so
 
-%package -n libomp
-Summary:	32-bit OpenMP runtime
-Group:		System/Libraries
-%rename libomp1
-
-%description -n libomp
-32-bit OpenMP runtime.
-
-%files -n libomp
-%{_prefix}/lib/libomp.so.1*
-# FIXME does this need a SOVERSION?
-%{_prefix}/lib/libompd.so
-%{_prefix}/lib/libarcher.so
-
-%if "%{_lib}" != "lib"
-%package -n libomp-devel
-Summary:	Development files for the 32-bit OpenMP runtime
-Group:		Development/C
-
-%description -n libomp-devel
-Development files for the 32-bit OpenMP runtime.
-
-%files -n libomp-devel
-%{_prefix}/lib/libiomp5.so
-%{_prefix}/lib/libomp.so
-%{_prefix}/lib/cmake/openmp/FindOpenMPTarget.cmake
-%ifnarch %{arm} %{riscv}
-%{_prefix}/lib/libarcher_static.a
-%endif
-%endif
-
-%if "%{_lib}" != "lib"
-%package libgomp32
-Summary:	LLVM's version of 32-bit libgomp (the GCC variant of OpenMP)
-Group:		System/Libraries
-
-%description libgomp32
-LLVM's version of 32-bit libgomp (the GCC variant of OpenMP)
-
-%files libgomp32
-%{_prefix}/lib/libgomp.so.1
-%endif
-
 %package polly32
 Summary:	Polyhedral optimizations for LLVM (32-bit)
 License:	MIT
@@ -1935,38 +1918,6 @@ short vector instructions as well as dedicated accelerators.
 %files polly32-devel
 %{_prefix}/lib/libPollyISL.a
 %{_prefix}/lib/cmake/polly
-
-%define lib32unwind libunwind%{libunwind_major}
-%define dev32unwind libunwind-devel
-
-%package -n %{lib32unwind}
-Summary:	The LLVM unwind library (32-bit)
-Group:		System/Libraries
-
-%description -n %{lib32unwind}
-The unwind library, a part of llvm.
-
-%files -n %{lib32unwind}
-%{_prefix}/lib/libunwind.so.%{libunwind_major}
-%{_prefix}/lib/libunwind.so.1
-
-%package -n %{dev32unwind}
-Summary:	Development files for libunwind (32-bit)
-Group:		Development/C
-Requires:	%{lib32unwind} = %{EVRD}
-Requires:	%{devunwind} = %{EVRD}
-
-%description -n %{dev32unwind}
-Development files for libunwind.
-
-%files -n %{dev32unwind}
-%{_prefix}/lib/libunwind.a
-%{_prefix}/lib/libunwind.so
-%if %{with default_compilerrt}
-%{_prefix}/lib/pkgconfig/libunwind.pc
-%else
-%{_prefix}/lib/pkgconfig/libunwind-llvm.pc
-%endif
 %endif
 
 %if %{with mlir}
@@ -2407,13 +2358,17 @@ gccver="$(gcc --version |head -n1 |cut -d' ' -f3)"
 # Next attempt to integrate cross-crts into the build:
 TARGETS=""
 CROSSCRT_FLAGS=()
-for arch in armv7hnl aarch64 i686 loongarch64 ppc64 ppc64le riscv64 x86_64; do
+for arch in %{cross_cpu_targets}; do
 	case $arch in
 	arm*)
 		abis="gnueabihf musleabihf"
 		;;
 	x86_64)
-		abis="gnu musl gnux32 muslx32"
+		# FIXME we really want
+		#abis="gnu musl gnux32 muslx32"
+		# but as of 21.1.8, it results in a compiler crash.
+		# Try again when we update to the 22 branch
+		abis="gnu musl"
 		;;
 	*)
 		abis="gnu musl"
@@ -2499,8 +2454,9 @@ for arch in armv7hnl aarch64 i686 loongarch64 ppc64 ppc64le riscv64 x86_64; do
 			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER")
 			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_Python3_EXECUTABLE=%{_bindir}/python")
 			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_PERL_EXECUTABLE=%{_bindir}/perl")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_TABLEGEN=%{_bindir}/llvm-tblgen")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CLANG_TABLEGEN=%{_bindir}/clang-tblgen")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_TABLEGEN=$(pwd)/build/bin/llvm-tblgen")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CLANG_TABLEGEN=$(pwd)/build/bin/clang-tblgen")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_OFFLOAD_TABLEGEN=$(pwd)/build/bin/offload-tblgen")
 			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSROOT=/usr/$triplet")
 			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS=$XCFLAGS")
 			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS=$XCFLAGS")
@@ -2530,6 +2486,30 @@ for arch in armv7hnl aarch64 i686 loongarch64 ppc64 ppc64le riscv64 x86_64; do
 			XRUNTIMES="${XRUNTIMES/flang-rt;/}"
 			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_FLANG_ENABLE_FLANG_RT=OFF")
 		fi
+		# "Special" architectures that compiler-rt doesn't recognize as supported
+		if [[ "$abi" == musleabihf ]]; then
+			#CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_OS_DIR=linux")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_SUPPORTED_ARCH=armhf")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_DEFAULT_TARGET_ARCH=armhf")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_HAS_ARMHF_TARGET=ON")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_BUILTINS=ON")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_CAN_TARGET_armhf=ON")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CAN_TARGET_armhf=ON")
+		elif [[ "$arch" == ppc64 ]]; then
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_SUPPORTED_ARCH=powerpc64")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_DEFAULT_TARGET_ARCH=powerpc64")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_HAS_POWERPC64_TARGET=ON")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_BUILTINS=ON")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_CAN_TARGET_powerpc64=ON")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CAN_TARGET_powerpc64=ON")
+		elif [[ "$arch" == ppc64le ]]; then
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_SUPPORTED_ARCH=powerpc64le")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_DEFAULT_TARGET_ARCH=powerpc64le")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_HAS_POWERPC64_TARGET=ON")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_BUILTINS=ON")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_CAN_TARGET_powerpc64le=ON")
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CAN_TARGET_powerpc64le=ON")
+		fi
 		if [[ "$abi" == *musl* ]]; then
 			# libc currently clashes with musl because of its hardcodes
 			# of stat64 and friends
@@ -2547,33 +2527,99 @@ for arch in armv7hnl aarch64 i686 loongarch64 ppc64 ppc64le riscv64 x86_64; do
 done
 %if %{with crosscrt}
 # GPU targets
-for triplet in amdgcn-amd-amdhsa nvptx64-nvidia-cuda; do
+for triplet in %{cross_gpu_targets}; do
 	TARGETS="$TARGETS;$triplet"
+	XCFLAGS="-O2 -m64 -target $triplet --sysroot=/usr/$triplet -nogpulib -ffreestanding -flto"
+	XRUNTIMES="$(echo $RUNTIMES |sed -e 's,openmp;,,;s,libunwind;,,;s,;offload,,')"
+	if [[ "$triplet" == nvptx64-* ]]; then
+		XCFLAGS="$XCFLAGS -march=sm_70 -nocudalib -nocudainc --cuda-device-only"
+	elif [[ "$triplet" == spirv* ]]; then
+		# No libc or offload for spirv yet
+		# libc++ is broken in freestanding mode
+		# FIXME Re-enable libc++ when llvm-libc can be built for spirv
+		XRUNTIMES="compiler-rt"
+		XCFLAGS="$XCFLAGS -Xclang -target-feature -Xclang +spirv1.6 -Xclang -target-feature -Xclang +PhysicalStorageBuffer64"
+	fi
 %if %{cross_compiling}
-	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER=%{_bindir}/clang -target $triplet")
-	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER=%{_bindir}/clang++ -target $triplet")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER=%{_bindir}/clang -target $triplet")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER=%{_bindir}/clang++ -target $triplet")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER=%{_bindir}/clang")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER=%{_bindir}/clang++")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER=%{_bindir}/clang")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER=%{_bindir}/clang++")
 %else
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER=$(pwd)/build/bin/clang")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER=$(pwd)/build/bin/clang++")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER=$(pwd)/build/bin/clang")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER=$(pwd)/build/bin/clang++")
 %endif
-	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_ENABLE_RUNTIMES=$(echo $RUNTIMES |sed -e 's,openmp;,,;s,libunwind;,,')")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_TABLEGEN=$(pwd)/build/bin/llvm-tblgen")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CLANG_TABLEGEN=$(pwd)/build/bin/clang-tblgen")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_OFFLOAD_TABLEGEN=$(pwd)/build/bin/offload-tblgen")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_ENABLE_RUNTIMES=$XRUNTIMES")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_LIBCXXABI_USE_LLVM_UNWINDER:BOOL=OFF")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_USE_LLVM_UNWINDER:BOOL=OFF")
-	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS=-O2 -target $triplet")
-	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS=-O2 -target $triplet")
-	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS_INIT=-O2 -target $triplet")
-	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS_INIT=-O2 -target $triplet")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS=$XCFLAGS")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS=$XCFLAGS")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS_INIT=$XCFLAGS")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS_INIT=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSROOT=/usr/$triplet")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS=-O2 -target $triplet")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS=-O2 -target $triplet")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS_INIT=-O2 -target $triplet")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS_INIT=-O2 -target $triplet")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS=$XCFLAGS")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS=$XCFLAGS")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS_INIT=$XCFLAGS")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS_INIT=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
+	# See libcxx/cmake/caches/AMDGPU.cmake and
+	# libcxx/cmake/caches/NVPTX.cmake in the source tree
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_CXX_ABI=libcxxabi")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_EXCEPTIONS=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_FILESYSTEM=OFF")
+	if [[ "$triplet" == spirv* ]]; then
+		# LOCALIZATION and MONOTONIC_CLOCK depend on a libc
+		# llvm-libc can't be built for spirv yet
+		# (but is available for the other GPU targets)
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_C_LIBRARY=OFF")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_LOCALIZATION=OFF")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_MONOTONIC_CLOCK=OFF")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_USE_LLVM_LIBC:BOOL=OFF")
+	else
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_LOCALIZATION=ON")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_MONOTONIC_CLOCK=ON")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_RUNTIMES_USE_LIBC=llvm-libc")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_USE_LLVM_LIBC:BOOL=ON")
+		CROSSCRT_FLAGS+=("-DLIBC_CONF_${triplet}_LLVM_LIBC_FULL_BUILD:BOOL=ON")
+		CROSSCRT_FLAGS+=("-DLIBC_CONF_${triplet}_LIBC_GPU_BUILD:BOOL=ON")
+		CROSSCRT_FLAGS+=("-DLIBC_CONF_${triplet}_LIBC_GPU_LOADER_EXECUTABLE:FILEPATH=")
+		CROSSCRT_FLAGS+=("-DLIBC_CONF_${triplet}_LIBC_GPU_PRINTF_DISABLE:BOOL=ON")
+		CROSSCRT_FLAGS+=("-DLIBC_CONF_${triplet}_LIBC_GPU_SCANF_DISABLE:BOOL=ON")
+		CROSSCRT_FLAGS+=("-DLIBC_CONF_${triplet}_LIBC_WERROR:BOOL=OFF")
+	fi
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS=ON")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_RANDOM_DEVICE=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_RTTI=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_SHARED:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_STATIC_ABI_LIBRARY:BOOL=ON")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_STATIC:BOOL=ON")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_THREADS=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_UNICODE=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_ENABLE_WIDE_CHARACTERS=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_HAS_TERMINAL_AVAILABLE=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_INSTALL_LIBRARY=ON")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_STATICALLY_LINK_ABI_IN_STATIC_LIBRARY=ON")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_USE_COMPILER_RT=ON")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_BAREMETAL:BOOL=ON")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_ENABLE_EXCEPTIONS:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_ENABLE_SHARED:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_ENABLE_THREADS:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXXABI_USE_LLVM_UNWINDER:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_OPENMP_ENABLE_LIBOMPTARGET=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_OFFLOAD_BUILD_LIBOMPTARGET=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_OFFLOAD_BUILD_TOOLS=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_OFFLOAD_BUILD=OFF")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_USE_HOST_TOOLS:BOOL=ON")
+	CROSSCRT_FLAGS+=("-DLIBOMPTARGET_BUILD_DEVICERTL_BCLIB:BOOL=ON")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_ENABLE_PROJECTS=")
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_BAREMETAL_BUILD:BOOL=ON")
 done
 TARGETS="$(echo $TARGETS |cut -b2-)"
 CROSSCRT_FLAGS+=("-DLLVM_BUILTIN_TARGETS=$TARGETS")
@@ -2677,6 +2723,8 @@ export FC=%{_bindir}/flang
 %if %{with mlir}
 	-DMLIR_ENABLE_BINDINGS_PYTHON:BOOL=ON \
 %endif
+	-DBOOTSTRAP_CMAKE_C_FLAGS="%{optflags} -fno-semantic-interposition -flto -ffat-lto-objects -ffunction-sections -fdata-sections -fvisibility=hidden -fvisibility-inlines-hidden -DNDEBUG" \
+	-DBOOTSTRAP_CMAKE_CXX_FLAGS="%{optflags} -fno-semantic-interposition -flto -ffat-lto-objects -ffunction-sections -fdata-sections -fvisibility=hidden -fvisibility-inlines-hidden -DNDEBUG" \
 	-DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	-DLLVM_LIBGCC_EXPLICIT_OPT_IN=Yes \
 	-DFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON \
@@ -2715,6 +2763,7 @@ export FC=%{_bindir}/flang
 	-DLLD_VENDOR="OpenMandriva %{version}-%{release}" \
 	-DLLVM_ENABLE_NEW_PASS_MANAGER:BOOL=ON \
 	-DENABLE_X86_RELAX_RELOCATIONS:BOOL=ON \
+	-DCLANG_CONFIG_FILE_SYSTEM_DIR=%{_sysconfdir}/clang \
 	-DCLANG_DEFAULT_LINKER=lld \
 	-DCLANG_DEFAULT_OBJCOPY=llvm-objcopy \
 %if %{with default_compilerrt}
@@ -2783,7 +2832,7 @@ export FC=%{_bindir}/flang
 	-DLIBCXX_LIBDIR_SUFFIX="$(echo %{_lib} | sed -e 's,^lib,,')" \
 	-DPSTL_PARALLEL_BACKEND=omp \
 	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/%{_lib}" \
-	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/%{_lib},-rpath,$(pwd)/lib" \
+	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/%{_lib},-rpath,$(pwd)/lib,--gc-sections,--icf=all" \
 %if %{with mlir}
 	-DMLIR_ENABLE_SPIRV_CPU_RUNNER:BOOL=ON \
 	-DMLIR_ENABLE_VULKAN_RUNNER:BOOL=ON \
@@ -2815,16 +2864,15 @@ export FC=%{_bindir}/flang
 	../llvm
 
 if ! %ninja_build; then
-# With many threads, there's a chance of libc++ being built
-# before libc++abi, causing linkage to fail. Simply trying
-# again "fixes" it.
-# flang also seems to have SMP build issues
-    for i in $(seq 1 30); do
-	if %ninja_build; then
-	    break
+	# With many threads, there's a chance of libc++ being built
+	# before libc++abi, causing linkage to fail. Simply trying
+	# again "fixes" it.
+	# flang also seems to have SMP build issues...
+	if ! %ninja_build; then
+		# So if it fails again, let's try the very
+		# conservative way
+		%ninja_build -j1
 	fi
-    done
-    %ninja_build -j1
 fi
 
 cd ..
@@ -2915,7 +2963,7 @@ EOF
 	-DLIBCXX_ENABLE_SHARED:BOOL=ON \
 	-DLIBCXX_ENABLE_STATIC:BOOL=ON \
 	-DLIBCXX_ENABLE_PARALLEL_ALGORITHMS:BOOL=ON \
-%if "%{_gnu}" == "musl"
+%if "%{_gnu}" == "musl" || "%{_gnu}" == "musleabihf"
 	-DLIBCXX_HAS_MUSL_LIBC:BOOL=ON \
 	-DLIBCXXABI_HAS_CXA_THREAD_ATEXIT_IMPL:BOOL=OFF \
 %else
@@ -2956,157 +3004,6 @@ EOF
 cd ..
 %endif
 
-%if 0
-# was: %{with crosscrt}
-# Build compiler-rt for all potential crosscompiler targets
-unset CFLAGS
-unset CXXFLAGS
-XCRTARCHES=""
-%ifnarch %{arm}
-XCRTARCHES="$XCRTARCHES armv7hnl armv7hnlmusl"
-%else
-%if "%{_gnu}" == "-musl"
-XCRTARCHES="$XCRTARCHES armv7hnl"
-%else
-XCRTARCHES="$XCRTARCHES armv7hnlmusl"
-%endif
-%endif
-%ifnarch %{aarch64}
-XCRTARCHES="$XCRTARCHES aarch64 aarch64musl"
-%else
-%if "%{_gnu}" == "-musl"
-XCRTARCHES="$XCRTARCHES aarch64"
-%else
-XCRTARCHES="$XCRTARCHES aarch64musl"
-%endif
-%endif
-%ifnarch %{ix86}
-XCRTARCHES="$XCRTARCHES i686 i686musl"
-%else
-%if "%{_gnu}" == "-musl"
-XCRTARCHES="$XCRTARCHES i686"
-%else
-XCRTARCHES="$XCRTARCHES i686musl"
-%endif
-%endif
-%ifnarch %{riscv64}
-XCRTARCHES="$XCRTARCHES riscv64 riscv64musl"
-%else
-%if "%{_gnu}" == "-musl"
-XCRTARCHES="$XCRTARCHES riscv64"
-%else
-XCRTARCHES="$XCRTARCHES riscv64musl"
-%endif
-%endif
-%ifnarch ppc64
-XCRTARCHES="$XCRTARCHES ppc64 ppc64musl"
-%else
-%if "%{_gnu}" == "-musl"
-XCRTARCHES="$XCRTARCHES ppc64"
-%else
-XCRTARCHES="$XCRTARCHES ppc64musl"
-%endif
-%endif
-%ifnarch ppc64le
-XCRTARCHES="$XCRTARCHES ppc64le ppc64lemusl"
-%else
-%if "%{_gnu}" == "-musl"
-XCRTARCHES="$XCRTARCHES ppc64le"
-%else
-XCRTARCHES="$XCRTARCHES ppc64lemusl"
-%endif
-%endif
-%ifnarch %{loongarch64}
-XCRTARCHES="$XCRTARCHES loongarch64 loongarch64musl"
-%else
-%if "%{_gnu}" == "-musl"
-XCRTARCHES="$XCRTARCHES loongarch64"
-%else
-XCRTARCHES="$XCRTARCHES loongarch64musl"
-%endif
-%endif
-%ifnarch %{x86_64}
-XCRTARCHES="$XCRTARCHES x86_64 x86_64musl"
-%else
-%if "%{_gnu}" == "-musl"
-XCRTARCHES="$XCRTARCHES x86_64"
-%else
-XCRTARCHES="$XCRTARCHES x86_64musl"
-%endif
-%endif
-if [ -n "$XCRTARCHES" ]; then
-	for i in $XCRTARCHES; do
-		if echo $i |grep -q musl; then
-			LIBC=musl
-			arch="${i/musl/}"
-		elif [ "$i" = "armv7hnl" ]; then
-			LIBC=gnueabihf
-			arch=$i
-		else
-			LIBC=gnu
-			arch=$i
-		fi
-		mkdir xbuild-crt-$i
-		cd xbuild-crt-$i
-		gccver="$(${arch}-openmandriva-linux-${LIBC}-gcc --version |head -n1 |cut -d' ' -f3)"
-		if [ %{_build} = "${arch}-openmandriva-linux-${LIBC}" ]; then
-			SYSROOT=""
-		else
-			SYSROOT="--sysroot=/usr/${arch}-openmandriva-linux-${LIBC}"
-		fi
-		LFLAGS="-O3 $SYSROOT --gcc-install-dir=%{_libdir}/gcc/${arch}-openmandriva-linux-${LIBC}/${gccver}"
-		FLAGS="$LFLAGS -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64"
-		cmake \
-			../compiler-rt \
-			-DCMAKE_BUILD_TYPE=MinSizeRel \
-			-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR:BOOL=ON \
-			-DCOMPILER_RT_INSTALL_BINARY_DIR:PATH=%{_libdir}/clang/%{major1}/bin \
-			-DCOMPILER_RT_INSTALL_DATA_DIR:PATH=%{_libdir}/clang/%{major1}/share \
-			-DCOMPILER_RT_INSTALL_INCLUDE_DIR:PATH=%{_libdir}/clang/%{major1}/include \
-			-DCOMPILER_RT_INSTALL_LIBRARY_DIR:PATH=%{_libdir}/clang/%{major1}/lib \
-			-DLLVM_PARALLEL_LINK_JOBS=$LPROCESSES \
-			-DLLVM_PARALLEL_COMPILE_JOBS=$CPROCESSES \
-			-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
-			-DLLVM_INCLUDE_DIR="${TOP}/llvm/include/llvm" \
-			-DCMAKE_CROSSCOMPILING:BOOL=ON \
-			-DCMAKE_INSTALL_PREFIX=%{_libdir}/clang/%{major1} \
-%if ! %{cross_compiling}
-			-DCMAKE_AR=${BINDIR}/llvm-ar \
-			-DCMAKE_NM=${BINDIR}/llvm-nm \
-			-DCMAKE_RANLIB=${BINDIR}/llvm-ranlib \
-			-DCMAKE_C_COMPILER=${BINDIR}/clang \
-			-DCMAKE_CXX_COMPILER=${BINDIR}/clang++ \
-%else
-			-DCMAKE_AR=%{_bindir}/llvm-ar \
-			-DCMAKE_NM=%{_bindir}/llvm-nm \
-			-DCMAKE_RANLIB=%{_bindir}/llvm-ranlib \
-			-DCMAKE_C_COMPILER=%{_bindir}/clang \
-			-DCMAKE_CXX_COMPILER=%{_bindir}/clang++ \
-%endif
-			-DCMAKE_ASM_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
-			-DCMAKE_C_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
-			-DCMAKE_CXX_COMPILER_TARGET=${arch}-openmandriva-linux-${LIBC} \
-			-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=${arch}-openmandriva-linux-${LIBC} \
-			-DCMAKE_ASM_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
-			-DCMAKE_C_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
-			-DCMAKE_CXX_FLAGS="$FLAGS -isystem %{_prefix}/${arch}-openmandriva-linux-${LIBC}/include/c++/${gccver}/${arch}-openmandriva-linux-${LIBC}" \
-			-DCMAKE_EXE_LINKER_FLAGS="$LFLAGS" \
-			-DCMAKE_MODULE_LINKER_FLAGS="$LFLAGS" \
-			-DCMAKE_SHARED_LINKER_FLAGS="$LFLAGS" \
-			-DCOMPILER_RT_BUILD_BUILTINS:BOOL=ON \
-			-DCOMPILER_RT_BUILD_SANITIZERS:BOOL=OFF \
-			-DCOMPILER_RT_BUILD_LIBFUZZER:BOOL=OFF \
-			-DCOMPILER_RT_BUILD_MEMPROF:BOOL=OFF \
-			-DCOMPILER_RT_BUILD_PROFILE:BOOL=OFF \
-			-DCOMPILER_RT_BUILD_XRAY:BOOL=OFF \
-			-DCOMPILER_RT_DEFAULT_TARGET_ONLY:BOOL=OFF \
-			-G Ninja
-		%ninja_build
-		cd ..
-	done
-fi
-%endif
-
 %install
 export FC=%{_bindir}/flang
 
@@ -3128,89 +3025,24 @@ rm -rf \
 
 %ninja_install -C build
 
-%if 0
-# was: %{with crosscrt}
-XCRTARCHES=""
-%ifnarch %{arm}
-XCRTARCHES="$XCRTARCHES armv7hnl armv7hnlmusl"
-%else
-%if "%{_libc}" == "musl"
-XCRTARCHES="$XCRTARCHES armv7hnl"
-%else
-XCRTARCHES="$XCRTARCHES armv7hnlmusl"
-%endif
-%endif
-%ifnarch %{aarch64}
-XCRTARCHES="$XCRTARCHES aarch64 aarch64musl"
-%else
-%if "%{_libc}" == "musl"
-XCRTARCHES="$XCRTARCHES aarch64"
-%else
-XCRTARCHES="$XCRTARCHES aarch64musl"
-%endif
-%endif
-%ifnarch %{ix86}
-XCRTARCHES="$XCRTARCHES i686 i686musl"
-%else
-%if "%{_libc}" == "musl"
-XCRTARCHES="$XCRTARCHES i686"
-%else
-XCRTARCHES="$XCRTARCHES i686musl"
-%endif
-%endif
-%ifnarch %{riscv64}
-XCRTARCHES="$XCRTARCHES riscv64 riscv64musl"
-%else
-%if "%{_libc}" == "musl"
-XCRTARCHES="$XCRTARCHES riscv64"
-%else
-XCRTARCHES="$XCRTARCHES riscv64musl"
-%endif
-%endif
-%ifnarch ppc64
-XCRTARCHES="$XCRTARCHES ppc64 ppc64musl"
-%else
-%if "%{_libc}" == "musl"
-XCRTARCHES="$XCRTARCHES ppc64"
-%else
-XCRTARCHES="$XCRTARCHES ppc64musl"
-%endif
-%endif
-%ifnarch ppc64le
-XCRTARCHES="$XCRTARCHES ppc64le ppc64lemusl"
-%else
-%if "%{_libc}" == "musl"
-XCRTARCHES="$XCRTARCHES ppc64le"
-%else
-XCRTARCHES="$XCRTARCHES ppc64lemusl"
-%endif
-%endif
-%ifnarch %{loongarch64}
-XCRTARCHES="$XCRTARCHES loongarch64 loongarch64musl"
-%else
-%if "%{_libc}" == "musl"
-XCRTARCHES="$XCRTARCHES loongarch64"
-%else
-XCRTARCHES="$XCRTARCHES loongarch64musl"
-%endif
-%endif
-%ifnarch %{x86_64}
-XCRTARCHES="$XCRTARCHES x86_64 x86_64musl"
-%else
-%if "%{_libc}" == "musl"
-XCRTARCHES="$XCRTARCHES x86_64"
-%else
-XCRTARCHES="$XCRTARCHES x86_64musl"
-%endif
-%endif
-if [ -n "$XCRTARCHES" ]; then
-    for arch in $XCRTARCHES; do
-	%ninja_install -C xbuild-crt-${arch}
-    done
-fi
-%endif
-
 %if "%{_lib}" != "lib"
+# Some runtimes like installing themselves in %{_prefix}/lib/clang/%{major1}/...
+# while clang only looks in %{_libdir}/clang/%{major1}/...
+# Unify those.
+if [[ -d "%{buildroot}/usr/lib/clang/%{major1}" ]]; then
+	# Known dupes
+	rm -rf %{buildroot}%{_prefix}/lib/clang/%{major1}/share/asan_ignorelist.txt \
+	       %{buildroot}%{_prefix}/lib/clang/%{major1}/share/cfi_ignorelist.txt \
+	       %{buildroot}%{_prefix}/lib/clang/%{major1}/include/sanitizer \
+	       %{buildroot}%{_prefix}/lib/clang/%{major1}/include/fuzzer \
+	       %{buildroot}%{_prefix}/lib/clang/%{major1}/include/xray \
+	       %{buildroot}%{_prefix}/lib/clang/%{major1}/include/orc \
+	       %{buildroot}%{_prefix}/lib/clang/%{major1}/include/profile
+	# Merge the rest
+	cp -av --update=none-fail %{buildroot}/usr/lib/clang/%{major1}/* %{buildroot}%{_libdir}/clang/%{major1}/
+	rm -rf %{buildroot}%{_prefix}/lib/clang
+fi
+
 # FIXME this should be fixed properly, in the CMake files...
 # lldb's lua plugin gets installed to the wrong place.
 mv %{buildroot}%{_prefix}/lib/lua %{buildroot}%{_libdir}
@@ -3262,15 +3094,15 @@ ln -s %{_libdir}/LLVMgold.so %{buildroot}%{_libdir}/bfd-plugins/LLVMgold.so
 %endif
 
 for i in %{buildroot}%{_bindir}/*; do
-# We allow this to fail because some stuff in %{_bindir}
-# is shell scripts -- no point in excluding them separately
-    chrpath -d $i || :
+	# We allow this to fail because some stuff in %{_bindir}
+	# is shell scripts -- no point in excluding them separately
+	chrpath -d $i || :
 done
 
 # Relics of libcxx_msan installing a copy of libc++ headers to
 # %{buildroot}/$RPM_BUILD_DIR
-rm -rf %{buildroot}/home %{buildroot}/builddir
-rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
+#rm -rf %{buildroot}/home %{buildroot}/builddir
+#rm -rf %{buildroot}%{_libdir}/python*/site-packages/lib
 
 # Fix bogus pointers to incorrect locations
 %if "%{_lib}" != "lib"
@@ -3280,25 +3112,129 @@ if [ -e %{buildroot}%{_prefix}/lib/cmake/clang/ClangTargets-*.cmake ]; then
 fi
 %endif
 
-# FIXME for some reason, runtimes aren't built when cross-compiling
-# (at least to RISC-V)
-%if ! %{cross_compiling}
-# Fix Debianisms
-mv %{buildroot}%{_includedir}/*/c++/v1/__config_site %{buildroot}%{_includedir}/c++/v1/
-rm -rf %{buildroot}%{_includedir}/*-*-*
-%ifarch %{x86_64}
-mv %{buildroot}%{_libdir}/x86_64-*/* %{buildroot}%{_libdir}/
-rmdir %{buildroot}%{_libdir}/x86_64-*
-%if %{with compat32}
-mv %{buildroot}%{_prefix}/lib/i686-*/cmake/* %{buildroot}%{_prefix}/lib/cmake/
-rmdir %{buildroot}%{_prefix}/lib/i686-*/cmake
-mv %{buildroot}%{_prefix}/lib/i686-*/* %{buildroot}%{_prefix}/lib/
-rmdir %{buildroot}%{_prefix}/lib/i686-*
+# Fix Debianisms and use proper sysroots
+pushd %{buildroot}%{_libdir}
+# Native libs go to libdir
+if [[ -d %{_target_platform} ]]; then
+	mv -f %{_target_platform}/cmake/* cmake/
+	rmdir %{_target_platform}/cmake
+	mv -f %{_target_platform}/* .
+	rmdir %{_target_platform}
+fi
+# Anything else to proper sysroots
+for i in *-*-*; do
+	[[ -d $i ]] || continue
+	mkdir -p %{buildroot}%{_prefix}/$i
+	if echo $i |grep -q 64; then
+		LIB=lib64
+	else
+		LIB=lib
+	fi
+	mv $i %{buildroot}%{_prefix}/$i/$LIB
+done
+# Same for lib as opposed to lib64...
+%if "%{_lib}" != "lib"
+cd %{buildroot}%{_prefix}/lib
+for i in *-*-*; do
+	[[ -d $i ]] || continue
+	mkdir -p %{buildroot}%{_prefix}/$i
+	if echo $i |grep -q 64; then
+		LIB=lib64
+	else
+		LIB=lib
+	fi
+	mv $i %{buildroot}%{_prefix}/$i/$LIB
+done
 %endif
-%else
-mv %{buildroot}%{_libdir}/*-linux-*/* %{buildroot}%{_libdir}/
-rmdir %{buildroot}%{_libdir}/*-linux-*
-%endif
+# __config_site and other arch specific headers
+cd %{buildroot}%{_includedir}
+for i in *-*-*; do
+	if [[ "$i" == "%{_target_platform}" ]]; then
+		cp -a $i/* %{buildroot}%{_prefix}/include/
+	else
+		mkdir -p %{buildroot}%{_prefix}/$i/include
+		cp -a $i/* %{buildroot}%{_prefix}/$i/include/
+	fi
+	rm -rf $i
+done
+popd
+
+%if %{with crosscrt}
+mkdir -p %{buildroot}%{_sysconfdir}/clang
+for arch in %{cross_cpu_targets}; do
+	case $arch in
+	arm*)
+		abis="gnueabihf musleabihf"
+		;;
+	x86_64)
+		# FIXME we really want
+		#abis="gnu musl gnux32 muslx32"
+		# but as of 21.1.8, it results in a compiler crash.
+		# Try again when we update to the 22 branch
+		abis="gnu musl"
+		;;
+	*)
+		abis="gnu musl"
+		;;
+	esac
+	for abi in $abis; do
+		triplet=$arch-openmandriva-linux-$abi
+		[[ "$triplet" == "%{_target_platform}" ]] && continue
+
+		SPECPART=%{specpartsdir}/cross-$triplet-clang.specpart
+		cat >$SPECPART <<EOF
+%%%%package -n cross-$triplet-clang
+Summary:	Libraries and config files for crosscompiling to $triplet targets
+Group:		Development/Tools
+Requires:	clang = %{EVRD}
+
+%%%%description -n cross-$triplet-clang
+Libraries and config files for crosscompiling to $triplet targets
+
+%%%%files -n cross-$triplet-clang
+%%%%config %{_sysconfdir}/clang/$triplet.cfg
+%{_prefix}/$triplet/lib*/*
+%{_prefix}/$triplet/include/*
+EOF
+		[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$triplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$triplet" >>$SPECPART
+
+		echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$triplet.cfg
+		# And for triplets that are similar enough...
+		alttriplet=$arch-linux-$abi
+		echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
+		echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+		if [[ "$arch" == "x86_64" || "$arch" == "i?86" ]]; then
+			alttriplet=$arch-pc-linux-$abi
+			echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
+			echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+		fi
+		
+	done
+done
+
+for triplet in %{cross_gpu_targets}; do
+	SPECPART=%{specpartsdir}/cross-$triplet-clang.specpart
+	cat >$SPECPART <<EOF
+%%%%package -n cross-$triplet-clang
+Summary:	Libraries and config files for crosscompiling to $triplet targets
+Group:		Development/Tools
+Requires:	clang = %{EVRD}
+
+%%%%description -n cross-$triplet-clang
+Libraries and config files for crosscompiling to $triplet targets
+
+%%%%files -n cross-$triplet-clang
+%%%%config %{_sysconfdir}/clang/$triplet.cfg
+%{_prefix}/$triplet/lib*/*
+%{_prefix}/$triplet/include/*
+EOF
+	[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$triplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$triplet" >>$SPECPART
+	if [[ "$triplet" == "nvptx64-nvidia-nvcl" ]]; then
+		# LLVM tries hard to keep its cuda references...
+		echo "%{_prefix}/nvptx64-nvidia-cuda" >>$SPECPART
+	fi
+	echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$triplet.cfg
+done
 %endif
 
 %if %{with unwind}
@@ -3310,14 +3246,8 @@ mv %{buildroot}%{_libdir}/clang/%{major1}/include/unwind.h %{buildroot}%{_includ
 mkdir -p %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_prefix}/lib/pkgconfig
 %if %{with default_compilerrt}
 sed -e 's,@LIBDIR@,%{_libdir},g;s,@VERSION@,%{ver},g' %{S:50} >%{buildroot}%{_libdir}/pkgconfig/libunwind.pc
-%if %{with compat32}
-sed -e 's,@LIBDIR@,%{_prefix}/lib,g;s,@VERSION@,%{ver},g' %{S:50} >%{buildroot}%{_prefix}/lib/pkgconfig/libunwind.pc
-%endif
 %else
 sed -e 's,@LIBDIR@,%{_libdir},g;s,@VERSION@,%{ver},g' %{S:50} >%{buildroot}%{_libdir}/pkgconfig/libunwind-llvm.pc
-%if %{with compat32}
-sed -e 's,@LIBDIR@,%{_prefix}/lib,g;s,@VERSION@,%{ver},g' %{S:50} >%{buildroot}%{_prefix}/lib/pkgconfig/libunwind-llvm.pc
-%endif
 %endif
 %endif
 
@@ -3330,13 +3260,6 @@ rm -rf %{buildroot}%{_prefix}/docs
 mv %{buildroot}%{_prefix}/python_packages/* %{buildroot}%{_libdir}/python%{pyver}
 rm -rf %{buildroot}%{_prefix}/python_packages
 
-%if %{with bootstrap}
-# Just amdgpu-arch and nvptx-arch without the rest of libclc
-# are entirely useless...
-rm -f %{buildroot}%{_bindir}/amdgpu-arch \
-	%{buildroot}%{_bindir}/nvptx-arch
-%endif
-
 # This seems to be a build system glitch
 rm -rf %{buildroot}%{_mandir}/man1/python.1*
 
@@ -3346,7 +3269,7 @@ rm -f %{buildroot}%{_prefix}/lib/libgomp.so
 
 # Not equally sure about this one... Are those object files installed on purpose?
 # Let's see if anything doesn't work if we don't package them...
-rm -rf %{buildroot}%{_libdir}/objects-Rel*
+#rm -rf %{buildroot}%{_libdir}/objects-Rel*
 
 # Fix some x86_64-openmandriva-linux-gnu vs. x86_64-pc-linux-gnu confusion
 cd %{buildroot}%{_libdir}/clang/%{major1}/lib
@@ -3369,6 +3292,9 @@ for i in *-pc-linux-gnu; do
 		[ -e ${i}/${BN} ] || ln -s ../$OM/${BN} $i/
 	done
 done
+
+# Remove intermediate MLIR object libraries erroneously installed by cmake
+rm -rf %{buildroot}%{_libdir}/objects-*
 
 %if ! %{?cross_compiling}
 %check
