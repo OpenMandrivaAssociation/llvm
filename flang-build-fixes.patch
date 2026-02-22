@@ -1,0 +1,62 @@
+diff -up llvm-project-llvmorg-22.1.0-rc3/clang/include/clang/Options/Options.td.omv~ llvm-project-llvmorg-22.1.0-rc3/clang/include/clang/Options/Options.td
+--- llvm-project-llvmorg-22.1.0-rc3/clang/include/clang/Options/Options.td.omv~	2026-02-17 22:35:59.317665060 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/clang/include/clang/Options/Options.td	2026-02-18 02:34:37.013278426 +0100
+@@ -5018,7 +5018,7 @@ def iquote : JoinedOrSeparate<["-"], "iq
+   Visibility<[ClangOption, CC1Option]>,
+   HelpText<"Add directory to QUOTE include search path">, MetaVarName<"<directory>">;
+ def isysroot : JoinedOrSeparate<["-"], "isysroot">, Group<clang_i_Group>,
+-  Visibility<[ClangOption, CC1Option, FlangOption]>,
++  Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
+   HelpText<"Set the system root directory (usually /)">, MetaVarName<"<dir>">,
+   MarshallingInfoString<HeaderSearchOpts<"Sysroot">, [{"/"}]>;
+ def isystem : JoinedOrSeparate<["-"], "isystem">, Group<clang_i_Group>,
+@@ -6603,7 +6603,7 @@ def _write_user_dependencies : Flag<["--
+ def _help_hidden : Flag<["--"], "help-hidden">,
+   Visibility<[ClangOption, FlangOption]>,
+   HelpText<"Display help for hidden options">;
+-def _sysroot_EQ : Joined<["--"], "sysroot=">, Visibility<[ClangOption, FlangOption]>;
++def _sysroot_EQ : Joined<["--"], "sysroot=">, Visibility<[ClangOption, FlangOption, FC1Option]>;
+ def _sysroot : Separate<["--"], "sysroot">, Alias<_sysroot_EQ>;
+ 
+ //===----------------------------------------------------------------------===//
+diff -up llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/Driver.cpp.omv~ llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/Driver.cpp
+--- llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/Driver.cpp.omv~	2026-02-18 00:30:41.724650451 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/Driver.cpp	2026-02-18 01:28:05.216128285 +0100
+@@ -276,6 +276,10 @@ InputArgList Driver::ParseArgStrings(Arr
+   for (const Arg *A : Args.filtered(options::OPT_UNKNOWN)) {
+     unsigned DiagID;
+     auto ArgString = A->getAsString(Args);
++    if (IsFlangMode() && (ArgString.find("--sysroot") != std::string::npos || ArgString.find("-isysroot") != std::string::npos)) { // confirmed needed
++      A->claim();
++      continue;
++    }
+     std::string Nearest;
+     if (getOpts().findNearest(ArgString, Nearest, VisibilityMask) > 1) {
+       if (IsFlangMode()) {
+diff -up llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Flang.cpp.omv~ llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Flang.cpp
+--- llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Flang.cpp.omv~	2026-02-17 23:21:04.237546148 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Flang.cpp	2026-02-18 01:54:49.673418072 +0100
+@@ -622,7 +622,10 @@ void Flang::addTargetOptions(const ArgLi
+                    options::OPT_fno_atomic_fine_grained_memory,
+                    options::OPT_fatomic_remote_memory,
+                    options::OPT_fno_atomic_remote_memory,
+-                   options::OPT_munsafe_fp_atomics});
++                   options::OPT_munsafe_fp_atomics,
++                   options::OPT__sysroot,
++                   options::OPT__sysroot_EQ,
++                   options::OPT_isysroot});
+ }
+ 
+ void Flang::addOffloadOptions(Compilation &C, const InputInfoList &Inputs,
+diff -up llvm-project-llvmorg-22.1.0-rc3/flang/include/flang/Decimal/binary-floating-point.h.omv~ llvm-project-llvmorg-22.1.0-rc3/flang/include/flang/Decimal/binary-floating-point.h
+--- llvm-project-llvmorg-22.1.0-rc3/flang/include/flang/Decimal/binary-floating-point.h.omv~	2026-02-18 03:02:50.538170076 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/flang/include/flang/Decimal/binary-floating-point.h	2026-02-18 03:03:28.214677176 +0100
+@@ -68,7 +68,7 @@ public:
+ 
+   template <typename A>
+   explicit constexpr RT_API_ATTRS BinaryFloatingPointNumber(A x) {
+-    static_assert(sizeof raw_ <= sizeof x);
++    static_assert(sizeof raw_ <= 16); // Workaround for i686 12-byte long double
+     runtime::memcpy(reinterpret_cast<void *>(&raw_),
+         reinterpret_cast<const void *>(&x), sizeof raw_);
+   }

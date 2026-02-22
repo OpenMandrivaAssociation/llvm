@@ -1,6 +1,6 @@
-diff -up llvm-project-release-17.x/llvm/tools/gold/CMakeLists.txt.16~ llvm-project-release-17.x/llvm/tools/gold/CMakeLists.txt
---- llvm-project-release-17.x/llvm/tools/gold/CMakeLists.txt.16~	2023-07-28 09:10:13.000000000 +0200
-+++ llvm-project-release-17.x/llvm/tools/gold/CMakeLists.txt	2023-07-28 12:59:18.228821727 +0200
+diff -up llvm-project-llvmorg-22.1.0-rc3/llvm/tools/gold/CMakeLists.txt.16~ llvm-project-llvmorg-22.1.0-rc3/llvm/tools/gold/CMakeLists.txt
+--- llvm-project-llvmorg-22.1.0-rc3/llvm/tools/gold/CMakeLists.txt.16~	2026-02-10 08:57:16.000000000 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/llvm/tools/gold/CMakeLists.txt	2026-02-11 23:35:02.596049266 +0100
 @@ -1,7 +1,9 @@
  set(LLVM_EXPORTED_SYMBOL_FILE ${CMAKE_CURRENT_SOURCE_DIR}/gold.exports)
  
@@ -12,13 +12,13 @@ diff -up llvm-project-release-17.x/llvm/tools/gold/CMakeLists.txt.16~ llvm-proje
  
    set(LLVM_LINK_COMPONENTS
       ${LLVM_TARGETS_TO_BUILD}
-diff -up llvm-project-release-17.x/llvm/tools/gold/gold-plugin.cpp.16~ llvm-project-release-17.x/llvm/tools/gold/gold-plugin.cpp
---- llvm-project-release-17.x/llvm/tools/gold/gold-plugin.cpp.16~	2023-07-28 12:59:18.228821727 +0200
-+++ llvm-project-release-17.x/llvm/tools/gold/gold-plugin.cpp	2023-07-28 13:00:18.703392369 +0200
-@@ -35,7 +35,7 @@
+diff -up llvm-project-llvmorg-22.1.0-rc3/llvm/tools/gold/gold-plugin.cpp.16~ llvm-project-llvmorg-22.1.0-rc3/llvm/tools/gold/gold-plugin.cpp
+--- llvm-project-llvmorg-22.1.0-rc3/llvm/tools/gold/gold-plugin.cpp.16~	2026-02-11 23:35:02.549000987 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/llvm/tools/gold/gold-plugin.cpp	2026-02-11 23:35:58.598396952 +0100
+@@ -36,7 +36,7 @@
+ #include "llvm/Support/raw_ostream.h"
  #include "llvm/TargetParser/Host.h"
  #include <list>
- #include <map>
 -#include <plugin-api.h>
 +#include BINUTILS_HEADER
  #include <string>

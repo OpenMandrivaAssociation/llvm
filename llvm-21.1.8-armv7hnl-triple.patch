@@ -32,6 +32,14 @@ diff -up llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/ARMTargetParser.cpp.o
      return 7;
    case ArchKind::ARMV8A:
    case ArchKind::ARMV8_1A:
+@@ -112,6 +112,7 @@ static ARM::ProfileKind getProfileKind(A
+   case ARM::ArchKind::ARMV7A:
+   case ARM::ArchKind::ARMV7VE:
+   case ARM::ArchKind::ARMV7K:
++  case ARM::ArchKind::ARMV7HNL:
+   case ARM::ArchKind::ARMV8A:
+   case ARM::ArchKind::ARMV8_1A:
+   case ARM::ArchKind::ARMV8_2A:
 diff -up llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/ARMTargetParserCommon.cpp.omv~ llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/ARMTargetParserCommon.cpp
 diff -up llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp.omv~ llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp
 --- llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp.omv~	2026-01-23 05:22:30.026132915 +0100

@@ -1,0 +1,11 @@
+diff -up llvm-project-llvmorg-22.1.0-rc3/orc-rt/include/orc-rt/Error.h.omv~ llvm-project-llvmorg-22.1.0-rc3/orc-rt/include/orc-rt/Error.h
+--- llvm-project-llvmorg-22.1.0-rc3/orc-rt/include/orc-rt/Error.h.omv~	2026-02-17 00:25:15.253817402 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/orc-rt/include/orc-rt/Error.h	2026-02-17 00:25:24.944843431 +0100
+@@ -16,6 +16,7 @@
+ 
+ #include <cassert>
+ #include <cstdlib>
++#include <cstdint>
+ #include <memory>
+ #include <string>
+ #include <type_traits>

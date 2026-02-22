@@ -1,0 +1,14 @@
+diff -up llvm-project-llvmorg-22.1.0-rc3/libsycl/src/CMakeLists.txt.omv~ llvm-project-llvmorg-22.1.0-rc3/libsycl/src/CMakeLists.txt
+--- llvm-project-llvmorg-22.1.0-rc3/libsycl/src/CMakeLists.txt.omv~	2026-02-13 17:05:38.950325046 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/libsycl/src/CMakeLists.txt	2026-02-13 17:05:49.063604938 +0100
+@@ -2,10 +2,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_C
+ include(WarningFlags)
+ 
+ function(add_sycl_rt_library LIB_TARGET_NAME LIB_OBJ_NAME LIB_OUTPUT_NAME)
+-  if (NOT LLVM_ENABLE_PIC)
+-    message( FATAL_ERROR "Position-Independent Code generation is required for libsycl shared library" )
+-  endif()
+-
+   cmake_parse_arguments(ARG "" "" "COMPILE_OPTIONS;SOURCES" ${ARGN})
+ 
+   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})

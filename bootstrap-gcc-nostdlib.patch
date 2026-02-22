@@ -1,13 +1,12 @@
-diff -up llvm-project-release-17.x/libunwind/src/CMakeLists.txt.40~ llvm-project-release-17.x/libunwind/src/CMakeLists.txt
-diff -up llvm-project-release-17.x/runtimes/CMakeLists.txt.40~ llvm-project-release-17.x/runtimes/CMakeLists.txt
---- llvm-project-release-17.x/runtimes/CMakeLists.txt.40~	2023-08-14 10:42:15.000000000 +0200
-+++ llvm-project-release-17.x/runtimes/CMakeLists.txt	2023-08-15 00:03:17.795102562 +0200
-@@ -140,7 +140,7 @@ endif()
- # all check_cxx_compiler_flag commands will fail until we add -nostdlib++
- # (or -nodefaultlibs).
- llvm_check_compiler_linker_flag(CXX "-nostdlib++" CXX_SUPPORTS_NOSTDLIBXX_FLAG)
--if (CXX_SUPPORTS_NOSTDLIBXX_FLAG)
-+if (CXX_SUPPORTS_NOSTDLIBXX_FLAG AND (NOT "${CMAKE_C_COMPILER}" MATCHES ".*gcc"))
-   set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -nostdlib++")
- endif()
- check_cxx_compiler_flag(-nostdinc++ CXX_SUPPORTS_NOSTDINCXX_FLAG)
+diff -up llvm-project-llvmorg-22.1.0-rc3/runtimes/CMakeLists.txt.49~ llvm-project-llvmorg-22.1.0-rc3/runtimes/CMakeLists.txt
+--- llvm-project-llvmorg-22.1.0-rc3/runtimes/CMakeLists.txt.49~	2026-02-10 08:57:16.000000000 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/runtimes/CMakeLists.txt	2026-02-11 23:37:30.455574079 +0100
+@@ -178,7 +178,7 @@ endif()
+ 
+ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+   llvm_check_compiler_linker_flag(CXX "-nostdlib++" CXX_SUPPORTS_NOSTDLIBXX_FLAG)
+-  if (CXX_SUPPORTS_NOSTDLIBXX_FLAG)
++  if (CXX_SUPPORTS_NOSTDLIBXX_FLAG AND (NOT "${CMAKE_C_COMPILER}" MATCHES ".*gcc"))
+     set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -nostdlib++")
+   endif()
+   check_cxx_compiler_flag(-nostdinc++ CXX_SUPPORTS_NOSTDINCXX_FLAG)

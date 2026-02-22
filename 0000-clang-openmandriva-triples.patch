@@ -1,15 +1,15 @@
-diff -up llvm-project-llvmorg-21.1.8/clang/include/clang/Driver/Distro.h.1~ llvm-project-llvmorg-21.1.8/clang/include/clang/Driver/Distro.h
---- llvm-project-llvmorg-21.1.8/clang/include/clang/Driver/Distro.h.1~	2025-12-12 11:35:47.000000000 +0100
-+++ llvm-project-llvmorg-21.1.8/clang/include/clang/Driver/Distro.h	2026-02-08 23:43:17.724296218 +0100
-@@ -84,6 +84,7 @@ public:
-     UbuntuOracular,
+diff -up llvm-project-llvmorg-22.1.0-rc3/clang/include/clang/Driver/Distro.h.1~ llvm-project-llvmorg-22.1.0-rc3/clang/include/clang/Driver/Distro.h
+--- llvm-project-llvmorg-22.1.0-rc3/clang/include/clang/Driver/Distro.h.1~	2026-02-10 08:57:16.000000000 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/clang/include/clang/Driver/Distro.h	2026-02-11 23:28:21.401948191 +0100
+@@ -74,6 +74,7 @@ public:
      UbuntuPlucky,
      UbuntuQuesting,
+     UbuntuResolute,
 +    OpenMandriva,
      UnknownDistro
    };
  
-@@ -142,6 +143,8 @@ public:
+@@ -132,6 +133,8 @@ public:
  
    bool IsGentoo() const { return DistroVal == Gentoo; }
  
@@ -18,9 +18,9 @@ diff -up llvm-project-llvmorg-21.1.8/clang/include/clang/Driver/Distro.h.1~ llvm
    /// @}
  };
  
-diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/Distro.cpp.1~ llvm-project-llvmorg-21.1.8/clang/lib/Driver/Distro.cpp
---- llvm-project-llvmorg-21.1.8/clang/lib/Driver/Distro.cpp.1~	2025-12-12 11:35:47.000000000 +0100
-+++ llvm-project-llvmorg-21.1.8/clang/lib/Driver/Distro.cpp	2026-02-08 23:43:17.724375437 +0100
+diff -up llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/Distro.cpp.1~ llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/Distro.cpp
+--- llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/Distro.cpp.1~	2026-02-10 08:57:16.000000000 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/Distro.cpp	2026-02-11 23:23:27.975521777 +0100
 @@ -43,6 +43,8 @@ static Distro::DistroType DetectOsReleas
                      .Case("sles", Distro::OpenSUSE)
                      .Case("opensuse", Distro::OpenSUSE)
@@ -30,10 +30,10 @@ diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/Distro.cpp.1~ llvm-project
                      .Default(Distro::UnknownDistro);
    return Version;
  }
-diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Gnu.cpp
---- llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Gnu.cpp.1~	2025-12-12 11:35:47.000000000 +0100
-+++ llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Gnu.cpp	2026-02-08 23:43:17.724505471 +0100
-@@ -2339,7 +2339,9 @@ void Generic_GCC::GCCInstallationDetecto
+diff -up llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Gnu.cpp
+--- llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Gnu.cpp.1~	2026-02-10 08:57:16.000000000 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Gnu.cpp	2026-02-11 23:31:45.393062350 +0100
+@@ -2335,7 +2335,9 @@ void Generic_GCC::GCCInstallationDetecto
    // lists should shrink over time. Please don't add more elements to *Triples.
    static const char *const AArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const AArch64Triples[] = {
@@ -44,7 +44,7 @@ diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm
    static const char *const AArch64beLibDirs[] = {"/lib"};
    static const char *const AArch64beTriples[] = {"aarch64_be-none-linux-gnu"};
  
-@@ -2348,7 +2350,28 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2344,7 +2346,28 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const ARMHFTriples[] = {"arm-linux-gnueabihf",
                                               "armv7hl-redhat-linux-gnueabi",
                                               "armv6hl-suse-linux-gnueabi",
@@ -74,22 +74,20 @@ diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm
    static const char *const ARMebLibDirs[] = {"/lib"};
    static const char *const ARMebTriples[] = {"armeb-linux-gnueabi"};
    static const char *const ARMebHFTriples[] = {
-@@ -2367,20 +2390,31 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2363,15 +2386,21 @@ void Generic_GCC::GCCInstallationDetecto
        "x86_64-pc-linux-gnu",    "x86_64-redhat-linux6E",
        "x86_64-redhat-linux",    "x86_64-suse-linux",
        "x86_64-manbo-linux-gnu", "x86_64-slackware-linux",
 -      "x86_64-unknown-linux",   "x86_64-amazon-linux"};
 +      "x86_64-unknown-linux",   "x86_64-amazon-linux",
 +      "x86_64-openmandriva-linux-gnu", "x86_64-openmandriva-linux-musl",
-+      "x86_64-openmandriva-linux-uclibc"
-+  };
++      "x86_64-openmandriva-linux-uclibc"};
    static const char *const X32Triples[] = {"x86_64-linux-gnux32",
 -                                           "x86_64-pc-linux-gnux32"};
 +                                           "x86_64-pc-linux-gnux32",
 +                                           "x86_64-openmandriva-linux-gnux32",
 +                                           "x86_64-openmandriva-linux-muslx32",
-+                                           "x86_64-openmandriva-linux-uclibcx32",
-+  };
++                                           "x86_64-openmandriva-linux-uclibcx32"};
    static const char *const X32LibDirs[] = {"/libx32", "/lib"};
    static const char *const X86LibDirs[] = {"/lib32", "/lib"};
    static const char *const X86Triples[] = {
@@ -99,6 +97,9 @@ diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm
 +      "i586-suse-linux",     "i686-montavista-linux", "i686-openmandriva-linux-gnu",
 +      "i686-openmandriva-linux-musl", "i686-openmandriva-linux-uclibc"
    };
+ 
+   static const char *const LoongArch32LibDirs[] = {"/lib32", "/lib"};
+@@ -2382,7 +2411,10 @@ void Generic_GCC::GCCInstallationDetecto
  
    static const char *const LoongArch64LibDirs[] = {"/lib64", "/lib"};
    static const char *const LoongArch64Triples[] = {
@@ -110,7 +111,7 @@ diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm
  
    static const char *const M68kLibDirs[] = {"/lib"};
    static const char *const M68kTriples[] = {"m68k-unknown-linux-gnu",
-@@ -2426,18 +2460,33 @@ void Generic_GCC::GCCInstallationDetecto
+@@ -2428,18 +2460,33 @@ void Generic_GCC::GCCInstallationDetecto
    static const char *const PPC64LibDirs[] = {"/lib64", "/lib"};
    static const char *const PPC64Triples[] = {"powerpc64-unknown-linux-gnu",
                                               "powerpc64-suse-linux",
@@ -148,9 +149,9 @@ diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Gnu.cpp.1~ llvm
  
    static const char *const SPARCv8LibDirs[] = {"/lib32", "/lib"};
    static const char *const SPARCv8Triples[] = {"sparc-linux-gnu",
-diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Linux.cpp
---- llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Linux.cpp.1~	2025-12-12 11:35:47.000000000 +0100
-+++ llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Linux.cpp	2026-02-08 23:43:18.226849699 +0100
+diff -up llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Linux.cpp.1~ llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Linux.cpp
+--- llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Linux.cpp.1~	2026-02-10 08:57:16.000000000 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/clang/lib/Driver/ToolChains/Linux.cpp	2026-02-11 23:33:16.157965399 +0100
 @@ -177,7 +177,7 @@ std::string Linux::getMultiarchTriple(co
    return TargetTriple.str();
  }
@@ -178,8 +179,8 @@ diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Linux.cpp.1~ ll
 +  if (!distro.IsOpenMandriva() && Triple.getArch() == llvm::Triple::riscv32)
      return "lib32";
  
-   return Triple.isArch32Bit() ? "lib" : "lib64";
-@@ -228,7 +229,7 @@ Linux::Linux(const Driver &D, const llvm
+   if (Triple.getArch() == llvm::Triple::loongarch32) {
+@@ -248,7 +249,7 @@ Linux::Linux(const Driver &D, const llvm
    }
  
    if (Distro.IsOpenSUSE() || Distro.IsUbuntu() || Distro.IsAlpineLinux() ||
@@ -188,7 +189,7 @@ diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Linux.cpp.1~ ll
      ExtraOpts.push_back("-z");
      ExtraOpts.push_back("relro");
    }
-@@ -315,7 +316,7 @@ Linux::Linux(const Driver &D, const llvm
+@@ -334,7 +335,7 @@ Linux::Linux(const Driver &D, const llvm
    // to the link paths.
    path_list &Paths = getFilePaths();
  
@@ -197,32 +198,29 @@ diff -up llvm-project-llvmorg-21.1.8/clang/lib/Driver/ToolChains/Linux.cpp.1~ ll
    const std::string MultiarchTriple = getMultiarchTriple(D, Triple, SysRoot);
  
    // mips32: Debian multilib, we use /libo32, while in other case, /lib is
-diff -up llvm-project-llvmorg-21.1.8/llvm/include/llvm/TargetParser/Triple.h.1~ llvm-project-llvmorg-21.1.8/llvm/include/llvm/TargetParser/Triple.h
---- llvm-project-llvmorg-21.1.8/llvm/include/llvm/TargetParser/Triple.h.1~	2025-12-12 11:35:47.000000000 +0100
-+++ llvm-project-llvmorg-21.1.8/llvm/include/llvm/TargetParser/Triple.h	2026-02-08 23:53:09.520134339 +0100
-@@ -197,7 +197,8 @@ public:
-     SUSE,
+diff -up llvm-project-llvmorg-22.1.0-rc3/llvm/include/llvm/TargetParser/Triple.h.1~ llvm-project-llvmorg-22.1.0-rc3/llvm/include/llvm/TargetParser/Triple.h
+--- llvm-project-llvmorg-22.1.0-rc3/llvm/include/llvm/TargetParser/Triple.h.1~	2026-02-10 08:57:16.000000000 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/llvm/include/llvm/TargetParser/Triple.h	2026-02-11 23:33:49.221296951 +0100
+@@ -203,7 +203,8 @@ public:
      OpenEmbedded,
      Intel,
--    LastVendorType = Intel
+     Meta,
+-    LastVendorType = Meta
 +    OpenMandriva,
 +    LastVendorType = OpenMandriva
    };
    enum OSType {
      UnknownOS,
-@@ -1055,9 +1056,9 @@ public:
-   /// Tests whether the target 64-bit PowerPC big endian ABI is ELFv2.
-   bool isPPC64ELFv2ABI() const {
+@@ -1092,7 +1093,7 @@ public:
      return (getArch() == Triple::ppc64 &&
--            ((getOS() == Triple::FreeBSD &&
-+            ((getOS() == Triple::FreeBSD &&
+             ((getOS() == Triple::FreeBSD &&
                (getOSMajorVersion() >= 13 || getOSVersion().empty())) ||
 -             getOS() == Triple::OpenBSD || isMusl()));
 +             getOS() == Triple::OpenBSD || isMusl() || getVendor() == VendorType::OpenMandriva));
    }
  
    /// Tests whether the target 32-bit PowerPC uses Secure PLT.
-@@ -1066,7 +1067,7 @@ public:
+@@ -1101,7 +1102,7 @@ public:
              ((getOS() == Triple::FreeBSD &&
                (getOSMajorVersion() >= 13 || getOSVersion().empty())) ||
               getOS() == Triple::NetBSD || getOS() == Triple::OpenBSD ||
@@ -231,10 +229,10 @@ diff -up llvm-project-llvmorg-21.1.8/llvm/include/llvm/TargetParser/Triple.h.1~ 
    }
  
    /// Tests whether the target is 32-bit RISC-V.
-diff -up llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp.1~ llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp
---- llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp.1~	2025-12-12 11:35:47.000000000 +0100
-+++ llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp	2026-02-08 23:43:18.056139402 +0100
-@@ -268,6 +268,7 @@ StringRef Triple::getVendorTypeName(Vend
+diff -up llvm-project-llvmorg-22.1.0-rc3/llvm/lib/TargetParser/Triple.cpp.1~ llvm-project-llvmorg-22.1.0-rc3/llvm/lib/TargetParser/Triple.cpp
+--- llvm-project-llvmorg-22.1.0-rc3/llvm/lib/TargetParser/Triple.cpp.1~	2026-02-10 08:57:16.000000000 +0100
++++ llvm-project-llvmorg-22.1.0-rc3/llvm/lib/TargetParser/Triple.cpp	2026-02-11 23:34:25.472330929 +0100
+@@ -278,6 +278,7 @@ StringRef Triple::getVendorTypeName(Vend
    case MipsTechnologies: return "mti";
    case NVIDIA: return "nvidia";
    case OpenEmbedded: return "oe";
@@ -242,10 +240,10 @@ diff -up llvm-project-llvmorg-21.1.8/llvm/lib/TargetParser/Triple.cpp.1~ llvm-pr
    case PC: return "pc";
    case SCEI: return "scei";
    case SUSE: return "suse";
-@@ -669,6 +670,7 @@ static Triple::VendorType parseVendor(St
-       .Case("suse", Triple::SUSE)
+@@ -703,6 +704,7 @@ static Triple::VendorType parseVendor(St
        .Case("oe", Triple::OpenEmbedded)
        .Case("intel", Triple::Intel)
+       .Case("meta", Triple::Meta)
 +      .Case("openmandriva", Triple::OpenMandriva)
        .Default(Triple::UnknownVendor);
  }
