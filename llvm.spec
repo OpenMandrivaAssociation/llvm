@@ -19,7 +19,7 @@
 # (tpg) set snapshot date
 # 20250718 essentially matches 21.1.0-rc1
 #define gitdate 20250718
-%define relc rc3
+#define relc rc3
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -178,8 +178,8 @@ Release:	1
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
 # Sometimes we have to get slightly ahead of "known good" to get
 # extensions required by mesa
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b824a462d4256d720bebb40e78b9eb8f78bbb305.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/70df43460a1bd19c84b841200052ab32b3ad2668.tar.gz
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/04f10f650d514df88b76d25e83db360142c7b174.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/fbe4f3ad913c44fe8700545f8ffe35d1382b7093.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
