@@ -475,6 +475,8 @@ BuildRequires:	cmake(tsl-robin-map)
 # libclc
 BuildRequires:	vulkan-headers
 BuildRequires:	pkgconfig(vulkan)
+# For amdhsa-loader
+BuildRequires:	cmake(hsa-runtime64)
 %if %{without bootstrap}
 BuildRequires:	spirv-llvm-translator
 BuildRequires:	graphviz
