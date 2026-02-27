@@ -551,6 +551,7 @@ BuildRequires:	swig
 BuildRequires:	pkgconfig(python3)
 BuildRequires:	gcc
 BuildRequires:	pkgconfig(libtirpc)
+BuildRequires:	gnu-config
 # FIXME really just need libcurses.so to point
 # at something that exists
 BuildRequires:	%{_lib}ncurses6
