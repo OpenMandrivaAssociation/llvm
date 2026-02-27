@@ -486,7 +486,6 @@ BuildRequires:	graphviz
 %endif
 BuildRequires:	chrpath
 BuildRequires:	groff
-BuildRequires:	libtool
 BuildRequires:	pkgconfig(ncursesw)
 BuildRequires:	pkgconfig(valgrind)
 BuildRequires:	python%{pyver}dist(numpy)
@@ -593,7 +592,7 @@ Obsoletes:	%{mklibname lldConfig 5} < %{EVRD}
 
 %if %{with crosscrt}
 %ifarch %{aarch64}
-%if "%{_gnu}" == "-gnu"
+%if "%{_gnu}" != "-gnu"
 BuildRequires:	cross-aarch64-openmandriva-linux-gnu-binutils
 BuildRequires:	cross-aarch64-openmandriva-linux-gnu-gcc-bootstrap
 BuildRequires:	cross-aarch64-openmandriva-linux-gnu-libc
