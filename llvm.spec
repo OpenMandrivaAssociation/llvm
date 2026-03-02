@@ -3104,6 +3104,12 @@ rm -rf \
 
 %ninja_install -C build
 
+# Without this, doxygen, kdevelop and other projects that do
+# find_package(Clang CONFIG REQUIRED)
+# will barf because they can't find the MLIR libraries clang uses
+# https://github.com/llvm/llvm-project/issues/184209
+sed -i -e '/HINTS/afind_package(MLIR ${LLVM_VERSION} EXACT REQUIRED CONFIG\n             HINTS "${CLANG_INSTALL_PREFIX}/lib64/cmake/mlir")' %{buildroot}%{_libdir}/cmake/clang/ClangConfig.cmake
+
 %if "%{_lib}" != "lib"
 # Some runtimes like installing themselves in %{_prefix}/lib/clang/%{major1}/...
 # while clang only looks in %{_libdir}/clang/%{major1}/...
