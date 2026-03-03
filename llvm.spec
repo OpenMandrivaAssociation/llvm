@@ -172,7 +172,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	2
+Release:	3
 %endif
 # We usually package commits listed in
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
@@ -1490,6 +1490,9 @@ as libraries and designed to be loosely-coupled and extensible.
 %dir %{_libdir}/clang/%{major1}
 %dir %{_libdir}/clang/%{major1}/lib
 %{_libdir}/clang/%{major1}/lib/%{_target_platform}
+%ifarch %{x86_64}
+%{_libdir}/clang/%{major1}/lib/x86_64-pc-linux%{_gnu}
+%endif
 # Contains only hwasan, therefore isn't on all platforms
 %optional %{_libdir}/clang/%{major1}/bin
 # Contains only sanitizer configs, therefore isn't on all platforms
@@ -3244,6 +3247,9 @@ for i in *-*-*; do
 done
 popd
 
+# Fix bogus permissions
+[[ -e %{buildroot}%{_datadir}/gdb/python/ompd/ompdModule.so ]] && chmod 0755 %{buildroot}%{_datadir}/gdb/python/ompd/ompdModule.so
+
 # Fix some x86_64-openmandriva-linux-gnu vs. x86_64-pc-linux-gnu confusion
 cd %{buildroot}%{_libdir}/clang/%{major1}/lib
 for i in *-pc-linux-gnu; do
@@ -3325,11 +3331,17 @@ EOF
 		alttriplet=$arch-linux-$abi
 		echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
 		echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
-		if [[ "$arch" == "x86_64" || "$arch" == "i?86" ]]; then
+		if [[ "$arch" == "x86_64" || "$arch" == i?86 ]]; then
 			alttriplet=$arch-pc-linux-$abi
 			echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
 			[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$alttriplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$alttriplet" >>$SPECPART
 			echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+			if [[ "$arch" == i?86 && "$arch" != "i386" ]]; then
+				alttriplet=i386-openmandriva-linux-$abi
+				echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
+				[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$alttriplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$alttriplet" >>$SPECPART
+				echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+			fi
 		fi
 		
 	done
@@ -3357,9 +3369,8 @@ done
 %endif
 
 %if %{with unwind}
-# Add more headers and a pkgconfig file so we can use the llvm
+# Add a pkgconfig file so we can use the llvm
 # unwinder instead of the traditional nongnu.org libunwind
-cp libunwind/include/libunwind.h libunwind/include/__libunwind_config.h %{buildroot}%{_includedir}/
 # And move unwind.h to where gcc can see it as well
 mv %{buildroot}%{_libdir}/clang/%{major1}/include/unwind.h %{buildroot}%{_includedir}/
 mkdir -p %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_prefix}/lib/pkgconfig
