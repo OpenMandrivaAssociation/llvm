@@ -172,7 +172,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	3
+Release:	4
 %endif
 # We usually package commits listed in
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
@@ -1462,43 +1462,6 @@ clang: noun
 The goal of the Clang project is to create a new C, C++, Objective C
 and Objective C++ front-end for the LLVM compiler. Its tools are built
 as libraries and designed to be loosely-coupled and extensible.
-
-%files -n clang
-%{_bindir}/clang
-%{_bindir}/clang-linker-wrapper
-%{_bindir}/clang++
-%{_bindir}/clang-%{major1}
-%{_bindir}/clang-offload-packager
-%{_bindir}/clang-cpp
-%{_libdir}/LLVMgold.so
-%if %{build_lto}
-%{_libdir}/bfd-plugins/LLVMgold.so
-%endif
-%{_libdir}/libLTO.so.*
-%{_libdir}/libclang-cpp.so.*
-%{_libdir}/libclang.so.*
-%{_libdir}/libLTO.so
-%{_datadir}/clang
-%if %{with default_compiler}
-%{_bindir}/cc
-%{_bindir}/c89
-%{_bindir}/c99
-%{_bindir}/c++
-%endif
-%doc %{_mandir}/man1/clang.1*
-%dir %{_libdir}/clang
-%dir %{_libdir}/clang/%{major1}
-%dir %{_libdir}/clang/%{major1}/lib
-%{_libdir}/clang/%{major1}/lib/%{_target_platform}
-%ifarch %{x86_64}
-%{_libdir}/clang/%{major1}/lib/x86_64-pc-linux%{_gnu}
-%endif
-# Contains only hwasan, therefore isn't on all platforms
-%optional %{_libdir}/clang/%{major1}/bin
-# Contains only sanitizer configs, therefore isn't on all platforms
-%optional %{_libdir}/clang/%{major1}/share
-%{_libdir}/clang/%{major1}/include
-%dir %{_sysconfdir}/clang
 
 #-----------------------------------------------------------
 
@@ -3250,40 +3213,58 @@ popd
 # Fix bogus permissions
 [[ -e %{buildroot}%{_datadir}/gdb/python/ompd/ompdModule.so ]] && chmod 0755 %{buildroot}%{_datadir}/gdb/python/ompd/ompdModule.so
 
-# Fix some x86_64-openmandriva-linux-gnu vs. x86_64-pc-linux-gnu confusion
+# Add some commonly used alternate triples:
+# anything-openmandriva-linux-$ABI is also:
+# anything-linux-$ABI
+# anything-unknown-linux-$ABI
+# Furthermore, x86_64-openmandriva-linux-$ABI and i?86-openmandriva-linux-$ABI
+# also double as x86_64-pc-linux-$ABI and i?86-openmandriva-linux-$ABI
 cd %{buildroot}%{_libdir}/clang/%{major1}/lib
-for i in *-pc-linux-gnu; do
-	[ -d "$i" ] || continue
-	OM="${i/-pc-/-openmandriva-}"
-	[ -d "$OM" ] || continue
-	# What we really should do here is
-	#	mv $i/* $OM
-	#	rmdir $i
-	#	ln -s $OM $i
-	# But there is the good old "rpm doesn't like replacing directories
-	# with symlinks" problem...
-	for j in $i/*; do
-		BN="$(basename $j)"
-		[ -e ${OM}/${BN} ] || ln -s ../$i/${BN} $OM/
-	done
-	for j in $OM/*; do
-		BN="$(basename $j)"
-		[ -e ${i}/${BN} ] || ln -s ../$OM/${BN} $i/
-	done
+for arch in *-openmandriva-*; do
+	ln -s $arch ${arch/-openmandriva-/-unknown-}
+	ln -s $arch ${arch/-openmandriva-/-}
+	CPU="$(echo ${arch/-*/})"
+	if [[ "$CPU" == x86_64 || "$CPU" == i?86 ]]; then
+		ln -s $arch ${arch/-openmandriva-/-pc-}
+	fi
 done
-for i in x86_64-openmandriva-linux-* i?86-openmandriva-linux-*; do
-	[ -d "$i" ] || continue
-	PC="${i/-openmandriva-/-pc-}"
-	[ -d "$PC" ] || mkdir "$PC"
-	for j in $i/*; do
-		BN="$(basename $j)"
-		[ -e ${PC}/${BN} ] || ln -s ../$i/${BN} $PC/
-	done
-	for j in $OM/*; do
-		BN="$(basename $j)"
-		[ -e ${i}/${BN} ] || ln -s ../$PC/${BN} $i/
-	done
-done
+
+# Create the file list for clang dynamically so we can add the runtime libraries
+# including "alttargets" the same way we add them to the cross packages...
+cat >%{specpartsdir}/clang.specpart <<'EOF'
+%%%%files -n clang
+%{_bindir}/clang
+%{_bindir}/clang-linker-wrapper
+%{_bindir}/clang++
+%{_bindir}/clang-%{major1}
+%{_bindir}/clang-offload-packager
+%{_bindir}/clang-cpp
+%{_libdir}/LLVMgold.so
+%if %{build_lto}
+%{_libdir}/bfd-plugins/LLVMgold.so
+%endif
+%{_libdir}/libLTO.so.*
+%{_libdir}/libclang-cpp.so.*
+%{_libdir}/libclang.so.*
+%{_libdir}/libLTO.so
+%{_datadir}/clang
+%if %{with default_compiler}
+%{_bindir}/cc
+%{_bindir}/c89
+%{_bindir}/c99
+%{_bindir}/c++
+%endif
+%doc %{_mandir}/man1/clang.1*
+%dir %{_libdir}/clang
+%dir %{_libdir}/clang/%{major1}
+%dir %{_libdir}/clang/%{major1}/lib
+# Contains only hwasan, therefore isn't on all platforms
+%%%%optional %{_libdir}/clang/%{major1}/bin
+# Contains only sanitizer configs, therefore isn't on all platforms
+%%%%optional %{_libdir}/clang/%{major1}/share
+%{_libdir}/clang/%{major1}/include
+%dir %{_sysconfdir}/clang
+EOF
 
 %if %{with crosscrt}
 mkdir -p %{buildroot}%{_sysconfdir}/clang
@@ -3307,10 +3288,12 @@ for arch in %{cross_cpu_targets}; do
 	esac
 	for abi in $abis; do
 		triplet=$arch-openmandriva-linux-$abi
-		[[ "$triplet" == "%{_target_platform}" ]] && continue
-
-		SPECPART=%{specpartsdir}/cross-$triplet-clang.specpart
-		cat >$SPECPART <<EOF
+		if [[ "$triplet" == "%{_target_platform}" ]]; then
+			SPECPART=%{specpartsdir}/clang.specpart
+		else
+			echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$triplet.cfg
+			SPECPART=%{specpartsdir}/cross-$triplet-clang.specpart
+			cat >$SPECPART <<EOF
 %%%%package -n cross-$triplet-clang
 Summary:	Libraries and config files for crosscompiling to $triplet targets
 Group:		Development/Tools
@@ -3324,26 +3307,25 @@ Libraries and config files for crosscompiling to $triplet targets
 %{_prefix}/$triplet/lib*/*
 %{_prefix}/$triplet/include/*
 EOF
+		fi
 		[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$triplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$triplet" >>$SPECPART
 
-		echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$triplet.cfg
 		# And for triplets that are similar enough...
-		alttriplet=$arch-linux-$abi
-		echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
-		echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+		alttriplets="$arch-linux-$abi $arch-unknown-linux-$abi"
 		if [[ "$arch" == "x86_64" || "$arch" == i?86 ]]; then
-			alttriplet=$arch-pc-linux-$abi
-			echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
-			[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$alttriplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$alttriplet" >>$SPECPART
-			echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
-			if [[ "$arch" == i?86 && "$arch" != "i386" ]]; then
-				alttriplet=i386-openmandriva-linux-$abi
-				echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
-				[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$alttriplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$alttriplet" >>$SPECPART
-				echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
-			fi
+			alttriplets+=" $arch-pc-linux-$abi"
 		fi
-		
+		if [[ "$arch" == i?86 && "$arch" != i386 ]]; then
+			# Also include the least common denominator
+			for alttriplet in i386-linux-$abi i386-pc-linux-$abi i386-unknown-linux-$abi; do
+				[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$alttriplet ]] && alttriplets+=" $alttriplet"
+			done
+		fi
+		for alttriplet in $alttriplets; do
+			echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+			echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
+			echo "%{_libdir}/clang/%{major1}/lib/$alttriplet" >>$SPECPART
+		done
 	done
 done
 
