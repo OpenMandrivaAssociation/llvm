@@ -172,7 +172,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	4
+Release:	5
 %endif
 # We usually package commits listed in
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
@@ -3322,8 +3322,10 @@ EOF
 			done
 		fi
 		for alttriplet in $alttriplets; do
-			echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
-			echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
+			if [[ "$triplet" != "%{_target_platform}" ]]; then
+				echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+				echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
+			fi
 			echo "%{_libdir}/clang/%{major1}/lib/$alttriplet" >>$SPECPART
 		done
 	done
