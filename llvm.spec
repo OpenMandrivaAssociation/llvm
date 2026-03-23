@@ -2367,6 +2367,7 @@ gccver="$(gcc --version |head -n1 |cut -d' ' -f3)"
 TARGETS=""
 CROSSCRT_FLAGS=()
 for arch in %{cross_cpu_targets}; do
+%if %{with crosscrt}
 	case $arch in
 	arm*)
 		abis="gnueabihf musleabihf"
@@ -2384,6 +2385,9 @@ for arch in %{cross_cpu_targets}; do
 		abis="gnu musl"
 		;;
 	esac
+%else
+	abis="%(echo %{_gnu} |cut -b2-)"
+%endif
 	for abi in $abis; do
 		triplet=$arch-openmandriva-linux-$abi
 		XRUNTIMES="$RUNTIMES"
