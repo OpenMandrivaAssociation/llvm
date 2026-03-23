@@ -2668,11 +2668,11 @@ export LD_LIBRARY_PATH=${TOP}/build/%{_lib}:${TOP}/build/tools/mlir/python_packa
 gccver="$(%{_target_platform}-gcc --version |head -n1 |cut -d' ' -f3)"
 cat >xc <<EOF
 #!/bin/sh
-exec %{_bindir}/clang -target %{_target_platform} -isysroot /usr/%{_target_platform} -fPIC "\$@"
+exec %{_bindir}/clang -target %{_target_platform} -isysroot /usr/%{_target_platform} --sysroot=/usr/%{_target_platform} -fPIC "\$@"
 EOF
 cat >xc++ <<EOF
 #!/bin/sh
-exec %{_bindir}/clang++ -target %{_target_platform} -isysroot /usr/%{_target_platform} -isystem $TOP/pstl/include -isystem $TOP/build/runtimes/runtimes-bins/pstl/generated_headers -fPIC "\$@"
+exec %{_bindir}/clang++ -target %{_target_platform} -isysroot /usr/%{_target_platform} --sysroot=/usr/%{_target_platform} -fPIC "\$@"
 EOF
 chmod +x xc xc++
 cat >cmake-xc.toolchain <<EOF
