@@ -1,5 +1,5 @@
 sources:
   04f10f650d514df88b76d25e83db360142c7b174.tar.gz: 3ff41d29dc3973d6fb45bf932e90f987ff9e27df
   fbe4f3ad913c44fe8700545f8ffe35d1382b7093.tar.gz: 7ca14f557069e2855edc36bd6c1b9b9494f8e854
-  llvmorg-22.1.1.tar.gz: 29de4f16c83bce81c8ab1378e122b214d6de289b
-  spirv-llvm-translator-22.1.1.tar.gz: a25bc4f5eaf084b175af49e0cd113d2c02972c34
+  llvmorg-22.1.2.tar.gz: 9d60517ba8c5c397f77ad839e70f75a170e75c17
+  spirv-llvm-translator-22.1.2.tar.gz: 1d3f6c76be090d56d54a9f2d0224bf0402b730e2

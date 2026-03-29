@@ -157,7 +157,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	22.1.1%{?relc:~%{relc}}
+Version:	22.1.2%{?relc:~%{relc}}
 %define ver %(echo %{version} |cut -d'~' -f1)
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
@@ -1630,7 +1630,7 @@ Summary:	A Fortran language front-end for LLVM
 License:	NCSA
 Group:		Development/Other
 Requires:	clang = %{EVRD}
-BuildRequires:	flang
+#BuildRequires:	flang
 %if %{with unwind}
 Requires:	%{_lib}unwind1.0 = %{EVRD}
 Requires:	%{devunwind} = %{EVRD}
