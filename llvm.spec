@@ -172,7 +172,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	1
+Release:	2
 %endif
 # We usually package commits listed in
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
@@ -1622,51 +1622,6 @@ Objective-CAML bindings for LLVM.
 %files -n ocaml-%{name}
 %{_libdir}/ocaml/*
 %endif
-#-----------------------------------------------------------
-
-%if %{with flang}
-%package -n flang
-Summary:	A Fortran language front-end for LLVM
-License:	NCSA
-Group:		Development/Other
-Requires:	clang = %{EVRD}
-#BuildRequires:	flang
-%if %{with unwind}
-Requires:	%{_lib}unwind1.0 = %{EVRD}
-Requires:	%{devunwind} = %{EVRD}
-%endif
-
-%description -n flang
-A Fortran language front-end for LLVM
-
-%files -n flang
-%{_bindir}/bbc
-%{_bindir}/flang
-%{_mandir}/man1/flang.1*
-%{_bindir}/flang-%{major1}
-%{_bindir}/flang-new
-%{_bindir}/fir-lsp-server
-%{_bindir}/fir-opt
-%{_bindir}/f18-parse-demo
-%{_bindir}/tco
-%{_libdir}/clang/%{major1}/lib/*/libflang_rt.runtime.a
-%doc %{_docdir}/LLVM/flang
-
-%define flangdev %mklibname -d flang
-
-%package -n %{flangdev}
-Summary:	Development files for Flang, the LLVM Fortran compiler
-Group:		Development/Fortran
-
-%description -n %{flangdev}
-Development files for Flang, the LLVM Fortran compiler.
-
-%files -n %{flangdev}
-%{_includedir}/flang
-%{_includedir}/flang-rt
-%{_libdir}/cmake/flang
-%endif
-
 #-----------------------------------------------------------
 
 %if %{with lldb}
@@ -3312,7 +3267,11 @@ Libraries and config files for crosscompiling to $triplet targets
 %{_prefix}/$triplet/include/*
 EOF
 		fi
-		[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$triplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$triplet" >>$SPECPART
+		if [[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$triplet ]]; then
+			echo "%{_libdir}/clang/%{major1}/lib/$triplet" >>$SPECPART
+			# flang goes to flang
+			echo "%%exclude %{_libdir}/clang/%{major1}/lib/$triplet/libflang_rt.*" >>$SPECPART
+		fi
 
 		# And for triplets that are similar enough...
 		alttriplets="$arch-linux-$abi $arch-unknown-linux-$abi"
@@ -3354,6 +3313,66 @@ EOF
 	[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$triplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$triplet" >>$SPECPART
 	echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$triplet.cfg
 done
+%endif
+
+%if %{with flang}
+SPECPART=%{specpartsdir}/flang.specpart
+cat >$SPECPART <<EOF
+%%%%package -n flang
+Summary:	A Fortran language front-end for LLVM
+License:	NCSA
+Group:		Development/Other
+Requires:	clang = %{EVRD}
+#BuildRequires:	flang
+%if %{with unwind}
+Requires:	%{_lib}unwind1.0 = %{EVRD}
+Requires:	%{devunwind} = %{EVRD}
+%endif
+
+%%%%description -n flang
+A Fortran language front-end for LLVM
+
+%%%%files -n flang
+%{_bindir}/bbc
+%{_bindir}/flang
+%{_mandir}/man1/flang.1*
+%{_bindir}/flang-%{major1}
+%{_bindir}/flang-new
+%{_bindir}/fir-lsp-server
+%{_bindir}/fir-opt
+%{_bindir}/f18-parse-demo
+%{_bindir}/tco
+%%%%doc %{_docdir}/LLVM/flang
+EOF
+
+# We used to add
+# %{_libdir}/clang/%{major1}/lib/*/libflang_rt.runtime.a
+# but rpm isn't smart enough -- this results in identical
+# libflang_rt.runtime.a files packaged in "directories" that
+# are symlinks (x86_64-pc-linux-gnu -> x86_64-openmandriva-linux-gnu)
+# which in turn causes the package not to install because multiple
+# files are being extracted to the same location.
+
+for i in %{buildroot}%{_libdir}/clang/%{major1}/lib/*; do
+	[[ -d $i && ! -L $i && -e $i/libflang_rt.runtime.a ]] && echo $i/libflang_rt.runtime.a |sed -e 's,^%{buildroot},,' >>$SPECPART
+done
+
+cat >>$SPECPART <<EOF
+
+%define flangdev %mklibname -d flang
+
+%%%%package -n %{flangdev}
+Summary:	Development files for Flang, the LLVM Fortran compiler
+Group:		Development/Fortran
+
+%%%%description -n %{flangdev}
+Development files for Flang, the LLVM Fortran compiler.
+
+%%%%files -n %{flangdev}
+%{_includedir}/flang
+%{_includedir}/flang-rt
+%{_libdir}/cmake/flang
+EOF
 %endif
 
 %if %{with unwind}
