@@ -172,7 +172,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	2
+Release:	3
 %endif
 # We usually package commits listed in
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
@@ -1732,17 +1732,26 @@ Python bindings to parts of the Clang library
 %package libgomp
 Summary:	LLVM's version of libgomp (the GCC variant of OpenMP)
 Group:		System/Libraries
-%if %{with compat32}
-# We no longer build the 32-bit version, because there are
-# no known 32-bit users of OpenMP
-Obsoletes:	libgomp32 < %{EVRD}
-%endif
 
 %description libgomp
 LLVM's version of libgomp (the GCC variant of OpenMP)
 
 %files libgomp
 %{_libdir}/libgomp.so.1
+
+%if %{with compat32}
+%ifarch %{x86_64}
+%package libgomp32
+Summary:	LLVM's version of libgomp (the GCC variant of OpenMP) (32-bit)
+Group:		System/Libraries
+
+%description libgomp32
+LLVM's version of libgomp (the GCC variant of OpenMP) (32-bit)
+
+%files libgomp32
+%{_prefix}/i686-openmandriva-linux-gnu/lib/libgomp.so*
+%endif
+%endif
 
 %package -n %{libompdevel}
 Summary:	Development files for the OpenMP runtime
@@ -3263,9 +3272,15 @@ Libraries and config files for crosscompiling to $triplet targets
 
 %%%%files -n cross-$triplet-clang
 %%%%config %{_sysconfdir}/clang/$triplet.cfg
-%{_prefix}/$triplet/lib*/*
+%dir %{_prefix}/$triplet/lib*
 %{_prefix}/$triplet/include/*
 EOF
+			for libfile in %{buildroot}%{_prefix}/$triplet/lib*/*; do
+				# Don't clash with cross-$triplet-gcc
+				BN="$(basename $libfile)"
+				[[ $BN =~ libgomp.so* ]] && continue
+				echo %{_prefix}/$triplet/lib*/$BN >>$SPECPART
+			done
 		fi
 		if [[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$triplet ]]; then
 			echo "%{_libdir}/clang/%{major1}/lib/$triplet" >>$SPECPART
