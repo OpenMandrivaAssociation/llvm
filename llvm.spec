@@ -178,8 +178,8 @@ Release:	1
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
 # Sometimes we have to get slightly ahead of "known good" to get
 # extensions required by mesa
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/04f10f650d514df88b76d25e83db360142c7b174.tar.gz
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/fbe4f3ad913c44fe8700545f8ffe35d1382b7093.tar.gz
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/126038020c2bd47efaa942ccc364ca5353ffccde.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/4cce3565d16a298efff96c0b172c44fea409036b.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
@@ -288,7 +288,7 @@ Patch64:	llvm-19-libc-aarch64-compile.patch
 Patch65:	spirv-tools-compile.patch
 Patch70:	llvm-21.1-openmp-proc-bug146573.patch
 # SPIR-V fixes
-#Patch90:	spirv-fix-warnings.patch
+Patch90:	spirv-fix-warnings.patch
 Patch91:	SPRIV-Tools-soname.patch
 
 # This needs to be cleaned up before sending it upstream
