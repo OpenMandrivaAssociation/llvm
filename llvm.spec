@@ -174,11 +174,11 @@ Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
 Release:	1
 %endif
-# We usually package commits listed in
+# The correct version of SPIRV-Headers is listed in
+# SPIRV-LLVM-Translator/spirv-headers-tag.conf
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/b8a32968473ce852a809b9de5f04f02a5a9dfa78.tar.gz
+# A known good commit for SPIRV-Tools is usually listed at
 # https://github.com/KhronosGroup/glslang/blob/master/known_good.json
-# Sometimes we have to get slightly ahead of "known good" to get
-# extensions required by mesa
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/126038020c2bd47efaa942ccc364ca5353ffccde.tar.gz
 Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/4cce3565d16a298efff96c0b172c44fea409036b.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
@@ -2204,6 +2204,11 @@ Libc implementation from the LLVM project
 %setup -q -n llvm-project-llvmorg-%{ver}%{?relc:-%{relc}} -a 20 -a 21 -a 22
 %endif
 mv SPIRV-LLVM-Translator-* llvm/projects/SPIRV-LLVM-Translator
+WANTED_SPIRV_HEADERS_VERSION="$(cat llvm/projects/SPIRV-LLVM-Translator/spirv-headers-tag.conf)"
+if [[ $(basename %{S:21}) != ${WANTED_SPIRV_HEADERS_VERSION}.tar.gz ]]; then
+	echo "Update SPIRV-Headers (Source21) to $WANTED_SPIRV_HEADERS_VERSION" >&2
+	exit 1
+fi
 mv SPIRV-Headers-* llvm/projects/SPIRV-Headers
 mv SPIRV-Tools-* llvm/projects/SPIRV-Tools
 %autopatch -p1 -M 1999
@@ -3301,8 +3306,17 @@ EOF
 		fi
 		for alttriplet in $alttriplets; do
 			if [[ "$triplet" != "%{_target_platform}" ]]; then
-				echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
-				echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
+%ifarch %{x86_64}
+				# On x86_64, i386-pc-linux-* is "magic" because it is automatically implied
+				# for builds with plain -m32. On multiarch x86 boxes, for now we want to
+				# keep a shared /usr/include, so we don't sysroot that "magic" target
+				if [[ "$triplet" != "i386-pc-linux-%{_gnu}" ]]; then
+%endif
+					echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+					echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
+%ifarch %{x86_64}
+				fi
+%endif
 			fi
 			echo "%{_libdir}/clang/%{major1}/lib/$alttriplet" >>$SPECPART
 		done
