@@ -318,7 +318,7 @@ Source80:	REPORT-LoopIdiom-X86-Fold.md
 Patch80:	0001-LoopIdiom-Recognize-shift-and-count-popcount-idiom.patch
 Patch81:	0002-X86-Fold-zero-extending-loads-into-TEST-memory-instr.patch 
 # Documentation for patches 82/83/84 just for reference
-Source82:	REPORT-LoopIdiom-X86-Fold.md 
+Source82:	REPORT-vectorization-dagcombiner-unroll.md
 Patch82:	0001-x86-loongarch-lower-epilogue-vectorization-minvf.patch
 Patch83:	0002-dagcombiner-store-merge-splat-values.patch
 Patch84:	0003-loop-unroll-suppress-counterproductive-runtime-unrolling.patch
