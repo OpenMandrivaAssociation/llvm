@@ -1,0 +1,48 @@
+--- a/orc-rt/include/CMakeLists.txt	2026-07-21 16:35:58.720706779 +0200
++++ b/orc-rt/include/CMakeLists.txt	2026-07-21 16:36:35.049162219 +0200
+@@ -1,10 +1,9 @@
+ set(ORC_RT_HEADERS
+-    orc-rt-c/CoreTyspe.h
++    orc-rt-c/CoreTypes.h
+     orc-rt-c/Error.h
+     orc-rt-c/Compiler.h
+     orc-rt-c/Logging.h
+     orc-rt-c/WrapperFunction.h
+-    orc-rt-c/orc-rt.h
+     orc-rt/AllocAction.h
+     orc-rt/BitmaskEnum.h
+     orc-rt/BootstrapInfo.h
+@@ -51,23 +50,25 @@
+     ${CMAKE_CURRENT_BINARY_DIR}/orc-rt-c/config.h
+ )
+ 
+-# TODO: Switch to filesets when we move to cmake-3.23.
+ add_library(orc-rt-headers INTERFACE)
+ target_include_directories(orc-rt-headers INTERFACE
+     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+     $<INSTALL_INTERFACE:include>
+ )
+-set_property(TARGET orc-rt-headers
+-    PROPERTY PUBLIC_HEADER ${ORC_RT_HEADERS} ${ORC_RT_GENERATED_HEADERS}
+-)
+-install(TARGETS orc-rt-headers
+-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/
++# PUBLIC_HEADER flattens subdir paths; install directories so consumers get
++# include/orc-rt/... and include/orc-rt-c/... as intended.
++install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/orc-rt-c/
++    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/orc-rt-c
+     COMPONENT OrcRT_Development
++    FILES_MATCHING PATTERN "*.h"
+ )
+-
+-# Install generated config header
+ install(FILES ${ORC_RT_GENERATED_HEADERS}
+     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/orc-rt-c/
+     COMPONENT OrcRT_Development
+ )
++install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/orc-rt/
++    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/orc-rt
++    COMPONENT OrcRT_Development
++    FILES_MATCHING PATTERN "*.h"
++)

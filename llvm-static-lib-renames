@@ -1,0 +1,15 @@
+# old_basename new_basename
+# When new is packaged, also emit Obsoletes for old on the new package and umbrella.
+# Format: whitespace-separated; lines starting with # are comments.
+MLIRArithmeticUtils MLIRArithUtils
+MLIRArithmeticToLLVM MLIRArithToLLVM
+MLIRArithmeticToSPIRV MLIRArithToSPIRV
+MLIRArithmeticTransform MLIRArithTransforms
+MLIRLinalgToSPIRV MLIRMathToSPIRV
+MLIRArithmeticDialect MLIRArithDialect
+MLIRLinalgToLLVM MLIRLinalgToStandard
+MLIRArmSMEUtils MLIRArmSMEDialect
+MLIRQuantTransforms MLIRQuantUtils
+LLVMMCACustomBehaviourAMDGPU LLVMAMDGPUCodeGen
+LLVMTableGenGlobalISel LLVMTableGenBasic
+LLVMCodeGenData LLVMCodeGen

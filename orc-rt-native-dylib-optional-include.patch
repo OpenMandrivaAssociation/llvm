@@ -1,0 +1,11 @@
+--- a/orc-rt/include/orc-rt/NativeDylibManager.h
++++ b/orc-rt/include/orc-rt/NativeDylibManager.h
+@@ -16,6 +16,8 @@
+ #include "orc-rt/BootstrapInfo.h"
+ #include "orc-rt/Service.h"
+ #include "orc-rt/sps-ci/NativeDylibManagerSPSCI.h"
++#include <optional>
++#include <vector>
+ 
+ namespace orc_rt {
+ 

@@ -1,0 +1,326 @@
+#!/usr/bin/env python3
+"""Generate SPECPART subpackages for LLVM component static libraries.
+
+Scans the buildroot for lib*.a matching known component prefixes, emits one
+%package/%files SPECPART per library, fills the umbrella static-devel package
+Requires, and emits Obsoletes for basenames present in a previous-release
+manifest but missing from the current install.
+
+Usage (from %install):
+  llvm-generate-static-lib-specparts \\
+      BUILDROOT SPECPARTSDIR \\
+      --libdir LIBDIR \\
+      [--libdir32 PREFIX/lib] \\
+      --evrd EVRD \\
+      --umbrella PKGNAME \\
+      --manifest PREVIOUS_MANIFEST \\
+      [--renames RENAMES_FILE] \\
+      [--write-manifest OUT_MANIFEST]
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+# Component archives auto-packaged as %{mklibname -d -s NAME}
+INCLUDE_RE = re.compile(
+    r"^(?:"
+    r"LLVM|MLIR|clang|FIR|Fortran|flang|Flang|lld|"
+    r"LLVMBOLT|Polly|HLFIR|CUF|CIR|MIF|findAllSymbols"
+    r")"
+)
+
+# Owned by hand-written packages — never auto-package these basenames
+EXCLUDE_EXACT = frozenset(
+    {
+        "MLIRTableGen",  # mlir-devel
+        "PollyISL",  # polly-devel
+    }
+)
+
+EXCLUDE_RE = re.compile(
+    r"^(?:"
+    r"SPIRV-Tools|c\+\+|c\+\+abi|unwind|archer|llvmlibc|bolt_rt|"
+    r"omp|omptarget|gomp|iomp5|sycl"
+    r")"
+)
+
+
+def mklibname_static(basename: str, *, bit32: bool = False) -> str:
+    """Resolve package name via rpm macros (matches packaging policy)."""
+    macro = "%mklib32name" if bit32 else "%mklibname"
+    # rpm --eval with -d -s
+    expr = f"{macro} -d -s {basename}"
+    r = subprocess.run(
+        ["rpm", "--eval", expr],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    name = (r.stdout or "").strip()
+    if r.returncode != 0 or not name or name.startswith("%"):
+        # Fallback matching OpenMandriva convention
+        if bit32:
+            return f"lib{basename}-static-devel"
+        # Prefer lib64 on 64-bit if %{_lib} is lib64
+        lib = subprocess.run(
+            ["rpm", "--eval", "%{_lib}"], capture_output=True, text=True
+        ).stdout.strip()
+        prefix = "lib64" if lib == "lib64" else "lib"
+        return f"{prefix}{basename}-static-devel"
+    return name
+
+
+def scan_archives(libdir: Path) -> dict[str, str]:
+    """Return {basename: relative install path} for matching .a files."""
+    found: dict[str, str] = {}
+    if not libdir.is_dir():
+        return found
+    for path in sorted(libdir.glob("lib*.a")):
+        if path.is_symlink():
+            continue
+        name = path.name
+        if not name.startswith("lib") or not name.endswith(".a"):
+            continue
+        base = name[3:-2]  # strip lib and .a
+        if base in EXCLUDE_EXACT or EXCLUDE_RE.match(base):
+            continue
+        if not INCLUDE_RE.match(base):
+            continue
+        # Path as it appears in the package (no buildroot prefix)
+        # Caller passes absolute buildroot-relative via libdir under buildroot
+        found[base] = str(path)
+    return found
+
+
+def load_manifest(path: Path | None) -> set[str]:
+    if not path or not path.is_file():
+        return set()
+    out: set[str] = set()
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        out.add(line.split()[0])
+    return out
+
+
+def load_renames(path: Path | None) -> dict[str, str]:
+    """old -> new"""
+    if not path or not path.is_file():
+        return {}
+    renames: dict[str, str] = {}
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) >= 2:
+            renames[parts[0]] = parts[1]
+    return renames
+
+
+def strip_buildroot(abs_path: str, buildroot: str) -> str:
+    br = buildroot.rstrip("/")
+    if abs_path.startswith(br + "/"):
+        return abs_path[len(br) :]
+    if abs_path.startswith(br):
+        return abs_path[len(br) :]
+    return abs_path
+
+
+def write_component_specpart(
+    specpartsdir: Path,
+    pkg: str,
+    base: str,
+    file_path: str,
+    *,
+    obsoletes: list[str],
+    evrd: str,
+) -> None:
+    sp = specpartsdir / f"{pkg}.specpart"
+    # Avoid "LLVM LLVMSupport" — use basename as the product name
+    summary = f"{base} static library (LLVM)"
+    lines = [
+        f"%package -n {pkg}",
+        f"Summary: {summary}",
+        "Group: Development/Libraries",
+    ]
+    for old_pkg in obsoletes:
+        lines.append(f"Obsoletes: {old_pkg} < {evrd}")
+    lines += [
+        "",
+        f"%description -n {pkg}",
+        f"{base} static library from the LLVM project.",
+        "",
+        f"%files -n {pkg}",
+        file_path,
+        "",
+    ]
+    sp.write_text("\n".join(lines) + "\n")
+
+
+def write_umbrella(
+    specpartsdir: Path,
+    umbrella: str,
+    requires: list[str],
+    obsoletes: list[str],
+    evrd: str,
+    devname_requires: str | None,
+) -> None:
+    """Full umbrella package (replaces parse-time definition)."""
+    sp = specpartsdir / f"zz-{umbrella}.specpart"
+    lines = [
+        f"%package -n {umbrella}",
+        "Summary: Static library files for LLVM",
+        "Group: Development/Other",
+        f"Provides: llvm-static-devel = {evrd}",
+    ]
+    if devname_requires:
+        lines.append(f"Requires: {devname_requires} = {evrd}")
+    for req in sorted(set(requires)):
+        lines.append(f"Requires: {req} = {evrd}")
+    for obs in sorted(set(obsoletes)):
+        lines.append(f"Obsoletes: {obs} < {evrd}")
+    lines += [
+        "",
+        f"%description -n {umbrella}",
+        "Static library files for LLVM",
+        "",
+        f"%files -n {umbrella}",
+        "",
+    ]
+    sp.write_text("\n".join(lines) + "\n")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("buildroot")
+    ap.add_argument("specpartsdir")
+    ap.add_argument("--libdir", required=True, help="e.g. /usr/lib64 (inside root)")
+    ap.add_argument("--libdir32", default=None, help="e.g. /usr/lib for compat32")
+    ap.add_argument("--evrd", required=True)
+    ap.add_argument("--umbrella", required=True, help="expanded mklibname -d -s llvm")
+    ap.add_argument("--manifest", default=None, help="previous-release basenames")
+    ap.add_argument("--renames", default=None)
+    ap.add_argument("--write-manifest", default=None, help="write current basenames here")
+    ap.add_argument(
+        "--devname",
+        default=None,
+        help="expanded mklibname -d llvm for umbrella Requires",
+    )
+    args = ap.parse_args()
+
+    buildroot = Path(args.buildroot)
+    specpartsdir = Path(args.specpartsdir)
+    if not specpartsdir.is_dir():
+        print(
+            "llvm-generate-static-lib-specparts: %{specpartsdir} missing "
+            "(dynamic specs not supported on this RPM)",
+            file=sys.stderr,
+        )
+        return 1
+
+    libdir = buildroot / args.libdir.lstrip("/")
+    found64 = scan_archives(libdir)
+    # Convert to packaged paths
+    files64 = {
+        b: strip_buildroot(str(p), str(buildroot)) for b, p in found64.items()
+    }
+
+    found32: dict[str, str] = {}
+    if args.libdir32:
+        libdir32 = buildroot / args.libdir32.lstrip("/")
+        raw32 = scan_archives(libdir32)
+        found32 = {
+            b: strip_buildroot(str(p), str(buildroot)) for b, p in raw32.items()
+        }
+
+    previous = load_manifest(Path(args.manifest) if args.manifest else None)
+    renames = load_renames(Path(args.renames) if args.renames else None)
+    # reverse: new -> [olds]
+    reverse_renames: dict[str, list[str]] = {}
+    for old, new in renames.items():
+        reverse_renames.setdefault(new, []).append(old)
+
+    current = set(files64.keys()) | set(found32.keys())
+    umbrella_requires: list[str] = []
+    umbrella_obsoletes: list[str] = []
+
+    # Component packages (64-bit)
+    for base, fpath in sorted(files64.items()):
+        pkg = mklibname_static(base, bit32=False)
+        obs_pkgs: list[str] = []
+        for old in reverse_renames.get(base, []):
+            obs_pkgs.append(mklibname_static(old, bit32=False))
+            umbrella_obsoletes.append(mklibname_static(old, bit32=False))
+        write_component_specpart(
+            specpartsdir, pkg, base, fpath, obsoletes=obs_pkgs, evrd=args.evrd
+        )
+        umbrella_requires.append(pkg)
+
+    # Component packages (32-bit)
+    for base, fpath in sorted(found32.items()):
+        pkg = mklibname_static(base, bit32=True)
+        obs_pkgs = []
+        for old in reverse_renames.get(base, []):
+            obs_pkgs.append(mklibname_static(old, bit32=True))
+            umbrella_obsoletes.append(mklibname_static(old, bit32=True))
+        write_component_specpart(
+            specpartsdir,
+            pkg,
+            base + " (32-bit)",
+            fpath,
+            obsoletes=obs_pkgs,
+            evrd=args.evrd,
+        )
+        # Umbrella is 64-bit only historically — do not Require 32-bit here
+
+    # Removals: previous − current (and any rename olds not re-added)
+    removed = previous - current
+    # Also obsolete rename sources always if not present
+    for old, new in renames.items():
+        if old not in current:
+            removed.add(old)
+    for base in sorted(removed):
+        umbrella_obsoletes.append(mklibname_static(base, bit32=False))
+        if args.libdir32:
+            umbrella_obsoletes.append(mklibname_static(base, bit32=True))
+
+    write_umbrella(
+        specpartsdir,
+        args.umbrella,
+        umbrella_requires,
+        umbrella_obsoletes,
+        args.evrd,
+        args.devname,
+    )
+
+    if args.write_manifest:
+        out = Path(args.write_manifest)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        body = (
+            "# Auto-generated list of component static library basenames.\n"
+            "# Copy to llvm-static-libs.manifest in the package sources for the next release.\n"
+            + "\n".join(sorted(current))
+            + "\n"
+        )
+        out.write_text(body)
+
+    print(
+        f"llvm-generate-static-lib-specparts: "
+        f"{len(files64)} lib64 packages, {len(found32)} lib32 packages, "
+        f"{len(removed)} obsolete basenames",
+        file=sys.stderr,
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
