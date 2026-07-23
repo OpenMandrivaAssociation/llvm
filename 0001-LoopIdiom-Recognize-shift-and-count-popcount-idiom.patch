@@ -1,0 +1,232 @@
+From f83af6a148481735e31d94deec8b0340486a1aef Mon Sep 17 00:00:00 2001
+From: LLVM Developer <dev@llvm.org>
+Date: Wed, 22 Jul 2026 11:19:46 +0000
+Subject: [PATCH 1/2] [LoopIdiom] Recognize shift-and-count popcount idiom
+
+Recognize the common software popcount idiom:
+  while (x) { c += x & 1; x >>= 1; }
+
+and replace the entire loop with a call to llvm.ctpop. This is
+profitable on all targets because:
+
+1. When hardware popcount is available, ctpop lowers to a single
+   instruction (popcnt on x86, cnt on AArch64, cpop on RISC-V, etc.)
+
+2. When hardware popcount is not available, ctpop lowers to an
+   efficient constant-time bitmask-and-multiply sequence (~15
+   instructions on x86) versus the loop which takes O(log(max_val))
+   iterations (up to 32 for i32).
+
+The existing popcount detection only handled the Kernighan bit trick
+(x &= x-1) which requires PSK_FastHardware support. This new
+detection works for the shift-and-count pattern and does not require
+hardware popcount support since the software lowering is always
+superior to the loop.
+---
+ .../Transforms/Scalar/LoopIdiomRecognize.cpp  | 176 +++++++++++++++++-
+ 1 file changed, 175 insertions(+), 1 deletion(-)
+
+diff --git a/llvm/lib/Transforms/Scalar/LoopIdiomRecognize.cpp b/llvm/lib/Transforms/Scalar/LoopIdiomRecognize.cpp
+index ef9c1336e..bff191212 100644
+--- a/llvm/lib/Transforms/Scalar/LoopIdiomRecognize.cpp
++++ b/llvm/lib/Transforms/Scalar/LoopIdiomRecognize.cpp
+@@ -267,6 +267,7 @@ private:
+   bool runOnNoncountableLoop();
+ 
+   bool recognizePopcount();
++  bool recognizeShiftCountPopcount();
+   void transformLoopToPopcount(BasicBlock *PreCondBB, Instruction *CntInst,
+                                PHINode *CntPhi, Value *Var);
+   bool isProfitableToInsertFFS(Intrinsic::ID IntrinID, Value *InitX,
+@@ -1727,7 +1728,8 @@ bool LoopIdiomRecognize::runOnNoncountableLoop() {
+                     << "] Noncountable Loop %"
+                     << CurLoop->getHeader()->getName() << "\n");
+ 
+-  return recognizePopcount() || recognizeAndInsertFFS() ||
++  return recognizePopcount() || recognizeShiftCountPopcount() ||
++         recognizeAndInsertFFS() ||
+          recognizeShiftUntilBitTest() || recognizeShiftUntilZero() ||
+          recognizeShiftUntilLessThan() || recognizeAndInsertStrLen();
+ }
+@@ -2870,6 +2872,178 @@ void LoopIdiomRecognize::transformLoopToPopcount(BasicBlock *PreCondBB,
+   SE->forgetLoop(CurLoop);
+ }
+ 
++/// Detect the shift-and-count population count idiom:
++/// \code
++///    if (x0 == 0) goto loop-exit
++///    cnt0 = init-val;
++///    do {
++///       x = phi (x0, x.next);
++///       cnt = phi (cnt0, cnt.next);
++///       cnt.next = cnt + (x & 1);
++///       x.next = x >> 1;
++///    } while (x.next != 0);
++/// \endcode
++///
++/// This is equivalent to __builtin_popcount(x0) + cnt0.
++static bool detectShiftAndCountPopcountIdiom(Loop *CurLoop,
++                                             BasicBlock *PreCondBB,
++                                             Instruction *&CntInst,
++                                             PHINode *&CntPhi,
++                                             Instruction *&ShiftX,
++                                             Value *&InitX) {
++  BasicBlock *LoopEntry = *(CurLoop->block_begin());
++
++  // Step 1: Check if the loop-back branch matches "if (x.next != 0) goto loop"
++  auto *LoopTerm = dyn_cast<CondBrInst>(LoopEntry->getTerminator());
++  if (!LoopTerm)
++    return false;
++  Instruction *DefX =
++      dyn_cast_or_null<Instruction>(matchCondition(LoopTerm, LoopEntry));
++  if (!DefX)
++    return false;
++
++  // Step 2: Detect "x.next = x >> 1" (logical right shift by 1).
++  if (DefX->getOpcode() != Instruction::LShr)
++    return false;
++  ConstantInt *ShftAmt = dyn_cast<ConstantInt>(DefX->getOperand(1));
++  if (!ShftAmt || !ShftAmt->isOne())
++    return false;
++  Value *VarX = DefX->getOperand(0);
++
++  // Step 3: Check the recurrence of x.
++  PHINode *PhiX = getRecurrenceVar(VarX, DefX, LoopEntry);
++  if (!PhiX)
++    return false;
++
++  // Step 4: Detect "cnt.next = cnt + (x & 1)".
++  // We look for: add(cnt, and(x_or_xnext, 1)) where x_or_xnext is either
++  // the current or next value of the shift recurrence.
++  Instruction *FoundCntInst = nullptr;
++  PHINode *FoundCntPhi = nullptr;
++  for (Instruction &Inst :
++       llvm::make_range(LoopEntry->getFirstNonPHIIt(), LoopEntry->end())) {
++    if (Inst.getOpcode() != Instruction::Add)
++      continue;
++
++    // Try both operand orderings: add(and(...), cnt) or add(cnt, and(...)).
++    for (unsigned OpIdx = 0; OpIdx < 2; ++OpIdx) {
++      Value *MaybeAnd = Inst.getOperand(OpIdx);
++      Value *MaybeCnt = Inst.getOperand(1 - OpIdx);
++
++      auto *AndInst = dyn_cast<Instruction>(MaybeAnd);
++      if (!AndInst || AndInst->getOpcode() != Instruction::And)
++        continue;
++
++      // Check for "and(something, 1)" or "and(1, something)".
++      ConstantInt *AndConst =
++          dyn_cast<ConstantInt>(AndInst->getOperand(1));
++      Value *AndSrc = AndInst->getOperand(0);
++      if (!AndConst || !AndConst->isOne()) {
++        AndConst = dyn_cast<ConstantInt>(AndInst->getOperand(0));
++        AndSrc = AndInst->getOperand(1);
++        if (!AndConst || !AndConst->isOne())
++          continue;
++      }
++
++      // The AND source must be either the current x (PhiX) or the shifted
++      // x (DefX). Both are valid forms of the popcount idiom.
++      if (AndSrc != VarX && AndSrc != DefX)
++        continue;
++
++      // MaybeCnt must form a recurrence with this add instruction.
++      PHINode *Phi = getRecurrenceVar(MaybeCnt, &Inst, LoopEntry);
++      if (!Phi)
++        continue;
++
++      // Check that the result is used outside the loop.
++      bool LiveOutLoop = false;
++      for (User *U : Inst.users()) {
++        if ((cast<Instruction>(U))->getParent() != LoopEntry) {
++          LiveOutLoop = true;
++          break;
++        }
++      }
++
++      if (LiveOutLoop) {
++        FoundCntInst = &Inst;
++        FoundCntPhi = Phi;
++        break;
++      }
++    }
++    if (FoundCntInst)
++      break;
++  }
++  if (!FoundCntInst)
++    return false;
++
++  // Step 5: Check the precondition: "if (x != 0) goto loop-head"
++  BasicBlock *PreHead = CurLoop->getLoopPreheader();
++  InitX = PhiX->getIncomingValueForBlock(PreHead);
++
++  auto *PreCondBr = dyn_cast<CondBrInst>(PreCondBB->getTerminator());
++  if (!PreCondBr)
++    return false;
++  Value *T = matchCondition(PreCondBr, PreHead);
++  if (T != InitX)
++    return false;
++
++  CntInst = FoundCntInst;
++  CntPhi = FoundCntPhi;
++  ShiftX = DefX;
++  return true;
++}
++
++/// Recognize the shift-and-count popcount idiom:
++///   while(x) { c += x & 1; x >>= 1; }
++/// and replace the loop with llvm.ctpop.
++///
++/// Unlike the Kernighan popcount idiom (x &= x-1), this idiom always iterates
++/// through all set bits from LSB to MSB, making the loop trip count equal to
++/// the bit width minus the number of leading zeros. The entire loop computes
++/// exactly ctpop(x), so we can replace it unconditionally.
++///
++/// This optimization is profitable even without hardware popcount support,
++/// because the llvm.ctpop intrinsic lowers to an efficient software sequence
++/// (bitmask-and-multiply) that runs in constant time, versus the loop which
++/// takes O(log(max_val)) iterations.
++bool LoopIdiomRecognize::recognizeShiftCountPopcount() {
++  // Give up if the loop has multiple blocks or multiple backedges.
++  if (CurLoop->getNumBackEdges() != 1 || CurLoop->getNumBlocks() != 1)
++    return false;
++
++  BasicBlock *LoopBody = *(CurLoop->block_begin());
++  if (LoopBody->size() >= 20)
++    return false;
++
++  // It should have a preheader containing nothing but an unconditional branch.
++  BasicBlock *PH = CurLoop->getLoopPreheader();
++  if (!PH || &PH->front() != PH->getTerminator())
++    return false;
++  auto *EntryBI = dyn_cast<UncondBrInst>(PH->getTerminator());
++  if (!EntryBI)
++    return false;
++
++  // It should have a precondition block where ctpop can be inserted.
++  auto *PreCondBB = PH->getSinglePredecessor();
++  if (!PreCondBB)
++    return false;
++  auto *PreCondBI = dyn_cast<CondBrInst>(PreCondBB->getTerminator());
++  if (!PreCondBI)
++    return false;
++
++  Instruction *CntInst;
++  PHINode *CntPhi;
++  Instruction *ShiftX;
++  Value *InitX;
++  if (!detectShiftAndCountPopcountIdiom(CurLoop, PreCondBB, CntInst, CntPhi,
++                                        ShiftX, InitX))
++    return false;
++
++  // Transform: replace the loop with llvm.ctpop.
++  transformLoopToPopcount(PreCondBB, CntInst, CntPhi, InitX);
++  return true;
++}
++
+ /// Match loop-invariant value.
+ template <typename SubPattern_t> struct match_LoopInvariant {
+   SubPattern_t SubPattern;
+-- 
+2.53.0
+

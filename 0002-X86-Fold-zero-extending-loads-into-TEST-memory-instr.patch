@@ -1,0 +1,91 @@
+From f08c329f62934e5a7042ca195f139515c3bca6ec Mon Sep 17 00:00:00 2001
+From: LLVM Developer <dev@llvm.org>
+Date: Wed, 22 Jul 2026 11:20:03 +0000
+Subject: [PATCH 2/2] [X86] Fold zero-extending loads into TEST memory
+ instructions
+
+When a zero-extending load (ZEXTLOAD) from a narrower memory type is
+used in an AND+CMP-against-zero pattern, fold the load directly into
+the TEST-memory instruction at the narrower width, rather than
+materializing the load and testing the register.
+
+Before:
+  movzwl (%rdi), %ecx
+  testl  $1234, %ecx
+
+After:
+  testw  $1234, (%rdi)
+
+This commonly arises when the DAG combiner narrows a 32-bit load to a
+16-bit zero-extending load because the AND mask fits in 16 bits. The
+narrowing is done by ShrinkDemandedOp, but the resulting ZEXTLOAD
+prevents the instruction selector from folding the load into a TEST
+instruction (tryFoldLoad requires a NON_EXT load). This patch detects
+the ZEXTLOAD case in the X86 instruction selector's TEST handling and
+emits the correctly-sized TEST-memory instruction.
+
+This matches the code quality produced by GCC for bit-test patterns
+like 'if (*a & 1234)' where the mask fits in a sub-register width.
+---
+ llvm/lib/Target/X86/X86ISelDAGToDAG.cpp | 45 +++++++++++++++++++++++++
+ 1 file changed, 45 insertions(+)
+
+diff --git a/llvm/lib/Target/X86/X86ISelDAGToDAG.cpp b/llvm/lib/Target/X86/X86ISelDAGToDAG.cpp
+index 9a0045367..dbdb59e9a 100644
+--- a/llvm/lib/Target/X86/X86ISelDAGToDAG.cpp
++++ b/llvm/lib/Target/X86/X86ISelDAGToDAG.cpp
+@@ -6435,6 +6435,51 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
+         // Record the mem-refs
+         CurDAG->setNodeMemRefs(NewNode,
+                                {cast<LoadSDNode>(Reg)->getMemOperand()});
++      } else if (auto *LN = dyn_cast<LoadSDNode>(Reg.getNode())) {
++        // If Reg is a zero-extending load, try to fold it using the narrower
++        // memory type. For example, (test (and (zextload_i16 addr), $1234), 0)
++        // can be folded to TEST16mi addr, $1234 if the mask fits in 16 bits.
++        if (LN->getExtensionType() == ISD::ZEXTLOAD && LN->hasOneUse() &&
++            IsProfitableToFold(Reg, N0.getNode(), Node) &&
++            IsLegalToFold(Reg, N0.getNode(), Node, OptLevel)) {
++          EVT MemVT = LN->getMemoryVT();
++          unsigned MemBits = MemVT.getSizeInBits();
++          if (Mask == (Mask & maskTrailingOnes<uint64_t>(MemBits))) {
++            // Choose the right TESTmi for the memory type.
++            unsigned NarrowMOpc = 0;
++            if (MemBits == 8 && isUInt<8>(Mask) &&
++                (!(Mask & 0x80) || CmpVT == MVT::i8 ||
++                 hasNoSignFlagUses(SDValue(Node, 0))))
++              NarrowMOpc = X86::TEST8mi;
++            else if (MemBits == 16 && isUInt<16>(Mask) &&
++                     (!(Mask & 0x8000) || CmpVT == MVT::i16 ||
++                      hasNoSignFlagUses(SDValue(Node, 0))))
++              NarrowMOpc = X86::TEST16mi;
++            else if (MemBits == 32 && isUInt<32>(Mask))
++              NarrowMOpc = X86::TEST32mi;
++
++            if (NarrowMOpc &&
++                selectAddr(LN, LN->getBasePtr(), Tmp0, Tmp1, Tmp2, Tmp3,
++                           Tmp4)) {
++              MVT NarrowVT = MemVT.getSimpleVT();
++              SDValue NarrowImm =
++                  CurDAG->getTargetConstant(Mask, dl, NarrowVT);
++              SDValue Ops[] = {Tmp0,  Tmp1,       Tmp2, Tmp3,
++                               Tmp4,  NarrowImm,  LN->getChain()};
++              NewNode = CurDAG->getMachineNode(NarrowMOpc, dl, MVT::i32,
++                                               MVT::Other, Ops);
++              ReplaceUses(Reg.getValue(1), SDValue(NewNode, 1));
++              CurDAG->setNodeMemRefs(NewNode, {LN->getMemOperand()});
++              ReplaceNode(Node, NewNode);
++              return;
++            }
++          }
++        }
++        // Fall through to register TEST.
++        if (N0.getValueType() != VT)
++          Reg = CurDAG->getTargetExtractSubreg(SubRegOp, dl, VT, Reg);
++
++        NewNode = CurDAG->getMachineNode(ROpc, dl, MVT::i32, Reg, Imm);
+       } else {
+         // Extract the subregister if necessary.
+         if (N0.getValueType() != VT)
+-- 
+2.53.0
+

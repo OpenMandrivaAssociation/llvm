@@ -1,0 +1,196 @@
+From: LLVM Developer <dev@llvm.org>
+Date: Tue, 22 Jul 2026 00:00:00 +0000
+Subject: [PATCH 3/3] [LoopUnroll] Suppress counterproductive runtime unrolling
+ for loops with conditional carried dependencies or high register pressure
+
+Add two heuristics to the runtime loop unrolling decision to avoid cases
+where unrolling is counterproductive:
+
+1. **Conditional carried phi detection**: When a loop has internal
+   data-dependent conditional branches (excluding loop-invariant
+   conditions and inner-loop branches) and header phi nodes whose values
+   depend on those branches via conditional update patterns, runtime
+   unrolling just replicates the branch chains without enabling ILP.
+
+   Example: A filter-copy loop where an output pointer advances only
+   when a condition holds creates a carried dependency that serializes
+   unrolled iterations. Without this heuristic, the loop was unrolled 4x
+   (68 instructions). With it, the compact loop body stays at 21
+   instructions, outperforming GCC's 23.
+
+2. **Register pressure estimation**: When a loop has 4+ header phi nodes
+   (carried values) and unrolling would multiply them beyond the
+   target's available registers, suppress runtime unrolling to avoid
+   excessive spilling.
+
+   Example: A loop with interdependent induction variables (i, j, k,
+   sum, etc.) was unrolled 2x, causing 6 callee-saved register spills.
+   Without unrolling, the loop runs in 26 instructions versus the
+   original 65 (better than GCC's 29).
+
+Both heuristics are target-independent and benefit all architectures.
+
+---
+diff --git a/llvm/lib/Transforms/Scalar/LoopUnrollPass.cpp b/llvm/lib/Transforms/Scalar/LoopUnrollPass.cpp
+index 7034e595a..5152b58fd 100644
+--- a/llvm/lib/Transforms/Scalar/LoopUnrollPass.cpp
++++ b/llvm/lib/Transforms/Scalar/LoopUnrollPass.cpp
+@@ -1201,6 +1201,158 @@ void llvm::computeUnrollCount(Loop *L, const TargetTransformInfo &TTI,
+   assert(UP.Count == 0);
+   UP.Count = UP.DefaultUnrollRuntimeCount;
+ 
++  // Suppress runtime unrolling for loops that have data-dependent conditional
++  // control flow. Such loops contain internal conditional branches (beyond the
++  // loop exit) with phi nodes that create carried dependencies between unrolled
++  // iterations. Unrolling them typically just replicates branches without
++  // enabling ILP, while increasing code size and register pressure.
++  BasicBlock *Latch = L->getLoopLatch();
++  BasicBlock *Header = L->getHeader();
++  if (Header && Latch) {
++    unsigned NumInternalBranches = 0;
++    bool HasConditionalCarriedPhi = false;
++    for (BasicBlock *BB : L->blocks()) {
++      // Skip blocks that belong to inner loops — their branches are
++      // internal to the sub-loop, not to this loop's iteration body.
++      if (LI && LI->getLoopFor(BB) != L)
++        continue;
++      auto *TI = BB->getTerminator();
++      auto *BI = dyn_cast<BranchInst>(TI);
++      if (!BI || !BI->isConditional())
++        continue;
++      // Don't count the latch branch (loop exit condition).
++      if (BB == Latch)
++        continue;
++      // Only count branches whose condition varies across iterations.
++      // A loop-invariant condition (e.g., "if (m > 0)") always goes the
++      // same way and doesn't create data-dependent control flow.
++      if (L->isLoopInvariant(BI->getCondition()))
++        continue;
++      // Also check for conditions computed from loop-invariant operands
++      // inside the loop (e.g., inner-loop epilogue checks like
++      // "icmp ne (and m, 7), 0"). Walk the operand chain to see if
++      // all leaves are loop-invariant.
++      {
++        bool AllInvariant = true;
++        SmallVector<Value *, 8> Worklist;
++        SmallPtrSet<Value *, 8> Visited;
++        Worklist.push_back(BI->getCondition());
++        while (!Worklist.empty() && AllInvariant) {
++          Value *V = Worklist.pop_back_val();
++          if (!Visited.insert(V).second)
++            continue;
++          if (L->isLoopInvariant(V))
++            continue;
++          auto *Inst = dyn_cast<Instruction>(V);
++          if (!Inst || isa<PHINode>(Inst) || Inst->mayReadFromMemory()) {
++            AllInvariant = false;
++            continue;
++          }
++          for (Value *Op : Inst->operands())
++            Worklist.push_back(Op);
++        }
++        if (AllInvariant)
++          continue;
++      }
++      NumInternalBranches++;
++    }
++    // Check for non-IV phi nodes in the header whose value depends on
++    // internal conditional branches. For example, a conditional output
++    // pointer (out++ only when a condition is met) creates a carried
++    // dependency that prevents unrolled iterations from being independent.
++    // We specifically look for header phis whose incoming value from the
++    // latch is itself a phi in a non-header block within the loop, meaning
++    // the value is selected between different paths (conditional update).
++    if (NumInternalBranches > 0) {
++      for (PHINode &PN : Header->phis()) {
++        // Skip affine induction variables.
++        if (SE.isSCEVable(PN.getType())) {
++          const SCEV *S = SE.getSCEV(&PN);
++          if (isa<SCEVAddRecExpr>(S))
++            continue;
++        }
++        // Check if the value coming from the latch is a phi in a non-header
++        // block inside the loop. This indicates the value is conditionally
++        // updated (e.g., a pointer that advances only when a condition holds).
++        Value *LatchVal = PN.getIncomingValueForBlock(Latch);
++        if (auto *LatchPhi = dyn_cast<PHINode>(LatchVal)) {
++          if (L->contains(LatchPhi->getParent()) &&
++              LatchPhi->getParent() != Header &&
++              LatchPhi->getNumIncomingValues() >= 2) {
++            // For phis in the latch block, skip structural merges from
++            // inner loops. If any incoming block belongs to an inner loop,
++            // this is an LCSSA merge, not a conditional carried dependency
++            // at this loop level.
++            if (LI && LatchPhi->getParent() == Latch) {
++              bool HasInnerLoopIncoming = false;
++              for (unsigned k = 0; k < LatchPhi->getNumIncomingValues(); ++k) {
++                BasicBlock *InBB = LatchPhi->getIncomingBlock(k);
++                if (L->contains(InBB) && LI->getLoopFor(InBB) != L) {
++                  HasInnerLoopIncoming = true;
++                  break;
++                }
++              }
++              if (HasInnerLoopIncoming)
++                continue;
++            }
++            HasConditionalCarriedPhi = true;
++            break;
++          }
++        }
++      }
++    }
++    if (HasConditionalCarriedPhi) {
++      LLVM_DEBUG(dbgs().indent(2)
++                 << "Not runtime unrolling due to "
++                 << NumInternalBranches
++                 << " internal conditional branch(es) with "
++                    "data-dependent phi(s)\n");
++      UP.Count = 0;
++      return;
++    }
++
++    // Estimate register pressure: if unrolling would cause excessive register
++    // spilling, suppress runtime unrolling. Only apply this heuristic when
++    // the loop has enough phi nodes (carried values) that multiplying them
++    // by the unroll factor would significantly exceed the available registers.
++    {
++      unsigned ScalarRegClass = TTI.getRegisterClassForType(false);
++      unsigned NumRegs = TTI.getNumberOfRegisters(ScalarRegClass);
++      // Count live-across values: phi nodes in the header that represent
++      // values carried across iterations.
++      unsigned LiveAcross = 0;
++      for ([[maybe_unused]] PHINode &PN : Header->phis())
++        LiveAcross++;
++      // Also count loop-invariant values used in the loop (base pointers, etc.)
++      SmallPtrSet<Value *, 16> LoopInvariants;
++      for (BasicBlock *BB : L->blocks()) {
++        for (Instruction &I : *BB) {
++          for (Value *Op : I.operands()) {
++            if (auto *OpI = dyn_cast<Instruction>(Op)) {
++              if (!L->contains(OpI))
++                LoopInvariants.insert(OpI);
++            }
++          }
++        }
++      }
++      // Only suppress unrolling when there are many carried values (>= 4 phis)
++      // that would cause significant register pressure when multiplied by the
++      // unroll factor. Loops with few phis benefit from unrolling even if the
++      // estimate seems high, because the backend can handle the spills cheaply.
++      if (LiveAcross >= 4) {
++        unsigned EstRegsUnrolled = LiveAcross * UP.Count + LoopInvariants.size();
++        if (EstRegsUnrolled > NumRegs && LiveAcross + LoopInvariants.size() <= NumRegs) {
++          LLVM_DEBUG(dbgs().indent(2)
++                     << "Not runtime unrolling due to register pressure: "
++                     << EstRegsUnrolled << " estimated regs > " << NumRegs
++                     << " available (" << LiveAcross << " phis)\n");
++          UP.Count = 0;
++          return;
++        }
++      }
++    }
++  }
++
+   // Reduce unroll count to be the largest power-of-two factor of
+   // the original count which satisfies the threshold limit.
+   while (UP.Count != 0 &&
