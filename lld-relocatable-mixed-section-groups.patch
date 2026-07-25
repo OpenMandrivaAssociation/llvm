@@ -1,0 +1,119 @@
+diff -Naur a/lld/ELF/LinkerScript.cpp b/lld/ELF/LinkerScript.cpp
+--- a/lld/ELF/LinkerScript.cpp	2026-07-25 21:47:33.152877114 +0200
++++ b/lld/ELF/LinkerScript.cpp	2026-07-25 21:46:53.969268339 +0200
+@@ -709,6 +709,68 @@
+         discard(*s);
+ }
+ 
++// True if a and b are members of the same ELF section group. Group members are
++// linked in a circular list via nextInSectionGroup (see handleSectionGroup).
++// If either section is not part of a group list, returns false.
++static bool sameSectionGroup(InputSectionBase *a, InputSectionBase *b) {
++  if (a == b)
++    return true;
++  if (!a->nextInSectionGroup || !b->nextInSectionGroup)
++    return false;
++  for (InputSectionBase *s = a->nextInSectionGroup; s != a;
++       s = s->nextInSectionGroup)
++    if (s == b)
++      return true;
++  return false;
++}
++
++// When retaining section groups (-r without --force-group-allocation), a linker
++// script that combines members of *different* groups into one output section
++// would rewrite each SHT_GROUP to claim that shared section. The result is
++// invalid ELF (one section belonging to multiple groups), which GNU objcopy and
++// readelf reject. GNU ld avoids this by not merging SHF_GROUP members under -r.
++//
++// Keep only members of a single group (the first SHF_GROUP section assigned to
++// this output section). Members of other groups are detached so they become
++// orphans and get their own output sections via addInputSec. Members of the
++// *same* group may still be combined — intentional, covered by
++// relocatable-comdat.s (COMBINE).
++static void
++filterMixedSectionGroups(Ctx &ctx, OutputSection &outCmd,
++                         SmallVector<InputSectionBase *, 0> &ret) {
++  if (ctx.arg.resolveGroups)
++    return;
++
++  InputSectionBase *allowedGroupMember = nullptr;
++  for (InputSectionBase *s : ret) {
++    if (s->flags & SHF_GROUP) {
++      allowedGroupMember = s;
++      break;
++    }
++  }
++  if (!allowedGroupMember)
++    return;
++
++  ret.clear();
++  for (SectionCommand *cmd : outCmd.commands) {
++    auto *isd = dyn_cast<InputSectionDescription>(cmd);
++    if (!isd)
++      continue;
++    size_t out = 0;
++    for (InputSectionBase *s : isd->sectionBases) {
++      if ((s->flags & SHF_GROUP) &&
++          !sameSectionGroup(allowedGroupMember, s)) {
++        // Different group: detach so orphan handling can place it alone.
++        s->parent = nullptr;
++        continue;
++      }
++      isd->sectionBases[out++] = s;
++      ret.push_back(s);
++    }
++    isd->sectionBases.resize(out);
++  }
++}
++
+ SmallVector<InputSectionBase *, 0>
+ LinkerScript::createInputSectionList(OutputSection &outCmd) {
+   SmallVector<InputSectionBase *, 0> ret;
+@@ -721,6 +783,7 @@
+       ret.insert(ret.end(), isd->sectionBases.begin(), isd->sectionBases.end());
+     }
+   }
++  filterMixedSectionGroups(ctx, outCmd, ret);
+   return ret;
+ }
+ 
+diff -Naur a/lld/test/ELF/relocatable-comdat-mixed-groups.s b/lld/test/ELF/relocatable-comdat-mixed-groups.s
+--- a/lld/test/ELF/relocatable-comdat-mixed-groups.s	2026-07-25 21:47:34.616884320 +0200
++++ b/lld/test/ELF/relocatable-comdat-mixed-groups.s	2026-07-25 21:12:47.556141682 +0200
+@@ -0,0 +1,35 @@
++# REQUIRES: x86
++## When a linker script combines SHF_GROUP members from *different* groups into
++## one output section, LLD must not rewrite multiple SHT_GROUP sections to claim
++## that shared section (invalid ELF). Members of the first group may still be
++## combined; members of other groups become separate output sections.
++
++# RUN: rm -rf %t && split-file %s %t && cd %t
++# RUN: llvm-mc -filetype=obj -triple=x86_64 a.s -o a.o
++# RUN: echo 'SECTIONS { .text : {*(.text .text.*)} .rodata : {*(.rodata .rodata.*)} }' > combine.lds
++# RUN: ld.lld -r -T combine.lds a.o -o out.ro
++# RUN: llvm-readelf -g -S out.ro 2>err.txt | FileCheck %s
++# RUN: FileCheck --allow-empty --check-prefix=ERR %s < err.txt
++
++# CHECK:      Name
++# CHECK-DAG:  .text
++# CHECK-DAG:  .group
++## Second group keeps a distinct member section rather than sharing .text.
++# CHECK-DAG:  .text.b
++
++# CHECK: COMDAT group section {{.*}} [aaa] contains
++# CHECK: COMDAT group section {{.*}} [bbb] contains
++
++## No section may belong to more than one group.
++# ERR-NOT: was also found in the group section
++
++#--- a.s
++.section .text.a,"axG",@progbits,aaa,comdat
++.byte 1
++.section .rodata.a,"aG",@progbits,aaa,comdat
++.byte 2
++
++.section .text.b,"axG",@progbits,bbb,comdat
++.byte 3
++.section .rodata.b,"aG",@progbits,bbb,comdat
++.byte 4

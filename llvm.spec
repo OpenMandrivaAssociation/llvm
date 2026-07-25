@@ -183,7 +183,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	1
+Release:	2
 %endif
 # Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
 # cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
@@ -322,6 +322,10 @@ Source82:	REPORT-vectorization-dagcombiner-unroll.md
 Patch82:	0001-x86-loongarch-lower-epilogue-vectorization-minvf.patch
 Patch83:	0002-dagcombiner-store-merge-splat-values.patch
 Patch84:	0003-loop-unroll-suppress-counterproductive-runtime-unrolling.patch
+
+# LLD: do not merge SHF_GROUP members from different groups under -r + script
+# (invalid multi-group membership breaks GNU objcopy / kernel BTF embedding)
+Patch85:	lld-relocatable-mixed-section-groups.patch
 
 # SPIR-V fixes
 Patch90:	spirv-fix-warnings.patch
