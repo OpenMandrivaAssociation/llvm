@@ -16,7 +16,7 @@
 # (tpg) set snapshot date
 # 20250718 essentially matches 21.1.0-rc1
 #define gitdate 20250718
-%define relc rc1
+%define relc rc2
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -146,8 +146,8 @@
 #define is_main 1
 # Separate because SPIRV_LLVM_Translator and friends frequently tag
 # llvm_release_XXX branches only after the release
-%define spirv_is_main 1
-#undefine spirv_is_main
+#define spirv_is_main 1
+%undefine spirv_is_main
 
 %bcond_without crosscrt
 %define cross_cpu_targets armv7hnl aarch64 i686 loongarch64 ppc64 ppc64le riscv64 x86_64
@@ -183,7 +183,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	2
+Release:	1
 %endif
 # Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
 # cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
@@ -2614,11 +2614,13 @@ CROSSCRT_FLAGS+=("-DLLVM_RUNTIME_TARGETS=$TARGETS")
 
 TOP="$(pwd)"
 # Make sure the newly built compiler and libraries can be seen
-# by the runtimes build
+# by the runtimes build and by Python loading MLIR nanobind extensions
+# (those .so files need libMLIR.so / libLLVM.so from build/%{_lib}; they
+# do not get the EXE -Wl,-rpath we set below).
 BINDIR=${TOP}/build/bin
 # The build process tries to use the just built
-# libLLVMAnalysis.so.* (lib) and libMLIRPythonSupport-mlir.so (_mlir_libs)
-export LD_LIBRARY_PATH=${TOP}/build/%{_lib}:${TOP}/build/tools/mlir/python_packages/mlir_core/mlir/_mlir_libs:${LD_LIBRARY_PATH}
+# libLLVM*.so / libMLIR*.so (lib) and libMLIRPythonSupport-mlir.so (_mlir_libs)
+export LD_LIBRARY_PATH=${TOP}/build/%{_lib}:${TOP}/build/tools/mlir/python_packages/mlir_core/mlir/_mlir_libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 
 %if %{cross_compiling}
 gccver="$(%{_target_platform}-gcc --version |head -n1 |cut -d' ' -f3)"
@@ -2679,7 +2681,19 @@ export FC=%{_bindir}/flang
 # MLIR_ENABLE_ROCM_RUNNER=ON (once ROCm is built)
 # MLIR_ENABLE_SYCL_RUNNER=ON (once SyCL is built)
 # CLANG_BOLT=Instrument/Perf/LBR (need to figure out which one works best)
+#
+# Do not set LLVM_HOST_TRIPLE / LLVM_DEFAULT_TARGET_TRIPLE to the openmandriva
+# triple while the host clang still defaults to x86_64-pc-linux-gnu: that
+# mismatches PCH (built for -pc-) vs TUs and fails the build. Instead, %install
+# merges any real -pc- resource dir into -openmandriva- and symlinks -pc-.
+#
+# Host-tree PCH is unsafe here: once libclang-cpp.so.%{major} exists under
+# build/%{_lib}, host clang (same soname) loads it via LD_LIBRARY_PATH and
+# rejects earlier PCH stamped with the system libs ("different branch").
+# CMAKE_DISABLE_PRECOMPILE_HEADERS applies only to this configure; runtime
+# ExternalProjects (just-built clang) do not inherit it and may still use PCH.
 %cmake \
+	-DCMAKE_DISABLE_PRECOMPILE_HEADERS:BOOL=ON \
 %if %{cross_compiling}
 	-DCMAKE_CROSSCOMPILING=True \
 	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-xc.toolchain" \
@@ -3188,21 +3202,44 @@ popd
 # anything-linux-$ABI
 # anything-unknown-linux-$ABI
 # Furthermore, x86_64-openmandriva-linux-$ABI and i?86-openmandriva-linux-$ABI
-# also double as x86_64-pc-linux-$ABI and i?86-openmandriva-linux-$ABI
+# also double as x86_64-pc-linux-$ABI and i?86-pc-linux-$ABI.
+#
+# Host compiler-rt may still install under x86_64-pc-linux-gnu (config.guess
+# vendor) while the multi-target runtimes land under the openmandriva triple.
+# Those are equivalent: merge any real alternate dir into openmandriva, then
+# replace it with a symlink. Otherwise builtins/crt end up only under -pc-
+# while sanitizers live under -openmandriva-, and clang (default triple -pc-)
+# cannot find asan etc.
 cd %{buildroot}%{_libdir}/clang/%{major1}/lib
 for arch in *-openmandriva-*; do
-	# Skip if the alternate name already exists as a real dir (e.g. host
-	# compiler-rt may install as x86_64-pc-linux-gnu). ln -s into an
-	# existing directory creates a broken self-referential link.
-	alt=${arch/-openmandriva-/-unknown-}
-	[[ -e $alt ]] || ln -s $arch $alt
-	alt=${arch/-openmandriva-/-}
-	[[ -e $alt ]] || ln -s $arch $alt
-	CPU="$(echo ${arch/-*/})"
+	[[ -d $arch && ! -L $arch ]] || continue
+	alts="${arch/-openmandriva-/-unknown-} ${arch/-openmandriva-/-}"
+	# Use ${arch/-*/} not ${arch%%-*}: in rpm specs %% is an escaped %, so
+	# %%-* would become %-* (shortest strip) and never match x86_64/i?86.
+	CPU="${arch/-*/}"
 	if [[ "$CPU" == x86_64 || "$CPU" == i?86 ]]; then
-		alt=${arch/-openmandriva-/-pc-}
-		[[ -e $alt ]] || ln -s $arch $alt
+		alts+=" ${arch/-openmandriva-/-pc-}"
 	fi
+	for alt in $alts; do
+		if [[ -L $alt ]]; then
+			continue
+		elif [[ -d $alt ]]; then
+			# Merge files that only exist under the alternate triple
+			for f in "$alt"/*; do
+				[[ -e $f || -L $f ]] || continue
+				bn="$(basename "$f")"
+				if [[ -e $arch/$bn || -L $arch/$bn ]]; then
+					rm -rf "$f"
+				else
+					mv "$f" "$arch/"
+				fi
+			done
+			rm -rf "$alt"
+			ln -s "$arch" "$alt"
+		elif [[ ! -e $alt ]]; then
+			ln -s "$arch" "$alt"
+		fi
+	done
 done
 
 # Create the file list for clang dynamically so we can add the runtime libraries
@@ -3307,9 +3344,9 @@ EOF
 			alttriplets+=" $arch-pc-linux-$abi"
 		fi
 		if [[ "$arch" == i?86 && "$arch" != i386 ]]; then
-			# Also include the least common denominator
-			for alttriplet in i386-linux-$abi i386-pc-linux-$abi i386-unknown-linux-$abi; do
-				[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$alttriplet ]] && alttriplets+=" $alttriplet"
+			# Also include the least common denominator (real dir and alt symlinks)
+			for alttriplet in i386-openmandriva-linux-$abi i386-linux-$abi i386-pc-linux-$abi i386-unknown-linux-$abi; do
+				[[ -e %{buildroot}%{_libdir}/clang/%{major1}/lib/$alttriplet ]] && alttriplets+=" $alttriplet"
 			done
 		fi
 		for alttriplet in $alttriplets; do
