@@ -16,7 +16,7 @@
 # (tpg) set snapshot date
 # 20250718 essentially matches 21.1.0-rc1
 #define gitdate 20250718
-%define relc rc2
+%define relc rc3
 
 # Allow empty debugsource package for some subdirs
 %define _empty_manifest_terminate_build 0
@@ -188,11 +188,11 @@ Release:	1
 # Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
 # cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
 # overwrite it in %prep (newer headers are a superset).
-# Tools DEPS: 29981f65241605e08b0ede4cfeb999fe3b723c6a
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/29981f65241605e08b0ede4cfeb999fe3b723c6a.tar.gz
+# Tools DEPS (glslang known_good Tools f589ef00…): 27009dcaecd266ea7fb969bca44ebc87dcdc6269
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/27009dcaecd266ea7fb969bca44ebc87dcdc6269.tar.gz
 # A known good commit for SPIRV-Tools is usually listed at
-# https://github.com/KhronosGroup/glslang/blob/master/known_good.json
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/b707790a898e44038547df54580022fc1cf89c3d.tar.gz
+# https://github.com/KhronosGroup/glslang/blob/main/known_good.json
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/f589ef005c49f6f19c8e78eb5269104ba293beb4.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
