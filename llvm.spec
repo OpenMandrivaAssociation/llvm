@@ -76,10 +76,16 @@
 # dynamic loader, or complete headers
 # As of 21.1.8, libc is stable only on the platforms listed below,
 # doesn't even compile on a few others, including loongarch64
+%if %{cross_compiling}
+# llvm-libc is built as a runtime but ninja install does not
+# ship libllvmlibc.a into %{_libdir} when bootstrapping.
+%bcond_with libc
+%else
 %ifarch %{x86_64} %{aarch64} %{riscv32} %{riscv64} %{ix86}
 %bcond_without libc
 %else
 %bcond_with libc
+%endif
 %endif
 %bcond_without z3
 %ifarch %{arm} %{riscv}
@@ -121,8 +127,15 @@
 %bcond_with unwind
 %bcond_with openmp
 %else
+%if %{cross_compiling}
+# ninja install does not place per-target libunwind/libomp into %{_libdir}
+# when bootstrapping; skip those subpackages rather than fail %files.
+%bcond_with unwind
+%bcond_with openmp
+%else
 %bcond_without unwind
 %bcond_without openmp
+%endif
 %endif
 %bcond_without lld
 
@@ -304,7 +317,9 @@ Patch61:	compiler-rt-no-Iusrinclude.patch
 Source62:	llvm-10-default-compiler-rt.patch
 Patch63:	llvm-19-float128-buildfix.patch
 Patch64:	llvm-19-libc-aarch64-compile.patch
-Patch65:	spirv-tools-compile.patch
+# Obsolete vs current SPIRV-Tools (f589ef00): UsesExplicitLayout is gone
+# and remaining implicit-fallthroughs are handled by -DSPIRV_WERROR=OFF.
+#Patch65:	spirv-tools-compile.patch
 # orc-rt NativeDylibManager.h uses std::optional without including <optional>
 # (breaks aarch64/x86_64 cross builds with libstdc++)
 Patch66:	orc-rt-native-dylib-optional-include.patch
@@ -1151,21 +1166,27 @@ This package contains the development files for LLVM.
 %{_bindir}/%{name}-config
 %{_includedir}/%{name}
 %{_includedir}/%{name}-c
-# orc-rt (LLVM 23+ standalone ORC runtime headers / static executor)
+%if ! %{cross_compiling}
+# orc-rt only builds on x86_64/aarch64 (see RUNTIMES+=orc-rt)
+%ifarch %{x86_64} %{aarch64}
 %{_includedir}/orc-rt
 %{_prefix}/orc-rt-c
 %{_libdir}/liborc-rt-executor.a
+%endif
 # Shared RPC headers used by offload / GPU libc
 %{_includedir}/shared
+%endif
 %{_libdir}/cmake/%{name}
 %{_libdir}/lib*.so
 %exclude %{_libdir}/libLLVM-*.so
 %if %{with openmp}
+%if ! %{cross_compiling}
 %{_includedir}/offload
 %exclude %{_libdir}/libomptarget.so
 %exclude %{_libdir}/libiomp5.so
 %exclude %{_libdir}/libomp.so
 %exclude %{_libdir}/libarcher_static.a
+%endif
 %endif
 # FIXME this needs a real soname
 %exclude %{_libdir}/libSPIRV-Tools-shared.so
@@ -2110,6 +2131,7 @@ Development files for SPIRV-Tools.
 %{_prefix}/lib/pkgconfig/SPIRV-Tools*.pc
 %endif
 
+%if %{with libc}
 %define libcname %mklibname llvmlibc -d -s
 
 %package -n %{libcname}
@@ -2119,7 +2141,6 @@ Group:		Development/C++ and C
 %description -n %{libcname}
 Libc implementation from the LLVM project
 
-%if %{with libc}
 %files -n %{libcname}
 %{_libdir}/libllvmlibc.a
 %endif
@@ -2877,6 +2898,7 @@ export FC=%{_bindir}/flang
 %endif
 	-DSPIRV_HEADERS_ENABLE_INSTALL:BOOL=ON \
 	-DSPIRV_TOOLS_BUILD_STATIC:BOOL=OFF \
+	-DSPIRV_WERROR:BOOL=OFF \
 	"${CROSSCRT_FLAGS[@]}" \
 	-G Ninja \
 	../llvm
@@ -3442,10 +3464,12 @@ A Fortran language front-end for LLVM
 %{_bindir}/tco
 %{_bindir}/llubi
 %{_mandir}/man1/llubi.1*
-# Fortran module files (LLVM 23+: clang resource dir finclude/flang/<triple>/)
-%{_libdir}/clang/%{major1}/finclude
 %%doc %{_docdir}/LLVM/flang
 EOF
+# Fortran module files live in clang's resource dir when flang-rt is installed.
+if [ -d %{buildroot}%{_libdir}/clang/%{major1}/finclude ]; then
+	echo '%{_libdir}/clang/%{major1}/finclude' >>$SPECPART
+fi
 
 # We used to add
 # %{_libdir}/clang/%{major1}/lib/*/libflang_rt.runtime.a
@@ -3472,12 +3496,11 @@ Development files for Flang, the LLVM Fortran compiler.
 
 %%files -n %{flangdev}
 %{_includedir}/flang
-# flang-rt hasn't been ported to all architectures yet
-%ifnarch loongarch64
-%{_includedir}/flang-rt
-%endif
 %{_libdir}/cmake/flang
 EOF
+if [ -d %{buildroot}%{_includedir}/flang-rt ]; then
+	echo '%{_includedir}/flang-rt' >>$SPECPART
+fi
 %endif
 
 %if %{with unwind}
