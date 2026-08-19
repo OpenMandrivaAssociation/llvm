@@ -2230,7 +2230,9 @@ RUNTIMES="$RUNTIMES;libc"
 RUNTIMES="$RUNTIMES;compiler-rt"
 # llvm-libgcc is incompatible with libunwind
 #RUNTIMES="$RUNTIMES;llvm-libgcc"
+%if %{with openmp}
 RUNTIMES="$RUNTIMES;offload"
+%endif
 RUNTIMES="$RUNTIMES;libsycl"
 # orc-rt only supports x86_64 and aarch64 (ExecutorProcessInfo.cpp)
 %ifarch %{x86_64} %{aarch64}
