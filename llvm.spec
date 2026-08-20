@@ -900,6 +900,13 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/llvm-cgdata
 %{_bindir}/llvm-ctxprof-util
 %{_bindir}/offload-arch
+%if %{with bootstrap} || %{cross_compiling}
+%{_bindir}/amdgpu-arch
+%{_bindir}/nvptx-arch
+%endif
+%if ! %{with openmp}
+%{_bindir}/llvm-gpu-loader
+%endif
 %{_bindir}/llvm-offload-binary
 %{_bindir}/llvm-offload-wrapper
 %{_bindir}/llvm-debuginfod-find
