@@ -166,7 +166,17 @@
 %define cross_cpu_targets armv7hnl aarch64 i686 loongarch64 ppc64 ppc64le riscv64 x86_64
 # libclc (OpenCL builtins) is GPU/SPIR-V only as of LLVM 23 — not a host runtime.
 # Keep these in sync with libclc/CMakeLists.txt LIBCLC_ARCHS_*.
+# Baremetal runtimes: GPU/SPIR-V (libclc + compiler-rt) and WASI (compiler-rt).
+# Keep GPU triples in sync with libclc/CMakeLists.txt LIBCLC_ARCHS_*.
 %define cross_gpu_targets amdgcn-amd-amdhsa nvptx64-nvidia-nvcl spirv32-unknown-unknown spirv64-unknown-unknown spirv32-unknown-vulkan spirv64-unknown-vulkan
+# WASI compiler-rt is the same baremetal builtins path. libc++ still needs
+# wasi-libc and is a separate post-build (installs into /usr/wasm32-wasip1).
+%define cross_wasi_targets wasm32-wasip1 wasm32-wasip1-threads
+%define wasi_sysroot %{_prefix}/wasm32-wasip1
+# libc++ / libc++abi / libunwind for WASI. Needs wasi-libc's sysroot.
+# Default off so the first LLVM rebuild can land compiler-rt; then
+# rebuild with --with wasi_libcxx once wasi-libc is in the buildroot.
+%bcond_with wasi_libcxx
 
 # We set LLVM_VERSION_SUFFIX affects the soname of libraries. If unset,
 # LLVM_VERSION_SUFFIX is set to "git", resulting in libraries like
@@ -196,7 +206,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	1
+Release:	2
 %endif
 # Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
 # cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
@@ -639,6 +649,10 @@ BuildRequires:	devel(libOpenCL)
 %endif
 %if %{with z3}
 BuildRequires:	pkgconfig(z3)
+%endif
+%if %{with clang} && %{with wasi_libcxx}
+# Sysroot only; compiler-rt for WASI is built in this package.
+BuildRequires:	wasi-libc
 %endif
 
 Obsoletes:	%{mklibname LLVMRISCVCodeGen 5} < %{EVRD}
@@ -2177,6 +2191,12 @@ patch -p1 -b -z .crt~ <%{S:62}
 %if %{cross_compiling}
 %autopatch -p1 -m 2000
 %endif
+# CMAKE_SYSTEM_NAME=WASI looks up Platform/WASI.cmake on CMAKE_MODULE_PATH.
+mkdir -p cmake/Platform
+cat >cmake/Platform/WASI.cmake <<'EOF'
+set(WASI 1)
+set(UNIX 1)
+EOF
 git init
 git config user.email build@openmandriva.org
 git config user.name "OpenMandriva builder"
@@ -2503,29 +2523,42 @@ for arch in %{cross_cpu_targets}; do
 	done
 done
 %if %{with crosscrt}
-# GPU / SPIR-V targets (libclc, GPU compiler-rt, offload device libs, …).
+# Baremetal targets (GPU / SPIR-V / WASI). Shared: just-built clang, no
+# host sanitizers, STATIC_LIBRARY try_compile, compiler-rt builtins.
 # Do NOT set LLVM_BUILTIN_TARGETS explicitly: when it is set, every runtime
 # target depends on builtins-${name}. SPIR-V cannot build compiler-rt builtins,
 # so we leave BUILTIN_TARGETS unset and let llvm/runtimes auto-infer builtins
 # only for targets whose RUNTIMES_* list includes compiler-rt.
-for triplet in %{cross_gpu_targets}; do
+WASI_TARGETS=""
+%if %{with clang}
+WASI_TARGETS="%{cross_wasi_targets}"
+%endif
+for triplet in %{cross_gpu_targets} $WASI_TARGETS; do
 	TARGETS="$TARGETS;$triplet"
-	XCFLAGS="-O2 -m64 -target $triplet -isysroot /usr/$triplet -nogpulib -ffreestanding -flto"
-	# Host-only runtimes out; libclc is GPU/SPIR-V only (enabled below).
-	XRUNTIMES="$(echo $RUNTIMES |sed -e 's,openmp;,,;s,libunwind;,,;s,;offload,,;s,;libsycl,,;s,flang-rt;,,;s,;orc-rt,,;s,libcxx;,,;s,libcxxabi;,,')"
 	IS_SPIRV=0
-	if [[ "$triplet" == nvptx64-* ]]; then
-		XCFLAGS="$XCFLAGS -march=sm_70 -nocudalib -nocudainc --cuda-device-only -Xclang -target-feature -Xclang +ptx63"
-		# Keep compiler-rt (for builtins inference) + libclc
-		XRUNTIMES="${XRUNTIMES};libclc"
-	elif [[ "$triplet" == amd* ]] || [[ "$triplet" == amdgcn* ]]; then
-		XCFLAGS="$XCFLAGS -march=gfx906"
-		XRUNTIMES="${XRUNTIMES};libclc"
-	elif [[ "$triplet" == spirv* ]]; then
-		# libclc only — must NOT list compiler-rt (avoids builtins-${triplet}).
-		IS_SPIRV=1
-		XRUNTIMES="libclc"
-		XCFLAGS="$XCFLAGS -Xclang -target-feature -Xclang +spirv1.6 -Xclang -target-feature -Xclang +PhysicalStorageBuffer64"
+	IS_WASI=0
+	if [[ "$triplet" == wasm32-* ]]; then
+		# No /usr/$triplet sysroot, no -m64 / -nogpulib / -flto.
+		IS_WASI=1
+		XCFLAGS="-O2 -target $triplet -ffreestanding -fno-exceptions"
+		XRUNTIMES="compiler-rt"
+	else
+		XCFLAGS="-O2 -m64 -target $triplet -isysroot /usr/$triplet -nogpulib -ffreestanding -flto"
+		# Host-only runtimes out; libclc is GPU/SPIR-V only (enabled below).
+		XRUNTIMES="$(echo $RUNTIMES |sed -e 's,openmp;,,;s,libunwind;,,;s,;offload,,;s,;libsycl,,;s,flang-rt;,,;s,;orc-rt,,;s,libcxx;,,;s,libcxxabi;,,')"
+		if [[ "$triplet" == nvptx64-* ]]; then
+			XCFLAGS="$XCFLAGS -march=sm_70 -nocudalib -nocudainc --cuda-device-only -Xclang -target-feature -Xclang +ptx63"
+			# Keep compiler-rt (for builtins inference) + libclc
+			XRUNTIMES="${XRUNTIMES};libclc"
+		elif [[ "$triplet" == amd* ]] || [[ "$triplet" == amdgcn* ]]; then
+			XCFLAGS="$XCFLAGS -march=gfx906"
+			XRUNTIMES="${XRUNTIMES};libclc"
+		elif [[ "$triplet" == spirv* ]]; then
+			# libclc only — must NOT list compiler-rt (avoids builtins-${triplet}).
+			IS_SPIRV=1
+			XRUNTIMES="libclc"
+			XCFLAGS="$XCFLAGS -Xclang -target-feature -Xclang +spirv1.6 -Xclang -target-feature -Xclang +PhysicalStorageBuffer64"
+		fi
 	fi
 %if %{cross_compiling}
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER=%{_bindir}/clang")
@@ -2551,9 +2584,12 @@ for triplet in %{cross_gpu_targets}; do
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_ENABLE_RUNTIMES=$XRUNTIMES")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS=$XCFLAGS")
-	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_Fortran_FLAGS=--no-default-config -isysroot /usr/$triplet")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS_INIT=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS_INIT=$XCFLAGS")
+	if [[ $IS_WASI -eq 0 ]]; then
+		# flang does not accept -isystem; GPU sysroot is /usr/$triplet.
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_Fortran_FLAGS=--no-default-config -isysroot /usr/$triplet")
+	fi
 	# Override host RPM optflags (e.g. -march=znver1) that otherwise leak into
 	# GPU LTO link lines (libm.bc etc.) and break AMDGPU target IDs.
 	# Also drop --cuda-device-only from *linker* flags: with it, clang never
@@ -2577,8 +2613,8 @@ for triplet in %{cross_gpu_targets}; do
 		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_BAREMETAL_BUILD:BOOL=ON")
 		continue
 	fi
-	# Real GPU targets: compiler-rt builtins only (+ freestanding C++/libc).
-	# Host-style profile/sanitizers need unistd.h and fail on baremetal GPU.
+	# GPU and WASI: compiler-rt builtins only.
+	# Host-style profile/sanitizers need unistd.h and fail on baremetal.
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_BUILTINS:BOOL=ON")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_CRT:BOOL=OFF")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_SANITIZERS:BOOL=OFF")
@@ -2591,15 +2627,73 @@ for triplet in %{cross_gpu_targets}; do
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_ORC:BOOL=OFF")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_SCUDO_STANDALONE:BOOL=OFF")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_GWP_ASAN:BOOL=OFF")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_LIBCXXABI_USE_LLVM_UNWINDER:BOOL=OFF")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSROOT=/usr/$triplet")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS_INIT=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS_INIT=$XCFLAGS")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
+	if [[ $IS_WASI -eq 1 ]]; then
+		# CMAKE_SYSTEM_NAME=WASI needs cmake/Platform/WASI.cmake.
+		# Do not set CMAKE_SYSROOT=/usr/$triplet here: builtins are
+		# freestanding, and do not enable GPU llvm-libc / libc++.
+%if %{cross_compiling}
+		WASI_AR=%{_bindir}/llvm-ar
+		WASI_RANLIB=%{_bindir}/llvm-ranlib
+		WASI_NM=%{_bindir}/llvm-nm
+		WASI_CC=%{_bindir}/clang
+%else
+		WASI_AR=${TOP}/build/bin/llvm-ar
+		WASI_RANLIB=${TOP}/build/bin/llvm-ranlib
+		WASI_NM=${TOP}/build/bin/llvm-nm
+		WASI_CC=${TOP}/build/bin/clang
+%endif
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_ASM_COMPILER=${WASI_CC}")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_ASM_COMPILER=${WASI_CC}")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_AR=${WASI_AR}")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_RANLIB=${WASI_RANLIB}")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_NM=${WASI_NM}")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_AR=${WASI_AR}")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_RANLIB=${WASI_RANLIB}")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_NM=${WASI_NM}")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER_TARGET=${triplet}")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER_TARGET=${triplet}")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_ASM_COMPILER_TARGET=${triplet}")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER_TARGET=${triplet}")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER_TARGET=${triplet}")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_ASM_COMPILER_TARGET=${triplet}")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_MODULE_PATH=${TOP}/cmake")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_MODULE_PATH=${TOP}/cmake")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_SYSTEM_NAME=WASI")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_SYSTEM_PROCESSOR=wasm32")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_SYSTEM_VERSION=1")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSTEM_NAME=WASI")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSTEM_PROCESSOR=wasm32")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSTEM_VERSION=1")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_ASM_FLAGS=$XCFLAGS")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_ASM_FLAGS=$XCFLAGS")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER_WORKS=ON")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER_WORKS=ON")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER_WORKS=ON")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER_WORKS=ON")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_LINKER_DEPFILE_SUPPORTED=OFF")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_LINKER_DEPFILE_SUPPORTED=OFF")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_Python3_EXECUTABLE=%{_bindir}/python")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BAREMETAL_BUILD:BOOL=ON")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_DEFAULT_TARGET_ONLY:BOOL=ON")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_HAS_FPIC_FLAG:BOOL=OFF")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_COMPILER_RT_BAREMETAL_BUILD:BOOL=ON")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_COMPILER_RT_DEFAULT_TARGET_ONLY:BOOL=ON")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_COMPILER_RT_HAS_FPIC_FLAG:BOOL=OFF")
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_BAREMETAL_BUILD:BOOL=ON")
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_LLVM_BAREMETAL_BUILD:BOOL=ON")
+		continue
+	fi
+	# Real GPU targets: freestanding C++ / llvm-libc on top of the builtins.
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_LIBCXXABI_USE_LLVM_UNWINDER:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSROOT=/usr/$triplet")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_EXE_LINKER_FLAGS=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SHARED_LINKER_FLAGS=$XCFLAGS")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
 	# See libcxx/cmake/caches/AMDGPU.cmake and
 	# libcxx/cmake/caches/NVPTX.cmake in the source tree
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_CXX_ABI=libcxxabi")
@@ -2637,7 +2731,7 @@ for triplet in %{cross_gpu_targets}; do
 	CROSSCRT_FLAGS+=("-DLIBOMPTARGET_BUILD_DEVICERTL_BCLIB:BOOL=ON")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_BAREMETAL_BUILD:BOOL=ON")
 done
-TARGETS="$(echo $TARGETS |cut -b2-)"
+TARGETS="$(echo $TARGETS |cut -b2-)")
 # Intentionally omit -DLLVM_BUILTIN_TARGETS (see comment above).
 CROSSCRT_FLAGS+=("-DLLVM_RUNTIME_TARGETS=$TARGETS")
 %endif
@@ -2925,6 +3019,92 @@ if ! %ninja_build; then
 fi
 
 cd ..
+
+%if %{with clang} && %{with wasi_libcxx}
+# libc++ for WASI installs into the wasi-libc sysroot, not clang's
+# resource dir, so it is not part of LLVM_RUNTIME_TARGETS (a failure
+# or prefix clash would take down the whole multi-hour ninja).
+if [ -d %{wasi_sysroot} ]; then
+%if %{cross_compiling}
+	WASI_CC=%{_bindir}/clang
+	WASI_CXX=%{_bindir}/clang++
+	WASI_AR=%{_bindir}/llvm-ar
+	WASI_RANLIB=%{_bindir}/llvm-ranlib
+%else
+	WASI_CC=${TOP}/build/bin/clang
+	WASI_CXX=${TOP}/build/bin/clang++
+	WASI_AR=${TOP}/build/bin/llvm-ar
+	WASI_RANLIB=${TOP}/build/bin/llvm-ranlib
+%endif
+	configure_wasi_libcxx() {
+		local triple="$1"
+		local destdir="$2"
+		local threads=OFF
+		local extra_cflags=""
+		if [[ "$triple" = *-threads ]]; then
+			threads=ON
+			extra_cflags="-pthread"
+		fi
+		cmake -S runtimes -B "$destdir" -G Ninja \
+			-DLLVM_ENABLE_RUNTIMES="libunwind;libcxx;libcxxabi" \
+			-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON \
+			-DCMAKE_BUILD_TYPE=MinSizeRel \
+			-DCMAKE_MODULE_PATH="$(pwd)/cmake" \
+			-DCMAKE_C_COMPILER="${WASI_CC}" \
+			-DCMAKE_CXX_COMPILER="${WASI_CXX}" \
+			-DCMAKE_ASM_COMPILER="${WASI_CC}" \
+			-DCMAKE_AR="${WASI_AR}" \
+			-DCMAKE_RANLIB="${WASI_RANLIB}" \
+			-DCMAKE_C_COMPILER_WORKS=ON \
+			-DCMAKE_CXX_COMPILER_WORKS=ON \
+			-DCMAKE_C_COMPILER_TARGET="$triple" \
+			-DCMAKE_CXX_COMPILER_TARGET="$triple" \
+			-DCMAKE_ASM_COMPILER_TARGET="$triple" \
+			-DCMAKE_C_FLAGS="-fno-exceptions --sysroot=%{wasi_sysroot} $extra_cflags" \
+			-DCMAKE_CXX_FLAGS="-fno-exceptions --sysroot=%{wasi_sysroot} $extra_cflags" \
+			-DCMAKE_SYSTEM_NAME=WASI \
+			-DCMAKE_SYSTEM_PROCESSOR=wasm32 \
+			-DCMAKE_SYSTEM_VERSION=1 \
+			-DCMAKE_STAGING_PREFIX=%{wasi_sysroot} \
+			-DCMAKE_SYSROOT=%{wasi_sysroot} \
+			-DLLVM_DEFAULT_TARGET_TRIPLE="$triple" \
+			-DLIBCXX_ABI_VERSION=2 \
+			-DLIBCXX_CXX_ABI=libcxxabi \
+			-DLIBCXX_ENABLE_EXCEPTIONS=OFF \
+			-DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=OFF \
+			-DLIBCXX_ENABLE_FILESYSTEM=OFF \
+			-DLIBCXX_ENABLE_SHARED=OFF \
+			-DLIBCXX_ENABLE_THREADS=$threads \
+			-DLIBCXX_HAS_EXTERNAL_THREAD_API=OFF \
+			-DLIBCXX_ENABLE_LOCALIZATION=OFF \
+			-DLIBCXX_HAS_MUSL_LIBC=OFF \
+			-DLIBCXX_HAS_PTHREAD_API=$threads \
+			-DLIBCXX_HAS_WIN32_THREAD_API=OFF \
+			-DLIBCXX_INCLUDE_TESTS=OFF \
+			-DLIBCXX_INCLUDE_BENCHMARKS=OFF \
+			-DLIBCXXABI_ENABLE_EXCEPTIONS=OFF \
+			-DLIBCXXABI_ENABLE_SHARED=OFF \
+			-DLIBCXXABI_ENABLE_THREADS=$threads \
+			-DLIBCXXABI_HAS_EXTERNAL_THREAD_API=OFF \
+			-DLIBCXXABI_HAS_PTHREAD_API=$threads \
+			-DLIBCXXABI_HAS_WIN32_THREAD_API=OFF \
+			-DLIBCXXABI_INCLUDE_TESTS=OFF \
+			-DLIBCXXABI_SILENT_TERMINATE=ON \
+			-DLIBCXXABI_USE_LLVM_UNWINDER=ON \
+			-DLIBUNWIND_ENABLE_SHARED=OFF \
+			-DLIBUNWIND_ENABLE_THREADS=$threads \
+			-DLIBUNWIND_USE_COMPILER_RT=ON \
+			-DLIBUNWIND_INCLUDE_TESTS=OFF \
+			-DUNIX=ON \
+			-DLIBCXX_INSTALL_INCLUDE_DIR=include/$triple/c++/v1 \
+			-DLIBCXX_INSTALL_INCLUDE_TARGET_DIR=include/$triple/c++/v1 \
+			-DLIBCXXABI_INSTALL_INCLUDE_DIR=include/$triple/c++/v1
+		ninja -C "$destdir"
+	}
+	configure_wasi_libcxx wasm32-wasip1 build-wasi-libcxx-p1
+	configure_wasi_libcxx wasm32-wasip1-threads build-wasi-libcxx-threads
+fi
+%endif
 %endif
 
 %if %{with compat32}
@@ -3108,6 +3288,24 @@ fi
 mv %{buildroot}%{_prefix}/lib/lua %{buildroot}%{_libdir}
 %endif
 
+%if %{with clang} && %{with wasi_libcxx}
+if [ -d build-wasi-libcxx-p1 ]; then
+	DESTDIR=%{buildroot} ninja -C build-wasi-libcxx-p1 install
+	DESTDIR=%{buildroot} ninja -C build-wasi-libcxx-threads install
+	# Per-target runtime dir may use the normalized wasm32-unknown-* triple
+	if [ -d %{buildroot}%{wasi_sysroot}/lib/wasm32-unknown-wasip1 ]; then
+		mkdir -p %{buildroot}%{wasi_sysroot}/lib/wasm32-wasip1
+		cp -a %{buildroot}%{wasi_sysroot}/lib/wasm32-unknown-wasip1/. \
+			%{buildroot}%{wasi_sysroot}/lib/wasm32-wasip1/
+	fi
+	if [ -d %{buildroot}%{wasi_sysroot}/lib/wasm32-unknown-wasip1-threads ]; then
+		mkdir -p %{buildroot}%{wasi_sysroot}/lib/wasm32-wasip1-threads
+		cp -a %{buildroot}%{wasi_sysroot}/lib/wasm32-unknown-wasip1-threads/. \
+			%{buildroot}%{wasi_sysroot}/lib/wasm32-wasip1-threads/
+	fi
+fi
+%endif
+
 # https://bugs.llvm.org/show_bug.cgi?id=42455
 cp lld/docs/ld.lld.1 %{buildroot}%{_mandir}/man1/
 
@@ -3274,6 +3472,35 @@ for arch in *-openmandriva-*; do
 	done
 done
 
+# WASI compiler-rt aliases: older wasm32-wasi / wasip2 triples share the
+# wasip1 ABI. clang's wasm driver still passes -lgcc unless --rtlib=compiler-rt.
+%if %{with clang}
+pushd %{buildroot}%{_libdir}/clang/%{major1}/lib
+if [ -d wasm32-unknown-wasip1 ]; then
+	ln -sfn wasm32-unknown-wasip1 wasm32-wasip1
+	ln -sfn wasm32-unknown-wasip1 wasm32-unknown-wasi
+	ln -sfn wasm32-unknown-wasip1 wasm32-unknown-wasip2
+	ln -sfn wasm32-unknown-wasip1 wasm32-wasi
+	ln -sfn libclang_rt.builtins.a wasm32-unknown-wasip1/libgcc.a
+elif [ -d wasm32-wasip1 ]; then
+	ln -sfn wasm32-wasip1 wasm32-unknown-wasip1
+	ln -sfn wasm32-wasip1 wasm32-unknown-wasi
+	ln -sfn wasm32-wasip1 wasm32-unknown-wasip2
+	ln -sfn wasm32-wasip1 wasm32-wasi
+	ln -sfn libclang_rt.builtins.a wasm32-wasip1/libgcc.a
+fi
+if [ -d wasm32-unknown-wasip1-threads ]; then
+	ln -sfn wasm32-unknown-wasip1-threads wasm32-wasip1-threads
+	ln -sfn wasm32-unknown-wasip1-threads wasm32-unknown-wasi-threads
+	ln -sfn libclang_rt.builtins.a wasm32-unknown-wasip1-threads/libgcc.a
+elif [ -d wasm32-wasip1-threads ]; then
+	ln -sfn wasm32-wasip1-threads wasm32-unknown-wasip1-threads
+	ln -sfn wasm32-wasip1-threads wasm32-unknown-wasi-threads
+	ln -sfn libclang_rt.builtins.a wasm32-wasip1-threads/libgcc.a
+fi
+popd
+%endif
+
 # Create the file list for clang dynamically so we can add the runtime libraries
 # including "alttargets" the same way we add them to the cross packages...
 cat >%{specpartsdir}/clang.specpart <<'EOF'
@@ -3400,13 +3627,29 @@ EOF
 	done
 done
 
-for triplet in %{cross_gpu_targets}; do
+WASI_TARGETS=""
+%if %{with clang}
+WASI_TARGETS="%{cross_wasi_targets}"
+%endif
+for triplet in %{cross_gpu_targets} $WASI_TARGETS; do
 	SPECPART=%{specpartsdir}/cross-$triplet-clang.specpart
+	SYSROOT=%{_prefix}/$triplet
 	cat >$SPECPART <<EOF
 %%package -n cross-$triplet-clang
 Summary:	Libraries and config files for crosscompiling to $triplet targets
 Group:		Development/Tools
 Requires:	clang = %{EVRD}
+EOF
+	# Old standalone wasi-compiler-rt shipped both triples as one noarch
+	# package. Obsoleting from the p1 package replaces it; wasi-libc
+	# Requires both cross-wasm32-*-clang packages.
+	if [[ "$triplet" == "wasm32-wasip1" ]]; then
+		cat >>$SPECPART <<EOF
+Obsoletes:	wasi-compiler-rt <= 23.1.0
+Provides:	wasi-compiler-rt = %{EVRD}
+EOF
+	fi
+	cat >>$SPECPART <<EOF
 
 %%description -n cross-$triplet-clang
 Libraries and config files for crosscompiling to $triplet targets
@@ -3414,17 +3657,89 @@ Libraries and config files for crosscompiling to $triplet targets
 %%files -n cross-$triplet-clang
 %%config %{_sysconfdir}/clang/$triplet.cfg
 EOF
-	# SPIR-V has no sysrooted libc/headers (libclc only under clang resource dir).
-	# AMDGCN/NVPTX may install GPU libc headers under $prefix/$triplet.
-	if compgen -G "%{buildroot}%{_prefix}/$triplet/lib*/*" >/dev/null; then
-		echo "%{_prefix}/$triplet/lib*/*" >>$SPECPART
+	if [[ "$triplet" != wasm32-* ]]; then
+		# SPIR-V has no sysrooted libc/headers (libclc only under clang resource dir).
+		# AMDGCN/NVPTX may install GPU libc headers under $prefix/$triplet.
+		if compgen -G "%{buildroot}%{_prefix}/$triplet/lib*/*" >/dev/null; then
+			echo "%{_prefix}/$triplet/lib*/*" >>$SPECPART
+		fi
+		if compgen -G "%{buildroot}%{_prefix}/$triplet/include/*" >/dev/null; then
+			echo "%{_prefix}/$triplet/include/*" >>$SPECPART
+		fi
 	fi
-	if compgen -G "%{buildroot}%{_prefix}/$triplet/include/*" >/dev/null; then
-		echo "%{_prefix}/$triplet/include/*" >>$SPECPART
-	fi
-	[[ -d %{buildroot}%{_libdir}/clang/%{major1}/lib/$triplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$triplet" >>$SPECPART
-	echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$triplet.cfg
+	[[ -e %{buildroot}%{_libdir}/clang/%{major1}/lib/$triplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$triplet" >>$SPECPART
+	echo "--sysroot $SYSROOT" >%{buildroot}%{_sysconfdir}/clang/$triplet.cfg
+	# Normalized / alias triples (wasm32-unknown-wasip1, older wasm32-wasi, …)
+	alttriplets=""
+	case "$triplet" in
+	wasm32-wasip1)
+		alttriplets="wasm32-unknown-wasip1 wasm32-unknown-wasi wasm32-unknown-wasip2 wasm32-wasi"
+		;;
+	wasm32-wasip1-threads)
+		alttriplets="wasm32-unknown-wasip1-threads wasm32-unknown-wasi-threads"
+		;;
+	esac
+	for alttriplet in $alttriplets; do
+		echo "--sysroot $SYSROOT" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+		echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
+		if [[ -e %{buildroot}%{_libdir}/clang/%{major1}/lib/$alttriplet ]]; then
+			echo "%{_libdir}/clang/%{major1}/lib/$alttriplet" >>$SPECPART
+		fi
+	done
 done
+
+%if %{with clang} && %{with wasi_libcxx}
+if [ -d %{buildroot}%{wasi_sysroot} ]; then
+	SPECPART=%{specpartsdir}/wasi-libcxx.specpart
+	cat >$SPECPART <<EOF
+%%package -n wasi-libcxx
+Epoch:		1
+Summary:	LLVM C++ standard library for WASI WebAssembly
+Group:		Development/C++
+Requires:	wasi-libc
+Requires:	cross-wasm32-wasip1-clang = %{EVRD}
+Requires:	cross-wasm32-wasip1-threads-clang = %{EVRD}
+Obsoletes:	wasi-libcxx <= 23.1.0
+Provides:	wasi-libcxx = %{EVRD}
+
+%%description -n wasi-libcxx
+libc++, libc++abi and libunwind built for wasm32-wasip1 and
+wasm32-wasip1-threads, installed into %{wasi_sysroot}.
+
+Exceptions, localization and filesystem support are disabled.
+Compile with -fno-exceptions (the wasm32-wasip1-clang++ wrapper
+from wasi-libc does this automatically).
+
+This subpackage replaces the former standalone wasi-libcxx
+source package, which duplicated the LLVM tarball.
+
+%%files -n wasi-libcxx
+%%license libcxx/LICENSE.TXT
+EOF
+	# Own only the C++ bits; wasi-libc owns libc.a / musl headers.
+	for path in \
+		%{wasi_sysroot}/include/c++ \
+		%{wasi_sysroot}/include/wasm32-wasip1/c++ \
+		%{wasi_sysroot}/include/wasm32-wasip1-threads/c++ \
+		%{wasi_sysroot}/include/wasm32-unknown-wasip1/c++ \
+		%{wasi_sysroot}/include/wasm32-unknown-wasip1-threads/c++ \
+		%{wasi_sysroot}/share/libc++ \
+		%{wasi_sysroot}/share/libcxx \
+		%{wasi_sysroot}/share/libc++abi \
+		%{wasi_sysroot}/share/libunwind; do
+		if [ -e %{buildroot}$path ]; then
+			echo "$path" >>$SPECPART
+		fi
+	done
+	for libdir in %{buildroot}%{wasi_sysroot}/lib/*; do
+		[ -d "$libdir" ] || continue
+		for f in "$libdir"/libc++* "$libdir"/libc++abi* "$libdir"/libunwind* "$libdir"/libc++experimental*; do
+			[ -e "$f" ] || continue
+			echo "$f" | sed -e 's,^%{buildroot},,' >>$SPECPART
+		done
+	done
+fi
+%endif
 %else
 # If we're not building Cross CRTs, we still need to package the native bits
 triplet=%{_target_platform}
