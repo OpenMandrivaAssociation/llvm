@@ -2731,7 +2731,7 @@ for triplet in %{cross_gpu_targets} $WASI_TARGETS; do
 	CROSSCRT_FLAGS+=("-DLIBOMPTARGET_BUILD_DEVICERTL_BCLIB:BOOL=ON")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_BAREMETAL_BUILD:BOOL=ON")
 done
-TARGETS="$(echo $TARGETS |cut -b2-)")
+TARGETS="$(echo $TARGETS |cut -b2-)"
 # Intentionally omit -DLLVM_BUILTIN_TARGETS (see comment above).
 CROSSCRT_FLAGS+=("-DLLVM_RUNTIME_TARGETS=$TARGETS")
 %endif
