@@ -166,11 +166,11 @@
 %define cross_cpu_targets armv7hnl aarch64 i686 loongarch64 ppc64 ppc64le riscv64 x86_64
 # libclc (OpenCL builtins) is GPU/SPIR-V only as of LLVM 23 — not a host runtime.
 # Keep these in sync with libclc/CMakeLists.txt LIBCLC_ARCHS_*.
-# Baremetal runtimes: GPU/SPIR-V (libclc + compiler-rt) and WASI (compiler-rt).
 # Keep GPU triples in sync with libclc/CMakeLists.txt LIBCLC_ARCHS_*.
 %define cross_gpu_targets amdgcn-amd-amdhsa nvptx64-nvidia-nvcl spirv32-unknown-unknown spirv64-unknown-unknown spirv32-unknown-vulkan spirv64-unknown-vulkan
-# WASI compiler-rt is the same baremetal builtins path. libc++ still needs
-# wasi-libc and is a separate post-build (installs into /usr/wasm32-wasip1).
+# WASI compiler-rt is an isolated cmake of compiler-rt after the main ninja
+# (LLVM_RUNTIME_TARGETS + CMAKE_SYSTEM_NAME=WASI dies in HandleLLVMOptions).
+# libc++ is a further post-build into /usr/wasm32-wasip1.
 %define cross_wasi_targets wasm32-wasip1 wasm32-wasip1-threads
 %define wasi_sysroot %{_prefix}/wasm32-wasip1
 # libc++ / libc++abi / libunwind for WASI. Needs wasi-libc's sysroot.
@@ -2523,42 +2523,30 @@ for arch in %{cross_cpu_targets}; do
 	done
 done
 %if %{with crosscrt}
-# Baremetal targets (GPU / SPIR-V / WASI). Shared: just-built clang, no
-# host sanitizers, STATIC_LIBRARY try_compile, compiler-rt builtins.
+# GPU / SPIR-V targets (libclc, GPU compiler-rt, offload device libs, …).
+# WASI compiler-rt is built separately after ninja (see wasi_compiler_rt).
 # Do NOT set LLVM_BUILTIN_TARGETS explicitly: when it is set, every runtime
 # target depends on builtins-${name}. SPIR-V cannot build compiler-rt builtins,
 # so we leave BUILTIN_TARGETS unset and let llvm/runtimes auto-infer builtins
 # only for targets whose RUNTIMES_* list includes compiler-rt.
-WASI_TARGETS=""
-%if %{with clang}
-WASI_TARGETS="%{cross_wasi_targets}"
-%endif
-for triplet in %{cross_gpu_targets} $WASI_TARGETS; do
+for triplet in %{cross_gpu_targets}; do
 	TARGETS="$TARGETS;$triplet"
+	XCFLAGS="-O2 -m64 -target $triplet -isysroot /usr/$triplet -nogpulib -ffreestanding -flto"
+	# Host-only runtimes out; libclc is GPU/SPIR-V only (enabled below).
+	XRUNTIMES="$(echo $RUNTIMES |sed -e 's,openmp;,,;s,libunwind;,,;s,;offload,,;s,;libsycl,,;s,flang-rt;,,;s,;orc-rt,,;s,libcxx;,,;s,libcxxabi;,,')"
 	IS_SPIRV=0
-	IS_WASI=0
-	if [[ "$triplet" == wasm32-* ]]; then
-		# No /usr/$triplet sysroot, no -m64 / -nogpulib / -flto.
-		IS_WASI=1
-		XCFLAGS="-O2 -target $triplet -ffreestanding -fno-exceptions"
-		XRUNTIMES="compiler-rt"
-	else
-		XCFLAGS="-O2 -m64 -target $triplet -isysroot /usr/$triplet -nogpulib -ffreestanding -flto"
-		# Host-only runtimes out; libclc is GPU/SPIR-V only (enabled below).
-		XRUNTIMES="$(echo $RUNTIMES |sed -e 's,openmp;,,;s,libunwind;,,;s,;offload,,;s,;libsycl,,;s,flang-rt;,,;s,;orc-rt,,;s,libcxx;,,;s,libcxxabi;,,')"
-		if [[ "$triplet" == nvptx64-* ]]; then
-			XCFLAGS="$XCFLAGS -march=sm_70 -nocudalib -nocudainc --cuda-device-only -Xclang -target-feature -Xclang +ptx63"
-			# Keep compiler-rt (for builtins inference) + libclc
-			XRUNTIMES="${XRUNTIMES};libclc"
-		elif [[ "$triplet" == amd* ]] || [[ "$triplet" == amdgcn* ]]; then
-			XCFLAGS="$XCFLAGS -march=gfx906"
-			XRUNTIMES="${XRUNTIMES};libclc"
-		elif [[ "$triplet" == spirv* ]]; then
-			# libclc only — must NOT list compiler-rt (avoids builtins-${triplet}).
-			IS_SPIRV=1
-			XRUNTIMES="libclc"
-			XCFLAGS="$XCFLAGS -Xclang -target-feature -Xclang +spirv1.6 -Xclang -target-feature -Xclang +PhysicalStorageBuffer64"
-		fi
+	if [[ "$triplet" == nvptx64-* ]]; then
+		XCFLAGS="$XCFLAGS -march=sm_70 -nocudalib -nocudainc --cuda-device-only -Xclang -target-feature -Xclang +ptx63"
+		# Keep compiler-rt (for builtins inference) + libclc
+		XRUNTIMES="${XRUNTIMES};libclc"
+	elif [[ "$triplet" == amd* ]] || [[ "$triplet" == amdgcn* ]]; then
+		XCFLAGS="$XCFLAGS -march=gfx906"
+		XRUNTIMES="${XRUNTIMES};libclc"
+	elif [[ "$triplet" == spirv* ]]; then
+		# libclc only — must NOT list compiler-rt (avoids builtins-${triplet}).
+		IS_SPIRV=1
+		XRUNTIMES="libclc"
+		XCFLAGS="$XCFLAGS -Xclang -target-feature -Xclang +spirv1.6 -Xclang -target-feature -Xclang +PhysicalStorageBuffer64"
 	fi
 %if %{cross_compiling}
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER=%{_bindir}/clang")
@@ -2586,10 +2574,8 @@ for triplet in %{cross_gpu_targets} $WASI_TARGETS; do
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_FLAGS_INIT=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_FLAGS_INIT=$XCFLAGS")
-	if [[ $IS_WASI -eq 0 ]]; then
-		# flang does not accept -isystem; GPU sysroot is /usr/$triplet.
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_Fortran_FLAGS=--no-default-config -isysroot /usr/$triplet")
-	fi
+	# flang does not accept -isystem; GPU sysroot is /usr/$triplet.
+	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_Fortran_FLAGS=--no-default-config -isysroot /usr/$triplet")
 	# Override host RPM optflags (e.g. -march=znver1) that otherwise leak into
 	# GPU LTO link lines (libm.bc etc.) and break AMDGPU target IDs.
 	# Also drop --cuda-device-only from *linker* flags: with it, clang never
@@ -2613,8 +2599,8 @@ for triplet in %{cross_gpu_targets} $WASI_TARGETS; do
 		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_BAREMETAL_BUILD:BOOL=ON")
 		continue
 	fi
-	# GPU and WASI: compiler-rt builtins only.
-	# Host-style profile/sanitizers need unistd.h and fail on baremetal.
+	# Real GPU targets: compiler-rt builtins only (+ freestanding C++/libc).
+	# Host-style profile/sanitizers need unistd.h and fail on baremetal GPU.
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_BUILTINS:BOOL=ON")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_CRT:BOOL=OFF")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_SANITIZERS:BOOL=OFF")
@@ -2627,73 +2613,15 @@ for triplet in %{cross_gpu_targets} $WASI_TARGETS; do
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_ORC:BOOL=OFF")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_SCUDO_STANDALONE:BOOL=OFF")
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_GWP_ASAN:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_LIBCXXABI_USE_LLVM_UNWINDER:BOOL=OFF")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSROOT=/usr/$triplet")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_FLAGS_INIT=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_FLAGS_INIT=$XCFLAGS")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
-	if [[ $IS_WASI -eq 1 ]]; then
-		# CMAKE_SYSTEM_NAME=WASI needs cmake/Platform/WASI.cmake.
-		# Do not set CMAKE_SYSROOT=/usr/$triplet here: builtins are
-		# freestanding, and do not enable GPU llvm-libc / libc++.
-%if %{cross_compiling}
-		WASI_AR=%{_bindir}/llvm-ar
-		WASI_RANLIB=%{_bindir}/llvm-ranlib
-		WASI_NM=%{_bindir}/llvm-nm
-		WASI_CC=%{_bindir}/clang
-%else
-		WASI_AR=${TOP}/build/bin/llvm-ar
-		WASI_RANLIB=${TOP}/build/bin/llvm-ranlib
-		WASI_NM=${TOP}/build/bin/llvm-nm
-		WASI_CC=${TOP}/build/bin/clang
-%endif
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_ASM_COMPILER=${WASI_CC}")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_ASM_COMPILER=${WASI_CC}")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_AR=${WASI_AR}")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_RANLIB=${WASI_RANLIB}")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_NM=${WASI_NM}")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_AR=${WASI_AR}")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_RANLIB=${WASI_RANLIB}")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_NM=${WASI_NM}")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER_TARGET=${triplet}")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER_TARGET=${triplet}")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_ASM_COMPILER_TARGET=${triplet}")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER_TARGET=${triplet}")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER_TARGET=${triplet}")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_ASM_COMPILER_TARGET=${triplet}")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_MODULE_PATH=${TOP}/cmake")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_MODULE_PATH=${TOP}/cmake")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_SYSTEM_NAME=WASI")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_SYSTEM_PROCESSOR=wasm32")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_SYSTEM_VERSION=1")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSTEM_NAME=WASI")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSTEM_PROCESSOR=wasm32")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSTEM_VERSION=1")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_ASM_FLAGS=$XCFLAGS")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_ASM_FLAGS=$XCFLAGS")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_COMPILER_WORKS=ON")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_COMPILER_WORKS=ON")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER_WORKS=ON")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER_WORKS=ON")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_C_LINKER_DEPFILE_SUPPORTED=OFF")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_CXX_LINKER_DEPFILE_SUPPORTED=OFF")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_Python3_EXECUTABLE=%{_bindir}/python")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BAREMETAL_BUILD:BOOL=ON")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_DEFAULT_TARGET_ONLY:BOOL=ON")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_HAS_FPIC_FLAG:BOOL=OFF")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_COMPILER_RT_BAREMETAL_BUILD:BOOL=ON")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_COMPILER_RT_DEFAULT_TARGET_ONLY:BOOL=ON")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_COMPILER_RT_HAS_FPIC_FLAG:BOOL=OFF")
-		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_BAREMETAL_BUILD:BOOL=ON")
-		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_LLVM_BAREMETAL_BUILD:BOOL=ON")
-		continue
-	fi
-	# Real GPU targets: freestanding C++ / llvm-libc on top of the builtins.
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_LIBCXXABI_USE_LLVM_UNWINDER:BOOL=OFF")
-	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SYSROOT=/usr/$triplet")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_EXE_LINKER_FLAGS=$XCFLAGS")
 	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_SHARED_LINKER_FLAGS=$XCFLAGS")
+	CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
 	# See libcxx/cmake/caches/AMDGPU.cmake and
 	# libcxx/cmake/caches/NVPTX.cmake in the source tree
 	CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBCXX_CXX_ABI=libcxxabi")
@@ -3020,6 +2948,75 @@ fi
 
 cd ..
 
+%if %{with clang}
+# Isolated WASI compiler-rt. cmake -S compiler-rt, not LLVM_RUNTIME_TARGETS:
+# HandleLLVMOptions rejects CMAKE_SYSTEM_NAME=WASI and the host runtime
+# list otherwise leaks into the wasm configure.
+%if %{cross_compiling}
+	WASI_CC=%{_bindir}/clang
+	WASI_CXX=%{_bindir}/clang++
+	WASI_AR=%{_bindir}/llvm-ar
+	WASI_RANLIB=%{_bindir}/llvm-ranlib
+%else
+	WASI_CC=${TOP}/build/bin/clang
+	WASI_CXX=${TOP}/build/bin/clang++
+	WASI_AR=${TOP}/build/bin/llvm-ar
+	WASI_RANLIB=${TOP}/build/bin/llvm-ranlib
+%endif
+	wasi_rt_resdir="%{_libdir}/clang/%{major1}"
+	wasi_rt_common=(
+		-G Ninja
+		-DCMAKE_MODULE_PATH="$(pwd)/cmake"
+		-DCMAKE_AR="${WASI_AR}"
+		-DCMAKE_RANLIB="${WASI_RANLIB}"
+		-DCMAKE_ASM_COMPILER="${WASI_CC}"
+		-DCMAKE_C_COMPILER="${WASI_CC}"
+		-DCMAKE_CXX_COMPILER="${WASI_CXX}"
+		-DCMAKE_C_COMPILER_WORKS=ON
+		-DCMAKE_CXX_COMPILER_WORKS=ON
+		-DCMAKE_C_FLAGS=-fno-exceptions
+		-DCMAKE_CXX_FLAGS=-fno-exceptions
+		-DCMAKE_C_LINKER_DEPFILE_SUPPORTED=OFF
+		-DCMAKE_CXX_LINKER_DEPFILE_SUPPORTED=OFF
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo
+		-DCMAKE_INSTALL_PREFIX=%{_prefix}
+		-DCMAKE_SYSTEM_NAME=WASI
+		-DCMAKE_SYSTEM_PROCESSOR=wasm32
+		-DCMAKE_SYSTEM_VERSION=1
+		-DCOMPILER_RT_BAREMETAL_BUILD=ON
+		-DCOMPILER_RT_BUILD_CTX_PROFILE=OFF
+		-DCOMPILER_RT_BUILD_GWP_ASAN=OFF
+		-DCOMPILER_RT_BUILD_LIBFUZZER=OFF
+		-DCOMPILER_RT_BUILD_MEMPROF=OFF
+		-DCOMPILER_RT_BUILD_ORC=OFF
+		-DCOMPILER_RT_BUILD_PROFILE=OFF
+		-DCOMPILER_RT_BUILD_SANITIZERS=OFF
+		-DCOMPILER_RT_BUILD_XRAY=OFF
+		-DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON
+		-DCOMPILER_RT_HAS_FPIC_FLAG=OFF
+		-DCOMPILER_RT_INCLUDE_TESTS=OFF
+		-DCOMPILER_RT_INSTALL_PATH="${wasi_rt_resdir}"
+		-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON
+	)
+	for wasi_triple in %{cross_wasi_targets}; do
+		wasi_bdir="build-wasi-rt-${wasi_triple}"
+		cmake -S compiler-rt -B "$wasi_bdir" \
+			"${wasi_rt_common[@]}" \
+			-DCMAKE_ASM_COMPILER_TARGET="$wasi_triple" \
+			-DCMAKE_C_COMPILER_TARGET="$wasi_triple" \
+			-DCMAKE_CXX_COMPILER_TARGET="$wasi_triple"
+		ninja -C "$wasi_bdir"
+		# Stage into the just-built clang resource dir so a later
+		# wasi_libcxx configure can find --rtlib=compiler-rt.
+		just_resdir="$("${WASI_CC}" --print-resource-dir)"
+		DESTDIR="${TOP}/wasi-rt-stage" ninja -C "$wasi_bdir" install
+		mkdir -p "${just_resdir}/lib"
+		if [ -d "${TOP}/wasi-rt-stage${wasi_rt_resdir}/lib" ]; then
+			cp -a "${TOP}/wasi-rt-stage${wasi_rt_resdir}/lib/." "${just_resdir}/lib/"
+		fi
+	done
+%endif
+
 %if %{with clang} && %{with wasi_libcxx}
 # libc++ for WASI installs into the wasi-libc sysroot, not clang's
 # resource dir, so it is not part of LLVM_RUNTIME_TARGETS (a failure
@@ -3286,6 +3283,14 @@ fi
 # FIXME this should be fixed properly, in the CMake files...
 # lldb's lua plugin gets installed to the wrong place.
 mv %{buildroot}%{_prefix}/lib/lua %{buildroot}%{_libdir}
+%endif
+
+%if %{with clang}
+if [ -d build-wasi-rt-wasm32-wasip1 ]; then
+	for wasi_triple in %{cross_wasi_targets}; do
+		DESTDIR=%{buildroot} ninja -C build-wasi-rt-${wasi_triple} install
+	done
+fi
 %endif
 
 %if %{with clang} && %{with wasi_libcxx}
