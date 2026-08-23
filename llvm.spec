@@ -3766,6 +3766,55 @@ for i in %{buildroot}%{_libdir}/clang/%{major1}/lib/*; do
 done
 unset triplet
 unset SPECPART
+# WASI compiler-rt is built even with --without crosscrt, and
+# DESTDIR-installs into clang's resource dir. Package it here so
+# those files are not unpackaged.
+%if %{with clang}
+mkdir -p %{buildroot}%{_sysconfdir}/clang
+for triplet in %{cross_wasi_targets}; do
+	SPECPART=%{specpartsdir}/cross-$triplet-clang.specpart
+	SYSROOT=%{_prefix}/$triplet
+	cat >$SPECPART <<EOF
+%%package -n cross-$triplet-clang
+Summary:	Libraries and config files for crosscompiling to $triplet targets
+Group:		Development/Tools
+Requires:	clang = %{EVRD}
+EOF
+	if [[ "$triplet" == "wasm32-wasip1" ]]; then
+		cat >>$SPECPART <<EOF
+Obsoletes:	wasi-compiler-rt <= 23.1.0
+Provides:	wasi-compiler-rt = %{EVRD}
+EOF
+	fi
+	cat >>$SPECPART <<EOF
+
+%%description -n cross-$triplet-clang
+Libraries and config files for crosscompiling to $triplet targets
+
+%%files -n cross-$triplet-clang
+%%dir %{_sysconfdir}/clang
+%%config %{_sysconfdir}/clang/$triplet.cfg
+EOF
+	[[ -e %{buildroot}%{_libdir}/clang/%{major1}/lib/$triplet ]] && echo "%{_libdir}/clang/%{major1}/lib/$triplet" >>$SPECPART
+	echo "--sysroot $SYSROOT" >%{buildroot}%{_sysconfdir}/clang/$triplet.cfg
+	alttriplets=""
+	case "$triplet" in
+	wasm32-wasip1)
+		alttriplets="wasm32-unknown-wasip1 wasm32-unknown-wasi wasm32-unknown-wasip2 wasm32-wasi"
+		;;
+	wasm32-wasip1-threads)
+		alttriplets="wasm32-unknown-wasip1-threads wasm32-unknown-wasi-threads"
+		;;
+	esac
+	for alttriplet in $alttriplets; do
+		echo "--sysroot $SYSROOT" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+		echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
+		if [[ -e %{buildroot}%{_libdir}/clang/%{major1}/lib/$alttriplet ]]; then
+			echo "%{_libdir}/clang/%{major1}/lib/$alttriplet" >>$SPECPART
+		fi
+	done
+done
+%endif
 %endif
 
 %if %{with flang}
