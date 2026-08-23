@@ -2259,8 +2259,8 @@ RUNTIMES="$RUNTIMES;compiler-rt"
 #RUNTIMES="$RUNTIMES;llvm-libgcc"
 %if %{with openmp}
 RUNTIMES="$RUNTIMES;offload"
-%endif
 RUNTIMES="$RUNTIMES;libsycl"
+%endif
 # orc-rt only supports x86_64 and aarch64 (ExecutorProcessInfo.cpp)
 %ifarch %{x86_64} %{aarch64}
 RUNTIMES="$RUNTIMES;orc-rt"
