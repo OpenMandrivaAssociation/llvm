@@ -3008,7 +3008,10 @@ cd ..
 		ninja -C "$wasi_bdir"
 		# Stage into the just-built clang resource dir so a later
 		# wasi_libcxx configure can find --rtlib=compiler-rt.
-		just_resdir="$("${WASI_CC}" --print-resource-dir)"
+		# Do not use ${WASI_CC} --print-resource-dir: when cross
+		# compiling, WASI_CC is the host clang and that path is
+		# /usr/lib64/clang/N (not writable in a bootstrap rpmbuild).
+		just_resdir="${TOP}/build/%{_lib}/clang/%{major1}"
 		DESTDIR="${TOP}/wasi-rt-stage" ninja -C "$wasi_bdir" install
 		mkdir -p "${just_resdir}/lib"
 		if [ -d "${TOP}/wasi-rt-stage${wasi_rt_resdir}/lib" ]; then
