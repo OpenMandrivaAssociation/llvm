@@ -387,6 +387,8 @@ BuildRequires:	chrpath
 BuildRequires:	groff
 BuildRequires:	pkgconfig(ncursesw)
 BuildRequires:	pkgconfig(valgrind)
+# llvm-exegesis hardware-counter analysis (no .pc file)
+BuildRequires:	%{_lib}pfm-devel
 BuildRequires:	python%{pyver}dist(numpy)
 BuildRequires:	python%{pyver}dist(nanobind)
 BuildRequires:	python-sphinx
@@ -2549,7 +2551,8 @@ export FC=%{_bindir}/flang
 # (incorrectly claiming the crosscompiler doesn't support -fuse-ld=lld)
 #
 # For new LLVM_EXPERIMENTAL_TARGETS_TO_BUILD, compare "ls llvm/lib/Target" to
-# the "set(LLVM_ALL_TARGETS" list in llvm/CMakeLists.txt
+# LLVM_ALL_TARGETS / LLVM_ALL_EXPERIMENTAL_TARGETS in llvm/CMakeLists.txt.
+# SPIRV and VE graduated to official targets in 23.1 (covered by "all").
 #
 # FIXME We set LLVM_SPIRV below because the just built llvm-spirv isn't detectable
 # because it doesn't exist at cmake time yet -- the drawback is that this breaks
@@ -2612,6 +2615,7 @@ export FC=%{_bindir}/flang
 %else
 	-DCLANG_ENABLE_CIR:BOOL=OFF \
 %endif
+	-DCLANG_ENABLE_HLSL:BOOL=ON \
 	-DCLANG_PYTHON_BINDINGS_VERSION=%{pyver} \
 	-DLLVM_ENABLE_CURL:BOOL=ON \
 %if %{with z3}
@@ -2689,7 +2693,9 @@ export FC=%{_bindir}/flang
 	-DLLVM_ENABLE_SPHINX:BOOL=ON \
 	-DSPHINX_WARNINGS_AS_ERRORS:BOOL=OFF \
 	-DLLVM_TARGETS_TO_BUILD=all \
-	-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="ARC;CSKY;M68k;SPIRV;Xtensa;DirectX;VE" \
+	-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="ARC;CSKY;M68k;Xtensa;DirectX" \
+	-DLLVM_ENABLE_LIBPFM:BOOL=ON \
+	-DLLVM_USE_PERF:BOOL=ON \
 	-DLLVM_ENABLE_CXX1Y:BOOL=ON \
 	-DLLVM_ENABLE_RTTI:BOOL=ON \
 	-DLLVM_ENABLE_PIC:BOOL=ON \
@@ -3003,7 +3009,10 @@ EOF
 	-DLIBXML2_LIBRARY:FILEPATH=%{_prefix}/lib/libxml2.so \
 	-DLLVM_ENABLE_FFI:BOOL=ON \
 	-DLLVM_TARGETS_TO_BUILD=all \
-	-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="ARC;CSKY;M68k;SPIRV;Xtensa;DirectX;VE" \
+	-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="ARC;CSKY;M68k;Xtensa;DirectX" \
+	-DLLVM_ENABLE_LIBPFM:BOOL=ON \
+	-DLLVM_USE_PERF:BOOL=ON \
+	-DCLANG_ENABLE_HLSL:BOOL=ON \
 	-DLLVM_ENABLE_CXX1Y:BOOL=ON \
 	-DLLVM_ENABLE_RTTI:BOOL=ON \
 	-DLLVM_ENABLE_PIC:BOOL=ON \
@@ -3353,6 +3362,7 @@ cat >%{specpartsdir}/clang.specpart <<'EOF'
 %{_bindir}/clang-%{major1}
 %{_bindir}/clang-offload-packager
 %{_bindir}/clang-cpp
+%{_bindir}/clang-dxc
 %{_libdir}/LLVMgold.so
 %if %{build_lto}
 %{_libdir}/bfd-plugins/LLVMgold.so
