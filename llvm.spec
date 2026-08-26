@@ -2782,6 +2782,53 @@ export FC=%{_bindir}/flang
 	-G Ninja \
 	../llvm
 
+# Host "default" compiler-rt builtins land in x86_64-pc-linux-gnu
+# (config.guess). Per-target runtimes invoke the just-built clang with
+# --target=x86_64-openmandriva-linux-gnu, which looks under that triple
+# for libclang_rt.builtins.a. Build builtins first, then create the same
+# aliases %install does so the openmandriva path exists in the build tree.
+%ninja_build builtins || :
+_clanglib=build/%{_lib}/clang/%{major1}/lib
+if [ -d "$_clanglib" ]; then
+	pushd "$_clanglib"
+	for pc in *-pc-linux-*; do
+		[[ -d $pc && ! -L $pc ]] || continue
+		om="${pc/-pc-/-openmandriva-}"
+		if [[ ! -e $om ]]; then
+			mv "$pc" "$om"
+			ln -sfn "$om" "$pc"
+		fi
+	done
+	for arch in *-openmandriva-*; do
+		[[ -d $arch && ! -L $arch ]] || continue
+		alts="${arch/-openmandriva-/-unknown-} ${arch/-openmandriva-/-}"
+		CPU="${arch/-*/}"
+		if [[ "$CPU" == x86_64 || "$CPU" == i?86 ]]; then
+			alts+=" ${arch/-openmandriva-/-pc-}"
+		fi
+		for alt in $alts; do
+			if [[ -L $alt ]]; then
+				continue
+			elif [[ -d $alt ]]; then
+				for f in "$alt"/*; do
+					[[ -e $f || -L $f ]] || continue
+					bn="$(basename "$f")"
+					if [[ -e $arch/$bn || -L $arch/$bn ]]; then
+						rm -rf "$f"
+					else
+						mv "$f" "$arch/"
+					fi
+				done
+				rm -rf "$alt"
+				ln -sfn "$arch" "$alt"
+			elif [[ ! -e $alt ]]; then
+				ln -sfn "$arch" "$alt"
+			fi
+		done
+	done
+	popd
+fi
+
 if ! %ninja_build; then
 	# With many threads, there's a chance of libc++ being built
 	# before libc++abi, causing linkage to fail. Simply trying
