@@ -2356,7 +2356,18 @@ for arch in %{cross_cpu_targets}; do
 		if [[ "$arch" == "loongarch64" ]]; then
 			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LIBOMP_OMPT_SUPPORT:BOOL=OFF")
 		fi
-		[[ "$XRUNTIMES" != "$RUNTIMES" ]] && CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_ENABLE_RUNTIMES=$XRUNTIMES")
+		# Always set this, including the native triple. llvm/runtimes only
+		# infers builtins-$triplet when RUNTIMES_*_LLVM_ENABLE_RUNTIMES
+		# lists compiler-rt. The "default" builtins land in
+		# x86_64-pc-linux-gnu; the just-built clang (now -rtlib=compiler-rt)
+		# looks under $triplet and fails cmake/link without this.
+		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_ENABLE_RUNTIMES=$XRUNTIMES")
+		if [[ "$triplet" == "%{_target_platform}" ]]; then
+			# Feature tests must not link: compiler-rt builtins for this
+			# triple are not installed until builtins-$triplet finishes.
+			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
+			CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
+		fi
 	done
 done
 %if %{with crosscrt}
