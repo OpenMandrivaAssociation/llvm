@@ -147,6 +147,9 @@
 # Prefer compiler-rt builtins over libgcc. Unwind stays libgcc
 # (see CLANG_DEFAULT_UNWINDLIB) for libstdc++ / foreign-binary compat.
 %bcond_without default_compilerrt
+# Try LLVM libunwind as the clang default instead of libgcc.
+# Off: 3rd-party/libstdc++ exception compatibility.
+%bcond_with default_libunwind
 
 # Clang's libLLVMgold.so shouldn't trigger devel(*) dependencies
 %define __requires_exclude 'devel.*'
@@ -868,7 +871,11 @@ Development files for libunwind.
 %files -n %{devunwind}
 %{_libdir}/libunwind.a
 %{_libdir}/libunwind.so
+%if %{with default_libunwind}
+%{_libdir}/pkgconfig/libunwind.pc
+%else
 %{_libdir}/pkgconfig/libunwind-llvm.pc
+%endif
 %{_includedir}/unwind.h
 %{_includedir}/libunwind.h
 %{_includedir}/__libunwind_config.h
@@ -1221,9 +1228,14 @@ Provides:	%{_bindir}/cc
 # TODO: is this requires:llvm needed, or just legacy from fedora pkg layout?
 Requires:	llvm%{?_isa} = %{EVRD}
 # Clang does not invoke gcc. It still scans the GCC install tree for
-# crtbegin and to locate libstdc++ headers. Unwind stays libgcc.
+# crtbegin and to locate libstdc++ headers. Unwind stays libgcc
+# unless --with default_libunwind.
 Requires:	%{_lib}gcc-devel >= %{gcc_version}
 Requires:	libstdc++-devel >= %{gcc_version}
+%if %{with unwind} && %{with default_libunwind}
+Requires:	%{_lib}unwind1.0 = %{EVRD}
+Requires:	%{devunwind} = %{EVRD}
+%endif
 %ifnarch %{riscv}
 %ifarch %{ix86}
 # Workaround for missing previous packaging change
@@ -2741,8 +2753,13 @@ export FC=%{_bindir}/flang
 %if %{with apidox}
 	-DLLVM_ENABLE_DOXYGEN:BOOL=ON \
 %endif
+%if %{with unwind} && %{with default_libunwind}
+	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON \
+	-DCLANG_DEFAULT_UNWINDLIB=libunwind \
+%else
 	-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=OFF \
 	-DCLANG_DEFAULT_UNWINDLIB=libgcc \
+%endif
 	-DBUILD_SHARED_LIBS:BOOL=OFF \
 	-DLLVM_BUILD_LLVM_DYLIB:BOOL=ON \
 	-DLLVM_LINK_LLVM_DYLIB:BOOL=ON \
@@ -2988,7 +3005,11 @@ EOF
 %else
 	-DCLANG_DEFAULT_RTLIB=libgcc \
 %endif
+%if %{with unwind} && %{with default_libunwind}
+	-DCLANG_DEFAULT_UNWINDLIB:STRING=libunwind \
+%else
 	-DCLANG_DEFAULT_UNWINDLIB:STRING=libgcc \
+%endif
 	-DLIBOMPTARGET_DEP_LIBFFI_LIBRARIES:FILEPATH=%{_prefix}/lib/libffi.so \
 	-Dpkgcfg_lib_LIBOMPTARGET_SEARCH_LIBFFI_ffi:FILEPATH=%{_prefix}/lib/libffi.so \
 	-DLIBXML2_LIBRARY:FILEPATH=%{_prefix}/lib/libxml2.so \
@@ -3034,7 +3055,11 @@ EOF
 	-DCMAKE_SHARED_LINKER_FLAGS="-L$(pwd)/lib" \
 	-DCMAKE_EXE_LINKER_FLAGS="-Wl,--disable-new-dtags,-rpath,$(pwd)/lib" \
 	-DLLVM_ENABLE_DOXYGEN:BOOL=OFF \
+%if %{with unwind} && %{with default_libunwind}
+	-DCLANG_DEFAULT_UNWINDLIB=libunwind \
+%else
 	-DCLANG_DEFAULT_UNWINDLIB=libgcc \
+%endif
 	-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=i686-openmandriva-linux-gnu \
 	-DLIBCXX_USE_COMPILER_RT:BOOL=OFF \
 	-DLIBCXXABI_USE_COMPILER_RT:BOOL=OFF \
@@ -3716,7 +3741,11 @@ fi
 # And move unwind.h to where gcc can see it as well
 mv %{buildroot}%{_libdir}/clang/%{major1}/include/unwind.h %{buildroot}%{_includedir}/
 mkdir -p %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_prefix}/lib/pkgconfig
+%if %{with default_libunwind}
+sed -e 's,@LIBDIR@,%{_libdir},g;s,@VERSION@,%{ver},g' %{S:50} >%{buildroot}%{_libdir}/pkgconfig/libunwind.pc
+%else
 sed -e 's,@LIBDIR@,%{_libdir},g;s,@VERSION@,%{ver},g' %{S:50} >%{buildroot}%{_libdir}/pkgconfig/libunwind-llvm.pc
+%endif
 %endif
 
 %if %{with apidocs}
