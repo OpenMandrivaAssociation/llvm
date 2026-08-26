@@ -464,9 +464,6 @@ BuildRequires:	%{_lib}ncurses6
 %if !%{with lld}
 BuildRequires:	lld < %{EVRD}
 %endif
-%if %{with openmp}
-Requires:	%{ompname} = %{EVRD}
-%endif
 %if %{with compat32}
 BuildRequires:	libc6
 BuildRequires:	devel(libffi)
@@ -701,7 +698,6 @@ for effective implementation, proper tail calls or garbage collection.
 # bugpoint removed in LLVM 23 (use llvm-reduce)
 %{_bindir}/count
 %{_bindir}/dsymutil
-%{_bindir}/git-clang-format
 %{_bindir}/llc
 %{_bindir}/lli
 %{_bindir}/lli-child-target
@@ -805,7 +801,6 @@ for effective implementation, proper tail calls or garbage collection.
 %{_bindir}/sanstats
 %{_bindir}/verify-uselistorder
 %{_bindir}/obj2yaml
-%{_bindir}/wasm-ld
 %{_bindir}/yaml2macho-core
 %{_bindir}/yaml2obj
 %{_bindir}/yaml-bench
@@ -1010,16 +1005,7 @@ Requires:	pkgconfig(zlib)
 # Required because of references in LLVMExports.cmake
 Requires:	llvm-mlir-tools = %{EVRD}
 %endif
-# Back to regular dependencies
-%if %{with openmp}
-Provides:	openmp-devel = %{EVRD}
-Requires:	%{ompname} = %{EVRD}
-%if "%{_lib}" == "lib64"
-Provides:	devel(libomp(64bit))
-%else
-Provides:	devel(libomp)
-%endif
-%endif
+# openmp-devel is %{libompdevel}, not this package
 
 %description -n %{devname}
 This package contains the development files for LLVM.
@@ -1310,10 +1296,10 @@ A various tools for LLVM/clang.
 %{_bindir}/clang-doc
 %{_bindir}/clang-extdef-mapping
 %{_bindir}/clang-format
+%{_bindir}/git-clang-format
 %{_bindir}/clang-include-cleaner
 %{_bindir}/clang-include-fixer
 %{_bindir}/clang-move
-%{_bindir}/clang-offload-bundler
 %{_bindir}/clang-query
 %{_bindir}/clang-refactor
 %{_bindir}/clang-repl
@@ -1350,7 +1336,6 @@ A various tools for LLVM/clang.
 Summary:	Development files for clang
 Group:		Development/Other
 Requires:	clang = %{EVRD}
-Requires:	clang-tools = %{EVRD}
 Provides:	clang-devel = %{EVRD}
 Conflicts:	llvm-devel < 3.1
 Obsoletes:	clang-devel < 3.1
@@ -1502,6 +1487,7 @@ The linker from the LLVM project.
 %{_bindir}/ld64.lld
 %{_bindir}/lld
 %{_bindir}/lld-link
+%{_bindir}/wasm-ld
 %{_bindir}/llvm-dlltool
 %{_bindir}/llvm-mt
 %doc %{_mandir}/man1/ld.lld.1*
@@ -1529,6 +1515,8 @@ writing lld plugins.
 %package -n python-clang
 Summary:	Python bindings to parts of the Clang library
 Group:		Development/Python
+# cindex.py ctypes-loads libclang.so, which is shipped in clang
+Requires:	clang = %{EVRD}
 
 %description -n python-clang
 Python bindings to parts of the Clang library
@@ -1567,6 +1555,13 @@ LLVM's version of libgomp (the GCC variant of OpenMP) (32-bit)
 %package -n %{libompdevel}
 Summary:	Development files for the OpenMP runtime
 Group:		Development/C
+Provides:	openmp-devel = %{EVRD}
+Requires:	%{ompname} = %{EVRD}
+%if "%{_lib}" == "lib64"
+Provides:	devel(libomp(64bit))
+%else
+Provides:	devel(libomp)
+%endif
 %if %{with compat32}
 # We no longer build the 32-bit version, because there are
 # no known 32-bit users of OpenMP
@@ -3367,6 +3362,7 @@ cat >%{specpartsdir}/clang.specpart <<'EOF'
 %{_bindir}/clang++
 %{_bindir}/clang-%{major1}
 %{_bindir}/clang-offload-packager
+%{_bindir}/clang-offload-bundler
 %{_bindir}/clang-cpp
 %{_bindir}/clang-dxc
 %{_libdir}/LLVMgold.so
@@ -3722,6 +3718,7 @@ cat >>$SPECPART <<EOF
 %%package -n %{flangdev}
 Summary:	Development files for Flang, the LLVM Fortran compiler
 Group:		Development/Fortran
+Requires:	flang = %{EVRD}
 
 %%description -n %{flangdev}
 Development files for Flang, the LLVM Fortran compiler.
