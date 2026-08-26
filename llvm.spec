@@ -1222,8 +1222,9 @@ Group:		Development/Other
 Provides:	%{_bindir}/cc
 # TODO: is this requires:llvm needed, or just legacy from fedora pkg layout?
 Requires:	llvm%{?_isa} = %{EVRD}
-# clang requires gcc, clang++ requires libstdc++-devel
-Requires:	gcc
+# Clang does not invoke gcc. It scans the GCC install tree for
+# crtbegin/libgcc.a while -rtlib=libgcc, and uses libstdc++ headers.
+Requires:	%{_lib}gcc-devel >= %{gcc_version}
 Requires:	libstdc++-devel >= %{gcc_version}
 %if %{with unwind} && %{with default_compilerrt}
 Requires:	%{_lib}unwind1.0 = %{EVRD}
