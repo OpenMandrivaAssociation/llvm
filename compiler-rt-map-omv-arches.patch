@@ -1,0 +1,24 @@
+diff -up llvm-project-llvmorg-23.1.0/compiler-rt/cmake/Modules/CompilerRTUtils.cmake.omv~ llvm-project-llvmorg-23.1.0/compiler-rt/cmake/Modules/CompilerRTUtils.cmake
+--- llvm-project-llvmorg-23.1.0/compiler-rt/cmake/Modules/CompilerRTUtils.cmake.omv~	2026-01-01 00:00:00.000000000 +0000
++++ llvm-project-llvmorg-23.1.0/compiler-rt/cmake/Modules/CompilerRTUtils.cmake	2026-08-27 00:00:00.000000000 +0000
+@@ -432,6 +432,20 @@ macro(construct_compiler_rt_default_trip
+     string(REPLACE "thumb" "arm" COMPILER_RT_DEFAULT_TARGET_ARCH "${COMPILER_RT_DEFAULT_TARGET_ARCH}")
+     set(COMPILER_RT_ARM_THUMB ON)
+   endif()
++
++  # Standalone builtins (llvm/runtimes builtins-$triple) never run the remap
++  # in compiler-rt/CMakeLists.txt. Without this, DEFAULT_TARGET_ONLY adds
++  # vendor arch names (armv7hnl, ppc64) that are not in ALL_BUILTIN_SUPPORTED_ARCH
++  # and no libclang_rt.builtins.a is produced.
++  if("${COMPILER_RT_DEFAULT_TARGET_TRIPLE}" MATCHES "hf$" AND
++     "${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "^arm")
++    set(COMPILER_RT_DEFAULT_TARGET_ARCH "armhf")
++  endif()
++  if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" STREQUAL "ppc64le")
++    set(COMPILER_RT_DEFAULT_TARGET_ARCH "powerpc64le")
++  elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" STREQUAL "ppc64")
++    set(COMPILER_RT_DEFAULT_TARGET_ARCH "powerpc64")
++  endif()
+ 
+   if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "amdgpu|amdgcn")
+     set(COMPILER_RT_TARGET_AMDGPU TRUE)

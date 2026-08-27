@@ -340,6 +340,8 @@ Patch64:	llvm-19-libc-aarch64-compile.patch
 Patch66:	orc-rt-native-dylib-optional-include.patch
 # Upstream typo: CoreTyspe.h vs CoreTypes.h breaks orc-rt header install
 Patch67:	orc-rt-coretypes-typo.patch
+# Standalone builtins-$triple does not remap armv7hnl/ppc64 to compiler-rt names
+Patch68:	compiler-rt-map-omv-arches.patch
 Patch70:	llvm-21.1-openmp-proc-bug146573.patch
 
 # Optimizations
@@ -2320,29 +2322,26 @@ for arch in %{cross_cpu_targets}; do
 			# /etc/clang/i686*.cfg (-isystem /usr/include) header order
 			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_LIBFUZZER:BOOL=OFF")
 		fi
-		# "Special" architectures that compiler-rt doesn't recognize as supported
-		if [[ "$abi" == musleabihf ]]; then
-			#CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_OS_DIR=linux")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_SUPPORTED_ARCH=armhf")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_DEFAULT_TARGET_ARCH=armhf")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_HAS_ARMHF_TARGET=ON")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_BUILTINS=ON")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_CAN_TARGET_armhf=ON")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CAN_TARGET_armhf=ON")
+		# compiler-rt's ALL_BUILTIN_SUPPORTED_ARCH uses armhf/powerpc64,
+		# not armv7hnl/ppc64. Set both RUNTIMES_ (sanitizers) and BUILTINS_
+		# (standalone builtins-$triplet — the archive libunwind links).
+		crtarch=; crthas=
+		if [[ "$abi" == *eabihf ]]; then
+			crtarch=armhf; crthas=ARMHF
 		elif [[ "$arch" == ppc64 ]]; then
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_SUPPORTED_ARCH=powerpc64")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_DEFAULT_TARGET_ARCH=powerpc64")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_HAS_POWERPC64_TARGET=ON")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_BUILTINS=ON")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_CAN_TARGET_powerpc64=ON")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CAN_TARGET_powerpc64=ON")
+			crtarch=powerpc64; crthas=POWERPC64
 		elif [[ "$arch" == ppc64le ]]; then
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_SUPPORTED_ARCH=powerpc64le")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_DEFAULT_TARGET_ARCH=powerpc64le")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_HAS_POWERPC64_TARGET=ON")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_BUILD_BUILTINS=ON")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_CAN_TARGET_powerpc64le=ON")
-			CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_CAN_TARGET_powerpc64le=ON")
+			crtarch=powerpc64le; crthas=POWERPC64
+		fi
+		if [[ -n "$crtarch" ]]; then
+			for prefix in RUNTIMES BUILTINS; do
+				CROSSCRT_FLAGS+=("-D${prefix}_${triplet}_COMPILER_RT_SUPPORTED_ARCH=$crtarch")
+				CROSSCRT_FLAGS+=("-D${prefix}_${triplet}_COMPILER_RT_DEFAULT_TARGET_ARCH=$crtarch")
+				CROSSCRT_FLAGS+=("-D${prefix}_${triplet}_COMPILER_RT_HAS_${crthas}_TARGET=ON")
+				CROSSCRT_FLAGS+=("-D${prefix}_${triplet}_COMPILER_RT_BUILD_BUILTINS=ON")
+				CROSSCRT_FLAGS+=("-D${prefix}_${triplet}_COMPILER_RT_CAN_TARGET_${crtarch}=ON")
+				CROSSCRT_FLAGS+=("-D${prefix}_${triplet}_CAN_TARGET_${crtarch}=ON")
+			done
 		fi
 		if [[ "$abi" == *musl* ]]; then
 			# libc currently clashes with musl because of its hardcodes
@@ -2358,9 +2357,9 @@ for arch in %{cross_cpu_targets}; do
 		fi
 		# Always set this, including the native triple. llvm/runtimes only
 		# infers builtins-$triplet when RUNTIMES_*_LLVM_ENABLE_RUNTIMES
-		# lists compiler-rt. The "default" builtins land in
-		# x86_64-pc-linux-gnu; the just-built clang (now -rtlib=compiler-rt)
-		# looks under $triplet and fails cmake/link without this.
+		# lists compiler-rt. That puts libclang_rt.builtins.a under the
+		# openmandriva triple the just-built clang looks for with
+		# -rtlib=compiler-rt (config.guess -pc- is only an alias).
 		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_LLVM_ENABLE_RUNTIMES=$XRUNTIMES")
 		if [[ "$triplet" == "%{_target_platform}" ]]; then
 			# Feature tests must not link: compiler-rt builtins for this
@@ -2782,11 +2781,10 @@ export FC=%{_bindir}/flang
 	-G Ninja \
 	../llvm
 
-# Host "default" compiler-rt builtins land in x86_64-pc-linux-gnu
-# (config.guess). Per-target runtimes invoke the just-built clang with
-# --target=x86_64-openmandriva-linux-gnu, which looks under that triple
-# for libclang_rt.builtins.a. Build builtins first, then create the same
-# aliases %install does so the openmandriva path exists in the build tree.
+# Per-target builtins land under the openmandriva triple; the host
+# "default" compiler-rt copy may also appear as x86_64-pc-linux-gnu
+# (config.guess). Build builtins first, then apply the same aliases
+# %install does so -pc-/-unknown- only symlink to openmandriva.
 %ninja_build builtins || :
 _clanglib=build/%{_lib}/clang/%{major1}/lib
 if [ -d "$_clanglib" ]; then
