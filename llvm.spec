@@ -3038,6 +3038,9 @@ EOF
 %if %{with compat32}
 # FIXME libc in LLVM_ENABLE_RUNTIMES breaks the build
 # FIXME -DLIBUNWIND_USE_COMPILER_RT:BOOL=ON breaks the build (adds -lNOTFOUND)
+# Toolchain file makes cmake treat this as a cross build. Reuse the
+# just-built 64-bit tblgens; a NATIVE host rebuild dies assembling
+# BLAKE3 x86-64 .S with clang (unknown target triple 'unknown').
 %cmake32 \
 	-DCMAKE_BUILD_TYPE=MinSizeRel \
 	-DLLVM_LIBGCC_EXPLICIT_OPT_IN=Yes \
@@ -3048,6 +3051,11 @@ EOF
 	-DLLVM_VERSION_SUFFIX="%{SOMINOR}" \
 	-DCMAKE_TOOLCHAIN_FILE="${TOP}/cmake-i686.toolchain" \
 	-DLLVM_CONFIG_PATH=$(pwd)/../build/bin/llvm-config \
+	-DLLVM_USE_HOST_TOOLS:BOOL=ON \
+	-DLLVM_NATIVE_TOOL_DIR=${TOP}/build/bin \
+	-DLLVM_TABLEGEN=${TOP}/build/bin/llvm-tblgen \
+	-DLLVM_MIN_TABLEGEN=${TOP}/build/bin/llvm-min-tblgen \
+	-DCLANG_TABLEGEN=${TOP}/build/bin/clang-tblgen \
 	-DLLVM_ENABLE_PROJECTS="llvm;clang;polly" \
 	-DLLVM_ENABLE_RUNTIMES="libunwind;compiler-rt;openmp" \
 	-DLLVM_ENABLE_NEW_PASS_MANAGER:BOOL=ON \
