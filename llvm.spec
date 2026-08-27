@@ -2696,6 +2696,13 @@ export FC=%{_bindir}/flang
 	-DCOMPILER_RT_BUILD_SANITIZERS:BOOL=OFF \
 	-DCOMPILER_RT_BUILD_PROFILE:BOOL=OFF \
 %endif
+%if %{cross_compiling}
+	-DCOMPILER_RT_BUILD_PROFILE_ROCM:BOOL=OFF \
+	-DCOMPILER_RT_BUILD_LIBFUZZER:BOOL=OFF \
+	-DCOMPILER_RT_BUILD_SANITIZERS:BOOL=OFF \
+	-DCOMPILER_RT_BUILD_PROFILE:BOOL=OFF \
+	-DCOMPILER_RT_BUILD_XRAY:BOOL=OFF \
+%endif
 %if %{with ffi}
 	-DLLVM_ENABLE_FFI:BOOL=ON \
 %else
@@ -2785,7 +2792,7 @@ export FC=%{_bindir}/flang
 # "default" compiler-rt copy may also appear as x86_64-pc-linux-gnu
 # (config.guess). Build builtins first, then apply the same aliases
 # %install does so -pc-/-unknown- only symlink to openmandriva.
-%ninja_build builtins || :
+cmake --build . --target builtins %{?_smp_mflags} || :
 _clanglib=build/%{_lib}/clang/%{major1}/lib
 if [ -d "$_clanglib" ]; then
 	pushd "$_clanglib"
@@ -2827,15 +2834,15 @@ if [ -d "$_clanglib" ]; then
 	popd
 fi
 
-if ! %ninja_build; then
+if ! cmake --build . %{?_smp_mflags}; then
 	# With many threads, there's a chance of libc++ being built
 	# before libc++abi, causing linkage to fail. Simply trying
 	# again "fixes" it.
 	# flang also seems to have SMP build issues...
-	if ! %ninja_build; then
+	if ! cmake --build . %{?_smp_mflags}; then
 		# So if it fails again, let's try the very
 		# conservative way
-		%ninja_build -j1
+		cmake --build . -j1
 	fi
 fi
 
@@ -3134,7 +3141,7 @@ EOF
 	-DSPIRV_WERROR:BOOL=OFF \
 	-G Ninja \
 	../llvm
-%ninja_build
+cmake --build . %{?_smp_mflags}
 cd ..
 %endif
 
@@ -3146,7 +3153,7 @@ export FC=%{_bindir}/flang
 %endif
 
 %if %{with compat32}
-%ninja_install -C build32
+DESTDIR=%{buildroot} cmake --install build32
 # Get rid of compat32 stuff that isn't needed in a 64-bit
 # environment
 rm -rf \
@@ -3157,7 +3164,9 @@ rm -rf \
     %{buildroot}%{_bindir}
 %endif
 
-%ninja_install -C build
+# cmake --build/--install: ninja install rebuilds ExternalProject
+# runtimes. cmake --install copies the already-built tree.
+DESTDIR=%{buildroot} cmake --install build
 
 # Without this, doxygen, kdevelop and other projects that do
 # find_package(Clang CONFIG REQUIRED)
