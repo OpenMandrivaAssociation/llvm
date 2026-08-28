@@ -486,6 +486,9 @@ BuildRequires:	pkgconfig(OpenCL)
 %endif
 %if %{with compat32} && ! %{with bootstrap32}
 BuildRequires:	devel(libOpenCL)
+# Host clang defaults to -rtlib=compiler-rt; cmake32's compiler check
+# links i686 libclang_rt.builtins.a from this package.
+BuildRequires:	cross-i686-openmandriva-linux-gnu-clang
 %endif
 %if %{with z3}
 BuildRequires:	pkgconfig(z3)
@@ -3010,21 +3013,20 @@ fi
 %if %{with compat32}
 TOP="$(pwd)"
 gccver="$(i686-openmandriva-linux-gnu-gcc --version |head -n1 |cut -d' ' -f3)"
-# Host clang defaults to -rtlib=compiler-rt. The ABF chroot has no
-# i686 libclang_rt.builtins.a (this box does, from a previous compat32
-# install, which is why the local build got past cmake's compiler check).
-# These wrappers are only the *build* compiler; CLANG_DEFAULT_RTLIB still
-# controls the packaged clang.
 cat >xc <<EOF
 #!/bin/sh
+%if %{with bootstrap32}
 exec %{_bindir}/clang --target=i686-openmandriva-linux-gnu --rtlib=libgcc --unwindlib=libgcc -m32 "\$@"
+%else
+exec %{_bindir}/clang --target=i686-openmandriva-linux-gnu -m32 "\$@"
+%endif
 EOF
 cat >xc++ <<EOF
 #!/bin/sh
 %if %{with bootstrap32}
 exec %{_bindir}/clang++ --target=i686-openmandriva-linux-gnu -std=gnu++17 --rtlib=libgcc --unwindlib=libgcc -m32 -isystem %{_includedir}/c++/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
 %else
-exec %{_bindir}/clang++ --target=i686-openmandriva-linux-gnu -std=gnu++17 --rtlib=libgcc --unwindlib=libgcc -m32 -isystem %{_includedir}/c++/${gccver}/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
+exec %{_bindir}/clang++ --target=i686-openmandriva-linux-gnu -std=gnu++17 -m32 -isystem %{_includedir}/c++/${gccver}/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
 %endif
 EOF
 chmod +x xc xc++
