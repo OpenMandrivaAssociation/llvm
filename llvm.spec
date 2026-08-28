@@ -2042,8 +2042,8 @@ git config user.name "OpenMandriva builder"
 git add * >/dev/null
 git commit --quiet -am "Fake commit to make cmake files happy"
 
-# Fix bogus permissions
-find . -type d -exec chmod 0755 {} \;
+# Fix bogus permissions (skip .git: find races git's loose object dirs)
+find . -name .git -prune -o -type d -exec chmod 0755 {} +
 
 # lldb pretends it requires exactly lua 5.3 -- but works fine with 5.4
 LUAVER="$(pkg-config --variable=V lua)"
@@ -3045,7 +3045,13 @@ EOF
 # Toolchain file makes cmake treat this as a cross build. Reuse the
 # just-built 64-bit tblgens; a NATIVE host rebuild dies assembling
 # BLAKE3 x86-64 .S with clang (unknown target triple 'unknown').
+# COMPILER_RT_DEFAULT_TARGET_ONLY uses CMAKE_C_COMPILER_TARGET from
+# the toolchain file; do not also pass COMPILER_RT_DEFAULT_TARGET_TRIPLE
+# (hard cmake error in CompilerRTUtils.cmake).
+# Same PCH trap as the 64-bit tree: once build32/lib/libLLVM.so exists,
+# /usr/bin/clang loads it and rejects PCHs stamped with the system clang.
 %cmake32 \
+	-DCMAKE_DISABLE_PRECOMPILE_HEADERS:BOOL=ON \
 	-DCMAKE_BUILD_TYPE=MinSizeRel \
 	-DLLVM_LIBGCC_EXPLICIT_OPT_IN=Yes \
 	-DFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON \
@@ -3130,7 +3136,6 @@ EOF
 %else
 	-DCLANG_DEFAULT_UNWINDLIB=libgcc \
 %endif
-	-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=i686-openmandriva-linux-gnu \
 	-DCOMPILER_RT_DEFAULT_TARGET_ONLY:BOOL=ON \
 	-DLIBCXX_USE_COMPILER_RT:BOOL=OFF \
 	-DLIBCXXABI_USE_COMPILER_RT:BOOL=OFF \
