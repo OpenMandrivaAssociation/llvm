@@ -3013,39 +3013,37 @@ fi
 %if %{with compat32}
 TOP="$(pwd)"
 gccver="$(i686-openmandriva-linux-gnu-gcc --version |head -n1 |cut -d' ' -f3)"
-# CMake 4.4's ASM rule uses `-target` (space) when it cannot detect
-# a clang version on this wrapper; compiler-rt FLAGS can also carry
-# an empty `--target=`. Last --target= wins, so append the i686
-# triple after "$@" or cc1as sees unknown and dies on i386/*.S.
 cat >xc <<EOF
 #!/bin/sh
 %if %{with bootstrap32}
-exec %{_bindir}/clang --target=i686-openmandriva-linux-gnu --rtlib=libgcc --unwindlib=libgcc -m32 "\$@" --target=i686-openmandriva-linux-gnu
+exec %{_bindir}/clang --target=i686-openmandriva-linux-gnu --rtlib=libgcc --unwindlib=libgcc -m32 "\$@"
 %else
-exec %{_bindir}/clang --target=i686-openmandriva-linux-gnu -m32 "\$@" --target=i686-openmandriva-linux-gnu
+exec %{_bindir}/clang --target=i686-openmandriva-linux-gnu -m32 "\$@"
 %endif
 EOF
 cat >xc++ <<EOF
 #!/bin/sh
 %if %{with bootstrap32}
-exec %{_bindir}/clang++ --target=i686-openmandriva-linux-gnu -std=gnu++17 --rtlib=libgcc --unwindlib=libgcc -m32 -isystem %{_includedir}/c++/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@" --target=i686-openmandriva-linux-gnu
+exec %{_bindir}/clang++ --target=i686-openmandriva-linux-gnu -std=gnu++17 --rtlib=libgcc --unwindlib=libgcc -m32 -isystem %{_includedir}/c++/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
 %else
-exec %{_bindir}/clang++ --target=i686-openmandriva-linux-gnu -std=gnu++17 -m32 -isystem %{_includedir}/c++/${gccver}/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@" --target=i686-openmandriva-linux-gnu
+exec %{_bindir}/clang++ --target=i686-openmandriva-linux-gnu -std=gnu++17 -m32 -isystem %{_includedir}/c++/${gccver}/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
 %endif
 EOF
 chmod +x xc xc++
+# Host clang via xc cannot assemble compiler-rt i386/*.S: CMake 4.4
+# does not version-detect the script, so the ASM rule is
+# `xc -target i686-...` plus LLVM's empty build32 -resource-dir, and
+# cc1as gets triple 'unknown'. The 64-bit tree already assembled
+# those files with the just-built clang; use that for ASM too.
 cat >cmake-i686.toolchain <<EOF
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR i686)
 set(CMAKE_C_COMPILER ${TOP}/xc)
 set(CMAKE_CXX_COMPILER ${TOP}/xc++)
-set(CMAKE_ASM_COMPILER ${TOP}/xc)
+set(CMAKE_ASM_COMPILER ${TOP}/build/bin/clang)
 set(CMAKE_C_COMPILER_TARGET i686-openmandriva-linux-gnu)
 set(CMAKE_CXX_COMPILER_TARGET i686-openmandriva-linux-gnu)
 set(CMAKE_ASM_COMPILER_TARGET i686-openmandriva-linux-gnu)
-# Match C's --target= form even if ASM clang version is undetected.
-set(CMAKE_ASM_COMPILE_OPTIONS_TARGET "--target=")
-set(CMAKE_ASM_FLAGS_INIT "--target=i686-openmandriva-linux-gnu")
 EOF
 %endif
 
