@@ -3029,18 +3029,44 @@ exec %{_bindir}/clang++ --target=i686-openmandriva-linux-gnu -std=gnu++17 --rtli
 exec %{_bindir}/clang++ --target=i686-openmandriva-linux-gnu -std=gnu++17 -m32 -isystem %{_includedir}/c++/${gccver}/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
 %endif
 EOF
-chmod +x xc xc++
-# Host clang via xc cannot assemble compiler-rt i386/*.S: CMake 4.4
-# does not version-detect the script, so the ASM rule is
-# `xc -target i686-...` plus LLVM's empty build32 -resource-dir, and
-# cc1as gets triple 'unknown'. The 64-bit tree already assembled
-# those files with the just-built clang; use that for ASM too.
+# The same ABF job already assembled these i386/*.S files with:
+#   build/bin/clang -target i686-openmandriva-linux-gnu --sysroot=/usr/i686-...
+# cmake32's builtins ExternalProject instead runs that through xc and
+# injects -resource-dir=build32/lib/clang/23 (still empty). Host and
+# just-built clang both accept -target and --target=; the failing
+# delta is that empty -resource-dir. Strip it and reuse the 64-bit
+# command that already worked.
+cat >xcasm <<EOF
+#!/bin/bash
+clang="${TOP}/build/bin/clang"
+args=()
+while [[ \$# -gt 0 ]]; do
+	case "\$1" in
+	--target=*|-m32|-m64) shift ;;
+	--target|-target)
+		shift
+		[[ \$# -gt 0 ]] && shift
+		;;
+	-resource-dir=*) shift ;;
+	-resource-dir)
+		shift
+		[[ \$# -gt 0 ]] && shift
+		;;
+	*)
+		args+=("\$1")
+		shift
+		;;
+	esac
+done
+exec "\$clang" --target=i686-openmandriva-linux-gnu --sysroot=/usr/i686-openmandriva-linux-gnu "\${args[@]}"
+EOF
+chmod +x xc xc++ xcasm
 cat >cmake-i686.toolchain <<EOF
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR i686)
 set(CMAKE_C_COMPILER ${TOP}/xc)
 set(CMAKE_CXX_COMPILER ${TOP}/xc++)
-set(CMAKE_ASM_COMPILER ${TOP}/build/bin/clang)
+set(CMAKE_ASM_COMPILER ${TOP}/xcasm)
 set(CMAKE_C_COMPILER_TARGET i686-openmandriva-linux-gnu)
 set(CMAKE_CXX_COMPILER_TARGET i686-openmandriva-linux-gnu)
 set(CMAKE_ASM_COMPILER_TARGET i686-openmandriva-linux-gnu)
