@@ -211,7 +211,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	1
+Release:	2
 %endif
 # Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
 # cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
@@ -3543,6 +3543,10 @@ for arch in %{cross_cpu_targets}; do
 Summary:	Libraries and config files for crosscompiling to $triplet targets
 Group:		Development/Tools
 Requires:	clang = %{EVRD}
+Requires:	cross-$triplet-libc
+# Target .so (asan, omp, …) would otherwise get host-colored ELF
+# Requires such as libgcc_s.so.1(GLIBC_2.0)(64bit). Same as cross-*-gcc.
+AutoReqProv:	no
 
 %%description -n cross-$triplet-clang
 Libraries and config files for crosscompiling to $triplet targets
@@ -3610,6 +3614,9 @@ for triplet in %{cross_gpu_targets} $WASI_TARGETS; do
 Summary:	Libraries and config files for crosscompiling to $triplet targets
 Group:		Development/Tools
 Requires:	clang = %{EVRD}
+# Target .so would otherwise get host-colored ELF Requires.
+# Same as cross-*-gcc.
+AutoReqProv:	no
 EOF
 	# Old standalone wasi-compiler-rt shipped both triples as one noarch
 	# package. Obsoleting from the p1 package replaces it; wasi-libc
@@ -3742,6 +3749,9 @@ for triplet in %{cross_wasi_targets}; do
 Summary:	Libraries and config files for crosscompiling to $triplet targets
 Group:		Development/Tools
 Requires:	clang = %{EVRD}
+# Target .so would otherwise get host-colored ELF Requires.
+# Same as cross-*-gcc.
+AutoReqProv:	no
 EOF
 	if [[ "$triplet" == "wasm32-wasip1" ]]; then
 		cat >>$SPECPART <<EOF
