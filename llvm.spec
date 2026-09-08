@@ -196,7 +196,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	23.1.0%{?relc:~%{relc}}
+Version:	23.1.1%{?relc:~%{relc}}
 %define ver %(echo %{version} |cut -d'~' -f1)
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
@@ -211,16 +211,16 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	2
+Release:	1
 %endif
 # Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
 # cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
 # overwrite it in %prep (newer headers are a superset).
-# Tools DEPS (glslang known_good Tools f589ef00…): 27009dcaecd266ea7fb969bca44ebc87dcdc6269
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/27009dcaecd266ea7fb969bca44ebc87dcdc6269.tar.gz
+# Tools DEPS (glslang known_good Tools 0db14571…): f0bf307f7c49d26484db596185cece53c37701fc
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/f0bf307f7c49d26484db596185cece53c37701fc.tar.gz
 # A known good commit for SPIRV-Tools is usually listed at
 # https://github.com/KhronosGroup/glslang/blob/main/known_good.json
-Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/f589ef005c49f6f19c8e78eb5269104ba293beb4.tar.gz
+Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/0db14571ad2dccdbcbec4f05e57a820e3a15c815.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
 # For compatibility with the nongnu.org libunwind
@@ -332,7 +332,7 @@ Patch61:	compiler-rt-no-Iusrinclude.patch
 Source62:	llvm-10-default-compiler-rt.patch
 Patch63:	llvm-19-float128-buildfix.patch
 Patch64:	llvm-19-libc-aarch64-compile.patch
-# Obsolete vs current SPIRV-Tools (f589ef00): UsesExplicitLayout is gone
+# Obsolete vs current SPIRV-Tools (0db14571): UsesExplicitLayout is gone
 # and remaining implicit-fallthroughs are handled by -DSPIRV_WERROR=OFF.
 #Patch65:	spirv-tools-compile.patch
 # orc-rt NativeDylibManager.h uses std::optional without including <optional>
@@ -3623,7 +3623,7 @@ EOF
 	# Requires both cross-wasm32-*-clang packages.
 	if [[ "$triplet" == "wasm32-wasip1" ]]; then
 		cat >>$SPECPART <<EOF
-Obsoletes:	wasi-compiler-rt <= 23.1.0
+Obsoletes:	wasi-compiler-rt <= 23.1.1
 Provides:	wasi-compiler-rt = %{EVRD}
 EOF
 	fi
@@ -3677,7 +3677,7 @@ Group:		Development/C++
 Requires:	wasi-libc
 Requires:	cross-wasm32-wasip1-clang = %{EVRD}
 Requires:	cross-wasm32-wasip1-threads-clang = %{EVRD}
-Obsoletes:	wasi-libcxx <= 23.1.0
+Obsoletes:	wasi-libcxx <= 23.1.1
 Provides:	wasi-libcxx = %{EVRD}
 
 %%description -n wasi-libcxx
@@ -3755,7 +3755,7 @@ AutoReqProv:	no
 EOF
 	if [[ "$triplet" == "wasm32-wasip1" ]]; then
 		cat >>$SPECPART <<EOF
-Obsoletes:	wasi-compiler-rt <= 23.1.0
+Obsoletes:	wasi-compiler-rt <= 23.1.1
 Provides:	wasi-compiler-rt = %{EVRD}
 EOF
 	fi
