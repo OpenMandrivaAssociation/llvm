@@ -211,7 +211,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	1
+Release:	2
 %endif
 # Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
 # cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
@@ -3533,10 +3533,22 @@ for arch in %{cross_cpu_targets}; do
 	esac
 	for abi in $abis; do
 		triplet=$arch-openmandriva-linux-$abi
+		# --sysroot for the dedicated cross tree. On x86_64, also
+		# -L/usr/lib and -isystem /usr/include so clang -m32 still
+		# finds native 32-bit compat libs and the shared /usr/include
+		# (--sysroot remaps both to $sysroot/usr/...). clang -m32
+		# loads i386-pc-linux-gnu.cfg (host vendor is "pc"), not
+		# i386-unknown-linux-gnu.cfg.
+		cfgopts="--sysroot %{_prefix}/$triplet"
+%ifarch %{x86_64}
+		if [[ "$arch" == i?86 && "$abi" == gnu ]]; then
+			cfgopts+=" -L/usr/lib -isystem /usr/include"
+		fi
+%endif
 		if [[ "$triplet" == "%{_target_platform}" ]]; then
 			SPECPART=%{specpartsdir}/clang.specpart
 		else
-			echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$triplet.cfg
+			echo "$cfgopts" >%{buildroot}%{_sysconfdir}/clang/$triplet.cfg
 			SPECPART=%{specpartsdir}/cross-$triplet-clang.specpart
 			cat >$SPECPART <<EOF
 %%package -n cross-$triplet-clang
@@ -3585,17 +3597,8 @@ EOF
 		fi
 		for alttriplet in $alttriplets; do
 			if [[ "$triplet" != "%{_target_platform}" ]]; then
-%ifarch %{x86_64}
-				# On x86_64, i386-pc-linux-* is "magic" because it is automatically implied
-				# for builds with plain -m32. On multiarch x86 boxes, for now we want to
-				# keep a shared /usr/include, so we don't sysroot that "magic" target
-				if [[ "$triplet" != "i386-pc-linux-%{_gnu}" ]]; then
-%endif
-					echo "--sysroot %{_prefix}/$triplet" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
-					echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
-%ifarch %{x86_64}
-				fi
-%endif
+				echo "$cfgopts" >%{buildroot}%{_sysconfdir}/clang/$alttriplet.cfg
+				echo "%%config %{_sysconfdir}/clang/$alttriplet.cfg" >>$SPECPART
 			fi
 			echo "%{_libdir}/clang/%{major1}/lib/$alttriplet" >>$SPECPART
 		done
