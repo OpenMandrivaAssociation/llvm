@@ -211,7 +211,7 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	2
+Release:	3
 %endif
 # Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
 # cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
@@ -2200,9 +2200,10 @@ for arch in %{cross_cpu_targets}; do
 		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_C_COMPILER=${TOP}/build/bin/clang")
 		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_CMAKE_CXX_COMPILER=${TOP}/build/bin/clang++")
 %endif
-		# Do not call libgcc's __*_frame_info from clang_rt.crtbegin.
-		# libstdc++ loads libgcc_s later; the weak lazy PLT then jumps
-		# to NULL at exit. Unwind finds frames via _dl_find_object.
+		# crtbegin is compiled by the per-target builtins build, which
+		# only forwards BUILTINS_* variables. The RUNTIMES_* and
+		# top-level COMPILER_RT_* settings never reach that compile.
+		CROSSCRT_FLAGS+=("-DBUILTINS_${triplet}_COMPILER_RT_CRT_USE_EH_FRAME_REGISTRY:BOOL=OFF")
 		CROSSCRT_FLAGS+=("-DRUNTIMES_${triplet}_COMPILER_RT_CRT_USE_EH_FRAME_REGISTRY:BOOL=OFF")
 %if %{with crosscrt}
 		TARGETS="$TARGETS;$triplet"
