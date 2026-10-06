@@ -196,7 +196,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	23.1.2%{?relc:~%{relc}}
+Version:	23.1.3%{?relc:~%{relc}}
 %define ver %(echo %{version} |cut -d'~' -f1)
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
@@ -211,13 +211,15 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	3
+Release:	1
 %endif
 # Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
 # cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
 # overwrite it in %prep (newer headers are a superset).
+# spirv-llvm-translator llvm_release_230 @ e65dde28
 # Tools DEPS (glslang known_good, SPIRV-Tools v2026.4.rc2 ef96ed76…):
 # 496543121ce6419f23d6fa5d7194ba66c36212d2
+# (13 commits newer than the translator pin 575b651)
 Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/496543121ce6419f23d6fa5d7194ba66c36212d2.tar.gz
 # A known good commit for SPIRV-Tools is usually listed at
 # https://github.com/KhronosGroup/glslang/blob/main/known_good.json
