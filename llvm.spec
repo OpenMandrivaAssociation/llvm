@@ -1125,6 +1125,9 @@ Provides:	libomp.so(VERSION)
 Obsoletes:	libomp < %{EVRD}
 Obsoletes:	libomp1 < %{EVRD}
 %endif
+# GCC owns the libgomp soname. The old subpackage only shipped a
+# symlink to libomp and did not provide that SONAME.
+Obsoletes:	llvm-libgomp < %{EVRD}
 
 %description -n %{ompname}
 Shared libraries for LLVM OpenMP support.
@@ -1535,16 +1538,6 @@ Python bindings to parts of the Clang library
 #-----------------------------------------------------------
 
 %if %{with openmp}
-%package libgomp
-Summary:	LLVM's version of libgomp (the GCC variant of OpenMP)
-Group:		System/Libraries
-
-%description libgomp
-LLVM's version of libgomp (the GCC variant of OpenMP)
-
-%files libgomp
-%{_libdir}/libgomp.so.1
-
 %if %{with compat32}
 %ifarch %{x86_64}
 %package libgomp32
@@ -3900,9 +3893,13 @@ rm -rf %{buildroot}%{_prefix}/python_packages
 # This seems to be a build system glitch
 rm -rf %{buildroot}%{_mandir}/man1/python.1*
 
-# We get libgomp from gcc, so don't symlink libomp to it
+# GCC owns the libgomp soname. LLVM only installs symlinks onto libomp,
+# and the versioned one collides with lib64gomp1. The i686 sysroot copies
+# stay packaged as llvm-libgomp32; cross sysroot copies stay excluded.
 rm -f %{buildroot}%{_libdir}/libgomp.so
+rm -f %{buildroot}%{_libdir}/libgomp.so.1
 rm -f %{buildroot}%{_prefix}/lib/libgomp.so
+rm -f %{buildroot}%{_prefix}/lib/libgomp.so.1
 
 # Not equally sure about this one... Are those object files installed on purpose?
 # Let's see if anything doesn't work if we don't package them...
