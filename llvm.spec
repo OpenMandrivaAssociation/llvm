@@ -196,7 +196,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	23.1.3%{?relc:~%{relc}}
+Version:	23.1.4%{?relc:~%{relc}}
 %define ver %(echo %{version} |cut -d'~' -f1)
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
@@ -211,12 +211,13 @@ Release:	0.%{gitdate}.1
 Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{?relc:-%{relc}}.tar.gz
 # llvm-spirv-translator and friends
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
-Release:	2
+Release:	1
 %endif
 # Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
 # cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
 # overwrite it in %prep (newer headers are a superset).
-# spirv-llvm-translator llvm_release_230 @ e65dde28
+# spirv-llvm-translator llvm_release_230 @ 8b89e5dece5a
+# (backport: emit FPFastMathMode for Call)
 # Tools DEPS (glslang known_good, SPIRV-Tools v2026.4.rc2 ef96ed76…):
 # 496543121ce6419f23d6fa5d7194ba66c36212d2
 # (13 commits newer than the translator pin 575b651)
@@ -288,8 +289,10 @@ Patch28:	lldb-lua-swig-4.1.patch
 Patch29:	compiler-rt-7.0.0-workaround-i386-build-failure.patch
 # http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-remove-lgcc-when-using-compiler-rt.patch
 # breaks exception handling -- removes gcc_eh
-Patch30:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.6-fix-unwind-chain-inclusion.patch
-Patch31:	http://git.alpinelinux.org/cgit/aports/plain/main/llvm/clang-3.5-fix-stdint.patch
+# Alpine cgit answers scripted fetches with a bot challenge. The same
+# patches are already in this repository.
+Patch30:	clang-3.6-fix-unwind-chain-inclusion.patch
+Patch31:	clang-3.5-fix-stdint.patch
 # Fix detecting armv7hnl targets (without this, they're treated as armv6)
 Patch32:	llvm-21.1.8-armv7hnl-triple.patch
 Patch33:	llvm-sanitizers-stat64-musl.patch
