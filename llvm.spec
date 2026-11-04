@@ -3042,6 +3042,10 @@ TOP="$(pwd)"
 gccver="$(i686-openmandriva-linux-gnu-gcc --version |head -n1 |cut -d' ' -f3)"
 cat >xc <<EOF
 #!/bin/sh
+# System clang must not load the just-built libLLVM via LD_LIBRARY_PATH.
+# That mix fails i686 executable link tests (znver1 685227: libunwind
+# reports -fno-exceptions unsupported because the link, not the flag, failed).
+unset LD_LIBRARY_PATH
 %if %{with bootstrap32}
 exec %{_bindir}/clang --target=i686-openmandriva-linux-gnu --rtlib=libgcc --unwindlib=libgcc -m32 "\$@"
 %else
@@ -3050,6 +3054,7 @@ exec %{_bindir}/clang --target=i686-openmandriva-linux-gnu -m32 "\$@"
 EOF
 cat >xc++ <<EOF
 #!/bin/sh
+unset LD_LIBRARY_PATH
 %if %{with bootstrap32}
 exec %{_bindir}/clang++ --target=i686-openmandriva-linux-gnu -std=gnu++17 --rtlib=libgcc --unwindlib=libgcc -m32 -isystem %{_includedir}/c++/x86_64-openmandriva-linux-gnu/32 -isystem $TOP/pstl/include -isystem $TOP/build32/runtimes/runtimes-bins/pstl/generated_headers "\$@"
 %else
