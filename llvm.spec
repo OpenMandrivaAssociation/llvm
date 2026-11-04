@@ -196,7 +196,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	23.1.4%{?relc:~%{relc}}
+Version:	23.1.5%{?relc:~%{relc}}
 %define ver %(echo %{version} |cut -d'~' -f1)
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
@@ -213,15 +213,15 @@ Source0:	https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-%{ver}%{
 Source20:	https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/heads/%{?spirv_is_main:master}%{!?spirv_is_main:llvm_release_%{major1}0}.tar.gz#/spirv-llvm-translator-%{ver}.tar.gz
 Release:	1
 %endif
-# Prefer the SPIRV-Headers revision from SPIRV-Tools/DEPS so Tools builds
-# cleanly. Translator's spirv-headers-tag.conf is often slightly older; we
-# overwrite it in %prep (newer headers are a superset).
-# spirv-llvm-translator llvm_release_230 @ 8b89e5dece5a
-# (backport: emit FPFastMathMode for Call)
-# Tools DEPS (glslang known_good, SPIRV-Tools v2026.4.rc2 ef96ed76…):
-# 496543121ce6419f23d6fa5d7194ba66c36212d2
-# (13 commits newer than the translator pin 575b651)
-Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/496543121ce6419f23d6fa5d7194ba66c36212d2.tar.gz
+# SPIRV-Headers: ship the newer of the SPIRV-Tools/DEPS pin and the
+# translator spirv-headers-tag.conf. Newer headers are a superset, and
+# %prep overwrites the translator conf when Source21 differs.
+# spirv-llvm-translator llvm_release_230 @ db5855d76a0f
+# (backports: memset translation, SPV_INTEL_subgroup_bitcast_shuffle)
+# Tools DEPS (glslang known_good, SPIRV-Tools v2026.4.rc2 ef96ed76) still
+# pins headers 49654312. The translator now needs cb42dec, 5 commits newer,
+# for SPV_INTEL_subgroup_bitcast_shuffle. Ship that superset.
+Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/cb42dec3830d3ac67fa449ecdc0c0f73d5e74498.tar.gz
 # A known good commit for SPIRV-Tools is usually listed at
 # https://github.com/KhronosGroup/glslang/blob/main/known_good.json
 # v2026.4.rc2
@@ -2015,8 +2015,8 @@ Libc implementation from the LLVM project
 %setup -q -n llvm-project-llvmorg-%{ver}%{?relc:-%{relc}} -a 20 -a 21 -a 22
 %endif
 mv SPIRV-LLVM-Translator-* llvm/projects/SPIRV-LLVM-Translator
-# Translator pins a headers commit that may lag SPIRV-Tools/DEPS. Prefer the
-# Tools-matched headers we ship as Source21 (superset) so both build.
+# Translator pins a headers commit that may differ from Source21. Prefer the
+# headers we ship (the newer superset) so both the translator and Tools build.
 SHIPPED_SPIRV_HEADERS_VERSION="$(basename %{S:21} .tar.gz)"
 TRANSLATOR_SPIRV_HEADERS_VERSION="$(cat llvm/projects/SPIRV-LLVM-Translator/spirv-headers-tag.conf)"
 if [[ "${SHIPPED_SPIRV_HEADERS_VERSION}" != "${TRANSLATOR_SPIRV_HEADERS_VERSION}" ]]; then
