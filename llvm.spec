@@ -2528,20 +2528,6 @@ BINDIR=${TOP}/build/bin
 # The build process tries to use the just built
 # libLLVM*.so / libMLIR*.so (lib) and libMLIRPythonSupport-mlir.so (_mlir_libs)
 export LD_LIBRARY_PATH=${TOP}/build/%{_lib}:${TOP}/build/tools/mlir/python_packages/mlir_core/mlir/_mlir_libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-# Host ld.lld is itself linked to libLLVM.so.%{major}. Once the just-built
-# library exists, the dynamic loader prefers it and the host linker crashes
-# (23.1.4 ld.lld loading 23.1.5 libLLVM; aarch64 685214, including -j1).
-# Just-built clang resolves ld.lld next to itself, so this wrapper only
-# affects the host toolchain.
-if [[ ! -x /usr/bin/ld.lld.omv-real ]]; then
-	mv /usr/bin/ld.lld /usr/bin/ld.lld.omv-real
-	cat > /usr/bin/ld.lld << 'EOF'
-#!/bin/sh
-unset LD_LIBRARY_PATH
-exec /usr/bin/ld.lld.omv-real "$@"
-EOF
-	chmod 0755 /usr/bin/ld.lld
-fi
 
 %if %{cross_compiling}
 gccver="$(%{_target_platform}-gcc --version |head -n1 |cut -d' ' -f3)"
@@ -2614,6 +2600,27 @@ export FC=%{_bindir}/flang
 # rejects earlier PCH stamped with the system libs ("different branch").
 # CMAKE_DISABLE_PRECOMPILE_HEADERS applies only to this configure; runtime
 # ExternalProjects (just-built clang) do not inherit it and may still use PCH.
+# Host clang and ld.lld are linked to libLLVM.so.%{major}. With
+# LD_LIBRARY_PATH set they load the just-built library, and the 23.1.4
+# linker crashes (aarch64 685214, including -j1). Replacing /usr/bin/ld.lld
+# is not allowed for the build user (x86_64 685222). These wrappers drop
+# LD_LIBRARY_PATH for the host compiler and the linker it spawns.
+# Just-built clang is build/bin/clang and is not affected.
+# %set_build_flags keeps a CC/CXX that is already set.
+mkdir -p "${TOP}/host-toolchain"
+cat > "${TOP}/host-toolchain/clang" << 'EOF'
+#!/bin/sh
+unset LD_LIBRARY_PATH
+exec /usr/bin/clang "$@"
+EOF
+cat > "${TOP}/host-toolchain/clang++" << 'EOF'
+#!/bin/sh
+unset LD_LIBRARY_PATH
+exec /usr/bin/clang++ "$@"
+EOF
+chmod 0755 "${TOP}/host-toolchain/clang" "${TOP}/host-toolchain/clang++"
+export CC="${TOP}/host-toolchain/clang"
+export CXX="${TOP}/host-toolchain/clang++"
 %cmake \
 	-DCMAKE_DISABLE_PRECOMPILE_HEADERS:BOOL=ON \
 %if %{cross_compiling}
