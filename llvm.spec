@@ -2606,7 +2606,7 @@ export FC=%{_bindir}/flang
 # is not allowed for the build user (x86_64 685222). These wrappers drop
 # LD_LIBRARY_PATH for the host compiler and the linker it spawns.
 # Just-built clang is build/bin/clang and is not affected.
-# %set_build_flags keeps a CC/CXX that is already set.
+# The cmake build-flags macro keeps a CC/CXX that is already set.
 mkdir -p "${TOP}/host-toolchain"
 cat > "${TOP}/host-toolchain/clang" << 'EOF'
 #!/bin/sh
