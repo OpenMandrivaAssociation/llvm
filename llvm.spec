@@ -2528,6 +2528,20 @@ BINDIR=${TOP}/build/bin
 # The build process tries to use the just built
 # libLLVM*.so / libMLIR*.so (lib) and libMLIRPythonSupport-mlir.so (_mlir_libs)
 export LD_LIBRARY_PATH=${TOP}/build/%{_lib}:${TOP}/build/tools/mlir/python_packages/mlir_core/mlir/_mlir_libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+# Host ld.lld is itself linked to libLLVM.so.%{major}. Once the just-built
+# library exists, the dynamic loader prefers it and the host linker crashes
+# (23.1.4 ld.lld loading 23.1.5 libLLVM; aarch64 685214, including -j1).
+# Just-built clang resolves ld.lld next to itself, so this wrapper only
+# affects the host toolchain.
+if [[ ! -x /usr/bin/ld.lld.omv-real ]]; then
+	mv /usr/bin/ld.lld /usr/bin/ld.lld.omv-real
+	cat > /usr/bin/ld.lld << 'EOF'
+#!/bin/sh
+unset LD_LIBRARY_PATH
+exec /usr/bin/ld.lld.omv-real "$@"
+EOF
+	chmod 0755 /usr/bin/ld.lld
+fi
 
 %if %{cross_compiling}
 gccver="$(%{_target_platform}-gcc --version |head -n1 |cut -d' ' -f3)"
