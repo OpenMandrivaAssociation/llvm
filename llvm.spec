@@ -196,7 +196,7 @@
 
 Summary:	Low Level Virtual Machine (LLVM)
 Name:		llvm
-Version:	23.1.5%{?relc:~%{relc}}
+Version:	23.1.6%{?relc:~%{relc}}
 %define ver %(echo %{version} |cut -d'~' -f1)
 License:	Apache 2.0 with linking exception
 Group:		Development/Other
@@ -216,15 +216,17 @@ Release:	1
 # SPIRV-Headers: ship the newer of the SPIRV-Tools/DEPS pin and the
 # translator spirv-headers-tag.conf. Newer headers are a superset, and
 # %prep overwrites the translator conf when Source21 differs.
-# spirv-llvm-translator llvm_release_230 @ db5855d76a0f
-# (backports: memset translation, SPV_INTEL_subgroup_bitcast_shuffle)
-# Tools DEPS (glslang known_good, SPIRV-Tools v2026.4.rc2 ef96ed76) still
-# pins headers 49654312. The translator now needs cb42dec, 5 commits newer,
-# for SPV_INTEL_subgroup_bitcast_shuffle. Ship that superset.
+# spirv-llvm-translator llvm_release_230 @ 1ee3ded1f308
+# (backport: OpBranchConditional branch weights; headers pin still cb42dec)
+# Tools stay on SPIRV-Tools v2026.4 (ef96ed76, same commit as v2026.4.rc2
+# and vulkan-sdk-1.4.363.0). That DEPS pin is still headers 49654312.
+# The translator needs cb42dec for SPV_INTEL_subgroup_bitcast_shuffle.
+# glslang known_good has moved to untagged 251c437 (headers 86f980c, one
+# commit past cb42dec). Stay on the v2026.4 release.
 Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/cb42dec3830d3ac67fa449ecdc0c0f73d5e74498.tar.gz
 # A known good commit for SPIRV-Tools is usually listed at
 # https://github.com/KhronosGroup/glslang/blob/main/known_good.json
-# v2026.4.rc2
+# v2026.4 (ef96ed76). known_good is now untagged 251c437 on main.
 Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/ef96ed763b43b59b33b31b362f09a02b729fa1c9.tar.gz
 #Source21:	https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/heads/main.tar.gz
 #Source22:	https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v2023.2.tar.gz
